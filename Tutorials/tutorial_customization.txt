@@ -1,0 +1,89 @@
+### 1. Install Termux
+- Download the F-Droid app store from its official website.
+- Open the F-Droid app and search for **Termux**.
+- Install **Termux** from the F-Droid store.
+
+### 2. Grant Storage Access to Termux
+- Open the **Termux** app.
+- Run the command:
+  ```bash
+  termux-setup-storage
+  ```
+- This command will allow **Termux** to access your device's storage.
+
+### 3. Update Termux
+- In the **Termux** terminal, run the command:
+  ```bash
+  pkg update && pkg upgrade
+  ```
+- This ensures that all packages are up to date.
+
+### 4. Install Python
+- Type the following command to install Python:
+  ```bash
+  pkg install python
+  ```
+
+### 5. Create a Folder for the Project
+- Create a new directory named **Customization** in your home directory:
+  ```bash
+  mkdir ~/Customization
+  ```
+- Change to that directory with:
+  ```bash
+  cd ~/Customization
+  ```
+
+### 6. Create the Python Script
+- Use a text editor (like `nano`) to create a new file called `customization.py`:
+  ```bash
+  nano customization.py
+  ```
+- Paste the provided Python code into the editor.
+- Save the file and exit the text editor by pressing `CTRL + X`, then `Y`, and `ENTER`.
+
+### 7. Run the Program
+- Start the program by typing:
+  ```bash
+  python customization.py
+  ```
+- The program will remove the existing **motd** (message of the day) file and create a new one with custom ASCII art. It will also modify the **bash.bashrc** file to customize the command prompt.
+
+### 8. Verify Changes
+
+#### **Check the ASCII Art (motd)**
+- After running the script, restart **Termux** or open a new session to see the custom ASCII art when you start the terminal.
+  
+  The **motd** should display something like:
+  ```
+    ___         _ ___           _ _ ___ _ 
+   |   \ ___ __| / __| ___ __  / / |_  ) |
+   | |) / -_) _` \__ \/ -_) _| | | |/ /| |
+   |___/\___\__,_|___/\___\__| |_|_/___|_|
+  ```
+
+#### **Check the Customized Command Prompt**
+- After restarting the terminal or starting a new session, your command prompt should look like this:
+  ```
+  🌐 Tue Oct 15 ⏰ 14:32 💻 dedsec1121fk 📂 ~ :
+  ```
+  - The prompt shows the current date, time, username (dedsec1121fk), and the current working directory (`~` for the home directory).
+
+### 9. Modify the Customization
+
+- If you want to further modify the ASCII art or the prompt style:
+  - **Modify ASCII Art**: Edit the `modify_motd()` function to change the design of the ASCII art.
+  - **Modify the Prompt**: Update the `new_ps1` line in the `modify_bashrc()` function to customize the prompt style, adding new symbols or colors.
+
+### 10. Stop and Revert Changes
+- To remove the customizations and revert to the default settings, you can manually restore the original **motd** and **bash.bashrc** files by editing them or replacing them with backups.
+
+These tools should not be used to infringe upon the privacy of others, to engage in unauthorized surveillance, or to access, collect, or store personal information without explicit consent. Unauthorized access to systems, networks, or personal data is strictly prohibited by law, and users must ensure they have proper authorization before using these tools in any environment.
+
+The developers of these tools are not responsible for any misuse or illegal activity conducted with the software. Any demonstrations involving simulated attacks, phishing, or data collection must be performed in a controlled, ethical, and legal manner, with prior permission from all participants involved. 
+
+The tools are provided "as is," without warranties or guarantees of any kind, either express or implied. The developers disclaim all liability for damages resulting from the use, misuse, or inability to use the software. This includes, but is not limited to, loss of data, unauthorized access to systems, or any other direct or indirect consequences.
+
+By downloading, installing, or using any of the DedSec tools, users acknowledge that they understand and agree to abide by this disclaimer. They also accept full responsibility for the consequences of their actions and agree to hold the developers harmless from any legal claims or damages that may arise from their use of the tools.
+
+Users are strongly encouraged to seek legal advice if they are unsure of the legal implications of their intended use. The tools are designed for ethical hacking and educational purposes only.

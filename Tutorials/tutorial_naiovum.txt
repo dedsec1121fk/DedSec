@@ -1,0 +1,103 @@
+### 1. Install Termux
+- Download the F-Droid app store from its official website.
+- Open the F-Droid app and search for **Termux**.
+- Install **Termux** from the F-Droid store.
+
+### 2. Grant Storage Access to Termux
+- Open **Termux** and run:
+  ```bash
+  termux-setup-storage
+  ```
+- This command grants Termux access to your device's storage.
+
+### 3. Update Termux
+- In the **Termux** terminal, update your system with:
+  ```bash
+  pkg update && pkg upgrade
+  ```
+
+### 4. Install Python
+- Install Python by running the command:
+  ```bash
+  pkg install python
+  ```
+
+### 5. Create a Folder for the Project
+- Create a new directory for your **NAIOVUM** project:
+  ```bash
+  mkdir ~/NAIOVUM
+  ```
+- Change to that directory:
+  ```bash
+  cd ~/NAIOVUM
+  ```
+
+### 6. Create the Python Script
+- Use a text editor, such as `nano`, to create the file `NAIOVUM.py`:
+  ```bash
+  nano NAIOVUM.py
+  ```
+- Paste the provided Python code into the file.
+- Save the file by pressing `CTRL + X`, then `Y`, and `ENTER`.
+
+### 7. Run the Script
+- Execute the script by typing:
+  ```bash
+  python NAIOVUM.py
+  ```
+
+### 8. Follow the Prompts
+- During the execution, the script will ask you to choose a theme for your Neovim setup:
+  - Type `1` for **Gruvbox** (default) or `2` for **OneDark**.
+
+### 9. Check the Neovim Configuration
+
+#### **Installed Packages**
+- The script will install several necessary packages like Neovim, Python support, Git, Node.js, and more.
+  
+#### **Neovim Setup**
+- Neovim will be set up with a plugin manager (Vim-Plug or Packer), and a basic configuration will be applied based on your theme choice.
+  
+- The configuration includes settings like:
+  - Line numbers (`set number` and `set relativenumber`)
+  - File explorer (`NERDTree`)
+  - Git integration (`vim-fugitive`)
+  - Status bar customization (`lualine.nvim`)
+  - Autocompletion (`coc.nvim` and `ale`)
+
+### 10. Verify Changes
+
+#### **Neovim Configuration**
+- The configuration files for Neovim will be located in `~/.config/nvim/` and include `init.vim`.
+  
+- You can open Neovim by typing:
+  ```bash
+  nvim
+  ```
+
+### 11. Restore and Backup Neovim Configurations
+- If you want to **backup** your current Neovim configuration, the script creates a backup in `~/.config/nvim_backup/`.
+  
+- To **restore** a previous configuration, use the backup created by the script, located in `~/.config/nvim_backup`.
+
+### 12. Auto-update Neovim and Plugins
+- The script includes functionality to **automatically update Neovim** and its plugins using the `auto_update()` function.
+
+### 13. Additional Configurations
+- Additional useful configurations like enabling mouse support, clipboard integration, and syntax folding are applied by the script.
+
+### 14. Git Configuration for Neovim Projects
+- The script sets Neovim as the default Git editor and includes some helpful Git aliases like `co` for checkout and `ci` for commit.
+
+### 15. Conclusion
+Once the setup is complete, you can begin using Neovim with your customized settings and plugins. Type `nvim` to start Neovim, and your environment will be ready for efficient development.
+
+These tools should not be used to infringe upon the privacy of others, to engage in unauthorized surveillance, or to access, collect, or store personal information without explicit consent. Unauthorized access to systems, networks, or personal data is strictly prohibited by law, and users must ensure they have proper authorization before using these tools in any environment.
+
+The developers of these tools are not responsible for any misuse or illegal activity conducted with the software. Any demonstrations involving simulated attacks, phishing, or data collection must be performed in a controlled, ethical, and legal manner, with prior permission from all participants involved. 
+
+The tools are provided "as is," without warranties or guarantees of any kind, either express or implied. The developers disclaim all liability for damages resulting from the use, misuse, or inability to use the software. This includes, but is not limited to, loss of data, unauthorized access to systems, or any other direct or indirect consequences.
+
+By downloading, installing, or using any of the DedSec tools, users acknowledge that they understand and agree to abide by this disclaimer. They also accept full responsibility for the consequences of their actions and agree to hold the developers harmless from any legal claims or damages that may arise from their use of the tools.
+
+Users are strongly encouraged to seek legal advice if they are unsure of the legal implications of their intended use. The tools are designed for ethical hacking and educational purposes only.
