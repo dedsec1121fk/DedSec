@@ -40,9 +40,9 @@ def execute_option(option):
         print("Invalid option. Please try again.")
 
 def main():
-    # Check if "python main_menu.py" is already in bash.bashrc
+    # Check if "cd ~/DedSec/ && python main_menu.py" is already in bash.bashrc
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-    main_menu_command = "python main_menu.py"
+    main_menu_command = "cd ~/DedSec/ && python main_menu.py"
 
     # Read the contents of bash.bashrc to check if the command already exists
     try:
@@ -55,9 +55,6 @@ def main():
         # Append command to bash.bashrc if it doesn't exist
         with open(bashrc_path, "a") as bashrc_file:
             bashrc_file.write(f"\n{main_menu_command}\n")
-        print(f"Added '{main_menu_command}' to bash.bashrc")
-    else:
-        print("The command is already in bash.bashrc, skipping addition.")
 
     # Ensure the Scripts directory exists
     scripts_dir = "/data/data/com.termux/files/home/DedSec/Scripts"
