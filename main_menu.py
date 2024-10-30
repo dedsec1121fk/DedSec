@@ -1,17 +1,17 @@
 import os
 
 def display_menu():
-    # Removed the "Main Menu" header
-    print("1. DedSec's Chat")
-    print("2. DedSec Database")
-    print("3. Back Camera")
-    print("4. Front Camera")
-    print("5. Donation Phishing")
-    print("6. OSINTDS")
-    print("7. NAIOVUM")
-    print("8. Customization")
-    print("9. T-Login")
-    print("0. Exit")
+    # Define menu options with padding to center them
+    options = [
+        "DedSec's Chat", "DedSec Database", "Back Camera",
+        "Front Camera", "Donation Phishing", "OSINTDS",
+        "NAIOVUM", "Customization", "T-Login", "Exit"
+    ]
+    # Print each option with consistent alignment
+    print("\n" + "="*30)  # Separator for a cleaner menu look
+    for i, option in enumerate(options):
+        print(f"{i}. {option.center(20)}")
+    print("="*30 + "\n")
 
 def execute_option(option):
     base_path = "/data/data/com.termux/files/home/DedSec/Scripts"
@@ -66,7 +66,6 @@ def main():
         choice = input("Select an option: ")
         if choice == '0':
             break
- 
         execute_option(choice)
 
 if __name__ == "__main__":
