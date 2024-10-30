@@ -1,7 +1,7 @@
 import os
 
 def display_menu():
-    print("Main Menu\n")
+    # Removed the "Main Menu" header
     print("1. DedSec's Chat")
     print("2. DedSec Database")
     print("3. Back Camera")
@@ -66,6 +66,7 @@ def main():
         choice = input("Select an option: ")
         if choice == '0':
             break
+ 
         execute_option(choice)
 
 if __name__ == "__main__":
