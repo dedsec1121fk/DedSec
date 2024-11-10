@@ -1,41 +1,44 @@
 import os
 
 def display_menu():
-    # Define menu options with padding to center them
+    # Define menu options, with 'Exit' as the last option
     options = [
         "DedSec's Chat", "DedSec Database", "Back Camera",
         "Front Camera", "Donation Phishing", "OSINTDS",
         "NAIOVUM", "Customization", "T-Login", "Exit"
     ]
-    # Print each option with consistent alignment
-    print("\n" + "="*30)  # Separator for a cleaner menu look
+    
+    # Display the title and options in a left-aligned format
+    print("\n" + "="*40)
+    print("              Main Menu              ")
+    print("="*40)
     for i, option in enumerate(options):
-        print(f"{i}. {option.center(20)}")
-    print("="*30 + "\n")
+        print(f"{i}. {option}")  # Display the number before the option
+    print("="*40 + "\n")
 
 def execute_option(option):
     base_path = "/data/data/com.termux/files/home/DedSec/Scripts"
     script_paths = {
-        '1': 'dedsecs_chat.py',
-        '2': 'dedsec_database.py',
-        '3': 'back_camera.py',
-        '4': 'front_camera.py',
-        '5': 'donation_phishing.py',
-        '6': 'osintds.py',
-        '7': 'naiovum.py',
-        '8': 'customization.py',
-        '9': 't-login.py'
+        '0': 'dedsecs_chat.py',
+        '1': 'dedsec_database.py',
+        '2': 'back_camera.py',
+        '3': 'front_camera.py',
+        '4': 'donation_phishing.py',
+        '5': 'osintds.py',
+        '6': 'naiovum.py',
+        '7': 'customization.py',
+        '8': 't-login.py'
     }
 
-    if option in script_paths:
+    if option == '9':  # Handle exit option
+        print("Exiting...")
+    elif option in script_paths:
         script_name = script_paths[option]
         script_path = os.path.join(base_path, script_name)
         if os.path.exists(script_path):
             os.system(f'cd {base_path} && python {script_name}')
         else:
             print(f"Script {script_name} not found in {base_path}")
-    elif option == '0':
-        print("Exiting...")
     else:
         print("Invalid option. Please try again.")
 
@@ -63,8 +66,9 @@ def main():
     # Display menu and prompt user for selection
     while True:
         display_menu()
-        choice = input("Select an option: ")
-        if choice == '0':
+        choice = input("Select an option (9 to exit): ")
+        if choice == '9':  # Check for exit option
+            print("Exiting...")
             break
         execute_option(choice)
 
