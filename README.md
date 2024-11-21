@@ -65,7 +65,18 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 7. Donation Phishing: Cybersecurity Education Tool  
+### 7. Location: Real-Time Geolocation Tracker  
+**Location** is a web-based tool for capturing and logging device geolocation data in real time. It includes:  
+- Integration with GPS and IP-based geolocation to collect detailed location data.  
+- Automatic reverse geocoding to convert coordinates into readable addresses.  
+- Remote logging and secure storage of geolocation data in JSON format.  
+- Serveo tunneling for remote access to the location service.  
+
+**Why you need it:** Perfect for developers and educators requiring detailed geolocation tracking and logging, with applications in cybersecurity, analytics, and remote monitoring.  
+
+---
+
+### 8. Donation Phishing: Cybersecurity Education Tool  
 **Donation Phishing** simulates phishing attacks for educational purposes. It includes:  
 - A secure web form interface to collect simulated user data.  
 - Serveo tunneling support for remote demonstrations.  
@@ -75,7 +86,7 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 8. DedSec Database: Simplified File Management  
+### 9. DedSec Database: Simplified File Management  
 **DedSec Database** is a web-based file management tool offering:  
 - Secure file upload, download, listing, and deletion.  
 - Remote access through Serveo or other tunneling tools.  
@@ -85,7 +96,7 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 9. OSINTDS: Automated Open-Source Intelligence  
+### 10. OSINTDS: Automated Open-Source Intelligence  
 **OSINTDS** automates open-source intelligence (OSINT) tasks, including:  
 - Collecting emails, phone numbers, and social media profiles.  
 - Cross-platform intelligence gathering using APIs and scraping.  
@@ -95,7 +106,7 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 10. T-Login: Secure Authentication for Termux  
+### 11. T-Login: Secure Authentication for Termux  
 **T-Login** secures your Termux environment with:  
 - Username and password authentication using SHA-256 hashing.  
 - Automation of login script creation.  
@@ -105,7 +116,7 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 11. Customization: Personalize Your Termux Terminal  
+### 12. Customization: Personalize Your Termux Terminal  
 **Customization** enhances your Termux experience by:  
 - Updating .bashrc and PS1 prompt.  
 - Adding ASCII art or custom messages to the MOTD.  
@@ -115,7 +126,7 @@ Welcome to DedSec’s suite of tools, crafted for developers, cybersecurity enth
 
 ---
 
-### 12. NAIOVUM: Automated Neovim Setup for Termux  
+### 13. NAIOVUM: Automated Neovim Setup for Termux  
 **NAIOVUM** simplifies Neovim setup in Termux, including:  
 - Installing plugins and configurations automatically.  
 - Adding Python support for developers.  
