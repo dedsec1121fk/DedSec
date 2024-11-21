@@ -4,31 +4,32 @@ def display_main_menu():
     print("\n" + "="*40)
     print("              Main Menu              ")
     print("="*40)
-    print("1) Chatrooms")
-    print("2) Hacks")
-    print("3) Tools")
-    print("4) Settings & Customization")
+    print("1) Chatrooms (No Root)")
+    print("2) Hacks (No Root)")
+    print("3) Tools (No Root)")
+    print("4) Settings & Customization (No Root)")
     print("5) Exit")
     print("="*40 + "\n")
 
 def display_sub_menu(main_choice):
     if main_choice == '1':
-        print("\nChatrooms")
+        print("\nChatrooms (No Root)")
         print("1) DedSec's Chat (Limited to 8 People)")
         print("2) Fox Chat (Unlimited People)")
     elif main_choice == '2':
-        print("\nHacks")
+        print("\nHacks (No Root)")
         print("1) Back Camera Hack")
         print("2) Front Camera Hack")
         print("3) Sound Recording Hack")
         print("4) Gallery Hack")
-        print("5) Donation Phishing")
+        print("5) Location Hack")
+        print("6) Donation Phishing")
     elif main_choice == '3':
-        print("\nTools")
+        print("\nTools (No Root)")
         print("1) DedSec Database")
         print("2) OSINTDS")
     elif main_choice == '4':
-        print("\nSettings & Customization")
+        print("\nSettings & Customization (No Root)")
         print("1) T-Login")
         print("2) Customization")
         print("3) NAIOVUM")
@@ -43,7 +44,8 @@ def execute_option(main_choice, sub_choice):
         '2_2': 'front_camera.py',
         '2_3': 'sound_recording.py',
         '2_4': 'gallery.py',
-        '2_5': 'donation_phishing.py',
+        '2_5': 'location.py',
+        '2_6': 'donation_phishing.py',
         '3_1': 'dedsec_database.py',
         '3_2': 'osintds.py',
         '4_1': 't-login.py',
@@ -99,4 +101,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
