@@ -21,9 +21,8 @@ def display_sub_menu(main_choice):
         print("1) Back Camera Hack")
         print("2) Front Camera Hack")
         print("3) Sound Recording Hack")
-        print("4) Gallery Hack")
-        print("5) Location Hack")
-        print("6) Donation Phishing")
+        print("4) Location Hack")
+        print("5) Donation Phishing")
     elif main_choice == '3':
         print("\nTools (No Root)")
         print("1) DedSec Database")
@@ -43,9 +42,8 @@ def execute_option(main_choice, sub_choice):
         '2_1': 'back_camera.py',
         '2_2': 'front_camera.py',
         '2_3': 'sound_recording.py',
-        '2_4': 'gallery.py',
-        '2_5': 'location.py',
-        '2_6': 'donation_phishing.py',
+        '2_4': 'location.py',
+        '2_5': 'donation_phishing.py',
         '3_1': 'dedsec_database.py',
         '3_2': 'osintds.py',
         '4_1': 't-login.py',
@@ -101,3 +99,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
