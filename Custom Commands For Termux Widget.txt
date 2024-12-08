@@ -20,7 +20,7 @@ Location
 cd DedSec/Scripts && python location.py
 
 Donation Phishing
-cd DedSec/Scripts && python donation_phising.py
+cd DedSec/Scripts && python donation_phishing.py
 
 DedSec Database
 cd DedSec/Scripts && python dedsec_database.py
