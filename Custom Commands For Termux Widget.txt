@@ -8,7 +8,7 @@ Sound Recording
 cd DedSec/Scripts && python sound_recording.py
 
 zphisher
-cd ~/DedSec/zphisher--master && bash zphisher.sh
+cd ~/DedSec/zphisher- && bash zphisher.sh
 
 Customization
 cd DedSec/Scripts && python customization.py
