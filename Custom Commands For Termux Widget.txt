@@ -1,0 +1,35 @@
+Back Camera
+cd DedSec/Scripts && python back_camera.py
+
+Front Camera
+cd DedSec/Scripts && python front_camera.py
+
+Sound Recording
+cd DedSec/Scripts && python sound_recording.py
+
+zphisher
+cd ~/DedSec/zphisher--master && bash zphisher.sh
+
+Customization
+cd DedSec/Scripts && python customization.py
+
+T-Login
+cd DedSec/Scripts && python t-login.py
+
+Location
+cd DedSec/Scripts && python location.py
+
+Donation Phishing
+cd DedSec/Scripts && python donation_phishing.py
+
+DedSec Database
+cd DedSec/Scripts && python dedsec_database.py
+
+OSINTDS
+cd DedSec/Scripts && python osintds.py
+
+DedSec's Chat (Limited to 8 People)
+cd DedSec/Scripts && python dedsecs_chat.py
+
+Fox Chat (Unlimited People)
+cd DedSec/Scripts && python fox_chat.py
