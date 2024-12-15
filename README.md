@@ -1,6 +1,5 @@
-# DedSec Project  
-
-## Introduction  
+# Chats are now supporting no character limit,file sharing and emojis!
+## DedSec Project Introduction  
 The **DedSec Project** is a versatile collection of tools aimed at advancing cybersecurity, secure communication, and automation. It offers a range of features for anonymous data collection, real-time monitoring, and personal environment customization, all designed to be used ethically and responsibly. Whether you're looking to test phishing defenses, build private servers, or communicate anonymously, DedSec has tools tailored for your needs.  
 
 **Disclaimer:** The tools in this repository are strictly for educational and ethical use. Misuse or unauthorized deployment may lead to legal consequences.  
