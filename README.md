@@ -2,7 +2,7 @@
 [![Bluesky](https://img.shields.io/badge/Bluesky-@dedsec1121fk-green)](https://bsky.app/profile/dedsec1121fk.bsky.social)
 [![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-green)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi)
 
-22/12/2024 Update: Now you have an easily menu accessable everytime ypu open the Terminal check the Tutorial.md for further information!
+22/12/2024 Update: Now you have an easily menu accessable everytime you open the Terminal,so even the dumb users can use the project,check the Tutorial.md for further information!
 
 15/12/2024 Update: Chats are now supporting no character limit for usernames,file sharing and emojis!
 
