@@ -1,4 +1,6 @@
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-blue)](https://github.com/sponsors/dedsec1121fk)
+[![Bluesky](https://img.shields.io/badge/Bluesky-@dedsec1121fk-blue)](https://bsky.app/profile/dedsec1121fk.bsky.social)
+[![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-blue)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi)
 
 22/12/2024 Update: Now you have an easily menu accessable everytime ypu open the Terminal check the Tutorial.md for further information!
 
