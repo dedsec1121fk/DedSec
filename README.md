@@ -1,3 +1,4 @@
+22/12/202 Update: Now you have an easily menu accessable everytime ypu open the Terminal check the Tutorial.md for further information!
 15/12/2024 Update: Chats are now supporting no character limit for usernames,file sharing and emojis!
 
 ## DedSec Project Introduction  
