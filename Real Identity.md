@@ -1,7 +1,7 @@
 # About Me  
 
 ### **Loukas Floros**  
-- **Birthday:** Saturday, 14 August 2004  
+- **Birthday:** Saturday 14 August 2004  
 - **Country:** Greece
 - **Height:** 1,75CM
 - **Weight** 75KG
