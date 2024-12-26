@@ -1,4 +1,5 @@
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-green)](https://github.com/sponsors/dedsec1121fk)
+[![Reddit](https://img.shields.io/badge/Reddit-r/DedSec__Project-orange)](https://www.reddit.com/r/DedSec_Project/s/lTVARkYq5x)
 [![Bluesky](https://img.shields.io/badge/Bluesky-@dedsec1121fk-green)](https://bsky.app/profile/dedsec1121fk.bsky.social)
 [![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-green)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi) 
 
