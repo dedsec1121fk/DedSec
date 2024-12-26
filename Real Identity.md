@@ -2,7 +2,11 @@
 
 ### **Loukas Floros**  
 - **Birthday:** Saturday, 14 August 2004  
-- **Country:** Greece  
+- **Country:** Greece
+- **Height:** 1,75CM
+- **Weight** 75KG
+- **Eye Color** Brown
+- **Hair Color** Black
 - **Bluesky Profile:** [dedsec1121fk](https://bsky.app/profile/dedsec1121fk)  
 
 ---
