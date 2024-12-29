@@ -64,3 +64,14 @@ With DedSec, users can:
 3. DedSec is designed for ethical use only—misuse is strictly prohibited.  
 
 **DedSec empowers innovation, education, and cybersecurity research. Use it to make a positive impact!**
+
+---
+
+# Donations  
+
+If you'd like to support my work, you can donate via the following networks:  
+
+- **Polygon POS Network (POL):** `0x8a88c8bCCc1cCD1bB02622465EA9051051eB06Ff`  
+- **Ethereum Network (ETH):** `0x8a88c8bCCc1cCD1bB02622465EA9051051eB06Ff`  
+
+---
