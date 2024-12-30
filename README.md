@@ -2,6 +2,8 @@
 [![Bluesky](https://img.shields.io/badge/Bluesky-@dedsec1121fk-green)](https://bsky.app/profile/dedsec1121fk.bsky.social)  
 [![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-green)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi)  
 
+##Click the titles to read!
+
 <details>
   <summary>### DedSec Project Introduction</summary>
   The **DedSec Project** is a versatile collection of tools aimed at advancing cybersecurity, secure communication, and automation. It offers a range of features for anonymous data collection, real-time monitoring, and personal environment customization, all designed to be used ethically and responsibly. Whether you're looking to test phishing defenses, build private servers, or communicate anonymously, DedSec has tools tailored for your needs.  
