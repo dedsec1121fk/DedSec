@@ -6,8 +6,9 @@ Click the titles to read!
 
 <details>
   <summary>### DedSec Project Introduction</summary>
-  The **DedSec Project** is a versatile collection of tools aimed at advancing cybersecurity, secure communication, and automation. It offers a range of features for anonymous data collection, real-time monitoring, and personal environment customization, all designed to be used ethically and responsibly. Whether you're looking to test phishing defenses, build private servers, or communicate anonymously, DedSec has tools tailored for your needs.
-  **The Truth About Government Surveillance: We're Being Controlled**
+The **DedSec Project** is a versatile collection of tools aimed at advancing cybersecurity, secure communication, and automation. It offers a range of features for anonymous data collection, real-time monitoring, and personal environment customization, all designed to be used ethically and responsibly. Whether you're looking to test phishing defenses, build private servers, or communicate anonymously, DedSec has tools tailored for your needs.
+
+## The Truth About Government Surveillance: We're Being Controlled
 
 You think you're free? Think again. Governments have made it clear—they’re not just watching us, they’re controlling us. The systems they’ve built around surveillance, data collection, and manipulation are more pervasive than ever before. It’s not about security or safety; it’s about maintaining power. In a world where every click, every message, every step we take is monitored, we’ve lost more than just privacy. We’ve lost control.
 
