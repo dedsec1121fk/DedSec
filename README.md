@@ -2,7 +2,7 @@
 [![Bluesky](https://img.shields.io/badge/Bluesky-@dedsec1121fk-green)](https://bsky.app/profile/dedsec1121fk.bsky.social)  
 [![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-green)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi)  
 
-##Click the titles to read!
+Click the titles to read!
 
 <details>
   <summary>### DedSec Project Introduction</summary>
