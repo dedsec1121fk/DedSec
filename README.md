@@ -96,7 +96,6 @@ We’ve been given the tools to fight back, to resist the systems of control tha
   - Users can select "stations" (folders) from a dedicated directory (`~/DedSec/Radio Mode`).  
   - Features controls for stopping, continuing, and switching between stations, all accessible through an intuitive terminal interface.  
   - Designed for entertainment while maintaining the DedSecOS aesthetic and functionality.  
-  - **
 
   #### 9. Authentication Framework  
   - **T-Login**: Secure multi-user authentication with encryption, session tracking, and audit logging.  
