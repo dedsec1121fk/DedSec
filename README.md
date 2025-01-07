@@ -87,20 +87,16 @@ We’ve been given the tools to fight back, to resist the systems of control tha
   #### 6. Phishing Simulations  
   - **Donation Phishing**: Create phishing templates for controlled simulations, improving awareness and security measures.  
 
-  #### 7. OSINT Tools  
-  - **OSINTDS**: Automates the collection of open-source data from public sources, customizable for targeted intelligence.  
-
-
-  #### 8. Radio Mode  
+  #### 7. Radio Mode  
   - Provides a personalized music experience by playing shuffled audio files from user-defined folders.  
   - Users can select "stations" (folders) from a dedicated directory (`~/DedSec/Radio Mode`).  
   - Features controls for stopping, continuing, and switching between stations, all accessible through an intuitive terminal interface.  
   - Designed for entertainment while maintaining the DedSecOS aesthetic and functionality.  
 
-  #### 9. Authentication Framework  
+  #### 8. Authentication Framework  
   - **T-Login**: Secure multi-user authentication with encryption, session tracking, and audit logging.  
 
-  #### 10. Customization  
+  #### 9. Customization  
   - **Customization Tool**: Modify terminal settings like color schemes, fonts, and layouts. Save and load profiles to automate repetitive tasks.  
 </details>
 
@@ -134,4 +130,3 @@ We’ve been given the tools to fight back, to resist the systems of control tha
 
   **DedSec empowers innovation, education, and cybersecurity research. Use it to make a positive impact!**
 </details>
-
