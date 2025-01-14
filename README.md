@@ -1,5 +1,3 @@
----
-
 ### Why DedSec?  
 
 DedSec is a collection of tools designed to give you more control over your digital life while ensuring privacy and security. Whether you're a tech enthusiast or just someone who values their privacy, DedSec helps you:  
