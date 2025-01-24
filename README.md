@@ -6,9 +6,9 @@
 
 3)Michrophone phishing h4cks,by using "Sound Recording" and "Login Recording" scripts that they create phishing michrophone websites so you can listen to conversations abou the  party.😉
 
-4)Location h4ck by using the "Location" scripts,that it crwate a phishing location website so you can find the exact address of the party.😉
+4)Location h4ck by using the "Location" scripts,that it create a phishing location website so you can find the exact address of the party.😉
 
-5)DedSec Database turns youe device into a portable cloud storage accessable via link so you can share critical files about the party,without worries.😉
+5)DedSec Database turns your device into a portable cloud storage accessable via link so you can share critical files about the party,without worries.😉
 
 6)Radio Mode it's just a Greek radio station that you can listen offline while going to the party.😉
 
