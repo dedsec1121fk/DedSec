@@ -1,6 +1,4 @@
 [![Sponsor](https://img.shields.io/badge/sponsor-GitHub-green)](https://github.com/sponsors/dedsec1121fk)    
-[![Instagram](https://img.shields.io/badge/Instagram-@loukas_floros-green)](https://www.instagram.com/loukas_floros/profilecard/?igsh=MnR2eTdxaTN5ZHZi)
-
 
 ### DedSec Project Features  
 
