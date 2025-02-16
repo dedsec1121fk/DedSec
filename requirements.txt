@@ -1,0 +1,6 @@
+Flask
+flask-socketio
+Werkzeug
+requests
+geopy
+pydub
