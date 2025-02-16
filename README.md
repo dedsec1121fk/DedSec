@@ -134,12 +134,9 @@ pip install os
 pip install flask-cors
 termux-wake-lock
 sshd
-'''
 
-### Run The Menu
+Run The Menu
 After all the setup use the command cd DedSec/Scripts && python menu.py 
 and this will setup a menu that will run everytime you open Termux so you can easily access all the programs.
 
 Files are saved in named folders like Camera-Phish etc,in your internal storage in the Download folder,use a file explorer to access them,also in the folder Camera-Phis you must add images camera.jpg and casino.jpg,in the Recordings folder you must add record.jpg and in the LocationData folder you must add locate.jpg after the first use of the phishing pages etc.
-
----
