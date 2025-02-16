@@ -134,8 +134,6 @@ pip install os
 pip install flask-cors
 termux-wake-lock
 sshd
-
-
 '''
 
 ### Run The Menu
