@@ -1,8 +1,3 @@
-# DedSec Project
-
-[![Sponsor](https://img.shields.io/badge/sponsor-GitHub-green)](https://github.com/sponsors/dedsec1121fk)  
-[![My First Donator](https://img.shields.io/badge/My%20First%20Donator-Ruthless80-orange)](https://www.reddit.com/u/Ruthless80/s/KA2lOALjZ8)  
-
 ### DedSec Project Features  
 
 1) Create anonymous and untraceable chats for 8 and unlimited people, perfect for suspicious plans like planning a party. 😉  
@@ -141,3 +136,9 @@ After completing the setup, use the command:
 This will set up a menu that will run every time you open Termux, making it easier to access all the programs.  
 
 Files are saved in named folders like Camera-Phish, etc., in your internal storage in the Download folder. Use a file explorer to access them. Also, in the folder **Camera-Phish**, you must add images **camera.jpg** and **casino.jpg**. In the **Recordings** folder, you must add **record.jpg**, and in the **LocationData** folder, you must add **locate.jpg** after the first use of the phishing pages.  
+
+# Other Information  
+
+<a href="https://github.com/sponsors/dedsec1121fk" style="display: inline-block; padding: 10px 15px; background-color: #24292e; color: white; text-decoration: none; border-radius: 5px;">Sponsor Me on GitHub</a>  
+
+<a href="https://www.instagram.com/dedsec1121fk_official" style="display: inline-block; padding: 10px 15px; background-color: #E4405F; color: white; text-decoration: none; border-radius: 5px;">My Instagram</a>  
