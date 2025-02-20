@@ -5,7 +5,7 @@
 3) Microphone phishing – create phishing microphone websites so you can listen to conversations about the party. 😉  
 4) Location phishing – create a phishing location website so you can find the exact address of the party. 😉  
 5) DedSec Database – turns your device into portable cloud storage accessible via link so you can share critical files about the party without worries. 😉  
-6) Radio – it's just a Greek radio station (with 62 songs for now) that you can listen to offline while going to the party. 😉  
+6) Radio – it's just a Greek radio station that you can listen to offline while going to the party. 😉  
 7) Customization – changes your terminal appearance to DedSec's default one. 😉  
 8) Link Generator – so you can create links easily to use on your other devices. 😉  
 9) One Free SMS Per Day – allows you to send one free ANONYMOUS message to any country, any number, one time every day. 😉  
