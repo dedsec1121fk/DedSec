@@ -1,4 +1,4 @@
-##DedSec Project
+## DedSec Project
 
 DedSec is a versatile cybersecurity toolkit for educational and research purposes. It demonstrates how deceptive web pages and scripts can simulate social engineering attacks, data extraction techniques, secure communication, and radio streaming—all within a controlled environment.
 
