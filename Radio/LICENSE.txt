@@ -1,0 +1,25 @@
+DedSec - Proprietary License
+
+Copyright (c) 2025 dedsec1121fk. All rights reserved.
+
+1. **License Grant**:
+   Permission is granted to use this software for personal and non-commercial purposes only. 
+   No permission is granted to modify, distribute, or reverse-engineer this software.
+
+2. **Restrictions**:
+   You may not:
+   - Reproduce, distribute, or publicly display any part of this software without written consent.
+   - Decompile, disassemble, or reverse-engineer any part of this software.
+   - Use this software for commercial purposes without explicit permission.
+
+3. **Termination**:
+   This license will automatically terminate if you violate any of these restrictions. Upon termination, you must destroy any copies of this software in your possession.
+
+4. **Disclaimer of Warranties**:
+   This software is provided "as is" without warranty of any kind. dedsec1121fk makes no guarantees of any kind, including but not limited to fitness for a particular purpose or non-infringement.
+
+5. **Governing Law**:
+   This license is governed by and construed in accordance with the laws of Greece, specifically the state of Attica.
+
+6. **Lawful Use**:
+   This software must be used in compliance with all applicable local, national, and international laws. The user assumes full responsibility for ensuring the legality of their use of this software. dedsec1121fk is not responsible for any unlawful use or the consequences of such use.
