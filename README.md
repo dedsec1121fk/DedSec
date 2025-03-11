@@ -6,7 +6,7 @@
 
 ---
 
-## Scripts (Alphabetical Order)
+## Scripts
 
 1. **android_app_launcher.py**  
    *Description:*  
@@ -196,4 +196,3 @@ This toolkit is provided for **educational purposes only**. Always use these too
 ---
 
 Feel free to contribute or suggest improvements. Enjoy exploring and learning with DedSec!
-```
