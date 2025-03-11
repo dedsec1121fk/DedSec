@@ -13,6 +13,7 @@ All the songs in this repository are the property of the following artists:
 - [VG](https://youtube.com/channel/UCCmDVXMw9nlmoj_Cl-7mRHg?si=BV5VpTJOZHAw6nYp)
 - [PLANNO MAN](https://youtube.com/@plannoman6698?si=ctZJTvMGGpXXz7K4)
 - [JAVASPA](https://youtube.com/@javaspa)
+- 
 These songs are included here with the explicit permission and license granted by these artists for use exclusively within the DedSec project.  
 ### Permissions:  
 - Download and use these songs only as part of the DedSec project.  
