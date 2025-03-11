@@ -389,7 +389,15 @@ def run_list_menu():
     if not selected_script:
         print("Selected script not found.")
         return
-    os.system(f"cd {scripts_path} && python3 {selected_script}")
+    try:
+        ret = os.system(f"cd {scripts_path} && python3 {selected_script}")
+        # Check if script was terminated by SIGINT (usually exit code 130)
+        if (ret >> 8) == 2:
+            print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
+            sys.exit(0)
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        sys.exit(0)
 
 # ------------------------------
 # Integrated Grid Menu (from grid_menu.py)
@@ -511,7 +519,14 @@ def run_grid_menu():
         print("No selection made. Exiting.")
         return
     selected_script = scripts[selected_index]
-    os.system(f"cd {scripts_path} && python3 {selected_script}")
+    try:
+        ret = os.system(f"cd {scripts_path} && python3 {selected_script}")
+        if (ret >> 8) == 2:
+            print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
+            sys.exit(0)
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        sys.exit(0)
 
 # ------------------------------
 # Main Settings Menu (with new option)
@@ -566,15 +581,19 @@ def main():
 # Entry Point: Dispatch based on command-line arguments
 # ------------------------------
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "--menu":
-        if len(sys.argv) > 2:
-            if sys.argv[2] == "list":
-                run_list_menu()
-            elif sys.argv[2] == "grid":
-                run_grid_menu()
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] == "--menu":
+            if len(sys.argv) > 2:
+                if sys.argv[2] == "list":
+                    run_list_menu()
+                elif sys.argv[2] == "grid":
+                    run_grid_menu()
+                else:
+                    print("Unknown menu style. Use 'list' or 'grid'.")
             else:
-                print("Unknown menu style. Use 'list' or 'grid'.")
-        main()
-    else:
-        main()
-
+                main()
+        else:
+            main()
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        sys.exit(0)
