@@ -1,5 +1,3 @@
-# This is the add-on for the Radio feature in the DedSec project that's all.
-
 ## License for Songs in This Folder  
 
 All the songs in this repository are the property of the following artists: 
