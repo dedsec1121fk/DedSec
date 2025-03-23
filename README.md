@@ -106,6 +106,7 @@
    pkg update -y && pkg upgrade -y
    pkg install python &&
 pkg install git && pkg install fzf && pkg install nodejs && pkg install openssh && pkg install nano && pkg install jq && pkg install wget && pkg install unzip && pkg install curl && pkg install proot && pkg install openssl
+```
 
   pip install flask flask-socketio werkzeug requests datetime geopy pydub
    ```
