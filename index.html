@@ -3,37 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Under Construction</title>
+    <title>DedSec Project Community</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            background-color: black;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
             text-align: center;
-            background-color: #f4f4f4;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 20px;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
         }
         h1 {
-            color: #333;
+            color: #8a2be2;
         }
-        p {
-            color: #666;
+        #messageBox {
+            width: 80%;
+            height: 100px;
+            background: #111;
+            color: #00ff00;
+            border: 2px solid #8a2be2;
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #8a2be2;
+            color: white;
+            border: none;
+            padding: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        #messages {
+            margin-top: 20px;
+            text-align: left;
+            width: 80%;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .message {
+            background: #222;
+            border: 1px solid #8a2be2;
+            padding: 10px;
+            margin: 5px 0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🚧 Under Construction 🚧</h1>
-        <p>Our website is currently being worked on. Check back soon!</p>
-    </div>
+    <h1>DedSec Project Community</h1>
+    <textarea id="messageBox" placeholder="Write your message here..."></textarea><br>
+    <button onclick="postMessage()">Post Message</button>
+    <div id="messages"></div>
+
+    <script>
+        let lastPostTime = {};
+
+        function postMessage() {
+            let messageText = document.getElementById("messageBox").value.trim();
+            if (messageText === "") return;
+
+            let ip = "user_" + Math.floor(Math.random() * 100000); // Simulated IP (for local use)
+            let currentTime = Date.now();
+
+            // Check if user posted in last 60 seconds
+            if (lastPostTime[ip] && currentTime - lastPostTime[ip] < 60000) {
+                alert("Wait 1 minute before posting again!");
+                return;
+            }
+
+            lastPostTime[ip] = currentTime; // Store last post time
+
+            let messageDiv = document.createElement("div");
+            messageDiv.className = "message";
+            messageDiv.textContent = messageText;
+
+            document.getElementById("messages").prepend(messageDiv);
+            document.getElementById("messageBox").value = "";
+        }
+    </script>
 </body>
+
 </html>
