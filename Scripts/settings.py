@@ -380,6 +380,7 @@ def update_bashrc_for_menu_style(style):
 # ------------------------------
 
 def change_main_menu_music():
+    global song_played
     def choose_music_option(stdscr):
         curses.curs_set(0)
         options = ["On", "Off"]
@@ -416,7 +417,23 @@ def change_main_menu_music():
         config = load_config()
         config["main_menu_music"] = new_setting
         save_config(config)
-        print(f"Main Menu Music set to {new_setting.capitalize()}.")
+        if new_setting == "off":
+            run_command("termux-media-player stop")
+            song_played = False
+            print("Main Menu Music turned Off. Music stopped.")
+        elif new_setting == "on":
+            if not song_played:
+                dedsec_dir = os.path.join(os.path.expanduser("~"), "DedSec")
+                music_file = os.path.join(dedsec_dir, "JOIN US WE ARE DEDSEC By HXLX.mp3")
+                if not os.path.exists(music_file):
+                    print(f"Error: File not found at {music_file}")
+                else:
+                    run_command("termux-media-player stop")
+                    run_command("termux-volume music 15")
+                    time.sleep(1)
+                    run_command(f'termux-media-player play "{music_file}"')
+                song_played = True
+            print("Main Menu Music turned On. Music will play on startup.")
     input("\nPress Enter to return to the settings menu...")
 
 # ------------------------------
@@ -520,195 +537,4 @@ def run_grid_menu():
         for i in range(x, x + width):
             stdscr.addch(y, i, curses.ACS_HLINE, color)
             stdscr.addch(y + height - 1, i, curses.ACS_HLINE, color)
-        for j in range(y, y + height):
-            stdscr.addch(j, x, curses.ACS_VLINE, color)
-            stdscr.addch(j, x + width - 1, curses.ACS_VLINE, color)
-        stdscr.addch(y, x, curses.ACS_ULCORNER, color)
-        stdscr.addch(y, x + width - 1, curses.ACS_URCORNER, color)
-        stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
-        stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
-
-    def draw_grid_menu(stdscr, friendly_names, num_scripts):
-        curses.curs_set(0)
-        stdscr.nodelay(0)
-        stdscr.timeout(-1)
-        curses.start_color()
-        curses.use_default_colors()
-        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
-        curses.init_pair(2, curses.COLOR_MAGENTA, -1)
-        curses.init_pair(3, curses.COLOR_WHITE, -1)
-        current_index = 0
-        while True:
-            stdscr.clear()
-            term_height, term_width = stdscr.getmaxyx()
-            ICON_WIDTH = max(15, term_width // 5)
-            ICON_HEIGHT = max(7, term_height // 6)
-            max_cols = term_width // ICON_WIDTH
-            max_rows = term_height // ICON_HEIGHT
-            total_visible_cells = max_cols * max_rows
-            page_start_index = (current_index // total_visible_cells) * total_visible_cells
-            page_end_index = min(page_start_index + total_visible_cells, num_scripts)
-            for idx_on_page, actual_index in enumerate(range(page_start_index, page_end_index)):
-                i = idx_on_page // max_cols
-                j = idx_on_page % max_cols
-                y = i * ICON_HEIGHT
-                x = j * ICON_WIDTH
-                draw_box(stdscr, y, x, ICON_HEIGHT, ICON_WIDTH, highlight=(actual_index == current_index))
-                name = friendly_names[actual_index]
-                box_text_width = ICON_WIDTH - 4
-                wrapped_lines = textwrap.wrap(name, box_text_width)
-                total_lines = len(wrapped_lines)
-                padding_y = (ICON_HEIGHT - total_lines) // 2
-                for line_idx, line in enumerate(wrapped_lines):
-                    line_y = y + padding_y + line_idx
-                    padding_x = (ICON_WIDTH - len(line)) // 2
-                    line_x = x + padding_x
-                    if line_y < term_height - 1 and line_x < term_width - len(line):
-                        try:
-                            stdscr.addstr(line_y, line_x, line, curses.color_pair(3))
-                        except curses.error:
-                            pass
-            page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_scripts / total_visible_cells)} "
-            instructions = f"Arrow Keys: Move | Enter: Run | q: Quit | {page_info}"
-            try:
-                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
-            except curses.error:
-                pass
-            stdscr.refresh()
-            key = stdscr.getch()
-            if key == curses.KEY_UP:
-                if current_index - max_cols >= 0:
-                    current_index -= max_cols
-            elif key == curses.KEY_DOWN:
-                if current_index + max_cols < num_scripts:
-                    current_index += max_cols
-            elif key == curses.KEY_LEFT:
-                if current_index % max_cols > 0:
-                    current_index -= 1
-            elif key == curses.KEY_RIGHT:
-                if (current_index % max_cols) < (max_cols - 1) and (current_index + 1) < num_scripts:
-                    current_index += 1
-            elif key in [10, 13]:
-                return current_index
-            elif key in [ord('q'), ord('Q')]:
-                return None
-            elif key == curses.KEY_RESIZE:
-                pass
-
-    ensure_bashrc_setup()
-
-    try:
-        scripts = [f for f in os.listdir(scripts_path) if f.endswith(".py")]
-        if not scripts:
-            print("No scripts found in the Scripts folder.")
-            return
-    except FileNotFoundError:
-        print(f"Error: {scripts_path} not found.")
-        sys.exit(1)
-    scripts.sort(key=lambda s: format_script_name(s).lower())
-    friendly_names = [format_script_name(s) for s in scripts]
-    selected_index = curses.wrapper(draw_grid_menu, friendly_names, len(scripts))
-    if selected_index is None:
-        print("No selection made. Exiting.")
-        return
-    selected_script = scripts[selected_index]
-    try:
-        ret = os.system(f"cd {scripts_path} && python3 {selected_script}")
-        if (ret >> 8) == 2:
-            print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
-            sys.exit(0)
-    except KeyboardInterrupt:
-        print("\nKeyboardInterrupt received. Exiting gracefully...")
-        sys.exit(0)
-
-# ------------------------------
-# Main Settings Menu
-# ------------------------------
-
-def menu(stdscr):
-    curses.curs_set(0)
-    curses.start_color()
-    curses.use_default_colors()
-    # Removed the "Update" option and added "Main Menu Music"
-    menu_options = ["About", "Change Prompt", "Change Menu Style", "Main Menu Music", "Credits", "Exit"]
-    current_row = 0
-    while True:
-        stdscr.clear()
-        height, width = stdscr.getmaxyx()
-        title = "Select an option"
-        stdscr.addstr(1, width // 2 - len(title) // 2, title)
-        for idx, option in enumerate(menu_options):
-            x = width // 2 - len(option) // 2
-            y = height // 2 - len(menu_options) // 2 + idx
-            if idx == current_row:
-                stdscr.attron(curses.A_REVERSE)
-                stdscr.addstr(y, x, option)
-                stdscr.attroff(curses.A_REVERSE)
-            else:
-                stdscr.addstr(y, x, option)
-        stdscr.refresh()
-        key = stdscr.getch()
-        if key == curses.KEY_UP and current_row > 0:
-            current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
-            current_row += 1
-        elif key in [curses.KEY_ENTER, 10, 13]:
-            return current_row
-
-def main():
-    global song_played
-    # Force update if available every time the script runs
-    update_dedsec()
     
-    config = load_config()
-    if not song_played and config.get("main_menu_music", "on") == "on":
-        dedsec_dir = os.path.join(os.path.expanduser("~"), "DedSec")
-        music_file = os.path.join(dedsec_dir, "JOIN US WE ARE DEDSEC By HXLX.mp3")
-        if not os.path.exists(music_file):
-            print(f"Error: File not found at {music_file}")
-        else:
-            run_command("termux-media-player stop")
-            run_command("termux-volume music 15")
-            time.sleep(1)
-            run_command(f'termux-media-player play "{music_file}"')
-        song_played = True
-    while True:
-        selected = curses.wrapper(menu)
-        os.system("clear")
-        if selected == 0:
-            show_about()
-        elif selected == 1:
-            change_prompt()
-        elif selected == 2:
-            change_menu_style()
-        elif selected == 3:
-            change_main_menu_music()
-        elif selected == 4:
-            show_credits()
-        elif selected == 5:
-            print("Exiting...")
-            break
-        input("\nPress Enter to return to the settings menu...")
-
-# ------------------------------
-# Entry Point
-# ------------------------------
-
-if __name__ == "__main__":
-    try:
-        if len(sys.argv) > 1 and sys.argv[1] == "--menu":
-            if len(sys.argv) > 2:
-                if sys.argv[2] == "list":
-                    run_list_menu()
-                elif sys.argv[2] == "grid":
-                    run_grid_menu()
-                else:
-                    print("Unknown menu style. Use 'list' or 'grid'.")
-            else:
-                main()
-        else:
-            main()
-    except KeyboardInterrupt:
-        print("\nKeyboardInterrupt received. Exiting gracefully...")
-        sys.exit(0)
-
