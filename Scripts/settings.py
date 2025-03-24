@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import os
 import sys
 import json
@@ -10,32 +9,6 @@ import curses
 import re
 import textwrap
 import math
-import time
-
-# Global flag to ensure the song plays only once.
-song_played = False
-CONFIG_FILE = "config.json"
-
-# ------------------------------
-# Config File Functions
-# ------------------------------
-
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    else:
-        return {}
-
-def save_config(config):
-    try:
-        with open(CONFIG_FILE, "w") as f:
-            json.dump(config, f, indent=4)
-    except Exception as e:
-        print("Error saving config:", e)
 
 # ------------------------------
 # Existing Settings Functionality
@@ -136,7 +109,7 @@ def update_dedsec():
             dedsec_size = get_dedsec_size(existing_dedsec_path)
             print(f"[+] Update applied. DedSec Project Size: {dedsec_size}")
         else:
-            print("No available update found.")
+            print("[+] No available update found.")
     else:
         existing_dedsec_path = clone_repo()
         dedsec_size = get_dedsec_size(existing_dedsec_path)
@@ -208,6 +181,7 @@ def get_hardware_details():
     manufacturer, _ = run_command("getprop ro.product.manufacturer")
     uptime, _ = run_command("uptime -p")
     battery = get_battery_info()
+    
     details = (
         f"Internal Storage: {internal_storage}\n"
         f"Processor: {processor}\n"
@@ -243,12 +217,11 @@ def show_about():
 def show_credits():
     credits = """
 =======================================
-CREDITS
+                CREDITS
 =======================================
 Creator:dedsec1121fk
 Music Artists:BFR TEAM,PLANNO MAN,MOUTRO,VG,KouNouPi,ADDICTED,JAVASPA.ZY.A2.N,ICE,Lefka City
-Main Menu Theme Artist:HXLX
-Artist:Christina Chatzidimitriou
+Art Artist:Christina Chatzidimitriou
 Voice Overs:Dimitra Isxuropoulou
 Technical Help:lamprouil
 =======================================
@@ -258,7 +231,6 @@ Technical Help:lamprouil
 # ------------------------------
 # Remove MOTD (if exists)
 # ------------------------------
-
 def remove_motd():
     etc_path = "/data/data/com.termux/files/usr/etc"
     motd_path = os.path.join(etc_path, "motd")
@@ -268,7 +240,6 @@ def remove_motd():
 # ------------------------------
 # Change Prompt
 # ------------------------------
-
 def modify_bashrc():
     etc_path = "/data/data/com.termux/files/usr/etc"
     os.chdir(etc_path)
@@ -279,9 +250,9 @@ def modify_bashrc():
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
     new_ps1 = (
-        f"PS1='ðŸŒ� \\[\\e[1;36m\\]\\d \\[\\e[0m\\]â�° "
-        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]ðŸ’» "
-        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]ðŸ“‚ "
+        f"PS1='🌐 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]⏰ "
+        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]💻 "
+        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]📂 "
         f"\\[\\e[1;33m\\]\\W \\[\\e[0m\\] : '\n"
     )
     with open("bash.bashrc", "w") as bashrc_file:
@@ -335,7 +306,8 @@ def change_menu_style():
     if style is None:
         print("No menu style selected. Returning to settings menu...")
         input("\nPress Enter to return to the settings menu...")
-        return update_bashrc_for_menu_style(style)
+        return
+    update_bashrc_for_menu_style(style)
     # Delete the external menu files since they're now integrated
     for file_name in ["menu.py", "grid_menu.py"]:
         try:
@@ -376,74 +348,11 @@ def update_bashrc_for_menu_style(style):
         print(f"Error writing to {bashrc_path}: {e}")
 
 # ------------------------------
-# New Option: Change Main Menu Music
-# ------------------------------
-
-def change_main_menu_music():
-    global song_played
-    def choose_music_option(stdscr):
-        curses.curs_set(0)
-        options = ["On", "Off"]
-        current = 0
-        while True:
-            stdscr.clear()
-            height, width = stdscr.getmaxyx()
-            title = "Main Menu Music: Choose an option"
-            stdscr.addstr(1, width // 2 - len(title) // 2, title)
-            for idx, option in enumerate(options):
-                x = width // 2 - len(option) // 2
-                y = height // 2 - len(options) // 2 + idx
-                if idx == current:
-                    stdscr.attron(curses.A_REVERSE)
-                    stdscr.addstr(y, x, option)
-                    stdscr.attroff(curses.A_REVERSE)
-                else:
-                    stdscr.addstr(y, x, option)
-            stdscr.refresh()
-            key = stdscr.getch()
-            if key == curses.KEY_UP and current > 0:
-                current -= 1
-            elif key == curses.KEY_DOWN and current < len(options) - 1:
-                current += 1
-            elif key in [10, 13]:
-                return options[current].lower()  # returns "on" or "off"
-            elif key in [ord('q'), ord('Q')]:
-                return None
-    current_setting = load_config().get("main_menu_music", "on")
-    new_setting = curses.wrapper(choose_music_option)
-    if new_setting is None:
-        print("No change made to Main Menu Music setting.")
-    else:
-        config = load_config()
-        config["main_menu_music"] = new_setting
-        save_config(config)
-        if new_setting == "off":
-            run_command("termux-media-player stop")
-            song_played = False
-            print("Main Menu Music turned Off. Music stopped.")
-        elif new_setting == "on":
-            if not song_played:
-                dedsec_dir = os.path.join(os.path.expanduser("~"), "DedSec")
-                music_file = os.path.join(dedsec_dir, "JOIN US WE ARE DEDSEC By HXLX.mp3")
-                if not os.path.exists(music_file):
-                    print(f"Error: File not found at {music_file}")
-                else:
-                    run_command("termux-media-player stop")
-                    run_command("termux-volume music 15")
-                    time.sleep(1)
-                    run_command(f'termux-media-player play "{music_file}"')
-                song_played = True
-            print("Main Menu Music turned On. Music will play on startup.")
-    input("\nPress Enter to return to the settings menu...")
-
-# ------------------------------
 # Integrated List Menu (from menu.py)
 # ------------------------------
-
 def run_list_menu():
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
     scripts_path = "/data/data/com.termux/files/home/DedSec/Scripts"
-
     def ensure_bashrc_setup():
         if os.path.exists(bashrc_path):
             with open(bashrc_path, "r") as file:
@@ -459,22 +368,19 @@ def run_list_menu():
         else:
             print(f"Error: {bashrc_path} not found.")
             sys.exit(1)
-
     def format_script_name(script_name):
         name = script_name.replace(".py", "").replace("_", " ").title()
         return re.sub(r'dedsec', 'DedSec', name, flags=re.IGNORECASE)
-
     def select_option(options, header):
         input_text = "\n".join(options)
         try:
-            result = subprocess.run(f"fzf --header='{header}'", input=input_text, shell=True, capture_output=True, text=True)
+            result = subprocess.run(f"fzf --header='{header}'", input=input_text,
+                                    shell=True, capture_output=True, text=True)
         except Exception as e:
             print("Error running fzf:", e)
             return None
         return result.stdout.strip()
-
     ensure_bashrc_setup()
-
     try:
         scripts = [f for f in os.listdir(scripts_path) if f.endswith(".py")]
         if not scripts:
@@ -505,11 +411,9 @@ def run_list_menu():
 # ------------------------------
 # Integrated Grid Menu (from grid_menu.py)
 # ------------------------------
-
 def run_grid_menu():
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
     scripts_path = "/data/data/com.termux/files/home/DedSec/Scripts"
-
     def ensure_bashrc_setup():
         if os.path.exists(bashrc_path):
             with open(bashrc_path, "r") as file:
@@ -525,11 +429,9 @@ def run_grid_menu():
         else:
             print(f"Error: {bashrc_path} not found.")
             sys.exit(1)
-
     def format_script_name(script_name):
         name = script_name.replace(".py", "").replace("_", " ").title()
         return re.sub(r'dedsec', 'DedSec', name, flags=re.IGNORECASE)
-
     def draw_box(stdscr, y, x, height, width, highlight=False):
         color = curses.color_pair(2)
         if highlight:
@@ -537,4 +439,64 @@ def run_grid_menu():
         for i in range(x, x + width):
             stdscr.addch(y, i, curses.ACS_HLINE, color)
             stdscr.addch(y + height - 1, i, curses.ACS_HLINE, color)
-    
+        for j in range(y, y + height):
+            stdscr.addch(j, x, curses.ACS_VLINE, color)
+            stdscr.addch(j, x + width - 1, curses.ACS_VLINE, color)
+        stdscr.addch(y, x, curses.ACS_ULCORNER, color)
+        stdscr.addch(y, x + width - 1, curses.ACS_URCORNER, color)
+        stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
+        stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
+    def draw_grid_menu(stdscr, friendly_names, num_scripts):
+        curses.curs_set(0)
+        stdscr.nodelay(0)
+        stdscr.timeout(-1)
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        curses.init_pair(2, curses.COLOR_MAGENTA, -1)
+        curses.init_pair(3, curses.COLOR_WHITE, -1)
+        current_index = 0
+        while True:
+            stdscr.clear()
+            term_height, term_width = stdscr.getmaxyx()
+            ICON_WIDTH = max(15, term_width // 5)
+            ICON_HEIGHT = max(7, term_height // 6)
+            max_cols = term_width // ICON_WIDTH
+            max_rows = term_height // ICON_HEIGHT
+            total_visible_cells = max_cols * max_rows
+            page_start_index = (current_index // total_visible_cells) * total_visible_cells
+            page_end_index = min(page_start_index + total_visible_cells, num_scripts)
+            for idx_on_page, actual_index in enumerate(range(page_start_index, page_end_index)):
+                i = idx_on_page // max_cols
+                j = idx_on_page % max_cols
+                y = i * ICON_HEIGHT
+                x = j * ICON_WIDTH
+                draw_box(stdscr, y, x, ICON_HEIGHT, ICON_WIDTH, highlight=(actual_index == current_index))
+                name = friendly_names[actual_index]
+                box_text_width = ICON_WIDTH - 4
+                wrapped_lines = textwrap.wrap(name, box_text_width)
+                total_lines = len(wrapped_lines)
+                padding_y = (ICON_HEIGHT - total_lines) // 2
+                for line_idx, line in enumerate(wrapped_lines):
+                    line_y = y + padding_y + line_idx
+                    padding_x = (ICON_WIDTH - len(line)) // 2
+                    line_x = x + padding_x
+                    if line_y < term_height - 1 and line_x < term_width - len(line):
+                        try:
+                            stdscr.addstr(line_y, line_x, line, curses.color_pair(3))
+                        except curses.error:
+                            pass
+            page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_scripts / total_visible_cells)} "
+            instructions = f"Arrow Keys: Move | Enter: Run | q: Quit | {page_info}"
+            try:
+                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
+            except curses.error:
+                pass
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key == curses.KEY_UP:
+                if current_index - max_cols >= 0:
+                    current_index -= max_cols
+            elif key == curses.KEY_DOWN:
+                if current_index + max_cols < num_scripts:
+                  
