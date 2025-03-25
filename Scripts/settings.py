@@ -499,4 +499,113 @@ def run_grid_menu():
                     current_index -= max_cols
             elif key == curses.KEY_DOWN:
                 if current_index + max_cols < num_scripts:
-                 
+                    current_index += max_cols
+            elif key == curses.KEY_LEFT:
+                if current_index % max_cols > 0:
+                    current_index -= 1
+            elif key == curses.KEY_RIGHT:
+                if (current_index % max_cols) < (max_cols - 1) and (current_index + 1) < num_scripts:
+                    current_index += 1
+            elif key in [10, 13]:
+                return current_index
+            elif key in [ord('q'), ord('Q')]:
+                return None
+            elif key == curses.KEY_RESIZE:
+                pass
+    ensure_bashrc_setup()
+    try:
+        scripts = [f for f in os.listdir(scripts_path) if f.endswith(".py")]
+        if not scripts:
+            print("No scripts found in the Scripts folder.")
+            return
+    except FileNotFoundError:
+        print(f"Error: {scripts_path} not found.")
+        sys.exit(1)
+    scripts.sort(key=lambda s: format_script_name(s).lower())
+    friendly_names = [format_script_name(script) for script in scripts]
+    selected_index = curses.wrapper(draw_grid_menu, friendly_names, len(scripts))
+    if selected_index is None:
+        print("No selection made. Exiting.")
+        return
+    selected_script = scripts[selected_index]
+    try:
+        ret = os.system(f"cd {scripts_path} && python3 {selected_script}")
+        if (ret >> 8) == 2:
+            print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
+            sys.exit(0)
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        sys.exit(0)
+
+# ------------------------------
+# Main Settings Menu
+# ------------------------------
+def menu(stdscr):
+    curses.curs_set(0)
+    curses.start_color()
+    curses.use_default_colors()
+    menu_options = ["About", "Update", "Change Prompt", "Change Menu Style", "Credits", "Exit"]
+    current_row = 0
+    while True:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        title = "Select an option"
+        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        for idx, option in enumerate(menu_options):
+            x = width // 2 - len(option) // 2
+            y = height // 2 - len(menu_options) // 2 + idx
+            if idx == current_row:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
+            else:
+                stdscr.addstr(y, x, option)
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
+            current_row += 1
+        elif key in [curses.KEY_ENTER, 10, 13]:
+            return current_row
+
+def main():
+    while True:
+        selected = curses.wrapper(menu)
+        os.system("clear")
+        if selected == 0:
+            show_about()
+        elif selected == 1:
+            update_dedsec()
+        elif selected == 2:
+            change_prompt()
+        elif selected == 3:
+            change_menu_style()
+        elif selected == 4:
+            show_credits()
+        elif selected == 5:
+            print("Exiting...")
+            break
+        input("\nPress Enter to return to the settings menu...")
+
+# ------------------------------
+# Entry Point
+# ------------------------------
+if __name__ == "__main__":
+    try:
+        if len(sys.argv) > 1 and sys.argv[1] == "--menu":
+            if len(sys.argv) > 2:
+                if sys.argv[2] == "list":
+                    run_list_menu()
+                elif sys.argv[2] == "grid":
+                    run_grid_menu()
+                else:
+                    print("Unknown menu style. Use 'list' or 'grid'.")
+            else:
+                main()
+        else:
+            main()
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        sys.exit(0)
+
