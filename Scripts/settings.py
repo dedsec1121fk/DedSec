@@ -250,9 +250,9 @@ def modify_bashrc():
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
     new_ps1 = (
-        f"PS1='🌐 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]⏰ "
-        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]💻 "
-        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]📂 "
+        f"PS1='ðŸŒ \\[\\e[1;36m\\]\\d \\[\\e[0m\\]â° "
+        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]ðŸ’» "
+        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]ðŸ“‚ "
         f"\\[\\e[1;33m\\]\\W \\[\\e[0m\\] : '\n"
     )
     with open("bash.bashrc", "w") as bashrc_file:
@@ -369,8 +369,7 @@ def run_list_menu():
             print(f"Error: {bashrc_path} not found.")
             sys.exit(1)
     def format_script_name(script_name):
-        name = script_name.replace(".py", "").replace("_", " ").title()
-        return re.sub(r'dedsec', 'DedSec', name, flags=re.IGNORECASE)
+        return script_name.replace(".py", "").replace("_", " ").title()
     def select_option(options, header):
         input_text = "\n".join(options)
         try:
@@ -499,4 +498,5 @@ def run_grid_menu():
                 if current_index - max_cols >= 0:
                     current_index -= max_cols
             elif key == curses.KEY_DOWN:
-      
+                if current_index + max_cols < num_scripts:
+         
