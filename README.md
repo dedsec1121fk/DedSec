@@ -170,6 +170,5 @@ The scripts are listed in alphabetical order:
 
 - **Consult Legal Counsel:**  
   If you have any doubts about the legal implications of using these tools in your jurisdiction or for your intended purpose, please consult a qualified legal professional before proceeding.
-```
 
 ---
