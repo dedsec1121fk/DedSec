@@ -13,7 +13,7 @@ All the songs in this repository are the property of the following artists:
 - [PLANNO MAN](https://youtube.com/@plannoman6698?si=ctZJTvMGGpXXz7K4)
 - [JAVASPA](https://youtube.com/@javaspa)
 - [HXLX](https://youtube.com/@hxlx)
-- [Giannis Vardis]
+- Giannis Vardis
 
 These songs are included here with the explicit permission and license granted by these artists for use exclusively within the DedSec project.  
 ### Permissions:  
