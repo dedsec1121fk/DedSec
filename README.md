@@ -3,7 +3,6 @@
 # DedSec Project
 
 [![Visit ded-sec.space](https://img.shields.io/badge/🌐%20Website-ded--sec.space-007EC6?style=for-the-badge)](https://www.ded-sec.space)
-[![Follow on Instagram](https://img.shields.io/badge/Instagram-Follow%20on%20Instagram-E4405F?logo=instagram&logoColor=white)](https://www.instagram.com/loukas_floros?igsh=MnR2eTdxaTN5ZHZi)
 [![Become a Patron](https://img.shields.io/badge/Patreon-Become%20a%20Patron-orange?logo=patreon)](https://www.patreon.com/c/dedsec1121fk/membership?redirect=true)
 
 **Secure Use Disclaimer:**
