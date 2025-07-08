@@ -137,5 +137,4 @@ This project is provided solely for educational purposes. Any unauthorized use o
 **Technical Help:** lamprouil, UKI_hunter
 
 ---
-
 © 2025 DedSec Project. All rights reserved.
