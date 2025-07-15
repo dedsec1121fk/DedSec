@@ -4,7 +4,7 @@
 # DedSec Project
 
 [![🌐 Visit Website](https://img.shields.io/badge/Website-ded--sec.space-blue?style=for-the-badge)](https://www.ded-sec.space)  
-> ðŸ’¡ Ελληνική μετάφραση υπάρχει στην παραπάνω σελίδα.
+> Ελληνική μετάφραση υπάρχει στην παραπάνω σελίδα.
 [![Contact Us On Telegram](https://img.shields.io/badge/Telegram-Contact%20Us-blue?style=for-the-badge&logo=telegram)](https://t.me/dedsecproject)
 
 > **A standalone DedSec Project application will be soon available with even more features. Stay tuned for updates and release info.**
