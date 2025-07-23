@@ -146,7 +146,7 @@ The tools and scripts within the DedSec Project are provided for educational, re
 ## Credits
 
 **Creator:** dedsec1121fk  
-**Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA.ZY.A2.N, ICE, Lefka City, HXLX, Giannis Vardis, Lavyrinthos, Komis X, GR$, Sakin, XALILOP1, Family Lockations, Dafne Kritharas, NANCIIE, Grave_North, YungKapa, Aroy, Pi Thita,Ecostones Band  
+**Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA.ZY.A2.N, ICE, Lefka City, HXLX, Giannis Vardis, Lavyrinthos, Komis X, GR$, Sakin, XALILOP1, Family Lockations, Dafne Kritharas, NANCIIE, Grave_North, YungKapa, Aroy, Pi Thita,Ecostones Band,Bossikan  
 **Art Artist:** Christina Chatzidimitriou  
 **Voice Overs:** Dimitra Isxuropoulou  
 **Technical Help:** lamprouil, UKI_hunter  
