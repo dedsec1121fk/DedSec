@@ -50,6 +50,7 @@ def run_cloudflared_and_print_link(port):
 from flask import Flask, render_template_string, request, jsonify
 import requests
 from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
 
 # --- CONFIGURATION ---
 
@@ -64,37 +65,75 @@ logger.setLevel(logging.ERROR)  # Suppress INFO logs in terminal
 geolocator = Nominatim(user_agent="fast_location_app")
 
 def process_and_save_location(data):
-    """Background process: enrich and save location data."""
+    """Background process: enrich and save location data, formatted nicely."""
     try:
         lat, lon = data['latitude'], data['longitude']
-        full_data = {'gps_data': data}
 
-        # 1. Reverse Geocode
+        # --- Reverse Geocode ---
+        full_address = "Not Available"
+        address_details = {}
         try:
             location = geolocator.reverse((lat, lon), language='en', exactly_one=True, timeout=10)
             if location and hasattr(location, 'raw') and 'address' in location.raw:
-                full_data['address_details'] = location.raw.get('address', {})
-                full_data['full_address'] = location.address
+                address_details = location.raw.get('address', {})
+                full_address = location.address
         except Exception:
-            full_data['full_address'] = "N/A"
+            pass
 
-        # 2. Nearby Stores
-        full_data['nearby_stores'] = get_nearby_stores(lat, lon)
+        # --- Nearby Stores (limit 2) ---
+        places = get_nearby_places(lat, lon, limit=2)
 
-        # 3. IP Location
-        full_data['ip_based_location'] = get_ip_info()
+        # --- IP Info ---
+        ip_info = get_ip_info()
 
-        # 4. Save JSON
+        # --- Build human-friendly JSON ---
+        pretty_data = {
+            "GPS Coordinates": {
+                "Latitude": lat,
+                "Longitude": lon,
+                "Accuracy (m)": data.get("accuracy"),
+                "Altitude (m)": data.get("altitude"),
+                "Speed (m/s)": data.get("speed"),
+                "Heading (°)": data.get("heading")
+            },
+            "Address": {
+                "House Number": address_details.get("house_number"),
+                "Street": address_details.get("road"),
+                "Suburb": address_details.get("suburb"),
+                "City": address_details.get("city"),
+                "State": address_details.get("state"),
+                "Postcode": address_details.get("postcode"),
+                "Country": address_details.get("country")
+            },
+            "Full Address": full_address,
+            "Nearby Places (Top 2)": [
+                {
+                    "Type": p.get("type", "Unknown").title(),
+                    "Name": p.get("name", "Unnamed"),
+                    "Address": p.get("address") or "N/A",
+                    "Distance": f"{p['distance_m']} m" if 'distance_m' in p else "N/A"
+                }
+                for p in places
+            ],
+            "IP Location": {
+                "IP": ip_info.get("ip"),
+                "City": ip_info.get("city"),
+                "Region": ip_info.get("region"),
+                "Country": ip_info.get("country")
+            }
+        }
+
+        # --- Save JSON ---
         date_str = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
         filename = os.path.join(LOCATION_FOLDER, f'location_{date_str}.json')
-        with open(filename, 'w') as f:
-            json.dump(full_data, f, indent=4)
+        with open(filename, 'w', encoding="utf-8") as f:
+            json.dump(pretty_data, f, indent=4, ensure_ascii=False)
 
-        # Print only file path
-        print(f"Data saved: {filename}\n")
+        print(f"✅ Data saved: {filename}\n")
 
     except Exception as e:
         logger.error(f"Error in background processing: {e}")
+
 
 def get_ip_info():
     try:
@@ -104,13 +143,43 @@ def get_ip_info():
     except requests.RequestException:
         return {}
 
-def get_nearby_stores(latitude, longitude, radius=2000):
-    overpass_query = f"""[out:json];(node["shop"](around:{radius},{latitude},{longitude});way["shop"](around:{radius},{latitude},{longitude}););out body;"""
+def get_nearby_places(latitude, longitude, radius=2000, limit=2):
+    """Return the closest shops/amenities with distance."""
+    overpass_query = f"""
+    [out:json];
+    (
+        node["shop"](around:{radius},{latitude},{longitude});
+        way["shop"](around:{radius},{latitude},{longitude});
+        node["amenity"~"restaurant|cafe|bar|fast_food|pharmacy|bank|supermarket"](around:{radius},{latitude},{longitude});
+        way["amenity"~"restaurant|cafe|bar|fast_food|pharmacy|bank|supermarket"](around:{radius},{latitude},{longitude});
+    );
+    out center;
+    """
     try:
         response = requests.get("http://overpass-api.de/api/interpreter", params={'data': overpass_query}, timeout=10)
         response.raise_for_status()
         elements = response.json().get('elements', [])
-        return [element['tags']['name'] for element in elements if 'tags' in element and 'name' in element['tags']]
+        results = []
+
+        for element in elements:
+            tags = element.get('tags', {})
+            lat_elem = element.get('lat') or element.get('center', {}).get('lat')
+            lon_elem = element.get('lon') or element.get('center', {}).get('lon')
+
+            if not lat_elem or not lon_elem:
+                continue
+
+            distance = geodesic((latitude, longitude), (lat_elem, lon_elem)).meters
+            results.append({
+                "type": tags.get("shop") or tags.get("amenity"),
+                "name": tags.get("name", "Unnamed"),
+                "address": f"{tags.get('addr:street', '')} {tags.get('addr:housenumber', '')}".strip(),
+                "distance_m": round(distance, 1)
+            })
+
+        results.sort(key=lambda x: x["distance_m"])
+        return results[:limit]
+
     except requests.RequestException:
         return []
 
