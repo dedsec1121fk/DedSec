@@ -5,6 +5,7 @@ import time
 import re
 import sys
 import shutil
+import socket # Added to find the local IP address
 
 # Auto-install/update requirements
 def install_requirements():
@@ -13,6 +14,20 @@ def install_requirements():
         os.system("pkg update -y > /dev/null 2>&1 && pkg install cloudflared -y > /dev/null 2>&1")
     if not shutil.which("tor"):
         os.system("pkg install tor -y > /dev/null 2>&1")
+
+# NEW: Function to get the local IP address
+def get_local_ip():
+    """Finds the local IP address of the machine."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't have to be a reachable address
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1' # Fallback to localhost
+    finally:
+        s.close()
+    return IP
 
 # Start Tor and wait for it to initialize
 def start_tor():
@@ -24,16 +39,39 @@ def start_tor():
 def start_chat_server():
     return subprocess.Popen([sys.executable, __file__, "--server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# Start cloudflared tunnel and extract link
-def generate_link():
+# MODIFIED: Start cloudflared and print both online and offline links
+def generate_and_print_links():
+    """Starts cloudflared, gets links, and prints them to the console."""
     cmd = ["cloudflared", "tunnel", "--url", "http://localhost:5000"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    # Get the local IP for the offline/hotspot link
+    local_ip = get_local_ip()
+    local_url = f"http://{local_ip}:5000"
+
+    print("\n🚀 Starting services... please wait for the links.")
+
     for line in process.stdout:
+        # Search for the public cloudflared URL
         match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
         if match:
-            url = match.group(0)
-            print(f"\nFox Chat is now live at:\n\n{url}\n")
-            return process
+            online_url = match.group(0)
+
+            # Clear the console for a clean output
+            os.system('cls' if os.name == 'nt' else 'clear')
+
+            print("✅ Fox Chat is now live!")
+            print("===========================")
+            print(f"🔗 Online Link (Internet):     {online_url}")
+            print(f"🏠 Offline Link (Hotspot/LAN): {local_url}")
+            print("\nShare the appropriate link with others.")
+            print("Press Ctrl+C to stop the server.")
+
+            return process # Return the running process
+
+    # Fallback in case cloudflared fails to generate a link
+    print("\n⚠️ Could not generate an online link.")
+    print(f"You can still use the Offline Link: {local_url}")
     return process
 
 if __name__ == '__main__' and "--server" not in sys.argv:
@@ -41,10 +79,13 @@ if __name__ == '__main__' and "--server" not in sys.argv:
     tor = start_tor()
     server = start_chat_server()
     time.sleep(5)
-    tunnel = generate_link()
+    # The function now handles printing the links
+    tunnel = generate_and_print_links()
     try:
-        server.wait()
+        # Keep the script running until interrupted
+        tunnel.wait()
     except KeyboardInterrupt:
+        print("\nShutting down servers...")
         tunnel.terminate()
         tor.terminate()
         server.terminate()
@@ -52,6 +93,7 @@ if __name__ == '__main__' and "--server" not in sys.argv:
 
 # ---------------------------------------
 # FLASK FOX CHAT SERVER WITH FULL HTML
+# (This part of the code remains unchanged)
 # ---------------------------------------
 
 from flask import Flask, render_template_string, request
@@ -590,4 +632,3 @@ def on_disconnect():
 
 if __name__ == '__main__' and "--server" in sys.argv:
     socketio.run(app, host='0.0.0.0', port=5000)
-
