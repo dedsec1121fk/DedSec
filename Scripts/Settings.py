@@ -220,7 +220,7 @@ def show_credits():
                 CREDITS
 =======================================
 Creator:dedsec1121fk
-Music Artists:BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Family Lockations, Christina Markesini, Dafne Kritharas, Grave_North, YungKapa, Aroy, Pi Thita, Ecostones Band, Bossikan, B-Mat, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo
+Music Artists:BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Family Lockations, Christina Markesini, Dafne Kritharas, Grave_North, YungKapa, Aroy, Pi Thita, Ecostones Band, Bossikan, B-Mat, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
 Producer: JK
 Art Artist:Christina Chatzidimitriou
 Voice Overs:Dimitra Isxuropoulou
