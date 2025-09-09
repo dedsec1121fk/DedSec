@@ -6,6 +6,7 @@ import time
 import mimetypes
 import datetime
 import contextlib
+import socket  # Added to find the local IP address
 from flask import Flask, render_template_string, request, redirect, send_from_directory
 
 # ==== AUTOINSTALL SECTION ====
@@ -30,6 +31,20 @@ def start_tor():
         pass
 
 start_tor()
+
+# NEW: Function to get the local IP address
+def get_local_ip():
+    """Finds the local IP address of the machine."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't have to be a reachable address
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1' # Fallback to localhost
+    finally:
+        s.close()
+    return IP
 
 if not os.path.exists("Database"):
     os.makedirs("Database")
@@ -343,6 +358,7 @@ def delete_file(filename):
         pass
     return redirect("/")
 
+# MODIFIED: Main execution block to show both links
 if __name__ == "__main__":
     with suppress_stdout_stderr():
         flask_thread = threading.Thread(target=run_flask, daemon=True)
@@ -350,14 +366,24 @@ if __name__ == "__main__":
         time.sleep(3)
         public_link = start_cloudflared_tunnel(port)
 
+    # Get the local IP for the offline link
+    local_ip = get_local_ip()
+    local_link = f"http://{local_ip}:{port}"
+
+    print("✅ DedSec Database is now live!")
+    print("========================================")
+
     if public_link:
-        print(f"DedSec Database Public Link:\n{public_link}")
+        print(f"🔗 Online Link (Internet):     {public_link}")
     else:
-        print("Could not generate link.")
+        print("⚠️  Online Link (Internet):     Could not generate link.")
+
+    print(f"🏠 Offline Link (Hotspot/LAN): {local_link}")
+    print("\nShare the appropriate link with others.")
+    print("Press Ctrl+C to shut down.")
 
     try:
         while True:
             time.sleep(60)
     except KeyboardInterrupt:
         print("\nShutting down gracefully...")
-
