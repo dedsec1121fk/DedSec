@@ -585,8 +585,8 @@ def run_grid_menu():
 # New Option: Update Packages & Modules
 # ------------------------------
 def update_packages_modules():
-    pip_command = "pip install flask && pip install blessed && pip install flask-socketio && pip install werkzeug && pip install requests && pip install datetime && pip install geopy && pip install pydub && pip install pycryptodome && pip install mutagen && pip install cryptography && pip install phonenumbers && pip install pycountry"
-    termux_command = "termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install python git fzf nodejs openssh nano jq wget unzip curl proot openssl aapt rust cloudflared"
+    pip_command = "pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
+    termux_command = "termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install aapt clang cloudflared curl ffmpeg fzf git jq libffi libffi-dev libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust unzip wget zip termux-api -y"
     print("[+] Εγκατάσταση πακέτων και μονάδων Python...")
     run_command(pip_command)
     print("[+] Εγκατάσταση πακέτων και μονάδων Termux...")
