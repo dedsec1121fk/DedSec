@@ -251,9 +251,9 @@ def modify_bashrc():
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
     new_ps1 = (
-        f"PS1='🌐 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]⏰ "
-        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]💻 "
-        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]📂 "
+        f"PS1='倹 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]竢ｰ "
+        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]捗 "
+        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]唐 "
         f"\\[\\e[1;33m\\]\\W \\[\\e[0m\\] : '\n"
     )
     with open("bash.bashrc", "w") as bashrc_file:
@@ -590,8 +590,8 @@ def run_grid_menu():
 # New Option: Update Packages & Modules
 # ------------------------------
 def update_packages_modules():
-    pip_command = "pip install flask && pip install blessed && pip install flask-socketio && pip install werkzeug && pip install requests && pip install datetime && pip install geopy && pip install pydub && pip install pycryptodome && pip install mutagen && pip install cryptography && pip install phonenumbers && pip install pycountry"
-    termux_command = "termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install python git fzf nodejs openssh nano jq wget unzip curl proot openssl aapt rust cloudflared"
+    pip_command = "pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
+    termux_command = "termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install aapt clang cloudflared curl ffmpeg fzf git jq libffi libffi-dev libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust unzip wget zip termux-api -y"
     print("[+] Installing Python packages and modules...")
     run_command(pip_command)
     print("[+] Installing Termux packages and modules...")
@@ -671,4 +671,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt received. Exiting gracefully...")
         sys.exit(0)
-
