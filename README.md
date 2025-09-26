@@ -167,8 +167,8 @@ Connect with the DedSec Project community through our official channels:
 This project was made possible by the following contributors:
 
 * **Creator:** dedsec1121fk
-* **Technical Help:** lamprouil, UKI\_hunter
+* **Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave\_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
 * **Artwork:** Christina Chatzidimitriou
 * **Voice-overs:** Dimitra Isxuropoulou
 * **Producer:** JK
-* **Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave\_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
+* **Technical Help:** lamprouil, UKI\_hunter
