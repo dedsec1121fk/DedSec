@@ -9,7 +9,7 @@
   <p>
     <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
     <img src="https://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
-    <img src="https://img.shields.io/badge/Language-Python%20%7C%20Shell-yellow.svg" alt="Language: Python | Shell">
+    <img src="https://img.shields.io/badge/Language-Python%20%7C%20Shell%20%7C%20JS-yellow.svg" alt="Language: Python | Shell | JS">
   </p>
 </div>
 
@@ -38,10 +38,12 @@ Get the DedSec Project running on your Android device with Termux.
 | Component | Minimum Specification                                      |
 | :-------- | :--------------------------------------------------------- |
 | **Device** | Android with [Termux](https://f-droid.org/) installed      |
-| **Storage** | **3GB** of free space                                      |
+| **Storage** | **3GB** of free space (The Radio feature, images, and recordings will consume more space.) |
 | **RAM** | **2GB** |
 
 ### Step-by-Step Setup
+
+> **Note:** For best results, install Termux from the [F-Droid](https://f-droid.org/) store. This ensures you can also install necessary add-ons like `Termux:API`. You may need to enable "Install Unknown Apps" in your Android settings.
 
 1.  **Install Packages & Grant Permissions**
     Open Termux and run the following command to set up storage and install necessary packages:
@@ -66,6 +68,7 @@ Get the DedSec Project running on your Android device with Termux.
     ```bash
     git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
+    > **💡 Tip:** If you get an error like `ModuleNotFoundError: No module named 'requests'`, run `pip install requests` and try again.
 
 5.  **Run the Project**
     Navigate into the project directory and run the settings script to begin:
@@ -99,6 +102,7 @@ This toolkit contains various scripts for **educational and defensive purposes o
     <li><b>Fake Data Grabber Page.py</b>: Saves personal info/photo to <code>~/storage/downloads/Peoples_Lives/{user}/</code>.</li>
     <li><b>Fake FaceFriends Page.py</b>: Stores credentials to <code>~/storage/downloads/FaceFriends/</code>.</li>
     <li><b>Fake Google Free Money Page.py</b>: Saves credentials to <code>~/storage/downloads/GoogleFreeMoney/</code>.</li>
+    <li><b>Fake Google Location Page.py</b>: Stores location data (GPS, address, IP) to <code>~/storage/downloads/Locations/</code>.</li>
     <li><b>Fake Insta Followers Page.py</b>: Saves credentials to <code>~/storage/downloads/FreeFollowers/</code>.</li>
     <li><b>Fake Back Camera Page.py</b>: Stores images/credentials to <code>~/storage/downloads/Camera-Phish-Back/</code>.</li>
     <li><b>Fake Front Camera Page.py</b>: Saves front camera photos/credentials to <code>~/storage/downloads/Camera-Phish-Front/</code>.</li>
@@ -114,7 +118,7 @@ This toolkit contains various scripts for **educational and defensive purposes o
 
 ## 📂 Portfolio & GitHub
 
-Explore our other projects and source code.
+Explore our other projects, source code, and store.
 
 * **Portfolio**
     * [ICE Project](https://www.ded-sec.space/ICE-Project/)
@@ -123,6 +127,8 @@ Explore our other projects and source code.
     * [DedSec (The Official Project)](https://github.com/dedsec1121fk/DedSec)
     * [DedSec-Radio (Audio Files)](https://github.com/dedsec1121fk/DedSec-Radio)
     * [Website Source Code](https://github.com/dedsec1121fk/dedsec1121fk.github.io)
+* **Store**
+    * [DedSec Store on Gumroad](https://dedsec1121fk.gumroad.com)
 
 ---
 
@@ -141,13 +147,13 @@ Explore our other projects and source code.
 >
 > This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
 >
-> **1. Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are solely and entirely responsible for your actions and for any consequences that may arise from the use or misuse of this Software.
+> **1. Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are solely and entirely responsible for your actions and for any consequences that may arise from the use or misuse of this Software. This includes, but is not limited to, compliance with all applicable local, state, national, and international laws and regulations related to cybersecurity, data privacy, and electronic communications.
 >
-> **2. Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is strictly prohibited. This includes, without limitation: accessing systems without authorization, data theft, or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
+> **2. Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is strictly prohibited. This includes, without limitation: accessing systems, networks, or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
 >
-> **3. No Warranty:** The Software is provided "AS IS," without any warranty of any kind, express or implied.
+> **3. No Warranty:** The Software is provided "AS IS," without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make no guarantee that the Software will be error-free, secure, or uninterrupted.
 >
-> **4. Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software.
+> **4. Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
 
 ---
 
