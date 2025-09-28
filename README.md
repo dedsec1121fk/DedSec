@@ -17,31 +17,28 @@
 
 ---
 
-Welcome to the **DedSec Project**! Our mission is to empower you by revealing how real-world threats operate. This toolkit is packed with educational scripts, showing you how phishing attacks steal camera images and location data, or how to chat securely with an encrypted client. Everything here is completely free and designed to turn you from a target into a defender.
+Welcome to the **DedSec Project**! Our mission is to empower you by revealing how real-world threats operate. This toolkit is packed with educational scripts and guides, showing you everything from how phishing attacks work to how you can turn your phone into a portable computer. Everything here is completely free and designed to turn you from a target into a defender.
 
 ## 📋 Table of Contents
 
-* [Installation & Usage](#-installation--usage)
+* [Installation & Usage (Command-Line Tools)](#-installation--usage-command-line-tools)
 * [Digital Self-Defense Toolkit](#-digital-self-defense-toolkit)
-* [Portfolio & GitHub](#-portfolio--github)
-* [Collaborations](#-collaborations)
 * [Legal Disclaimer & Terms of Use](#️-legal-disclaimer--terms-of-use)
-* [Privacy Policy](#-privacy-policy)
 * [Community & Contact](#-community--contact)
 * [Credits](#-credits)
 
 ---
 
-## 🚀 Installation & Usage
+## 🚀 Installation & Usage (Command-Line Tools)
 
-Get the DedSec Project running on your **Android device with Termux**.
+Get the DedSec Project command-line tools running on your **Android device with Termux**.
 
 ### Requirements
 
 | Component | Minimum Specification |
-| :-------- | :-------------------- |
+| :--- | :--- |
 | **Device** | Android with [Termux](https://f-droid.org/) installed |
-| **Storage** | **3GB** of free space (Radio, images, and recordings will consume more space.) |
+| **Storage** | **3GB** of free space (Radio, images, and recordings consume more space.) |
 | **RAM** | **2GB** |
 
 ### Step-by-Step Setup
@@ -86,62 +83,10 @@ Get the DedSec Project running on your **Android device with Termux**.
 
 This toolkit contains various scripts for **educational and defensive purposes only**. Their function is to demonstrate how common attacks work so you can learn to recognize and protect yourself against them.
 
-* **Fox Chat**: Encrypted chat, along with file sharing, voice messages, and video calls.
-* **Android App Launcher**: Displays and manages downloaded Android apps.
-* **Radio**: Features an offline radio with Greek and international artists.
-* **DedSec Database**: Lets you upload, search for, and delete files on a local server hosted by your device (files are saved in a hidden folder).
-* **HTML Finder**: A utility to inspect, download, and locally edit any public webpage.
-* **URL Masker (Masker.py)**: A tool to conceal and shorten URLs.
-* **SocialBrute**: An advanced multi-service brute-force tool for social media platforms.
-* **Settings**: Allows you to update the project, install or update packages and modules, change your username and menu style, and view credits.
-* **Extra Content**: Contains photos, unused scripts, voice-overs, and more.
-
-<details>
-  <summary><strong>🎣 Phishing Attack Demonstrations (Click to expand)</strong></summary>
-  
-  This educational module simulates real phishing attacks to help you understand their mechanics. It demonstrates capturing camera images, audio, location (GPS, address, IP), credit card data, and personal information. All captured data is saved in your device's `Downloads` folder.
-  <ul>
-    <li><b>Fake Card Details Page.py</b>: Saves credit card info to <code>~/storage/downloads/CardActivations/</code>.</li>
-    <li><b>Fake Data Grabber Page.py</b>: Saves personal info/photo to <code>~/storage/downloads/Peoples_Lives/{user}/</code>.</li>
-    <li><b>Fake FaceFriends Page.py</b>: Stores credentials to <code>~/storage/downloads/FaceFriends/</code>.</li>
-    <li><b>Fake Google Free Money Page.py</b>: Saves credentials to <code>~/storage/downloads/GoogleFreeMoney/</code>.</li>
-    <li><b>Fake Google Location Page.py</b>: Stores location data (GPS, address, IP) to <code>~/storage/downloads/Locations/</code>.</li>
-    <li><b>Fake Insta Followers Page.py</b>: Saves credentials to <code>~/storage/downloads/FreeFollowers/</code>.</li>
-    <li><b>Fake Back Camera Page.py</b>: Stores images/credentials to <code>~/storage/downloads/Camera-Phish-Back/</code>.</li>
-    <li><b>Fake Front Camera Page.py</b>: Saves front camera photos/credentials to <code>~/storage/downloads/Camera-Phish-Front/</code>.</li>
-    <li><b>Fake Location Page.py</b>: Stores location data (GPS, address, IP) to <code>~/storage/downloads/Locations/</code>.</li>
-    <li><b>Fake Microphone Page.py</b>: Saves mic recordings/credentials to <code>~/storage/downloads/Recordings/</code>.</li>
-    <li><b>Fake Snap Friends Page.py</b>: Stores credentials to <code>~/storage/downloads/SnapFriends/</code>.</li>
-    <li><b>Fake Tik Followers Page.py</b>: Saves credentials to <code>~/storage/downloads/TikFollowers/</code>.</li>
-  </ul>
-  <strong>Remember:</strong> Only use these scripts on your own devices for learning purposes.
-</details>
-
----
-
-## 📂 Portfolio & GitHub
-
-Explore our other projects and source code.
-
-* **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
-* **Portfolio**
-    * [ICE Project](https://www.ded-sec.space/ICE-Project/)
-    * [Scav Project](https://www.ded-sec.space/Scav-Project)
-* **Repositories**
-    * [DedSec (The Official Project)](https://github.com/dedsec1121fk/DedSec)
-    * [DedSec-Radio (Audio Files)](https://github.com/dedsec1121fk/DedSec-Radio)
-    * [Website Source Code](https://github.com/dedsec1121fk/dedsec1121fk.github.io)
-* **Store**
-    * [DedSec Store on Gumroad](https://dedsec1121fk.gumroad.com)
-
----
-
-## 🤝 Collaborations
-
-* **Python Gym Clothing**
-    * Visit the [Official Store](https://pythongymclothing.com/) and use discount code `dedsec` for 10% off.
-* **AdGen**
-    * [Create customized ads](https://adgenai.space/main.php) for your product using AI.
+* **Fox Chat & Utilities**: Includes various scripts like encrypted chat, an offline radio player, app management, and the settings menu to update the project.
+* **Phishing Demonstrations**: Modules that show how a malicious webpage can trick a user into giving away camera, microphone, and location access. For your self-tests, any captured data is saved locally into your phone's main **Downloads** folder.
+* **SocialBrute**: A script designed to demonstrate the weakness of simple or reused passwords by showing how automated attacks work.
+* **URL Masker & HTML Finder**: Educational tools to help you understand how web pages are structured and how links can be disguised.
 
 ---
 
@@ -149,7 +94,7 @@ Explore our other projects and source code.
 
 > **CRITICAL NOTICE: PLEASE READ CAREFULLY BEFORE PROCEEDING.**
 >
-> **Trademark Disclaimer:** The "**DedSec**" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "**Watch Dogs**" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
+> **Trademark Disclaimer:** The "**DedSec**" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "**Watch Dogs**" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A.. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A..
 >
 > This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
 >
@@ -160,36 +105,6 @@ Explore our other projects and source code.
 > **3. No Warranty:** The Software is provided "AS IS," without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make no guarantee that the Software will be error-free, secure, or uninterrupted.
 >
 > **4. Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
-
----
-
-## 🔒 Privacy Policy
-
-**Last Updated: September 27, 2025**
-
-This Privacy Policy explains how we handle information in connection with the DedSec Project website ("Service").
-
-### 1. Information Collection and Use
-We are committed to protecting your privacy. Our Service is designed to be used without the need for you to submit personal data. Personally identifiable information is **not transmitted** by the project itself.
-
-* **Third-Party Services:** We may use third-party services that collect information. These include:
-    * **Google AdSense:** Used to serve advertisements. Google and its partners may use cookies (such as the DoubleClick cookie) to serve ads based on your visits to this and other sites. You can opt out of personalized advertising by visiting [Google's Ads Settings](https://www.google.com/settings/ads).
-    * **External Links:** The Service contains links to other sites (e.g., GitHub, Gumroad, social media). We have no control over and assume no responsibility for the content, privacy policies, or practices of any third-party sites or services.
-
-### 2. Cookies
-Our Service may use cookies as part of third-party integrations like Google AdSense. You have the option to accept or refuse these cookies through your browser settings.
-
-### 3. Data Security
-No method of transmission over the internet or electronic storage is 100% secure and reliable, and we cannot guarantee its absolute security.
-
-### 4. Children's Privacy
-This Service does not address anyone under the age of 13. We do not knowingly collect personally identifiable information from children under 13.
-
-### 5. Changes to This Privacy Policy
-We may update our Privacy Policy from time to time and will notify you of any changes by posting the new policy on this page. Changes are effective immediately after they are posted.
-
-### 6. Contact Us
-If you have any questions, you can contact us through the methods provided on our "Community & Contact" section.
 
 ---
 
