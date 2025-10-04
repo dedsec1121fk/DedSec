@@ -38,10 +38,10 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 ### Requirements
 
-| Component | Minimum Specification                                                |
+| Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
-| **Device** | Android with [Termux](https://f-droid.org/) installed               |
-| **Storage** | **3GB** of free space (Radio, images, and recordings consume more.) |
+| **Device** | Android with [Termux](https://f-droid.org/) installed |
+| **Storage** | **3GB** of free space (The Radio feature requires more storage; images and recordings also consume space.) |
 | **RAM** | **2GB** |
 
 ### Step-by-Step Setup
@@ -86,83 +86,48 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 > **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
 
-* **Fox Chat & Utilities**: Includes various scripts like encrypted chat, an offline radio player, app management tools, and the settings menu to update the project.
-* **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
-* **SocialBrute**: A script designed to demonstrate the weakness of simple or reused passwords. It shows how automated attacks work, highlighting the critical importance of using strong, unique passwords for every online account.
-* **URL Masker & HTML Finder**: Educational tools to help you understand how web pages are structured and how links can be disguised.
+The toolkit includes the following main features:
+
+* **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
+* **DedSec Database**: A **self-hosted, web-based file storage server** that allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a `Database` folder created in the script's directory.
+* **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the `~/DedSec-Radio` folder in your Termux home directory.
+* **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS** and **DNS records**, **open ports**, **subdomains**, and **directories**, and checks for common vulnerabilities like **SQLi** and **XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis.
+* **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
+* **SocialBrute**: A script designed to demonstrate the weakness of simple or reused passwords. It shows how automated attacks work, highlighting the critical importance of using strong, unique passwords to protect against brute-force attempts.
 
 ---
 
 ## 💼 Portfolio & GitHub
 
-### Other Projects
-
-* [**ICE Project**](https://www.ded-sec.space/ICE-Project/)
-* [**Scav Project**](https://www.ded-sec.space/Scav-Project)
-* [**KuNuPi Project**](https://www.ded-sec.space/KuNuPi-Project/)
-
-### Repositories
-
-* [**DedSec (The Official Project)**](https://github.com/dedsec1121fk/DedSec)
-* [**DedSec-Radio (Audio Files)**](https://github.com/dedsec1121fk/DedSec-Radio)
-
-### Statistics
-
-<div align="center">
-  <img src="https://github-readme-stats.vercel.app/api?username=dedsec1121fk&show_icons=true&theme=transparent&border_color=9966ff&text_color=d0d8e0&title_color=9966ff&icon_color=e6d9ff" alt="GitHub Stats">
-  <img src="https://github-readme-stats.vercel.app/api/top-langs/?username=dedsec1121fk&layout=compact&theme=transparent&border_color=9966ff&text_color=d0d8e0&title_color=9966ff&icon_color=e6d9ff" alt="Top Languages">
-</div>
+This section will contain links to my personal portfolio and other relevant GitHub repositories.
 
 ---
 
 ## 🤝 Collaborations
 
-### Python Gym Clothing
-
-Use the discount code below for 10% off at the official store!
-
-**Discount Code:** `dedsec`
-
-**[Visit The Official Store](https://pythongymclothing.com/)**
-
-### AdGen
-
-Create customized ads for your product using AI!
-
-**[Create Your Ad](https://adgenai.space/main.php)**
+Details about current and past collaborations with other projects and individuals.
 
 ---
 
-## 🌐 Community & Contact
+## 💬 Community & Contact
 
-Connect with the DedSec Project community through our official channels:
-
-* **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* **📸 Instagram:** [@dedsec\_project\_official](https://www.instagram.com/dedsec_project_official)
-* **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+Information on how to join the community, ask questions, or contact the project developers.
 
 ---
 
-## ✨ Credits
+## 📜 Credits
 
-This project was made possible by the following contributors:
-
-* **Creator:** dedsec1121fk
-* **Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave\_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
-* **Producer:** JK
-* **Artwork:** Christina Chatzidimitriou
-* **Voice-overs:** Dimitra Isxuropoulou
-* **Technical Help:** lamprouil, UKI\_hunter
+A list of individuals, projects, and resources that have contributed to the DedSec Project.
 
 ---
 
-## ⚖️ Legal Disclaimer & Terms of Use
+## ⚠️ Legal Disclaimer & Terms of Use
 
 > **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
 >
 > **Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
 >
-> This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
+> This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for educational, research, and ethical security testing purposes. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
 >
 > **1. Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are solely and entirely responsible for your actions and for any consequences that may arise from the use or misuse of this Software. This includes, but is not limited to, compliance with all applicable local, state, national, and international laws and regulations related to cybersecurity, data privacy, and electronic communications.
 >
