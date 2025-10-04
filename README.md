@@ -10,8 +10,9 @@
   
   <p>
     <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
-    <img src="https://img-url-is-too-long.png" alt="Platform: Android (Termux)">
+    <img src="https://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
     <img src="https://img.shields.io/badge/Language-Python%20%7C%20JS%20%7C%20Shell-yellow.svg" alt="Language: Python | JS | Shell">
+    <img src="https://img.shields.io/badge/Interface-EN%20%7C%20GR-lightgrey.svg" alt="Interface: EN | GR">
   </p>
 </div>
 
@@ -83,14 +84,15 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 > **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
 
-The toolkit includes the following main features:
+The toolkit includes the following main features (descriptions are based *only* on `index.html`):
 
-* **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
-* **DedSec Database**: A **self-hosted, web-based file storage server** that allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a `Database` folder created in the script's directory.
-* **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the `~/DedSec-Radio` folder in your Termux home directory.
-* **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS** and **DNS records**, **open ports**, **subdomains**, and **directories**, and checks for common vulnerabilities like **SQLi** and **XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis.
-* **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
-* **SocialBrute**: A script designed to demonstrate the weakness of simple or reused passwords. It shows how automated attacks work, highlighting the critical importance of using strong, unique passwords to protect against brute-force attempts.
+* **Fox Chat**: An **end-to-end encrypted chat** application for secure communication. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
+* **DedSec Database**: A **self-hosted, web-based file storage server** that allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
+* **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
+* **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS** and **DNS records**, **open ports**, **subdomains**, and **directories**, and checks for common vulnerabilities like **SQLi** and **XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
+* **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
+* **URL Masker**: An educational tool to demonstrate how links can be disguised. It helps you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
+* **Android App Launcher**: A utility to manage installed applications on your Android device. You can use it to quickly launch, kill/stop, or get detailed package information about any installed app.
 
 ---
 
