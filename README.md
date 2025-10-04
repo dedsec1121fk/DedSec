@@ -10,9 +10,8 @@
   
   <p>
     <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
-    <img src="https://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
+    <img src="https://img-url-is-too-long.png" alt="Platform: Android (Termux)">
     <img src="https://img.shields.io/badge/Language-Python%20%7C%20JS%20%7C%20Shell-yellow.svg" alt="Language: Python | JS | Shell">
-    <img src="https://img.shields.io/badge/Interface-EN%20%7C%20GR-lightgrey.svg" alt="Interface: EN | GR">
   </p>
 </div>
 
@@ -24,8 +23,6 @@ Welcome to the **DedSec Project**! Our mission is to empower you by demonstratin
 
 * [Installation & Usage (Command-Line Tools)](#-installation--usage-command-line-tools)
 * [Digital Self-Defense Toolkit](#️-digital-self-defense-toolkit)
-* [Portfolio & GitHub](#-portfolio--github)
-* [Collaborations](#-collaborations)
 * [Community & Contact](#-community--contact)
 * [Credits](#-credits)
 * [Legal Disclaimer & Terms of Use](#️-legal-disclaimer--terms-of-use)
@@ -97,27 +94,19 @@ The toolkit includes the following main features:
 
 ---
 
-## 💼 Portfolio & GitHub
-
-This section will contain links to my personal portfolio and other relevant GitHub repositories.
-
----
-
-## 🤝 Collaborations
-
-Details about current and past collaborations with other projects and individuals.
-
----
-
 ## 💬 Community & Contact
 
-Information on how to join the community, ask questions, or contact the project developers.
+For questions, support, or general inquiries, you can use the following methods:
+
+* **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
+* **Official Store:** [https://dedsec1121fk.gumroad.com](https://dedsec1121fk.gumroad.com)
+* **Privacy Policy Questions:** The official website notes that for any questions or suggestions regarding the Privacy Policy, users should contact the project using the methods provided on the "Contact" page (which includes the links above).
 
 ---
 
 ## 📜 Credits
 
-A list of individuals, projects, and resources that have contributed to the DedSec Project.
+This project was developed and is maintained by **dedsec1121fk**.
 
 ---
 
