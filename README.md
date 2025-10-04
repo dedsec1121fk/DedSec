@@ -111,10 +111,6 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 ---
 
-## Credits
-
----
-
 ## ⚠️ Legal Disclaimer & Terms of Use
 
 > **PLEASE READ CAREFULLY BEFORE PROCEEDING**.
