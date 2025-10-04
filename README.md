@@ -69,14 +69,14 @@ Get the DedSec Project command-line tools running on your **Android device with 
     ```bash
     git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
-    > **💡 Tip:** If you get an error like `ModuleNotFoundError: No module named 'requests'`, run `pip install requests` and try again.
+    > If you get an error like `ModuleNotFoundError: No module named 'requests'`, run `pip install requests` and try again.
 
 5.  **Run the Project**
     Navigate into the project directory and run the settings script to begin:
     ```bash
     cd DedSec/Scripts && python Settings.py
     ```
-    > **💡 Tip:** You can open the main menu later by just typing `m` in Termux.
+    > You can open the main menu later by just typing `m` in Termux.
 
 ---
 
@@ -84,46 +84,53 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 > **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
 
-The toolkit includes the following main features (descriptions are based *only* on `index.html`):
+### Toolkit Summary
 
-* **Fox Chat**: An **end-to-end encrypted chat** application for secure communication. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
-* **DedSec Database**: A **self-hosted, web-based file storage server** that allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
-* **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
-* **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS** and **DNS records**, **open ports**, **subdomains**, and **directories**, and checks for common vulnerabilities like **SQLi** and **XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
-* **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
-* **URL Masker**: An educational tool to demonstrate how links can be disguised. It helps you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
-* **Android App Launcher**: A utility to manage installed applications on your Android device. You can use it to quickly launch, kill/stop, or get detailed package information about any installed app.
+The toolkit includes the following main features:
+
+1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**.
+2.  **DedSec Database**: A **self-hosted, web-based file storage server**. It allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
+3.  **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
+4.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
+5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, or into entering personal details and card information. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. Any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
+6.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
+7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, or uninstall any launchable app.
+8.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
+9.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`**.
 
 ---
 
 ## 💬 Community & Contact
-
 For questions, support, or general inquiries, you can use the following methods:
-
 * **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
 * **Official Store:** [https://dedsec1121fk.gumroad.com](https://dedsec1121fk.gumroad.com)
-* **Privacy Policy Questions:** The official website notes that for any questions or suggestions regarding the Privacy Policy, users should contact the project using the methods provided on the "Contact" page (which includes the links above).
 
 ---
 
-## 📜 Credits
-
-This project was developed and is maintained by **dedsec1121fk**.
+## Credits
 
 ---
 
 ## ⚠️ Legal Disclaimer & Terms of Use
 
-> **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
->
-> **Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
->
-> This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for educational, research, and ethical security testing purposes. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
->
-> **1. Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are solely and entirely responsible for your actions and for any consequences that may arise from the use or misuse of this Software. This includes, but is not limited to, compliance with all applicable local, state, national, and international laws and regulations related to cybersecurity, data privacy, and electronic communications.
->
-> **2. Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is strictly prohibited. This includes, without limitation: accessing systems, systems, or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
->
-> **3. No Warranty:** The Software is provided "AS IS," without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make no guarantee that the Software will be error-free, secure, or uninterrupted.
->
-> **4. Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
+> **PLEASE READ CAREFULLY BEFORE PROCEEDING**.
+
+**Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
+
+This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
+
+1.  **Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are **solely and entirely responsible for your actions** and for any consequences that may arise from the use or misuse of this Software. This includes, but is not limited to, compliance with all applicable local, state, national, and international laws and regulations related to cybersecurity, data privacy, and electronic communications.
+
+2.  **Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is **strictly prohibited**. This includes, without limitation: accessing systems, systems, or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
+
+3.  **No Warranty:** The Software is provided **"AS IS,"** without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make **no guarantee** that the Software will be error-free, secure, or uninterrupted.
+
+4.  **Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
+
+---
+
+### Privacy Policy Summary
+
+We are committed to protecting your privacy. **We do not store or transmit your personal data.** We use third-party services like Google AdSense, which may use cookies for advertising. Please review their policies. By using our service, you agree to our full Privacy Policy.
+
+> **By using the Software, you confirm that you have read, understood, and agree to be bound by all the terms and conditions outlined in this disclaimer and our full Privacy Policy.**
