@@ -101,9 +101,13 @@ The toolkit includes the following main features:
 ---
 
 ## 💬 Community & Contact
-For questions, support, or general inquiries, you can use the following methods:
+For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
+
 * **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
 * **Official Store:** [https://dedsec1121fk.gumroad.com](https://dedsec1121fk.gumroad.com)
+* **📱 WhatsApp:** +37257263676
+* **📸 Instagram:** @dedsec_project_official
+* **✈️ Telegram:** @dedsecproject
 
 ---
 
