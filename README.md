@@ -25,7 +25,6 @@ Welcome to the **DedSec Project**! Our mission is to empower you by demonstratin
 * [Installation & Usage (Command-Line Tools)](#-installation--usage-command-line-tools)
 * [Digital Self-Defense Toolkit](#️-digital-self-defense-toolkit)
 * [Community & Contact](#-community--contact)
-* [Credits](#-credits)
 * [Legal Disclaimer & Terms of Use](#️-legal-disclaimer--terms-of-use)
 
 ---
@@ -46,36 +45,25 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 > **Note:** For best results, install Termux from the [F-Droid](https://f-droid.org/) store. This ensures you can also install necessary add-ons like `Termux:API`. You may need to enable "**Install Unknown Apps**" in your Android settings.
 
-1.  **Install Packages & Grant Permissions**
-    Open Termux and run the following command to set up storage and install necessary packages:
+1.  **Update Packages & Install Git**
+    Open Termux and run the following command to make sure your packages are up-to-date and `git` is installed:
     ```bash
-    termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install aapt clang cloudflared curl ffmpeg fzf git jq libffi libffi-dev libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust unzip wget zip -y
+    pkg update -y && pkg upgrade -y && pkg install git nano -y
     ```
 
-2.  **Install Python Libraries**
-    Install the required Python modules using pip:
-    ```bash
-    pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug
-    ```
-
-3.  **Install Termux API**
-    This package allows the scripts to interact with Android's native features:
-    ```bash
-    pkg install termux-api
-    ```
-
-4.  **Clone the Repository**
+2.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
     git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
-    > If you get an error like `ModuleNotFoundError: No module named 'requests'`, run `pip install requests` and try again.
 
-5.  **Run the Project**
-    Navigate into the project directory and run the settings script to begin:
+3.  **Run the Setup Script**
+    Navigate into the project directory and run the setup script. It will handle the complete installation for you.
     ```bash
-    cd DedSec/Scripts && python Settings.py
+    cd DedSec && bash Setup.sh
     ```
+    > After the installation finishes, a settings menu will appear. You must choose a menu style (list or grid). Then, close Termux from your notifications and reopen it to start.
+    > 
     > You can open the main menu later by just typing `m` in Termux.
 
 ---
