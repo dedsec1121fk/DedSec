@@ -4,8 +4,6 @@
   <p><strong>DedSec has given you the truth, do what you will. Your free guide to digital self-defense.</strong></p>
   <p>
     <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
-    ·
-    <a href="https://dedsec1121fk.gumroad.com"><strong>DedSec Store</strong></a>
   </p>
   
   <p>
@@ -22,14 +20,34 @@ Welcome to the **DedSec Project**! Our mission is to empower you by demonstratin
 
 ## 📋 Table of Contents
 
-* [Installation & Usage (Command-Line Tools)](#-installation--usage-command-line-tools)
-* [Digital Self-Defense Toolkit](#️-digital-self-defense-toolkit)
-* [Community & Contact](#-community--contact)
-* [Legal Disclaimer & Terms of Use](#️-legal-disclaimer--terms-of-use)
+* [Understand What The DedSec Project Does](#🛡️-understand-what-the-dedsec-project-does)
+* [How To Install And Setup The DedSec Project](#🚀-how-to-install-and-setup-the-dedsec-project)
+* [Community & Contact](#💬-community--contact)
+* [Legal Disclaimer & Terms of Use](#⚠️-legal-disclaimer--terms-of-use)
 
 ---
 
-## 🚀 Installation & Usage (Command-Line Tools)
+## 🛡️ Understand What The DedSec Project Does
+
+> **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
+
+### Toolkit Summary
+
+The toolkit includes the following main features:
+
+1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
+2.  **DedSec Database**: A **self-hosted, web-based file storage server** (e.g., like NextCloud). It allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
+3.  **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
+4.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
+5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. Any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
+6.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
+7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, or uninstall any launchable app.
+8.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
+9.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`** file.
+
+---
+
+## 🚀 How To Install And Setup The DedSec Project
 
 Get the DedSec Project command-line tools running on your **Android device with Termux**.
 
@@ -38,12 +56,16 @@ Get the DedSec Project command-line tools running on your **Android device with 
 | Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
 | **Device** | Android with [Termux](https://f-droid.org/) installed |
-| **Storage** | **3GB** of free space (The Radio feature requires more storage; images and recordings also consume space.) |
-| **RAM** | **2GB** |
+| **Storage** | Min **3GB** free. (The Radio feature requires more storage; images and recordings also consume space.) |
+| **RAM** | Min **2GB** |
 
 ### Step-by-Step Setup
 
-> **Note:** For best results, install Termux from the [F-Droid](https://f-droid.org/) store. This ensures you can also install necessary add-ons like `Termux:API`. You may need to enable "**Install Unknown Apps**" in your Android settings.
+> **Note:** To install APKs (e.g., F-Droid), ensure you:
+> - Enable unknown sources (Settings > Security > **Install Unknown Apps**).
+> - Download F-Droid, then get Termux from [F-Droid](https://f-droid.org/).
+> - Install add-ons: Termux:API, Termux:Styling.
+> - Allow the `fdroid` process when prompted.
 
 1.  **Update Packages & Install Git**
     Open Termux and run the following command to make sure your packages are up-to-date and `git` is installed:
@@ -62,29 +84,9 @@ Get the DedSec Project command-line tools running on your **Android device with 
     ```bash
     cd DedSec && bash Setup.sh
     ```
-    > After the installation finishes, a settings menu will appear. You must choose a menu style (list or grid). Then, close Termux from your notifications and reopen it to start.
+    > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list or grid**. Then, close Termux from your notifications and reopen it.
     > 
-    > You can open the main menu later by just typing `m` in Termux.
-
----
-
-## 🛡️ Digital Self-Defense Toolkit
-
-> **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
-
-### Toolkit Summary
-
-The toolkit includes the following main features:
-
-1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**.
-2.  **DedSec Database**: A **self-hosted, web-based file storage server**. It allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
-3.  **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
-4.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
-5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, or into entering personal details and card information. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. Any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
-6.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
-7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, or uninstall any launchable app.
-8.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
-9.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`**.
+    > **Tip:** You can open the menu later by just typing `m` in Termux.
 
 ---
 
@@ -92,16 +94,15 @@ The toolkit includes the following main features:
 For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
 
 * **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
-* **Official Store:** [https://dedsec1121fk.gumroad.com](https://dedsec1121fk.gumroad.com)
-* **📱 WhatsApp:** +37257263676
-* **📸 Instagram:** @dedsec_project_official
-* **✈️ Telegram:** @dedsecproject
+* **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
+* **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
 
 ---
 
 ## ⚠️ Legal Disclaimer & Terms of Use
 
-> **PLEASE READ CAREFULLY BEFORE PROCEEDING**.
+> **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
 
 **Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
 
