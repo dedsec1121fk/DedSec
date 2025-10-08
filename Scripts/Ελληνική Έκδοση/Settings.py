@@ -11,7 +11,7 @@ import textwrap
 import math
 
 # ------------------------------
-# Existing Settings Functionality
+# Υπάρχουσα Λειτουργικότητα Ρυθμίσεων
 # ------------------------------
 
 REPO_URL = "https://github.com/dedsec1121fk/DedSec.git"
@@ -41,7 +41,7 @@ def get_termux_info():
 def get_latest_dedsec_update(path):
     if path and os.path.isdir(path):
         stdout, _ = run_command("git log -1 --format=%cd", cwd=path)
-        return stdout if stdout else "Δεν είναι διαθέσιμο"
+        return stdout if stdout else "Μη Διαθέσιμο"
     return "Ο κατάλογος DedSec δεν βρέθηκε"
 
 def find_dedsec():
@@ -58,7 +58,7 @@ def get_github_repo_size():
             return f"{size_kb / 1024:.2f} MB"
     except Exception:
         pass
-    return "Δεν είναι δυνατή η λήψη του μεγέθους του αποθετηρίου"
+    return "Αδυναμία ανάκτησης μεγέθους αποθετηρίου"
 
 def get_termux_size():
     termux_root = "/data/data/com.termux"
@@ -80,7 +80,7 @@ def get_dedsec_size(path):
     return "Ο κατάλογος DedSec δεν βρέθηκε"
 
 def clone_repo():
-    print("[+] Το DedSec δεν βρέθηκε. Κλωνοποίηση αποθετηρίου...")
+    print("[+] Το DedSec δεν βρέθηκε. Κλωνοποιείται το αποθετήριο...")
     run_command(f"git clone {REPO_URL}")
     return os.path.join(os.getcwd(), LOCAL_DIR)
 
@@ -107,14 +107,14 @@ def update_dedsec():
         if behind_count > 0:
             force_update_repo(existing_dedsec_path)
             dedsec_size = get_dedsec_size(existing_dedsec_path)
-            print(f"[+] Η ενημέρωση εφαρμόστηκε. Μέγεθος έργου DedSec: {dedsec_size}")
+            print(f"[+] Εφαρμόστηκε η ενημέρωση. Μέγεθος Έργου DedSec: {dedsec_size}")
         else:
             print("Δεν βρέθηκε διαθέσιμη ενημέρωση.")
     else:
         existing_dedsec_path = clone_repo()
         dedsec_size = get_dedsec_size(existing_dedsec_path)
-        print(f"[+] Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος έργου DedSec: {dedsec_size}")
-    print("[+] Η διαδικασία ενημέρωσης ολοκληρώθηκε επιτυχώς!")
+        print(f"[+] Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec: {dedsec_size}")
+    print("[+] Η διαδικασία ενημέρωσης ολοκληρώθηκε με επιτυχία!")
     return existing_dedsec_path
 
 def get_internal_storage():
@@ -168,7 +168,7 @@ def get_battery_info():
         except Exception:
             return "Μπαταρία: Άγνωστο"
     else:
-        return "Μπαταρία: Δεν είναι διαθέσιμη"
+        return "Μπαταρία: Μη διαθέσιμο"
 
 def get_hardware_details():
     internal_storage = get_internal_storage()
@@ -185,7 +185,7 @@ def get_hardware_details():
     details = (
         f"Εσωτερικός Χώρος Αποθήκευσης: {internal_storage}\n"
         f"Επεξεργαστής: {processor}\n"
-        f"Ram: {ram}\n"
+        f"RAM: {ram}\n"
         f"Πάροχος: {carrier}\n"
         f"Έκδοση Πυρήνα: {kernel_version}\n"
         f"Έκδοση Android: {android_version}\n"
@@ -204,12 +204,12 @@ def show_about():
     print("=== Πληροφορίες Συστήματος ===")
     dedsec_path = find_dedsec()
     latest_update = get_latest_dedsec_update(dedsec_path) if dedsec_path else "Ο κατάλογος DedSec δεν βρέθηκε"
-    print(f"Η τελευταία ενημέρωση του έργου DedSec: {latest_update}")
+    print(f"Η Τελευταία Ενημέρωση Έργου DedSec: {latest_update}")
     termux_storage = get_termux_size()
-    print(f"Συνολικός χώρος αποθήκευσης Termux: {termux_storage}")
+    print(f"Συνολικός Χώρος Αποθήκευσης Termux: {termux_storage}")
     dedsec_size = get_dedsec_size(dedsec_path) if dedsec_path else "Ο κατάλογος DedSec δεν βρέθηκε"
-    print(f"Μέγεθος έργου DedSec: {dedsec_size}")
-    print("\nΣτοιχεία Υλικού:")
+    print(f"Μέγεθος Έργου DedSec: {dedsec_size}")
+    print("\nΛεπτομέρειες Υλικού:")
     print(get_hardware_details())
     user = get_user()
     print(f"\nΧρήστης: {user}")
@@ -217,20 +217,20 @@ def show_about():
 def show_credits():
     credits = """
 =======================================
-                CREDITS
+                ΣΥΝΤΕΛΕΣΤΕΣ
 =======================================
-Creator:dedsec1121fk
-Music Artists:BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, , Λαβύρινθος, Komis X, GR$, Sakin,  Χριστίνα Μαρκεσίνη, Grave_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
-Producer: JK
-Art Artist:Χριστίνα Χατζηδημητρίου
-Voice Overs:Δήμητρα Ισχυροπούλου
-Technical Help:lamprouil, UKI_hunter
+Δημιουργός:dedsec1121fk
+Μουσικοί Καλλιτέχνες:BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
+Παραγωγός: JK
+Καλλιτέχνης Έργων Τέχνης:Christina Chatzidimitriou
+Φωνές:Dimitra Isxuropoulou
+Τεχνική Βοήθεια:lamprouil, UKI_hunter
 =======================================
 """
     print(credits)
 
 # ------------------------------
-# Remove MOTD (if exists)
+# Αφαίρεση MOTD (εάν υπάρχει)
 # ------------------------------
 def remove_motd():
     etc_path = "/data/data/com.termux/files/usr/etc"
@@ -239,23 +239,23 @@ def remove_motd():
         os.remove(motd_path)
 
 # ------------------------------
-# Change Prompt
+# Αλλαγή Γραμμής Εντολών
 # ------------------------------
 def modify_bashrc():
     etc_path = "/data/data/com.termux/files/usr/etc"
     os.chdir(etc_path)
-    username = input("Όνομα Χρήστη Prompt: ").strip()
+    username = input("Όνομα Χρήστη Γραμμής Εντολών: ").strip()
     while not username:
         print("Το όνομα χρήστη δεν μπορεί να είναι κενό. Παρακαλώ εισάγετε ένα έγκυρο όνομα χρήστη.")
-        username = input("Όνομα Χρήστη Prompt: ").strip()
+        username = input("Όνομα Χρήστη Γραμμής Εντολών: ").strip()
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
+    
+    # Νέα μορφή PS1: DD/MM/YYYY-HH/MM-(username)-(directory)
     new_ps1 = (
-        f"PS1='倹 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]竢ｰ "
-        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]捗 "
-        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]唐 "
-        f"\\[\\e[1;33m\\]\\W \\[\\e[0m\\] : '\n"
+        f"PS1='\\[\\e[1;36m\\]\\D{{%d/%m/%Y}}-[\\A]-(\\[\\e[1;34m\\]{username}\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
     )
+    
     with open("bash.bashrc", "w") as bashrc_file:
         for line in lines:
             if "PS1=" in line:
@@ -264,18 +264,18 @@ def modify_bashrc():
                 bashrc_file.write(line)
 
 def change_prompt():
-    print("\n[+] Αλλαγή Prompt...\n")
+    print("\n[+] Αλλαγή Γραμμής Εντολών...\n")
     remove_motd()
     modify_bashrc()
-    print("\n[+] Οι προσαρμογές εφαρμόστηκαν επιτυχώς!")
+    print("\n[+] Οι προσαρμογές εφαρμόστηκαν με επιτυχία!")
 
 # ------------------------------
-# New Option: Change Menu Style (using arrow keys)
+# Νέα Επιλογή: Αλλαγή Στυλ Μενού (με χρήση βελών)
 # ------------------------------
 
 def choose_menu_style_curses(stdscr):
     curses.curs_set(0)
-    options = ["List Style", "Grid Style"]
+    options = ["Στυλ Λίστας", "Στυλ Πλέγματος"]
     current = 0
     while True:
         stdscr.clear()
@@ -306,17 +306,18 @@ def change_menu_style():
     style = curses.wrapper(choose_menu_style_curses)
     if style is None:
         print("Δεν επιλέχθηκε στυλ μενού. Επιστροφή στο μενού ρυθμίσεων...")
-        input("\nΠατήστε Enter για να επιστρέψετε στο μενού ρυθμίσεων...")
+        input("\nΠατήστε Enter για επιστροφή στο μενού ρυθμίσεων...")
         return
     update_bashrc_for_menu_style(style)
+    # Διαγραφή εξωτερικών αρχείων μενού, καθώς είναι πλέον ενσωματωμένα
     for file_name in ["menu.py", "grid_menu.py"]:
         try:
             if os.path.exists(file_name):
                 os.remove(file_name)
         except Exception:
             pass
-    print(f"\n[+] Το στυλ μενού άλλαξε σε {style.capitalize()} Style. Η διαμόρφωση του Bash ενημερώθηκε.")
-    input("\nΠατήστε Enter για να επιστρέψετε στο μενού ρυθμίσεων...")
+    print(f"\n[+] Το στυλ μενού άλλαξε σε {style.capitalize()} Στυλ. Η διαμόρφωση του Bash ενημερώθηκε.")
+    input("\nΠατήστε Enter για επιστροφή στο μενού ρυθμίσεων...")
 
 def update_bashrc_for_menu_style(style):
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
@@ -331,9 +332,10 @@ def update_bashrc_for_menu_style(style):
         with open(bashrc_path, "r") as f:
             lines = f.readlines()
     except Exception as e:
-        print(f"Σφάλμα ανάγνωσης του {bashrc_path}: {e}")
+        print(f"Σφάλμα ανάγνωσης {bashrc_path}: {e}")
         return
     filtered_lines = []
+    # Αφαίρεση τυχόν προηγούμενων γραμμών που εκκινούν το Settings.py με --menu
     for line in lines:
         if re.search(r"python3\s+Settings\.py\s+--menu", line, re.IGNORECASE) or re.search(r"alias\s+m=.*python3\s+Settings\.py\s+--menu", line, re.IGNORECASE):
             continue
@@ -347,13 +349,13 @@ def update_bashrc_for_menu_style(style):
         print(f"Σφάλμα εγγραφής στο {bashrc_path}: {e}")
 
 # ------------------------------
-# Helper for List Menu: Browse folders and scripts using fzf
+# Βοηθητική Συνάρτηση για Μενού Λίστας: Περιήγηση σε φακέλους και scripts με χρήση fzf
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
-    Lists subfolders and .py files in the given directory.
-    Returns a full path for the selected item.
-    Folders are marked with '[FOLDER] ' and an option '.. (Go Back)' is shown if not in the base.
+    Εμφανίζει υποφακέλους και αρχεία .py στον δεδομένο κατάλογο.
+    Επιστρέφει την πλήρη διαδρομή για το επιλεγμένο στοιχείο.
+    Οι φάκελοι σημειώνονται με '[ΦΑΚΕΛΟΣ] ' και εμφανίζεται μια επιλογή '.. (Πίσω)' εάν δεν βρίσκεται στη βάση.
     """
     items = []
     if os.path.abspath(current_path) != os.path.abspath(base_path):
@@ -385,7 +387,7 @@ def browse_directory_list_menu(current_path, base_path):
         return os.path.join(current_path, selected)
 
 # ------------------------------
-# Integrated List Menu (from menu.py) with folder navigation
+# Ενσωματωμένο Μενού Λίστας (από menu.py) με πλοήγηση φακέλων
 # ------------------------------
 def run_list_menu():
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
@@ -403,7 +405,7 @@ def run_list_menu():
                 with open(bashrc_path, "a") as file:
                     file.write("\n" + alias_line + "\n")
         else:
-            print(f"Σφάλμα: {bashrc_path} δεν βρέθηκε.")
+            print(f"Σφάλμα: Ο {bashrc_path} δεν βρέθηκε.")
             sys.exit(1)
     ensure_bashrc_setup()
     
@@ -411,9 +413,10 @@ def run_list_menu():
     while True:
         selected = browse_directory_list_menu(current_path, base_path)
         if selected is None:
-            print("Δεν έγινε καμία επιλογή. Έξοδος.")
+            print("Δεν έγινε επιλογή. Έξοδος.")
             return
         if selected == "back":
+            # Πίσω στον γονικό φάκελο εάν είναι δυνατόν.
             parent = os.path.dirname(current_path)
             if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
                 current_path = parent
@@ -424,11 +427,12 @@ def run_list_menu():
             current_path = selected
             continue
         elif os.path.isfile(selected) and selected.endswith(".py"):
+            # Εκτέλεση του επιλεγμένου script χρησιμοποιώντας σχετική διαδρομή από τον βασικό φάκελο.
             rel_path = os.path.relpath(selected, base_path)
             command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
             ret = os.system(command)
             if (ret >> 8) == 2:
-                print("\nΤο script τερματίστηκε από KeyboardInterrupt. Έξοδος...")
+                print("\nΤο σενάριο τερματίστηκε λόγω KeyboardInterrupt. Έξοδος με χάρη...")
                 sys.exit(0)
             return
         else:
@@ -436,12 +440,12 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Helper for Grid Menu: List directory entries
+# Βοηθητική Συνάρτηση για Μενού Πλέγματος: Λίστα στοιχείων καταλόγου
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples (display_name, full_path) for directories and .py files in the given path.
-    Directories are prefixed with "[FOLDER] " and a ".. (Go Back)" option is included if not at the base.
+    Επιστρέφει μια λίστα από tuples (display_name, full_path) για καταλόγους και αρχεία .py στην δεδομένη διαδρομή.
+    Οι κατάλογοι προηγούνται του "[ΦΑΚΕΛΟΣ] " και περιλαμβάνεται μια επιλογή ".. (Πίσω)" εάν δεν είναι στη βάση.
     """
     entries = []
     if os.path.abspath(path) != os.path.abspath(base_path):
@@ -455,7 +459,7 @@ def list_directory_entries(path, base_path):
     return entries
 
 # ------------------------------
-# Integrated Grid Menu (from grid_menu.py) with folder navigation
+# Ενσωματωμένο Μενού Πλέγματος (από grid_menu.py) με πλοήγηση φακέλων
 # ------------------------------
 def run_grid_menu():
     bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
@@ -473,7 +477,7 @@ def run_grid_menu():
                 with open(bashrc_path, "a") as file:
                     file.write("\n" + alias_line + "\n")
         else:
-            print(f"Σφάλμα: {bashrc_path} δεν βρέθηκε.")
+            print(f"Σφάλμα: Ο {bashrc_path} δεν βρέθηκε.")
             sys.exit(1)
     def draw_box(stdscr, y, x, height, width, highlight=False):
         color = curses.color_pair(2)
@@ -529,7 +533,7 @@ def run_grid_menu():
                         except curses.error:
                             pass
             page_info = f" Σελίδα {(current_index // total_visible_cells) + 1} / {math.ceil(num_items / total_visible_cells)} "
-            instructions = f"Πλήκτρα βέλους: Μετακίνηση | Enter: Επιλογή | q: Έξοδος | {page_info}"
+            instructions = f"Πλήκτρα Βέλους: Μετακίνηση | Enter: Επιλογή | q: Έξοδος | {page_info}"
             try:
                 stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
             except curses.error:
@@ -561,7 +565,7 @@ def run_grid_menu():
         friendly_names = [entry[0] for entry in entries]
         selected_index = curses.wrapper(lambda stdscr: draw_grid_menu(stdscr, friendly_names, len(friendly_names)))
         if selected_index is None:
-            print("Δεν έγινε καμία επιλογή. Έξοδος.")
+            print("Δεν έγινε επιλογή. Έξοδος.")
             return
         selected_entry = entries[selected_index]
         if selected_entry[0].startswith(".."):
@@ -573,16 +577,17 @@ def run_grid_menu():
         if selected_entry[0].startswith("[ΦΑΚΕΛΟΣ]"):
             current_path = selected_entry[1]
             continue
+        # Διαφορετικά, είναι αρχείο.
         rel_path = os.path.relpath(selected_entry[1], base_path)
         command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
         ret = os.system(command)
         if (ret >> 8) == 2:
-            print("\nΤο script τερματίστηκε από KeyboardInterrupt. Έξοδος...")
+            print("\nΤο σενάριο τερματίστηκε λόγω KeyboardInterrupt. Έξοδος με χάρη...")
             sys.exit(0)
         return
 
 # ------------------------------
-# New Option: Update Packages & Modules
+# Νέα Επιλογή: Ενημέρωση Πακέτων & Μονάδων
 # ------------------------------
 def update_packages_modules():
     pip_command = "pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
@@ -591,16 +596,16 @@ def update_packages_modules():
     run_command(pip_command)
     print("[+] Εγκατάσταση πακέτων και μονάδων Termux...")
     run_command(termux_command)
-    print("[+] Η διαδικασία ενημέρωσης πακέτων και μονάδων ολοκληρώθηκε επιτυχώς!")
+    print("[+] Η διαδικασία ενημέρωσης πακέτων και μονάδων ολοκληρώθηκε με επιτυχία!")
 
 # ------------------------------
-# Main Settings Menu
+# Κύριο Μενού Ρυθμίσεων
 # ------------------------------
 def menu(stdscr):
     curses.curs_set(0)
     curses.start_color()
     curses.use_default_colors()
-    menu_options = ["Σχετικά", "Ενημέρωση Έργου DedSec", "Ενημέρωση Πακέτων & Μονάδων", "Αλλαγή Prompt", "Αλλαγή Στυλ Μενού", "Συντελεστές", "Έξοδος"]
+    menu_options = ["Σχετικά", "Ενημέρωση Έργου DedSec", "Ενημέρωση Πακέτων & Μονάδων", "Αλλαγή Γραμμής Εντολών", "Αλλαγή Στυλ Μενού", "Συντελεστές", "Έξοδος"]
     current_row = 0
     while True:
         stdscr.clear()
@@ -642,12 +647,12 @@ def main():
         elif selected == 5:
             show_credits()
         elif selected == 6:
-            print("Έξοδος...")
+            print("Γίνεται έξοδος...")
             break
-        input("\nΠατήστε Enter για να επιστρέψετε στο μενού ρυθμίσεων...")
+        input("\nΠατήστε Enter για επιστροφή στο μενού ρυθμίσεων...")
 
 # ------------------------------
-# Entry Point
+# Σημείο Εισόδου
 # ------------------------------
 if __name__ == "__main__":
     try:
@@ -664,5 +669,5 @@ if __name__ == "__main__":
         else:
             main()
     except KeyboardInterrupt:
-        print("\nΛήφθηκε KeyboardInterrupt. Έξοδος...")
+        print("\nΕλήφθη KeyboardInterrupt. Γίνεται έξοδος με χάρη...")
         sys.exit(0)
