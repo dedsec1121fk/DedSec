@@ -250,12 +250,13 @@ def modify_bashrc():
         username = input("Prompt Username: ").strip()
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
+
+    # New PS1 format: DD/MM/YYYY-HH/MM-(username)-(directory)
+    # Using \D{%d/%m/%Y} for DD/MM/YYYY, \A for HH:MM, and \W for directory basename.
     new_ps1 = (
-        f"PS1='倹 \\[\\e[1;36m\\]\\d \\[\\e[0m\\]竢ｰ "
-        f"\\[\\e[1;32m\\]\\t \\[\\e[0m\\]捗 "
-        f"\\[\\e[1;34m\\]{username} \\[\\e[0m\\]唐 "
-        f"\\[\\e[1;33m\\]\\W \\[\\e[0m\\] : '\n"
+        f"PS1='\\[\\e[1;36m\\]\\D{{%d/%m/%Y}}-[\\A]-(\\[\\e[1;34m\\]{username}\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
     )
+    
     with open("bash.bashrc", "w") as bashrc_file:
         for line in lines:
             if "PS1=" in line:
