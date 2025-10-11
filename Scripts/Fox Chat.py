@@ -236,36 +236,44 @@ HTML = '''
 <html lang="en">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Secure Fox Chat</title>
+<title>Fox Chat</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <style>
-body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#121212;color:#e0e0e0;overflow-x:hidden}
+/* FIX 1: Set body/html to use flex for full height control */
+body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#121212;color:#e0e0e0;overflow:hidden;}
 #login-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:1000}
 #login-box{background:#1e1e1e;padding:25px;border-radius:8px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.5)}
 #login-box h2{margin-top:0;color:#9c27b0}
 #login-box input{width:90%;padding:10px;margin:15px 0;background:#2c2c2c;border:1px solid #333;color:#e0e0e0;border-radius:4px}
 #login-box button{width:95%;padding:10px;background:#4caf50;border:none;color:#fff;border-radius:4px;cursor:pointer}
 #login-error{color:#f44336;margin-top:10px;height:1em}
-#main-content{display:none}
-.header{text-align:center;background:#1e1e1e;margin:0;padding:12px;font-size:1.5em;color:#9c27b0;border-bottom:1px solid #333}
-#videos{display:none;padding:8px;background:#000;flex-wrap:wrap;gap:6px;width:100%;position:relative}
+/* FIX 2: Make main content a column flex container */
+#main-content{display:none; display: flex; flex-direction: column; height: 100%;} 
+
+.header{text-align:center;background:#1e1e1e;margin:0;padding:12px;font-size:1.5em;color:#9c27b0;border-bottom:1px solid #333; flex-shrink: 0;}
+#videos{display:none;padding:8px;background:#000;flex-wrap:wrap;gap:6px;width:100%;position:relative; flex-shrink: 0;}
 #videos video{width:calc(25% - 8px);max-width:120px;height:auto;object-fit:cover;border:2px solid #333;border-radius:6px;cursor:zoom-in}
 #videos video:not(#local){display:none} /* Hide only remote videos initially */
 #videos #local{display:block;} /* Ensure local video starts visible, but only if the parent #videos is visible by JS */
 #videos.show{display:flex} /* Show the videos container */
 #videos.show video:not(#local){display:block} /* Show remote videos when .show is applied */
-#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:#1e1e1e;width:100%}#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px}#controls button:hover:not(:disabled){background:#3a3a3a}#controls button:disabled{opacity:.4}
-#chat-container{padding:0 12px 100px;width:100%;position:relative}
-#chat{width:100%;height:240px;overflow-y:auto;background:#181818;padding:12px;margin-top:8px;border-radius:4px}
+#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:#1e1e1e;width:100%; flex-shrink: 0;}
+#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px}#controls button:hover:not(:disabled){background:#3a3a3a}#controls button:disabled{opacity:.4}
+
+/* FIX 3: Chat container now occupies remaining space and contains the chat/controls */
+#chat-container{padding:0 12px 0;width:100%;position:relative; flex-grow: 1; overflow-y: auto;}
+/* FIX 4: Chat content now takes full available space in the chat-container */
+#chat{width:100%;min-height:200px;overflow-y:auto;background:#181818;padding:12px;margin-top:8px;border-radius:4px; margin-bottom: 100px;}
+
 .chat-message{margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;word-break:break-word}
 .chat-message strong{color:#4caf50;flex-shrink:0}
 .message-content{flex-grow:1}
 .message-actions{display:flex;gap:5px}
 .message-actions button{background:none;border:none;cursor:pointer;font-size:1em;padding:2px 5px}
 .file-link{cursor:pointer;color:#90caf9;text-decoration:underline}
-.controls{position:fixed;bottom:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:#1e1e1e}
-.controls input[type=text]{flex:1 1 200px;max-width:60%;min-width:120px;padding:10px;background:#2c2c2c;color:#e0e0e0;border:1px solid #333;border-radius:4px}
-.controls button{flex:0 1 50px;padding:10px;background:#2c2c2c;border:1px solid #333;border-radius:4px}
+
+/* Controls must remain fixed at the very bottom */
+.controls{position:fixed;bottom:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:#1e1e1e; z-index: 10;}
 
 /* --- UI & FEATURE STYLES --- */
 #media-preview-overlay, #camera-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:3000}
@@ -279,16 +287,16 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
 .close-fullscreen-btn{position:fixed;top:15px;right:15px;z-index:2001;background:rgba(0,0,0,0.5);color:#fff;border:1px solid #fff;border-radius:50%;width:40px;height:40px;font-size:24px;line-height:40px;text-align:center;cursor:pointer}
 .secure-watermark{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:100}
 .secure-watermark::before{content:attr(data-watermark);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:3em;color:rgba(255,255,255,0.08);white-space:nowrap}
-/* FIX 1: VIDEO TOGGLE STYLES RESTORED */
-#video-controls-header{display:none;text-align:center;padding:5px;background-color:#1e1e1e}
+/* FIX 1: VIDEO TOGGLE STYLES RESTORED - added to hide local video when collapsed */
+#video-controls-header{display:none;text-align:center;padding:5px;background-color:#1e1e1e; flex-shrink: 0;}
 #videos.show + #video-controls-header{display:block}
 #toggleVideosBtn{background:none;border:none;color:#fff;font-size:1.5em;cursor:pointer}
-#videos.collapsed{display:none}
+#videos.collapsed{display:none !important} /* Use !important to fully hide the container */
 </style>
 </head>
 <body>
 <div id="login-overlay"><div id="login-box"><h2>Enter Secret Key</h2><input type="text" id="key-input" placeholder="Paste key here..."><button id="connect-btn">Connect</button><p id="login-error"></p></div></div>
-<div id="main-content"><h1 class="header">Secure Fox Chat</h1><div id="controls"><button id="joinBtn">Join Call</button><button id="muteBtn" disabled>Mute</button><button id="videoBtn" disabled>Cam Off</button><button id="leaveBtn" disabled>Leave</button><button id="switchCamBtn" disabled>🔄 Switch Cam</button></div><div id="videos"><div class="secure-watermark"></div><video id="local" autoplay muted playsinline></video></div><div id="video-controls-header"><button id="toggleVideosBtn">▲</button></div><div id="chat-container"><div class="secure-watermark"></div><div id="chat"></div><div class="controls"><input id="message" type="text" placeholder="Type a message..." autocomplete="off"><button onclick="sendMessage()">Send</button><button id="recordButton" onclick="toggleRecording()">🎙️</button><button onclick="sendFile()">📄</button><button id="liveCameraBtn" onclick="openLiveCamera()">📸</button><input type="file" id="fileInput" style="display:none"></div></div></div>
+<div id="main-content"><h1 class="header">Fox Chat</h1><div id="controls"><button id="joinBtn">Join Call</button><button id="muteBtn" disabled>Mute</button><button id="videoBtn" disabled>Cam Off</button><button id="leaveBtn" disabled>Leave</button><button id="switchCamBtn" disabled>🔄 Switch Cam</button></div><div id="videos"><div class="secure-watermark"></div><video id="local" autoplay muted playsinline></video></div><div id="video-controls-header"><button id="toggleVideosBtn">▲</button></div><div id="chat-container"><div class="secure-watermark"></div><div id="chat"></div></div><div class="controls"><input id="message" type="text" placeholder="Type a message..." autocomplete="off"><button onclick="sendMessage()">Send</button><button id="recordButton" onclick="toggleRecording()">🎙️</button><button onclick="sendFile()">📄</button><button id="liveCameraBtn" onclick="openLiveCamera()">📸</button><input type="file" id="fileInput" style="display:none"></div></div>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const keyInput = document.getElementById('key-input');
@@ -316,7 +324,7 @@ function initializeChat(secretKey) {
     });
     socket.on('connect', () => {
         document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('main-content').style.display = 'block';
+        document.getElementById('main-content').style.display = 'flex'; // Changed from 'block' to 'flex'
         let username = localStorage.getItem("username");
         if (!username) {
             let promptedName = prompt("Enter your username:");
@@ -538,7 +546,18 @@ function initializeChat(secretKey) {
                 img.style.cursor = 'zoom-in';
                 img.onclick = () => showMediaPreview(data);
                 content.appendChild(img);
+            } else if (data.fileType.startsWith('video/')) {
+                // Display video directly in chat for quick viewing
+                const video = document.createElement('video');
+                video.src = data.message;
+                video.controls = true;
+                video.style.maxWidth = '100%';
+                video.style.height = 'auto';
+                video.style.display = 'block';
+                video.onclick = () => showMediaPreview(data); // Click to full screen
+                content.appendChild(video);
             } else {
+                // General file, click to open preview/download
                 fileLink.onclick = () => showMediaPreview(data);
                 content.appendChild(fileLink);
             }
@@ -570,7 +589,9 @@ function initializeChat(secretKey) {
             div.appendChild(actions);
         }
         chat.appendChild(div);
-        chat.scrollTop = chat.scrollHeight;
+        
+        // Use requestAnimationFrame to ensure scroll happens after layout change
+        requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight);
     });
 
     socket.on('delete_message', data => {
@@ -689,7 +710,6 @@ function initializeChat(secretKey) {
             localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: 320, height: 240 }, audio: true });
             localVideo.srcObject = localStream;
             localVideo.play();
-            // localVideo.style.display is now handled by CSS: #videos #local{display:block;}
             videos.classList.add('show');
             videos.classList.remove('collapsed'); // Ensure videos show up
             toggleVideosBtn.textContent = '▲'; // Set correct button state
@@ -709,8 +729,9 @@ function initializeChat(secretKey) {
         if (localStream) localStream.getTracks().forEach(track => track.stop());
         localStream = null; // Clear stream reference
         localVideo.srcObject = null; // Clear video source
-        localVideo.style.display = 'none'; // Explicitly hide local video on leave to override CSS
-        videos.classList.remove('show');
+        // FIX: Explicitly remove 'show' and add 'collapsed' to hide the entire video container.
+        videos.classList.remove('show'); 
+        videos.classList.add('collapsed');
         document.querySelectorAll('#videos video:not(#local)').forEach(v => v.remove());
         if (fullscreenState.element) toggleFullscreen(null);
         toggleCallButtons(false);
@@ -793,6 +814,11 @@ function initializeChat(secretKey) {
             if (vid) {
                 if(fullscreenState.element === vid) toggleFullscreen(null);
                 vid.remove();
+            }
+            // Check if any other remote videos are left, if not, hide videos container
+            if (document.querySelectorAll('#videos video:not(#local)').length === 0 && !localStream) {
+                 videos.classList.remove('show');
+                 videos.classList.add('collapsed');
             }
         }
     });
