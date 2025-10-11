@@ -22,8 +22,8 @@ Welcome to the **DedSec Project**! Our mission is to empower you by demonstratin
 
 * [Understand What The DedSec Project Does](#🛡️-understand-what-the-dedsec-project-does)
 * [How To Install And Setup The DedSec Project](#🚀-how-to-install-and-setup-the-dedsec-project)
-* [Community & Contact](#💬-community--contact)
-* [Legal Disclaimer & Terms of Use](#⚠️-legal-disclaimer--terms-of-use)
+* [Contact Us & Credits](#💬-contact-us--credits)
+* [Disclaimer & Terms of Use](#⚠️-disclaimer--terms-of-use)
 
 ---
 
@@ -35,13 +35,13 @@ Welcome to the **DedSec Project**! Our mission is to empower you by demonstratin
 
 The toolkit includes the following main features:
 
-1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **25MB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
-2.  **DedSec Database**: A **self-hosted, web-based file storage server** (e.g., like NextCloud). It allows you to upload, download, and manage files through a local or online link. All uploaded files are stored in a **`Database`** folder created in the script's directory.
+1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **10 GB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
+2.  **DedSec's Database**: A password-protected, **self-hosted, web-based file storage server**. It allows you to upload, download, search, and manage files through a secure web interface, automatically organizing them into categories like Documents, Images, and Videos. All files are stored in a **`Database`** folder created in the script's directory.
 3.  **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
 4.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
-5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. Any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
+5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
 6.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
-7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, or uninstall any launchable app.
+7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, uninstall, or extract the APK file of any launchable app.
 8.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
 9.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`** file.
 
@@ -72,6 +72,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
     ```bash
     pkg update -y && pkg upgrade -y && pkg install git nano -y
     ```
+    > **Important:** Open the Termux application on your device before copying and pasting the command above.
 
 2.  **Clone the Repository**
     Download the project files from GitHub:
@@ -90,7 +91,8 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 ---
 
-## 💬 Community & Contact
+## 💬 Contact Us & Credits
+
 For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
 
 * **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
@@ -100,11 +102,11 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 ---
 
-## ⚠️ Legal Disclaimer & Terms of Use
+## ⚠️ Disclaimer & Terms of Use
 
 > **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
 
-**Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A.
+**Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A..
 
 This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
 
@@ -120,6 +122,6 @@ This project, including all associated tools, scripts, and documentation ("the S
 
 ### Privacy Policy Summary
 
-We are committed to protecting your privacy. **We do not store or transmit your personal data.** We use third-party services like Google AdSense, which may use cookies for advertising. Please review their policies. By using our service, you agree to our full Privacy Policy.
+We are committed to protecting your privacy. **We do not store or transmit your personal data**. We use third-party services like Google AdSense, which may use cookies for advertising. Please review their policies. By using our service, you agree to our full Privacy Policy.
 
 > **By using the Software, you confirm that you have read, understood, and agree to be bound by all the terms and conditions outlined in this disclaimer and our full Privacy Policy.**
