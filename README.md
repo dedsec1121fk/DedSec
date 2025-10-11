@@ -1,7 +1,6 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/ef4b1f5775f5a6fb7cf331d8f868ea744c43e41b/Assets/Images/Custom%20Purple%20Fox%20Logo.png" alt="DedSec Project Logo" width="150"/>
   <h1>DedSec Project</h1>
-  <p><strong>DedSec has given you the truth, do what you will. Your free guide to digital self-defense.</strong></p>
   <p>
     <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
   </p>
@@ -16,7 +15,7 @@
 
 ---
 
-Welcome to the **DedSec Project**! Our mission is to empower you by demonstrating how real-world digital threats operate. This toolkit is designed for educational purposes, providing scripts and guides that cover everything from understanding phishing attacks to turning your phone into a portable, powerful command-line environment. Everything here is completely free and designed to help you shift from being a target to being a defender.
+The **DedSec Project** is a toolkit designed for educational purposes, providing scripts and guides that cover everything from understanding phishing attacks to turning your phone into a portable, powerful command-line environment. Everything here is completely free and designed to help you shift from being a target to being a defender.
 
 ## 📋 Table of Contents
 
