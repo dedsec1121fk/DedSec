@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-# Fox Chat - Full UI restored, 10GB uploads, Termux-friendly, integrity check removed
-# Ελληνική Έκδοση (Greek Version)
+# Fox Chat - Πλήρες περιβάλλον χρήσης αποκαταστάθηκε, μεταφορτώσεις 10GB, συμβατό με Termux, αφαίρεση ελέγχου ακεραιότητας
 
 import os
 import sys
@@ -15,7 +14,7 @@ import binascii
 import signal
 from base64 import b64decode
 
-# Try import requests to avoid runtime errors later; don't crash if it's missing
+# Προσπάθησε να εισαγάγεις το requests για να αποφύγεις σφάλματα αργότερα. Μην κρασάρεις αν λείπει.
 try:
     import requests
     requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
@@ -23,11 +22,10 @@ except Exception:
     requests = None
 
 # ----------------------------
-# Termux-aware helper functions
+# Βοηθητικές συναρτήσεις για Termux
 # ----------------------------
 def install_requirements(termux_opt=True):
-    # Translated: "Checking and installing Python requirements (if needed)..."
-    print("Έλεγχος και εγκατάσταση απαιτούμενων πακέτων Python (αν χρειάζεται)...")
+    print("Έλεγχος και εγκατάσταση των απαιτούμενων πακέτων Python (εάν χρειάζεται)...")
     try:
         import pkgutil
         reqs = ["flask", "flask_socketio", "requests", "cryptography"]
@@ -37,21 +35,18 @@ def install_requirements(termux_opt=True):
                 to_install.append(r)
         if to_install:
             cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"] + to_install
-            # Translated: "Installing:"
             print("Εγκατάσταση:", " ".join(to_install))
             subprocess.run(cmd, check=True)
     except Exception as e:
-        # Translated: "WARNING: automatic pip install failed or unavailable:"
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Η αυτόματη εγκατάσταση pip απέτυχε ή δεν είναι διαθέσιμη:", e)
-    # Attempt to install cloudflared on Termux (best-effort)
+        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: η αυτόματη εγκατάσταση pip απέτυχε ή δεν είναι διαθέσιμη:", e)
+    # Προσπάθεια εγκατάστασης του cloudflared στο Termux (με τη βέλτιστη δυνατή προσπάθεια)
     if shutil.which("cloudflared") is None and termux_opt and os.path.exists("/data/data/com.termux"):
-        # Translated: "Attempting to install 'cloudflared' in Termux..."
         print("Προσπάθεια εγκατάστασης του 'cloudflared' στο Termux...")
         os.system("pkg update -y > /dev/null 2>&1 && pkg install cloudflared -y > /dev/null 2>&1")
     return
 
 def generate_self_signed_cert(cert_path="cert.pem", key_path="key.pem"):
-    # generate cert only if missing
+    # Δημιουργία πιστοποιητικού μόνο αν λείπει
     if os.path.exists(cert_path) and os.path.exists(key_path):
         return
     try:
@@ -62,10 +57,8 @@ def generate_self_signed_cert(cert_path="cert.pem", key_path="key.pem"):
         from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
         import datetime
     except Exception as e:
-        # Translated: "WARNING: cryptography module missing or failed; skipping cert generation:"
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το module cryptography λείπει ή απέτυχε. Παράλειψη δημιουργίας πιστοποιητικού:", e)
+        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: το module cryptography λείπει ή απέτυχε. Παράλειψη δημιουργίας πιστοποιητικού:", e)
         return
-    # Translated: "Generating new SSL certificate at..."
     print(f"Δημιουργία νέου πιστοποιητικού SSL στη διαδρομή {cert_path}...")
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     with open(key_path, "wb") as f:
@@ -100,8 +93,7 @@ def start_chat_server(secret_key, verbose_mode):
     return subprocess.Popen(cmd)
 
 def wait_for_server(url, timeout=20):
-    # Translated: "Waiting for local server to start..."
-    print("Αναμονή εκκίνησης του τοπικού διακομιστή...")
+    print("Αναμονή για την εκκίνηση του τοπικού διακομιστή...")
     start_time = time.time()
     try:
         import requests
@@ -111,16 +103,14 @@ def wait_for_server(url, timeout=20):
         try:
             response = requests.get(url, verify=False, timeout=1)
             if response.status_code == 200:
-                # Translated: "Server is up and running."
-                print("Ο διακομιστής είναι σε λειτουργία.")
+                print("Ο διακομιστής λειτουργεί κανονικά.")
                 return True
         except requests.RequestException:
             time.sleep(0.5)
-    # Translated: "Error: Local server did not start within the timeout period."
-    print("Σφάλμα: Ο τοπικός διακομιστής δεν ξεκίνησε εντός του καθορισμένου χρόνου.")
+    print("Σφάλμα: Ο τοπικός διακομιστής δεν ξεκίνησε εντός του χρονικού ορίου.")
     return False
 
-# 10 GB limit
+# Όριο 10 GB
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024  # 10,737,418,240 bytes
 
 SECRET_KEY_SERVER = sys.argv[2] if len(sys.argv) > 2 else None
@@ -133,22 +123,20 @@ def generate_and_print_links(secret_key):
     if not shutil.which("cloudflared"):
         os.system('cls' if os.name == 'nt' else 'clear')
         print(
-# Translated print messages for "cloudflared not installed"
-f"""✅ Το Fox Chat είναι τώρα σε λειτουργία!
+f"""✅ Το Fox Chat είναι τώρα ενεργό!
 =================================================================
-🔑 Το μοναδικό σας Μυστικό Κλειδί (ΑΝΤΙΓΡΑΨΤΕ ΤΟ ΑΚΡΙΒΩΣ):
+🔑 Το μυστικό κλειδί σας μιας χρήσης (ΑΝΤΙΓΡΑΨΤΕ ΤΟ ΑΚΡΙΒΩΣ):
    {secret_key}
 =================================================================
 🏠 Σύνδεσμος εκτός δικτύου (Hotspot/LAN): {local_url}
 
-Το 'cloudflared' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Σύνδεσμος Διαδικτύου.
-Πατήστε Ctrl+C για να σταματήσετε τον διακομιστή."""
+Το 'cloudflared' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Σύνδεσμος Online.
+Πατήστε Ctrl+C για να σταματήσει ο διακομιστής."""
         )
         return None
 
     cmd = ["cloudflared", "tunnel", "--url", "https://localhost:5000", "--no-tls-verify"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
-    # Translated: "Starting Cloudflare tunnel... please wait."
     print("\n🚀 Εκκίνηση τούνελ Cloudflare... παρακαλώ περιμένετε.")
 
     for line in iter(process.stdout.readline, ''):
@@ -157,25 +145,22 @@ f"""✅ Το Fox Chat είναι τώρα σε λειτουργία!
             online_url = match.group(0)
             os.system('cls' if os.name == 'nt' else 'clear')
             print(
-# Translated print messages for "Server is live and secured"
-f"""✅ Το Fox Chat είναι τώρα σε λειτουργία και ΑΣΦΑΛΕΣ!
+f"""✅ Το Fox Chat είναι τώρα ενεργό και ΑΣΦΑΛΕΣ!
 =================================================================
-🔑 Το μοναδικό σας Μυστικό Κλειδί (ΑΝΤΙΓΡΑΨΤΕ ΤΟ ΑΚΡΙΒΩΣ):
+🔑 Το μυστικό κλειδί σας μιας χρήσης (ΑΝΤΙΓΡΑΨΤΕ ΤΟ ΑΚΡΙΒΩΣ):
    {secret_key}
 =================================================================
-🔗 Σύνδεσμος Διαδικτύου (Internet): {online_url}
+🔗 Σύνδεσμος Online (Διαδίκτυο):     {online_url}
 🏠 Σύνδεσμος εκτός δικτύου (Hotspot/LAN): {local_url}
 
 Μοιραστείτε τον σύνδεσμο ΚΑΙ το Μυστικό Κλειδί με άλλους.
-Πατήστε Ctrl+C για να σταματήσετε τον διακομιστή."""
+Πατήστε Ctrl+C για να σταματήσει ο διακομιστής."""
             )
             return process
-    # Translated: "Could not generate an online link from Cloudflare."
-    print("\n⚠️ Δεν ήταν δυνατή η δημιουργία συνδέσμου διαδικτύου από το Cloudflare.")
+    print("\n⚠️ Δεν ήταν δυνατή η δημιουργία online συνδέσμου από το Cloudflare.")
     return process
 
 def graceful_shutdown(signum, frame):
-    # Translated: "Shutting down gracefully..."
     print("Τερματισμός λειτουργίας...")
     sys.exit(0)
 
@@ -183,7 +168,7 @@ signal.signal(signal.SIGINT, graceful_shutdown)
 signal.signal(signal.SIGTERM, graceful_shutdown)
 
 # ----------------------------
-# Launcher mode (non-server)
+# Λειτουργία εκκινητή (όχι διακομιστής)
 # ----------------------------
 if __name__ == '__main__' and "--server" not in sys.argv:
     VERBOSE_MODE = "--verbose" in sys.argv
@@ -191,15 +176,12 @@ if __name__ == '__main__' and "--server" not in sys.argv:
         install_requirements()
         generate_self_signed_cert()
         try:
-            # Translated: "Enter one-time session Secret Key (will not be saved): "
-            SECRET_KEY = input("Εισάγετε το μοναδικό Μυστικό Κλειδί συνεδρίας (δεν θα αποθηκευτεί): ").strip()
+            SECRET_KEY = input("Εισάγετε το μυστικό κλειδί συνεδρίας μιας χρήσης (δεν θα αποθηκευτεί): ").strip()
             if not SECRET_KEY:
-                # Translated: "No key entered. Exiting."
                 print("Δεν εισήχθη κλειδί. Έξοδος.")
                 sys.exit(1)
         except Exception:
-            # Translated: "FATAL: Could not read input for Secret Key. Exiting."
-            print("ΣΦΑΛΜΑ: Δεν ήταν δυνατή η ανάγνωση της εισόδου για το Μυστικό Κλειδί. Έξοδος.")
+            print("ΣΟΒΑΡΟ: Δεν ήταν δυνατή η ανάγνωση της εισόδου για το Μυστικό Κλειδί. Έξοδος.")
             sys.exit(1)
         server_process = start_chat_server(SECRET_KEY, VERBOSE_MODE)
         if wait_for_server("https://localhost:5000/health"):
@@ -215,14 +197,11 @@ if __name__ == '__main__' and "--server" not in sys.argv:
                 except KeyboardInterrupt:
                     pass
         else:
-            # Translated: "Fatal: Chat server failed to start. Exiting."
-            print("\nΣοβαρό Σφάλμα: Ο διακομιστής συνομιλίας απέτυχε να ξεκινήσει. Έξοδος.")
+            print("\nΣοβαρό σφάλμα: Ο διακομιστής συνομιλίας απέτυχε να ξεκινήσει. Έξοδος.")
     except KeyboardInterrupt:
-        # Translated: "Shutting down servers..."
         print("\nΤερματισμός λειτουργίας διακομιστών...")
     except Exception as e:
-        # Translated: "An unexpected error occurred:"
-        print(f"\nΠροέκυψε ένα απροσδόκητο σφάλμα: {e}")
+        print(f"\nΠαρουσιάστηκε ένα μη αναμενόμενο σφάλμα: {e}")
     finally:
         try:
             if 'tunnel_process' in globals() and tunnel_process and tunnel_process.poll() is None:
@@ -237,7 +216,7 @@ if __name__ == '__main__' and "--server" not in sys.argv:
         sys.exit()
 
 # ----------------------------
-# Server code below
+# Κώδικας διακομιστή παρακάτω
 # ----------------------------
 from flask import Flask, render_template_string, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -251,43 +230,50 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 connected_users = {}
 VIDEO_ROOM = "global_video_room"
 
-# Full original HTML UI (restored). I used your original long UI, with client-side MAX_FILE_SIZE set to 10GB.
-# --- GREEK TRANSLATION OF THE HTML TEMPLATE ---
+# Πλήρες αρχικό HTML UI (αποκαταστάθηκε). Χρησιμοποιήθηκε το αρχικό μακροσκελές UI, με MAX_FILE_SIZE στην πλευρά του πελάτη ρυθμισμένο στα 10GB.
 HTML = '''
 <!DOCTYPE html>
 <html lang="el">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Ασφαλής Συνομιλία Fox (Secure Fox Chat)</title>
+<title>Fox Chat</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <style>
-body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#121212;color:#e0e0e0;overflow-x:hidden}
+/* FIX 1: Set body/html to use flex for full height control */
+body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#121212;color:#e0e0e0;overflow:hidden;}
 #login-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:1000}
 #login-box{background:#1e1e1e;padding:25px;border-radius:8px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.5)}
 #login-box h2{margin-top:0;color:#9c27b0}
 #login-box input{width:90%;padding:10px;margin:15px 0;background:#2c2c2c;border:1px solid #333;color:#e0e0e0;border-radius:4px}
 #login-box button{width:95%;padding:10px;background:#4caf50;border:none;color:#fff;border-radius:4px;cursor:pointer}
 #login-error{color:#f44336;margin-top:10px;height:1em}
-#main-content{display:none}
-.header{text-align:center;background:#1e1e1e;margin:0;padding:12px;font-size:1.5em;color:#9c27b0;border-bottom:1px solid #333}
-#videos{display:none;padding:8px;background:#000;flex-wrap:wrap;gap:6px;width:100%;position:relative}
+/* FIX 2: Make main content a column flex container */
+#main-content{display:none; display: flex; flex-direction: column; height: 100%;} 
+
+.header{text-align:center;background:#1e1e1e;margin:0;padding:12px;font-size:1.5em;color:#9c27b0;border-bottom:1px solid #333; flex-shrink: 0;}
+#videos{display:none;padding:8px;background:#000;flex-wrap:wrap;gap:6px;width:100%;position:relative; flex-shrink: 0;}
 #videos video{width:calc(25% - 8px);max-width:120px;height:auto;object-fit:cover;border:2px solid #333;border-radius:6px;cursor:zoom-in}
 #videos video:not(#local){display:none} /* Hide only remote videos initially */
 #videos #local{display:block;} /* Ensure local video starts visible, but only if the parent #videos is visible by JS */
 #videos.show{display:flex} /* Show the videos container */
 #videos.show video:not(#local){display:block} /* Show remote videos when .show is applied */
-#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:#1e1e1e;width:100%}#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px}#controls button:hover:not(:disabled){background:#3a3a3a}#controls button:disabled{opacity:.4}
-#chat-container{padding:0 12px 100px;width:100%;position:relative}
-#chat{width:100%;height:240px;overflow-y:auto;background:#181818;padding:12px;margin-top:8px;border-radius:4px}
+#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:#1e1e1e;width:100%; flex-shrink: 0;}
+#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px}#controls button:hover:not(:disabled){background:#3a3a3a}#controls button:disabled{opacity:.4}
+
+/* FIX 3: Chat container now occupies remaining space and contains the chat/controls */
+#chat-container{padding:0 12px 0;width:100%;position:relative; flex-grow: 1; overflow-y: auto;}
+/* FIX 4: Chat content now takes full available space in the chat-container */
+#chat{width:100%;min-height:200px;overflow-y:auto;background:#181818;padding:12px;margin-top:8px;border-radius:4px; margin-bottom: 100px;}
+
 .chat-message{margin-bottom:10px;display:flex;align-items:flex-start;gap:8px;word-break:break-word}
 .chat-message strong{color:#4caf50;flex-shrink:0}
 .message-content{flex-grow:1}
 .message-actions{display:flex;gap:5px}
 .message-actions button{background:none;border:none;cursor:pointer;font-size:1em;padding:2px 5px}
 .file-link{cursor:pointer;color:#90caf9;text-decoration:underline}
-.controls{position:fixed;bottom:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:#1e1e1e}
-.controls input[type=text]{flex:1 1 200px;max-width:60%;min-width:120px;padding:10px;background:#2c2c2c;color:#e0e0e0;border:1px solid #333;border-radius:4px}
-.controls button{flex:0 1 50px;padding:10px;background:#2c2c2c;border:1px solid #333;border-radius:4px}
+
+/* Controls must remain fixed at the very bottom */
+.controls{position:fixed;bottom:0;left:0;right:0;display:flex;flex-wrap:wrap;gap:8px;padding:10px;background:#1e1e1e; z-index: 10;}
 
 /* --- UI & FEATURE STYLES --- */
 #media-preview-overlay, #camera-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:3000}
@@ -301,16 +287,16 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
 .close-fullscreen-btn{position:fixed;top:15px;right:15px;z-index:2001;background:rgba(0,0,0,0.5);color:#fff;border:1px solid #fff;border-radius:50%;width:40px;height:40px;font-size:24px;line-height:40px;text-align:center;cursor:pointer}
 .secure-watermark{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:100}
 .secure-watermark::before{content:attr(data-watermark);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:3em;color:rgba(255,255,255,0.08);white-space:nowrap}
-/* FIX 1: VIDEO TOGGLE STYLES RESTORED */
-#video-controls-header{display:none;text-align:center;padding:5px;background-color:#1e1e1e}
+/* FIX 1: VIDEO TOGGLE STYLES RESTORED - added to hide local video when collapsed */
+#video-controls-header{display:none;text-align:center;padding:5px;background-color:#1e1e1e; flex-shrink: 0;}
 #videos.show + #video-controls-header{display:block}
 #toggleVideosBtn{background:none;border:none;color:#fff;font-size:1.5em;cursor:pointer}
-#videos.collapsed{display:none}
+#videos.collapsed{display:none !important} /* Use !important to fully hide the container */
 </style>
 </head>
 <body>
-<div id="login-overlay"><div id="login-box"><h2>Εισάγετε Μυστικό Κλειδί</h2><input type="text" id="key-input" placeholder="Επικολλήστε το κλειδί εδώ..."><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
-<div id="main-content"><h1 class="header">Ασφαλής Συνομιλία Fox</h1><div id="controls"><button id="joinBtn">Έναρξη Κλήσης</button><button id="muteBtn" disabled>Σίγαση</button><button id="videoBtn" disabled>Κάμερα Off</button><button id="leaveBtn" disabled>Αποχώρηση</button><button id="switchCamBtn" disabled>🔄 Αλλαγή Κάμερας</button></div><div id="videos"><div class="secure-watermark"></div><video id="local" autoplay muted playsinline></video></div><div id="video-controls-header"><button id="toggleVideosBtn">▲</button></div><div id="chat-container"><div class="secure-watermark"></div><div id="chat"></div><div class="controls"><input id="message" type="text" placeholder="Πληκτρολογήστε ένα μήνυμα..." autocomplete="off"><button onclick="sendMessage()">Αποστολή</button><button id="recordButton" onclick="toggleRecording()">🎙️</button><button onclick="sendFile()">📄</button><button id="liveCameraBtn" onclick="openLiveCamera()">📸</button><input type="file" id="fileInput" style="display:none"></div></div></div>
+<div id="login-overlay"><div id="login-box"><h2>Εισαγωγή Μυστικού Κλειδιού</h2><input type="text" id="key-input" placeholder="Επικολλήστε το κλειδί εδώ..."><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
+<div id="main-content"><h1 class="header">Fox Chat</h1><div id="controls"><button id="joinBtn">Συμμετοχή κλήσης</button><button id="muteBtn" disabled>Σίγαση</button><button id="videoBtn" disabled>Κάμερα Off</button><button id="leaveBtn" disabled>Αποχώρηση</button><button id="switchCamBtn" disabled>🔄 Αλλαγή Κάμερας</button></div><div id="videos"><div class="secure-watermark"></div><video id="local" autoplay muted playsinline></video></div><div id="video-controls-header"><button id="toggleVideosBtn">▲</button></div><div id="chat-container"><div class="secure-watermark"></div><div id="chat"></div></div><div class="controls"><input id="message" type="text" placeholder="Πληκτρολογήστε ένα μήνυμα..." autocomplete="off"><button onclick="sendMessage()">Αποστολή</button><button id="recordButton" onclick="toggleRecording()">🎙️</button><button onclick="sendFile()">📄</button><button id="liveCameraBtn" onclick="openLiveCamera()">📸</button><input type="file" id="fileInput" style="display:none"></div></div>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     const keyInput = document.getElementById('key-input');
@@ -321,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
     connectBtn.onclick = () => {
         const secretKey = keyInput.value.trim();
         if (secretKey) {
-            loginError.textContent = 'Συνδέση...';
+            loginError.textContent = 'Σύνδεση...';
             sessionStorage.setItem("secretKey", secretKey);
             initializeChat(secretKey);
         } else {
@@ -333,16 +319,16 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeChat(secretKey) {
     const socket = io({ auth: { token: secretKey } });
     socket.on('connect_error', () => {
-        document.getElementById('login-error').textContent = 'Μη έγκυρο Κλειδί. Παρακαλώ δοκιμάστε ξανά.';
+        document.getElementById('login-error').textContent = 'Μη έγκυρο κλειδί. Παρακαλώ δοκιμάστε ξανά.';
         sessionStorage.removeItem("secretKey");
     });
     socket.on('connect', () => {
         document.getElementById('login-overlay').style.display = 'none';
-        document.getElementById('main-content').style.display = 'block';
+        document.getElementById('main-content').style.display = 'flex'; // Changed from 'block' to 'flex'
         let username = localStorage.getItem("username");
         if (!username) {
             let promptedName = prompt("Εισάγετε το όνομα χρήστη σας:");
-            username = promptedName ? promptedName.trim() : "User" + Math.floor(Math.random() * 1000);
+            username = promptedName ? promptedName.trim() : "Χρήστης" + Math.floor(Math.random() * 1000);
             localStorage.setItem("username", username);
         }
         document.querySelectorAll('.secure-watermark').forEach(el => el.setAttribute('data-watermark', username));
@@ -385,7 +371,7 @@ function initializeChat(secretKey) {
         } else {
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 isRecording = true;
-                recordButton.textContent = '🔴 Σταμάτημα';
+                recordButton.textContent = '🔴 Σταμάτα';
                 recordedChunks = [];
                 mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
@@ -478,7 +464,7 @@ function initializeChat(secretKey) {
         const controls = document.createElement('div');
         controls.id = 'camera-controls';
         const captureBtn = document.createElement('button');
-        captureBtn.textContent = 'Λήψη';
+        captureBtn.textContent = 'Λήψη Φωτογραφίας';
         const switchBtn = document.createElement('button');
         switchBtn.textContent = 'Αλλαγή Κάμερας';
         const closeBtn = document.createElement('button');
@@ -560,7 +546,18 @@ function initializeChat(secretKey) {
                 img.style.cursor = 'zoom-in';
                 img.onclick = () => showMediaPreview(data);
                 content.appendChild(img);
+            } else if (data.fileType.startsWith('video/')) {
+                // Display video directly in chat for quick viewing
+                const video = document.createElement('video');
+                video.src = data.message;
+                video.controls = true;
+                video.style.maxWidth = '100%';
+                video.style.height = 'auto';
+                video.style.display = 'block';
+                video.onclick = () => showMediaPreview(data); // Click to full screen
+                content.appendChild(video);
             } else {
+                // General file, click to open preview/download
                 fileLink.onclick = () => showMediaPreview(data);
                 content.appendChild(fileLink);
             }
@@ -592,7 +589,9 @@ function initializeChat(secretKey) {
             div.appendChild(actions);
         }
         chat.appendChild(div);
-        chat.scrollTop = chat.scrollHeight;
+        
+        // Use requestAnimationFrame to ensure scroll happens after layout change
+        requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight);
     });
 
     socket.on('delete_message', data => {
@@ -711,7 +710,6 @@ function initializeChat(secretKey) {
             localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode, width: 320, height: 240 }, audio: true });
             localVideo.srcObject = localStream;
             localVideo.play();
-            // localVideo.style.display is now handled by CSS: #videos #local{display:block;}
             videos.classList.add('show');
             videos.classList.remove('collapsed'); // Ensure videos show up
             toggleVideosBtn.textContent = '▲'; // Set correct button state
@@ -719,7 +717,7 @@ function initializeChat(secretKey) {
             socket.emit('join-room');
         } catch (err) {
             console.error("Error accessing media devices:", err); // Added console logging
-            alert('Δεν ήταν δυνατή η έναρξη βίντεο. Ελέγξτε τις άδειες.');
+            alert('Δεν ήταν δυνατή η εκκίνηση του βίντεο. Ελέγξτε τις άδειες.');
         }
     };
     
@@ -731,8 +729,9 @@ function initializeChat(secretKey) {
         if (localStream) localStream.getTracks().forEach(track => track.stop());
         localStream = null; // Clear stream reference
         localVideo.srcObject = null; // Clear video source
-        localVideo.style.display = 'none'; // Explicitly hide local video on leave to override CSS
-        videos.classList.remove('show');
+        // FIX: Explicitly remove 'show' and add 'collapsed' to hide the entire video container.
+        videos.classList.remove('show'); 
+        videos.classList.add('collapsed');
         document.querySelectorAll('#videos video:not(#local)').forEach(v => v.remove());
         if (fullscreenState.element) toggleFullscreen(null);
         toggleCallButtons(false);
@@ -815,6 +814,11 @@ function initializeChat(secretKey) {
             if (vid) {
                 if(fullscreenState.element === vid) toggleFullscreen(null);
                 vid.remove();
+            }
+            // Check if any other remote videos are left, if not, hide videos container
+            if (document.querySelectorAll('#videos video:not(#local)').length === 0 && !localStream) {
+                 videos.classList.remove('show');
+                 videos.classList.add('collapsed');
             }
         }
     });
@@ -923,7 +927,7 @@ def handle_join(username):
     safe_username = html.escape(username)
     if request.sid in connected_users:
         connected_users[request.sid]['username'] = safe_username
-    # Translated: "{safe_username} has joined."
+    # Translated system message
     emit('message', {'id': f'join_{int(_time.time())}','username': 'System','message': f'{safe_username} έχει συνδεθεί.'}, broadcast=True)
 
 @socketio.on("message")
@@ -944,8 +948,8 @@ def handle_message(data):
             # Approximate size check (Base64 is ~33% larger than binary)
             decoded_len = (len(encoded) * 3) // 4
             if decoded_len > MAX_FILE_SIZE_BYTES:
-                # Translated: "File rejected: exceeds server limit."
-                emit("message", {'id': f'reject_{int(_time.time())}', 'username': 'System', 'message': 'Το αρχείο απορρίφθηκε: υπερβαίνει το όριο διακομιστή.'}, room=request.sid)
+                # Translated system message
+                emit("message", {'id': f'reject_{int(_time.time())}', 'username': 'System', 'message': 'Το αρχείο απορρίφθηκε: υπερβαίνει το όριο του διακομιστή.'}, room=request.sid)
                 return
                 
             # Quick base64 validation (to prevent large junk data)
@@ -1010,21 +1014,15 @@ def on_disconnect():
     leave_room(VIDEO_ROOM)
     emit("user-left", {"sid": request.sid}, to=VIDEO_ROOM)
     # Remove from general connected users list
-    if request.sid in connected_users: 
-        # Translated: "{username} has disconnected."
-        username = connected_users[request.sid].get('username', 'Anonymous')
-        emit('message', {'id': f'disc_{int(_time.time())}','username': 'System','message': f'{username} έχει αποσυνδεθεί.'}, broadcast=True)
-        del connected_users[request.sid]
+    if request.sid in connected_users: del connected_users[request.sid]
 
 if __name__ == '__main__' and "--server" in sys.argv:
     if not SECRET_KEY_SERVER:
-        # Translated: "FATAL: Server started without a secret key."
-        print("ΣΦΑΛΜΑ: Ο διακομιστής ξεκίνησε χωρίς μυστικό κλειδί.")
+        print("ΣΟΒΑΡΟ: Ο διακομιστής ξεκίνησε χωρίς μυστικό κλειδί.")
         sys.exit(1)
     if QUIET_MODE_SERVER:
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
     else:
-        # Translated: "Starting server with key:"
         print(f"Εκκίνηση διακομιστή με κλειδί: {SECRET_KEY_SERVER}")
     socketio.run(app, host='0.0.0.0', port=5000, ssl_context=('cert.pem', 'key.pem'))
