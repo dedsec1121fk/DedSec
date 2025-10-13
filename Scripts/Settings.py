@@ -113,7 +113,7 @@ GREEK_STRINGS = {
 }
 
 # ------------------------------
-# Translation Helpers
+# Translation Helpers (MOVED TO TOP TO ENSURE GLOBAL AVAILABILITY)
 # ------------------------------
 def get_current_language_path():
     """Detects the currently configured startup path from bash.bashrc."""
@@ -144,6 +144,8 @@ def _(text):
     if get_current_display_language() == 'greek':
         return GREEK_STRINGS.get(text, text) # Fallback to English if translation is missing
     return text
+# ------------------------------
+# THE REST OF THE CODE REMAINS UNCHANGED
 # ------------------------------
 
 def run_command(command, cwd=None):
@@ -224,7 +226,8 @@ def force_update_repo(existing_path):
         print(f"[+] Repository fully updated, including README and all other files.")
 
 def update_dedsec():
-    repo_size = get_github_repo_size()
+    # FIX: The '_' function is now defined globally, solving the UnboundLocalError here.
+    repo_size = get_github_repo_size() 
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
