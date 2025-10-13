@@ -55,7 +55,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 | Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
 | **Device** | Android with [Termux](https://f-droid.org/) installed |
-| **Storage** | Min **6GB** free. (The Radio feature requires more storage; images and recordings also consume space.) |
+| **Storage** | Min **8GB** free. (The Radio feature requires more storage; images and recordings also consume space.) |
 | **RAM** | Min **2GB** |
 
 ### Step-by-Step Setup
