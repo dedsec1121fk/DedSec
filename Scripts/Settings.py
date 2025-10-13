@@ -18,6 +18,128 @@ REPO_URL = "https://github.com/dedsec1121fk/DedSec.git"
 LOCAL_DIR = "DedSec"
 REPO_API_URL = "https://api.github.com/repos/dedsec1121fk/DedSec"
 
+# --- Define fixed absolute paths and folder names ---
+ENGLISH_BASE_PATH = "/data/data/com.termux/files/home/DedSec/Scripts"
+GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
+GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
+SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
+BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
+
+# --- Language Path Map ---
+LANGUAGE_MAP = {
+    ENGLISH_BASE_PATH: 'english',
+    GREEK_PATH_FULL: 'greek'
+}
+CURRENT_DISPLAY_LANGUAGE = None
+# ----------------------------------------------------
+
+# --- Translation Definitions ---
+# The keys must be the English original strings.
+GREEK_STRINGS = {
+    "Select an option": "Επιλέξτε μια επιλογή",
+    "About": "Πληροφορίες",
+    "DedSec Project Update": "Ενημέρωση Έργου DedSec",
+    "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
+    "Change Prompt": "Αλλαγή Προτροπής",
+    "Change Menu Style": "Αλλαγή Στυλ Μενού",
+    "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα", # This one remains dual-language
+    "Credits": "Συντελεστές",
+    "Exit": "Έξοδος",
+    "System Information": "Πληροφορίες Συστήματος",
+    "The Latest DedSec Project Update": "Η Τελευταία Ενημέρωση του Έργου DedSec",
+    "DedSec directory not found": "Ο φάκελος DedSec δεν βρέθηκε",
+    "Termux Entire Storage": "Συνολικός Χώρος Αποθήκευσης Termux",
+    "DedSec Project Size": "Μέγεθος Έργου DedSec",
+    "Hardware Details": "Λεπτομέρειες Υλικού",
+    "Internal Storage": "Εσωτερικός Χώρος Αποθήκευσης",
+    "Processor": "Επεξεργαστής",
+    "Ram": "Μνήμη RAM",
+    "Carrier": "Πάροχος Δικτύου",
+    "Kernel Version": "Έκδοση Πυρήνα (Kernel)",
+    "Android Version": "Έκδοση Android",
+    "Device Model": "Μοντέλο Συσκευής",
+    "Manufacturer": "Κατασκευαστής",
+    "Uptime": "Χρόνος Λειτουργίας",
+    "Battery": "Μπαταρία",
+    "Not available": "Μη διαθέσιμο",
+    "User": "Χρήστης",
+    "Prompt Username": "Όνομα Χρήστη για την Προτροπή",
+    "Username cannot be empty. Please enter a valid username.": "Το Όνομα Χρήστη δεν μπορεί να είναι κενό. Παρακαλώ εισάγετε ένα έγκυρο όνομα.",
+    "Changing Prompt...": "Αλλαγή Προτροπής...",
+    "Customizations applied successfully!": "Οι προσαρμογές εφαρμόστηκαν επιτυχώς!",
+    "Choose Menu Style": "Επιλέξτε Στυλ Μενού",
+    "List Style": "Στυλ Λίστας",
+    "Grid Style": "Στυλ Πλέγματος",
+    "No menu style selected. Returning to settings menu...": "Δεν επιλέχθηκε στυλ μενού. Επιστρέφοντας στο μενού ρυθμίσεων...",
+    "Menu style changed to": "Το στυλ μενού άλλαξε σε",
+    "Bash configuration updated.": "Η διαμόρφωση του Bash ενημερώθηκε.",
+    "Please restart Termux for changes to take full effect.": "Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως οι αλλαγές.",
+    "Language set to": "Η γλώσσα ορίστηκε σε",
+    "Directory": "Ο φάκελος",
+    "is now hidden (renamed to": "είναι πλέον κρυφός (μετονομάστηκε σε",
+    "is now visible.": "είναι πλέον ορατός.",
+    "Error hiding directory": "Σφάλμα απόκρυψης φακέλου",
+    "Error unhiding directory": "Σφάλμα εμφάνισης φακέλου",
+    "No language selected. Returning to settings menu...": "Δεν επιλέχθηκε γλώσσα. Επιστρέφοντας στο μενού ρυθμίσεων...",
+    "No selection made. Exiting.": "Δεν έγινε επιλογή. Έξοδος.",
+    "back": "πίσω",
+    "Go Back": "Πίσω",
+    "No items found in this folder.": "Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.",
+    "Error running fzf": "Σφάλμα κατά την εκτέλεση του fzf",
+    "Invalid selection. Exiting.": "Μη έγκυρη επιλογή. Έξοδος.",
+    "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
+    "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
+    "GitHub repository size": "Μέγεθος αποθετηρίου GitHub",
+    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέρωσης...",
+    "Update applied. DedSec Project Size": "Ενημέρωση εφαρμόστηκε. Μέγεθος Έργου DedSec",
+    "No available update found.": "Δεν βρέθηκε διαθέσιμη ενημέρωση.",
+    "Cloned new DedSec repository. DedSec Project Size": "Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec",
+    "Update process completed successfully!": "Η διαδικασία ενημέρωσης ολοκληρώθηκε επιτυχώς!",
+    "Unable to fetch repository size": "Αδυναμία λήψης μεγέθους αποθετηρίου",
+    "Installing Python packages and modules...": "Εγκατάσταση πακέτων και modules Python...",
+    "Installing Termux packages and modules...": "Εγκατάσταση πακέτων και modules Termux...",
+    "Packages and Modules update process completed successfully!": "Η διαδικασία ενημέρωσης πακέτων και modules ολοκληρώθηκε επιτυχώς!",
+    "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
+    "Exiting...": "Γίνεται έξοδος...",
+    "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
+    # ΝΕΑ ΠΡΟΣΘΗΚΗ:
+    "FOLDER_TAG": "[ΦΑΚΕΛΟΣ]", 
+}
+
+# ------------------------------
+# Translation Helpers
+# ------------------------------
+def get_current_language_path():
+    """Detects the currently configured startup path from bash.bashrc."""
+    try:
+        with open(BASHRC_PATH, "r") as f:
+            lines = f.readlines()
+    except Exception:
+        return ENGLISH_BASE_PATH # Default
+
+    for line in lines:
+        if line.strip().startswith('cd ') and SETTINGS_SCRIPT_PATH in line:
+            # Extract the path from the 'cd "PATH"' part
+            match = re.search(r'cd\s+"([^"]+)"', line)
+            if match:
+                return match.group(1).strip()
+    return ENGLISH_BASE_PATH # Default
+
+def get_current_display_language():
+    """Determines the current active language based on the startup path in bash.bashrc."""
+    global CURRENT_DISPLAY_LANGUAGE
+    if CURRENT_DISPLAY_LANGUAGE is None:
+        current_path = get_current_language_path()
+        CURRENT_DISPLAY_LANGUAGE = LANGUAGE_MAP.get(current_path, 'english')
+    return CURRENT_DISPLAY_LANGUAGE
+
+def _(text):
+    """Translates text based on the detected current display language."""
+    if get_current_display_language() == 'greek':
+        return GREEK_STRINGS.get(text, text) # Fallback to English if translation is missing
+    return text
+# ------------------------------
+
 def run_command(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
     return result.stdout.strip(), result.stderr.strip()
@@ -41,8 +163,8 @@ def get_termux_info():
 def get_latest_dedsec_update(path):
     if path and os.path.isdir(path):
         stdout, _ = run_command("git log -1 --format=%cd", cwd=path)
-        return stdout if stdout else "Not Available"
-    return "DedSec directory not found"
+        return stdout if stdout else _("Not available")
+    return _("DedSec directory not found")
 
 def find_dedsec():
     search_cmd = "find ~ -type d -name 'DedSec' 2>/dev/null"
@@ -58,7 +180,7 @@ def get_github_repo_size():
             return f"{size_kb / 1024:.2f} MB"
     except Exception:
         pass
-    return "Unable to fetch repository size"
+    return _("Unable to fetch repository size")
 
 def get_termux_size():
     termux_root = "/data/data/com.termux"
@@ -77,25 +199,25 @@ def get_dedsec_size(path):
         out, err = run_command(f"du -sh {path}")
         size = out.split()[0] if out else "Unknown"
         return size
-    return "DedSec directory not found"
+    return _("DedSec directory not found")
 
 def clone_repo():
-    print("[+] DedSec not found. Cloning repository...")
+    print(f"[+] DedSec not found. {_('Cloning repository...')}")
     run_command(f"git clone {REPO_URL}")
     return os.path.join(os.getcwd(), LOCAL_DIR)
 
 def force_update_repo(existing_path):
     if existing_path:
-        print("[+] DedSec found! Forcing a full update...")
+        print(f"[+] DedSec found! {_('Forcing a full update...')}")
         run_command("git fetch --all", cwd=existing_path)
         run_command("git reset --hard origin/main", cwd=existing_path)
         run_command("git clean -fd", cwd=existing_path)
         run_command("git pull", cwd=existing_path)
-        print("[+] Repository fully updated, including README and all other files.")
+        print(f"[+] Repository fully updated, including README and all other files.")
 
 def update_dedsec():
     repo_size = get_github_repo_size()
-    print(f"[+] GitHub repository size: {repo_size}")
+    print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
         run_command("git fetch", cwd=existing_dedsec_path)
@@ -107,14 +229,14 @@ def update_dedsec():
         if behind_count > 0:
             force_update_repo(existing_dedsec_path)
             dedsec_size = get_dedsec_size(existing_dedsec_path)
-            print(f"[+] Update applied. DedSec Project Size: {dedsec_size}")
+            print(f"[+] {_('Update applied. DedSec Project Size')}: {dedsec_size}")
         else:
-            print("No available update found.")
+            print(_("No available update found."))
     else:
         existing_dedsec_path = clone_repo()
         dedsec_size = get_dedsec_size(existing_dedsec_path)
-        print(f"[+] Cloned new DedSec repository. DedSec Project Size: {dedsec_size}")
-    print("[+] Update process completed successfully!")
+        print(f"[+] {_('Cloned new DedSec repository. DedSec Project Size')}: {dedsec_size}")
+    print(f"[+] {_('Update process completed successfully')}!")
     return existing_dedsec_path
 
 def get_internal_storage():
@@ -164,11 +286,11 @@ def get_battery_info():
             info = json.loads(out)
             level = info.get("percentage", "Unknown")
             status = info.get("status", "Unknown")
-            return f"Battery: {level}% ({status})"
+            return f"{_('Battery')}: {level}% ({status})"
         except Exception:
-            return "Battery: Unknown"
+            return f"{_('Battery')}: {_('Unknown')}"
     else:
-        return "Battery: Not available"
+        return f"{_('Battery')}: {_('Not available')}"
 
 def get_hardware_details():
     internal_storage = get_internal_storage()
@@ -183,15 +305,15 @@ def get_hardware_details():
     battery = get_battery_info()
     
     details = (
-        f"Internal Storage: {internal_storage}\n"
-        f"Processor: {processor}\n"
-        f"Ram: {ram}\n"
-        f"Carrier: {carrier}\n"
-        f"Kernel Version: {kernel_version}\n"
-        f"Android Version: {android_version}\n"
-        f"Device Model: {device_model}\n"
-        f"Manufacturer: {manufacturer}\n"
-        f"Uptime: {uptime}\n"
+        f"{_('Internal Storage')}: {internal_storage}\n"
+        f"{_('Processor')}: {processor}\n"
+        f"{_('Ram')}: {ram}\n"
+        f"{_('Carrier')}: {carrier}\n"
+        f"{_('Kernel Version')}: {kernel_version}\n"
+        f"{_('Android Version')}: {android_version}\n"
+        f"{_('Device Model')}: {device_model}\n"
+        f"{_('Manufacturer')}: {manufacturer}\n"
+        f"{_('Uptime')}: {uptime}\n"
         f"{battery}"
     )
     return details
@@ -201,23 +323,23 @@ def get_user():
     return output if output else "Unknown"
 
 def show_about():
-    print("=== System Information ===")
+    print(f"=== {_('System Information')} ===")
     dedsec_path = find_dedsec()
-    latest_update = get_latest_dedsec_update(dedsec_path) if dedsec_path else "DedSec directory not found"
-    print(f"The Latest DedSec Project Update: {latest_update}")
+    latest_update = get_latest_dedsec_update(dedsec_path) if dedsec_path else _("DedSec directory not found")
+    print(f"{_('The Latest DedSec Project Update')}: {latest_update}")
     termux_storage = get_termux_size()
-    print(f"Termux Entire Storage: {termux_storage}")
-    dedsec_size = get_dedsec_size(dedsec_path) if dedsec_path else "DedSec directory not found"
-    print(f"DedSec Project Size: {dedsec_size}")
-    print("\nHardware Details:")
+    print(f"{_('Termux Entire Storage')}: {termux_storage}")
+    dedsec_size = get_dedsec_size(dedsec_path) if dedsec_path else _("DedSec directory not found")
+    print(f"{_('DedSec Project Size')}: {dedsec_size}")
+    print(f"\n{_('Hardware Details')}:")
     print(get_hardware_details())
     user = get_user()
-    print(f"\nUser: {user}")
+    print(f"\n{_('User')}: {user}")
 
 def show_credits():
-    credits = """
+    credits = f"""
 =======================================
-                CREDITS
+                {_('Credits').upper()}
 =======================================
 Creator:dedsec1121fk
 Music Artists:BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
@@ -244,10 +366,10 @@ def remove_motd():
 def modify_bashrc():
     etc_path = "/data/data/com.termux/files/usr/etc"
     os.chdir(etc_path)
-    username = input("Prompt Username: ").strip()
+    username = input(f"{_('Prompt Username')}: ").strip()
     while not username:
-        print("Username cannot be empty. Please enter a valid username.")
-        username = input("Prompt Username: ").strip()
+        print(_("Username cannot be empty. Please enter a valid username."))
+        username = input(f"{_('Prompt Username')}: ").strip()
     with open("bash.bashrc", "r") as bashrc_file:
         lines = bashrc_file.readlines()
 
@@ -258,30 +380,93 @@ def modify_bashrc():
     )
     
     with open("bash.bashrc", "w") as bashrc_file:
+        # Search and replace PS1 line only if it exists
+        ps1_replaced = False
         for line in lines:
             if "PS1=" in line:
                 bashrc_file.write(new_ps1)
+                ps1_replaced = True
             else:
                 bashrc_file.write(line)
+        
+        # If PS1 was not found, append it
+        if not ps1_replaced:
+            bashrc_file.write(new_ps1)
+
 
 def change_prompt():
-    print("\n[+] Changing Prompt...\n")
+    print(f"\n[+] {_('Changing Prompt...')} \n")
     remove_motd()
     modify_bashrc()
-    print("\n[+] Customizations applied successfully!")
+    print(f"\n[+] {_('Customizations applied successfully! ')}")
 
 # ------------------------------
-# New Option: Change Menu Style (using arrow keys)
+# Update bash.bashrc Aliases and Startup (Central Logic)
 # ------------------------------
+def update_bashrc(current_language_path, current_style):
+    try:
+        with open(BASHRC_PATH, "r") as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"Error reading {BASHRC_PATH}: {e}")
+        return
 
+    # --- Robustly remove ALL previous menu startup commands and ALL aliases (m, e, g) ---
+    filtered_lines = []
+    # Regex to match the 'cd ... && python3 ...' startup command OR any alias like 'm', 'e', or 'g'
+    regex_pattern = re.compile(r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd .*DedSec/Scripts.*)")
+    for line in lines:
+        if not regex_pattern.search(line):
+            filtered_lines.append(line)
+    # -----------------------------------------------------------------------------------
+
+    # --- Create NEW Startup Command (for the selected language) ---
+    # This command automatically runs when Termux starts, launching the menu
+    new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
+    
+    # --- Create NEW Aliases ('e' for English, 'g' for Greek) ---
+    english_alias = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+    greek_alias = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+
+    filtered_lines.append("\n# --- DedSec Menu Startup (Set by Settings.py) ---\n")
+    filtered_lines.append(new_startup)
+    filtered_lines.append(english_alias)
+    filtered_lines.append(greek_alias)
+    filtered_lines.append("# --------------------------------------------------\n")
+    
+    try:
+        with open(BASHRC_PATH, "w") as f:
+            f.writelines(filtered_lines)
+    except Exception as e:
+        print(f"Error writing to {BASHRC_PATH}: {e}")
+
+def get_current_menu_style():
+    """Detects the current menu style setting from bash.bashrc."""
+    try:
+        with open(BASHRC_PATH, "r") as f:
+            lines = f.readlines()
+    except Exception:
+        return 'list' # Default if file cannot be read
+
+    for line in lines:
+        if '--menu grid' in line:
+            return 'grid'
+        if '--menu list' in line:
+            return 'list'
+    return 'list' # Default if no style is found
+
+
+# ------------------------------
+# Change Menu Style
+# ------------------------------
 def choose_menu_style_curses(stdscr):
     curses.curs_set(0)
-    options = ["List Style", "Grid Style"]
+    options = [ _("List Style"), _("Grid Style")]
     current = 0
     while True:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
-        title = "Choose Menu Style"
+        title = _("Choose Menu Style")
         stdscr.addstr(1, width // 2 - len(title) // 2, title)
         for idx, option in enumerate(options):
             x = width // 2 - len(option) // 2
@@ -306,119 +491,162 @@ def choose_menu_style_curses(stdscr):
 def change_menu_style():
     style = curses.wrapper(choose_menu_style_curses)
     if style is None:
-        print("No menu style selected. Returning to settings menu...")
-        input("\nPress Enter to return to the settings menu...")
+        print(_("No menu style selected. Returning to settings menu..."))
         return
-    update_bashrc_for_menu_style(style)
-    # Delete the external menu files since they're now integrated
-    for file_name in ["menu.py", "grid_menu.py"]:
-        try:
-            if os.path.exists(file_name):
-                os.remove(file_name)
-        except Exception:
-            pass
-    print(f"\n[+] Menu style changed to {style.capitalize()} Style. Bash configuration updated.")
-    input("\nPress Enter to return to the settings menu...")
+        
+    # Get current language path to maintain it
+    current_path = get_current_language_path()
+    
+    # Update bashrc with new style but same path
+    update_bashrc(current_path, style)
+    
+    print(f"\n[+] {_('Menu style changed to')} {style.capitalize()} {_('Style')}. {_('Bash configuration updated.')}")
+    print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
-def update_bashrc_for_menu_style(style):
-    bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-    scripts_path = "/data/data/com.termux/files/home/DedSec/Scripts"
-    if style == "list":
-        new_startup = f"cd {scripts_path} && python3 Settings.py --menu list"
-        new_alias = f"alias m='cd ~/DedSec/Scripts && python3 Settings.py --menu list'"
-    else:
-        new_startup = f"cd {scripts_path} && python3 Settings.py --menu grid"
-        new_alias = f"alias m='cd ~/DedSec/Scripts && python3 Settings.py --menu grid'"
-    try:
-        with open(bashrc_path, "r") as f:
-            lines = f.readlines()
-    except Exception as e:
-        print(f"Error reading {bashrc_path}: {e}")
-        return
-    filtered_lines = []
-    # Remove any previous lines that launch Settings.py with --menu
-    for line in lines:
-        if re.search(r"python3\s+Settings\.py\s+--menu", line, re.IGNORECASE) or re.search(r"alias\s+m=.*python3\s+Settings\.py\s+--menu", line, re.IGNORECASE):
-            continue
-        filtered_lines.append(line)
-    filtered_lines.append("\n" + new_startup + "\n")
-    filtered_lines.append(new_alias + "\n")
-    try:
-        with open(bashrc_path, "w") as f:
-            f.writelines(filtered_lines)
-    except Exception as e:
-        print(f"Error writing to {bashrc_path}: {e}")
 
 # ------------------------------
-# Helper for List Menu: Browse folders and scripts using fzf
+# Choose Language
+# ------------------------------
+def choose_language_curses(stdscr):
+    curses.curs_set(0)
+    options = ["English", "Ελληνικά"]
+    current = 0
+    while True:
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        title = _("Choose Language/Επιλέξτε Γλώσσα") # This title remains dual-language
+        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        for idx, option in enumerate(options):
+            x = width // 2 - len(option) // 2
+            y = height // 2 - len(options) // 2 + idx
+            if idx == current:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
+            else:
+                stdscr.addstr(y, x, option)
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP and current > 0:
+            current -= 1
+        elif key == curses.KEY_DOWN and current < len(options) - 1:
+            current += 1
+        elif key in [10, 13]:
+            return "english" if current == 0 else "greek"
+        elif key in [ord('q'), ord('Q')]:
+            return None
+
+def change_language():
+    language = curses.wrapper(choose_language_curses)
+    if language is None:
+        print(_("No language selected. Returning to settings menu..."))
+        return
+
+    # Reset global language variable to force re-detection on next run
+    global CURRENT_DISPLAY_LANGUAGE
+    CURRENT_DISPLAY_LANGUAGE = None
+    
+    hidden_greek_folder_name = "." + GREEK_FOLDER_NAME
+    hidden_greek_path = os.path.join(ENGLISH_BASE_PATH, hidden_greek_folder_name)
+
+    if language == 'english':
+        if os.path.isdir(GREEK_PATH_FULL):
+            try:
+                # Hide the Greek folder
+                os.rename(GREEK_PATH_FULL, hidden_greek_path)
+                print(f"[+] {_('Directory')} '{GREEK_FOLDER_NAME}' {_('is now hidden (renamed to')} '{hidden_greek_folder_name}').")
+            except OSError as e:
+                print(f"{_('Error hiding directory')}: {e}")
+        target_path = ENGLISH_BASE_PATH
+    
+    elif language == 'greek':
+        if os.path.isdir(hidden_greek_path):
+            try:
+                # Unhide the Greek folder
+                os.rename(hidden_greek_path, GREEK_PATH_FULL)
+                print(f"[+] {_('Directory')} '{GREEK_FOLDER_NAME}' {_('is now visible.')}")
+            except OSError as e:
+                print(f"{_('Error unhiding directory')}: {e}")
+        target_path = GREEK_PATH_FULL
+
+    # Get current menu style to maintain it
+    current_style = get_current_menu_style()
+    
+    # Update bashrc with new path but same style, and create 'e'/'g' aliases
+    update_bashrc(target_path, current_style)
+    
+    print(f"\n[+] {_('Language set to')} {language.capitalize()}. {_('Bash configuration updated.')}")
+    print(f"[{_('Please restart Termux for changes to take full effect')}]")
+
+# ------------------------------
+# Helper for List Menu
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
-    Lists subfolders and .py files in the given directory.
-    Returns a full path for the selected item.
-    Folders are marked with '[FOLDER] ' and an option '.. (Go Back)' is shown if not in the base.
+    Lists subfolders and .py files, hiding dotfiles.
     """
     items = []
+    # Translate "Go Back"
+    go_back_text = f".. ({_('Go Back')})"
     if os.path.abspath(current_path) != os.path.abspath(base_path):
-        items.append(".. (Go Back)")
+        items.append(go_back_text)
+    
+    folder_tag = _("FOLDER_TAG")
+    
     for entry in sorted(os.listdir(current_path)):
+        if entry.startswith('.'):
+            continue
         full_path = os.path.join(current_path, entry)
         if os.path.isdir(full_path):
-            items.append(f"[FOLDER] {entry}")
+            # Use translated folder tag
+            items.append(f"{folder_tag} {entry}")
         elif entry.endswith(".py"):
             items.append(entry)
-    if not items:
-        print("No items found in this folder.")
+    
+    if not items and os.path.abspath(current_path) != os.path.abspath(base_path):
+        print(_("No items found in this folder."))
         return None
+
+    # Use a pipe for fzf input
     input_text = "\n".join(items)
     try:
+        # fzf is expected to be installed via Termux package manager
         result = subprocess.run("fzf", input=input_text, shell=True, capture_output=True, text=True)
         selected = result.stdout.strip()
     except Exception as e:
-        print("Error running fzf:", e)
+        print(f"{_('Error running fzf')}: {e}")
         return None
+    
     if not selected:
         return None
+        
     if selected.startswith(".."):
         return "back"
-    if selected.startswith("[FOLDER] "):
-        dirname = selected[len("[FOLDER] "):]
+    
+    # Check for translated folder tag
+    if selected.startswith(f"{folder_tag} "):
+        # Use the length of the translated tag plus one for the space
+        dirname = selected[len(folder_tag) + 1:]
         return os.path.join(current_path, dirname)
     else:
         return os.path.join(current_path, selected)
 
 # ------------------------------
-# Integrated List Menu (from menu.py) with folder navigation
+# Integrated List Menu with folder navigation
 # ------------------------------
 def run_list_menu():
-    bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-    base_path = "/data/data/com.termux/files/home/DedSec/Scripts"
-    def ensure_bashrc_setup():
-        if os.path.exists(bashrc_path):
-            with open(bashrc_path, "r") as file:
-                content = file.read()
-            startup_line = f"cd {base_path} && python3 Settings.py --menu list"
-            alias_line = "alias m='cd ~/DedSec/Scripts && python3 Settings.py --menu list'"
-            if startup_line not in content:
-                with open(bashrc_path, "a") as file:
-                    file.write("\n" + startup_line + "\n")
-            if alias_line not in content:
-                with open(bashrc_path, "a") as file:
-                    file.write("\n" + alias_line + "\n")
-        else:
-            print(f"Error: {bashrc_path} not found.")
-            sys.exit(1)
-    ensure_bashrc_setup()
+    # The base path is the directory this script is run from (which is the selected language folder).
+    base_path = os.getcwd()
     
     current_path = base_path
     while True:
         selected = browse_directory_list_menu(current_path, base_path)
         if selected is None:
-            print("No selection made. Exiting.")
+            print(_("No selection made. Exiting."))
             return
         if selected == "back":
-            # Go back to parent if possible.
             parent = os.path.dirname(current_path)
+            # Ensure we don't navigate above the base language folder
             if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
                 current_path = parent
             else:
@@ -428,72 +656,78 @@ def run_list_menu():
             current_path = selected
             continue
         elif os.path.isfile(selected) and selected.endswith(".py"):
-            # Execute the selected script using a relative path from the base folder.
+            # Calculate path relative to base_path for clean execution
             rel_path = os.path.relpath(selected, base_path)
             command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
             ret = os.system(command)
+            # Check for return code indicating KeyboardInterrupt (usually 130, or 2 if shifted for os.system)
             if (ret >> 8) == 2:
-                print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
+                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                 sys.exit(0)
             return
         else:
-            print("Invalid selection. Exiting.")
+            print(_("Invalid selection. Exiting."))
             return
 
 # ------------------------------
-# Helper for Grid Menu: List directory entries
+# Helper for Grid Menu
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples (display_name, full_path) for directories and .py files in the given path.
-    Directories are prefixed with "[FOLDER] " and a ".. (Go Back)" option is included if not at the base.
+    Returns a list of tuples, hiding dotfiles.
     """
     entries = []
+    # Translate "Go Back"
+    go_back_text = f".. ({_('Go Back')})"
     if os.path.abspath(path) != os.path.abspath(base_path):
-        entries.append((".. (Go Back)", None))
+        entries.append((go_back_text, None))
+    
+    folder_tag = _("FOLDER_TAG")
+    
     for entry in sorted(os.listdir(path)):
+        if entry.startswith('.'):
+            continue
         full = os.path.join(path, entry)
         if os.path.isdir(full):
-            entries.append((f"[FOLDER] {entry}", full))
+            # Use translated folder tag
+            entries.append((f"{folder_tag} {entry}", full))
         elif entry.endswith(".py"):
             entries.append((entry, full))
     return entries
 
 # ------------------------------
-# Integrated Grid Menu (from grid_menu.py) with folder navigation
+# Integrated Grid Menu with folder navigation
 # ------------------------------
 def run_grid_menu():
-    bashrc_path = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-    base_path = "/data/data/com.termux/files/home/DedSec/Scripts"
-    def ensure_bashrc_setup():
-        if os.path.exists(bashrc_path):
-            with open(bashrc_path, "r") as file:
-                content = file.read()
-            startup_line = f"cd {base_path} && python3 Settings.py --menu grid"
-            alias_line = "alias m='cd ~/DedSec/Scripts && python3 Settings.py --menu grid'"
-            if startup_line not in content:
-                with open(bashrc_path, "a") as file:
-                    file.write("\n" + startup_line + "\n")
-            if alias_line not in content:
-                with open(bashrc_path, "a") as file:
-                    file.write("\n" + alias_line + "\n")
-        else:
-            print(f"Error: {bashrc_path} not found.")
-            sys.exit(1)
+    # The base path is the directory this script is run from.
+    base_path = os.getcwd()
+
     def draw_box(stdscr, y, x, height, width, highlight=False):
         color = curses.color_pair(2)
         if highlight:
             color = curses.color_pair(1)
+        # Check bounds before drawing
+        term_height, term_width = stdscr.getmaxyx()
+        if y + height > term_height or x + width > term_width:
+            return
+
         for i in range(x, x + width):
             stdscr.addch(y, i, curses.ACS_HLINE, color)
             stdscr.addch(y + height - 1, i, curses.ACS_HLINE, color)
         for j in range(y, y + height):
             stdscr.addch(j, x, curses.ACS_VLINE, color)
             stdscr.addch(j, x + width - 1, curses.ACS_VLINE, color)
-        stdscr.addch(y, x, curses.ACS_ULCORNER, color)
-        stdscr.addch(y, x + width - 1, curses.ACS_URCORNER, color)
-        stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
-        stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
+        
+        # Draw corners
+        try:
+            stdscr.addch(y, x, curses.ACS_ULCORNER, color)
+            stdscr.addch(y, x + width - 1, curses.ACS_URCORNER, color)
+            stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
+            stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
+        except curses.error:
+            # Handle cases where attempting to draw in the last corner is out of bounds
+            pass
+
     def draw_grid_menu(stdscr, friendly_names, num_items):
         curses.curs_set(0)
         stdscr.nodelay(0)
@@ -507,40 +741,79 @@ def run_grid_menu():
         while True:
             stdscr.clear()
             term_height, term_width = stdscr.getmaxyx()
+            
+            # Dynamic calculation for better screen utilization
             ICON_WIDTH = max(15, term_width // 5)
             ICON_HEIGHT = max(7, term_height // 6)
             max_cols = term_width // ICON_WIDTH
-            total_visible_cells = max_cols * (term_height // ICON_HEIGHT)
+            
+            # Adjust icon width if max_cols is zero
+            if max_cols == 0:
+                ICON_WIDTH = term_width
+                max_cols = 1
+            
+            rows_per_page = (term_height - 1) // ICON_HEIGHT # -1 for the status bar
+            total_visible_cells = max_cols * rows_per_page
+            
+            if total_visible_cells <= 0:
+                stdscr.addstr(0, 0, _("Terminal window is too small."))
+                stdscr.refresh()
+                key = stdscr.getch()
+                if key in [ord('q'), ord('Q'), 10, 13]:
+                    return None
+                continue
+
             page_start_index = (current_index // total_visible_cells) * total_visible_cells
             page_end_index = min(page_start_index + total_visible_cells, num_items)
+            
+            # Navigation keys
+            # Calculate next/previous page indices
+            prev_page_index = max(0, page_start_index - total_visible_cells)
+            next_page_index = min(num_items - 1, page_start_index + total_visible_cells)
+
             for idx_on_page, actual_index in enumerate(range(page_start_index, page_end_index)):
                 i = idx_on_page // max_cols
                 j = idx_on_page % max_cols
                 y = i * ICON_HEIGHT
                 x = j * ICON_WIDTH
+                
+                # Check if box will fit on screen (y + ICON_HEIGHT is the last line of the box)
+                if y + ICON_HEIGHT >= term_height - 1: # -1 for status bar
+                    continue
+
                 draw_box(stdscr, y, x, ICON_HEIGHT, ICON_WIDTH, highlight=(actual_index == current_index))
                 name = friendly_names[actual_index]
                 box_text_width = ICON_WIDTH - 4
                 wrapped_lines = textwrap.wrap(name, box_text_width)
+                
                 total_lines = len(wrapped_lines)
                 padding_y = (ICON_HEIGHT - total_lines) // 2
+                
                 for line_idx, line in enumerate(wrapped_lines):
                     line_y = y + padding_y + line_idx
                     padding_x = (ICON_WIDTH - len(line)) // 2
                     line_x = x + padding_x
-                    if line_y < term_height - 1 and line_x < term_width - len(line):
+                    
+                    if line_y < term_height - 1 and line_x < term_width:
                         try:
-                            stdscr.addstr(line_y, line_x, line, curses.color_pair(3))
+                            # Truncate line if it extends past the screen edge
+                            display_line = line[:term_width - line_x]
+                            stdscr.addstr(line_y, line_x, display_line, curses.color_pair(3))
                         except curses.error:
                             pass
+            
+            # Status/Instructions Bar (Instructions are not translated for simplicity here, but could be)
             page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_items / total_visible_cells)} "
-            instructions = f"Arrow Keys: Move | Enter: Select | q: Quit | {page_info}"
+            instructions = f"Arrow Keys: Move | P/N: Prev/Next Page | Enter: Select | q: Quit | {page_info}"
             try:
                 stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
             except curses.error:
                 pass
+            
             stdscr.refresh()
+            
             key = stdscr.getch()
+            
             if key == curses.KEY_UP and current_index - max_cols >= 0:
                 current_index -= max_cols
             elif key == curses.KEY_DOWN and current_index + max_cols < num_items:
@@ -549,41 +822,57 @@ def run_grid_menu():
                 current_index -= 1
             elif key == curses.KEY_RIGHT and (current_index % max_cols) < (max_cols - 1) and (current_index + 1) < num_items:
                 current_index += 1
+            elif key in [ord('p'), ord('P')]:
+                current_index = prev_page_index
+            elif key in [ord('n'), ord('N')]:
+                current_index = next_page_index
             elif key in [10, 13]:
                 return current_index
             elif key in [ord('q'), ord('Q')]:
                 return None
             elif key == curses.KEY_RESIZE:
                 pass
-    ensure_bashrc_setup()
-    
+
     current_path = base_path
     while True:
         entries = list_directory_entries(current_path, base_path)
         if not entries:
-            print("No entries found in this folder.")
+            print(_("No entries found in this folder."))
             return
         friendly_names = [entry[0] for entry in entries]
+        
+        # Wrap the drawing logic in curses.wrapper
         selected_index = curses.wrapper(lambda stdscr: draw_grid_menu(stdscr, friendly_names, len(friendly_names)))
+        
         if selected_index is None:
-            print("No selection made. Exiting.")
+            print(_("No selection made. Exiting."))
             return
+        
         selected_entry = entries[selected_index]
-        if selected_entry[0].startswith(".."):
-            if os.path.abspath(current_path) != os.path.abspath(base_path):
-                current_path = os.path.dirname(current_path)
+        
+        go_back_text = f".. ({_('Go Back')})"
+        
+        if selected_entry[0].startswith(go_back_text):
+            parent = os.path.dirname(current_path)
+            # Ensure we don't navigate above the base language folder
+            if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
+                current_path = parent
             else:
                 current_path = base_path
             continue
-        if selected_entry[0].startswith("[DIR]"):
+            
+        # Check for translated folder tag
+        if selected_entry[0].startswith(_("FOLDER_TAG")):
             current_path = selected_entry[1]
             continue
-        # Otherwise, it's a file.
+            
+        # Execute the script
         rel_path = os.path.relpath(selected_entry[1], base_path)
         command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
         ret = os.system(command)
+        
         if (ret >> 8) == 2:
-            print("\nScript terminated by KeyboardInterrupt. Exiting gracefully...")
+            print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
             sys.exit(0)
         return
 
@@ -593,11 +882,11 @@ def run_grid_menu():
 def update_packages_modules():
     pip_command = "pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
     termux_command = "termux-setup-storage && pkg update -y && pkg upgrade -y && pkg install aapt clang cloudflared curl ffmpeg fzf git jq libffi libffi-dev libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust unzip wget zip termux-api -y"
-    print("[+] Installing Python packages and modules...")
+    print(f"[+] {_('Installing Python packages and modules...')} ")
     run_command(pip_command)
-    print("[+] Installing Termux packages and modules...")
+    print(f"[+] {_('Installing Termux packages and modules...')} ")
     run_command(termux_command)
-    print("[+] Packages and Modules update process completed successfully!")
+    print(f"[+] {_('Packages and Modules update process completed successfully!')}")
 
 # ------------------------------
 # Main Settings Menu
@@ -606,12 +895,22 @@ def menu(stdscr):
     curses.curs_set(0)
     curses.start_color()
     curses.use_default_colors()
-    menu_options = ["About", "DedSec Project Update", "Update Packages & Modules", "Change Prompt", "Change Menu Style", "Credits", "Exit"]
+    # Translate menu options
+    menu_options = [
+        _("About"),
+        _("DedSec Project Update"),
+        _("Update Packages & Modules"),
+        _("Change Prompt"),
+        _("Change Menu Style"),
+        _("Choose Language/Επιλέξτε Γλώσσα"), # Keep this one dual-language
+        _("Credits"),
+        _("Exit")
+    ]
     current_row = 0
     while True:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
-        title = "Select an option"
+        title = _("Select an option")
         stdscr.addstr(1, width // 2 - len(title) // 2, title)
         for idx, option in enumerate(menu_options):
             x = width // 2 - len(option) // 2
@@ -646,11 +945,13 @@ def main():
         elif selected == 4:
             change_menu_style()
         elif selected == 5:
-            show_credits()
+            change_language()
         elif selected == 6:
-            print("Exiting...")
+            show_credits()
+        elif selected == 7:
+            print(_("Exiting..."))
             break
-        input("\nPress Enter to return to the settings menu...")
+        input(f"\n{_('Press Enter to return to the settings menu...')}")
 
 # ------------------------------
 # Entry Point
@@ -661,14 +962,17 @@ if __name__ == "__main__":
             if len(sys.argv) > 2:
                 if sys.argv[2] == "list":
                     run_list_menu()
+                    sys.exit(0)
                 elif sys.argv[2] == "grid":
                     run_grid_menu()
+                    sys.exit(0)
                 else:
-                    print("Unknown menu style. Use 'list' or 'grid'.")
+                    print(_("Unknown menu style. Use 'list' or 'grid'."))
             else:
+                # Fallback to main settings if no style is specified
                 main()
         else:
             main()
     except KeyboardInterrupt:
-        print("\nKeyboardInterrupt received. Exiting gracefully...")
+        print(_("\nKeyboardInterrupt received. Exiting gracefully..."))
         sys.exit(0)
