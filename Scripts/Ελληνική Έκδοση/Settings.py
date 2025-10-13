@@ -1,3 +1,4 @@
+# Fetched content of Settings.py
 #!/usr/bin/env python3
 import os
 import sys
@@ -24,11 +25,6 @@ GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
 GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-
-# --- DedSec Configuration Markers (ADDED for robust bash.bashrc update) ---
-DEDSEC_START_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) START ---\n"
-DEDSEC_END_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) END ---\n"
-# ------------------------------------
 
 # --- Language Path Map ---
 LANGUAGE_MAP = {
@@ -90,7 +86,7 @@ GREEK_STRINGS = {
     "back": "πίσω",
     "Go Back": "Πίσω",
     "No items found in this folder.": "Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.",
-    "Error running fzf": "Σφάλμα κατά την εκτέλεσης του fzf",
+    "Error running fzf": "Σφάλμα κατά την εκτέλεση του fzf",
     "Invalid selection. Exiting.": "Μη έγκυρη επιλογή. Έξοδος.",
     "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
     "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
@@ -107,13 +103,12 @@ GREEK_STRINGS = {
     "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
-    "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
-    "Terminal window is too small.": "Το παράθυρο του τερματικού είναι πολύ μικρό.",
-    "KeyboardInterrupt received. Exiting gracefully...": "Λήφθηκε KeyboardInterrupt. Γίνεται ομαλή έξοδος...",
+    # ΝΕΑ ΠΡΟΣΘΗΚΗ:
+    "FOLDER_TAG": "[ΦΑΚΕΛΟΣ]", 
 }
 
 # ------------------------------
-# Translation Helpers (MOVED TO TOP TO ENSURE GLOBAL AVAILABILITY)
+# Translation Helpers
 # ------------------------------
 def get_current_language_path():
     """Detects the currently configured startup path from bash.bashrc."""
@@ -145,18 +140,14 @@ def _(text):
         return GREEK_STRINGS.get(text, text) # Fallback to English if translation is missing
     return text
 # ------------------------------
-# THE REST OF THE CODE REMAINS UNCHANGED
-# ------------------------------
 
 def run_command(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
-    stdout = result.stdout.strip()
-    stderr = result.stderr.strip()
-    return stdout, stderr
+    return result.stdout.strip(), result.stderr.strip()
 
 def get_termux_info():
     if shutil.which("termux-info"):
-        out, err = run_command("termux-info -j")
+        out, _err = run_command("termux-info -j") # FIX 1: Changed `_` to `_err`
         try:
             info = json.loads(out)
             termux_version = info.get("termux_version", info.get("app_version", "Unknown"))
@@ -172,13 +163,13 @@ def get_termux_info():
 
 def get_latest_dedsec_update(path):
     if path and os.path.isdir(path):
-        stdout, _ = run_command("git log -1 --format=%cd", cwd=path)
+        stdout, _err = run_command("git log -1 --format=%cd", cwd=path) # FIX 2: Changed `_` to `_err`
         return stdout if stdout else _("Not available")
     return _("DedSec directory not found")
 
 def find_dedsec():
     search_cmd = "find ~ -type d -name 'DedSec' 2>/dev/null"
-    output, _ = run_command(search_cmd)
+    output, _err = run_command(search_cmd) # FIX 3: Changed `_` to `_err`
     paths = output.split("\n") if output else []
     return paths[0] if paths else None
 
@@ -195,18 +186,18 @@ def get_github_repo_size():
 def get_termux_size():
     termux_root = "/data/data/com.termux"
     if os.path.exists(termux_root):
-        out, err = run_command(f"du -sh {termux_root}")
+        out, _err = run_command(f"du -sh {termux_root}") # FIX 4: Changed `err` to `_err` (or `_` if it was `_`)
         size = out.split()[0] if out else "Unknown"
         return size
     else:
         home_dir = os.environ.get("HOME", "~")
-        out, err = run_command(f"du -sh {home_dir}")
+        out, _err = run_command(f"du -sh {home_dir}") # FIX 5: Changed `err` to `_err`
         size = out.split()[0] if out else "Unknown"
         return size
 
 def get_dedsec_size(path):
     if path and os.path.isdir(path):
-        out, err = run_command(f"du -sh {path}")
+        out, _err = run_command(f"du -sh {path}") # FIX 6: Changed `err` to `_err`
         size = out.split()[0] if out else "Unknown"
         return size
     return _("DedSec directory not found")
@@ -226,13 +217,12 @@ def force_update_repo(existing_path):
         print(f"[+] Repository fully updated, including README and all other files.")
 
 def update_dedsec():
-    # FIX: The '_' function is now defined globally, solving the UnboundLocalError here.
-    repo_size = get_github_repo_size() 
+    repo_size = get_github_repo_size()
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
         run_command("git fetch", cwd=existing_dedsec_path)
-        behind_count, err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
+        behind_count, _err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path) # FIX 7: Changed `_` to `_err`
         try:
             behind_count = int(behind_count)
         except Exception:
@@ -251,7 +241,7 @@ def update_dedsec():
     return existing_dedsec_path
 
 def get_internal_storage():
-    df_out, _ = run_command("df -h /data")
+    df_out, _err = run_command("df -h /data") # FIX 8: Changed `_` to `_err`
     lines = df_out.splitlines()
     if len(lines) >= 2:
         fields = lines[1].split()
@@ -259,7 +249,7 @@ def get_internal_storage():
     return "Unknown"
 
 def get_processor_info():
-    cpuinfo, _ = run_command("cat /proc/cpuinfo")
+    cpuinfo, _err = run_command("cat /proc/cpuinfo") # FIX 9: Changed `_` to `_err`
     for line in cpuinfo.splitlines():
         if "Hardware" in line:
             return line.split(":", 1)[1].strip()
@@ -269,7 +259,7 @@ def get_processor_info():
 
 def get_ram_info():
     try:
-        meminfo, _ = run_command("cat /proc/meminfo")
+        meminfo, _err = run_command("cat /proc/meminfo") # FIX 10: Changed `_` to `_err`
         for line in meminfo.splitlines():
             if "MemTotal" in line:
                 parts = line.split()
@@ -285,14 +275,14 @@ def get_ram_info():
         return "Unknown"
 
 def get_carrier():
-    carrier, _ = run_command("getprop gsm.operator.alpha")
+    carrier, _err = run_command("getprop gsm.operator.alpha") # FIX 11: Changed `_` to `_err`
     if not carrier:
-        carrier, _ = run_command("getprop ro.cdma.home.operator.alpha")
+        carrier, _err = run_command("getprop ro.cdma.home.operator.alpha") # FIX 12: Changed `_` to `_err`
     return carrier if carrier else "Unknown"
 
 def get_battery_info():
     if shutil.which("termux-battery-status"):
-        out, _ = run_command("termux-battery-status")
+        out, _err = run_command("termux-battery-status") # FIX 13: Changed `_` to `_err`
         try:
             info = json.loads(out)
             level = info.get("percentage", "Unknown")
@@ -308,11 +298,11 @@ def get_hardware_details():
     processor = get_processor_info()
     ram = get_ram_info()
     carrier = get_carrier()
-    kernel_version, _ = run_command("uname -r")
-    android_version, _ = run_command("getprop ro.build.version.release")
-    device_model, _ = run_command("getprop ro.product.model")
-    manufacturer, _ = run_command("getprop ro.product.manufacturer")
-    uptime, _ = run_command("uptime -p")
+    kernel_version, _err = run_command("uname -r") # FIX 14: Changed `_` to `_err`
+    android_version, _err = run_command("getprop ro.build.version.release") # FIX 15: Changed `_` to `_err`
+    device_model, _err = run_command("getprop ro.product.model") # FIX 16: Changed `_` to `_err`
+    manufacturer, _err = run_command("getprop ro.product.manufacturer") # FIX 17: Changed `_` to `_err`
+    uptime, _err = run_command("uptime -p") # FIX 18: Changed `_` to `_err`
     battery = get_battery_info()
     
     details = (
@@ -330,7 +320,7 @@ def get_hardware_details():
     return details
 
 def get_user():
-    output, _ = run_command("whoami")
+    output, _err = run_command("whoami") # FIX 19: Changed `_` to `_err`
     return output if output else "Unknown"
 
 def show_about():
@@ -391,10 +381,10 @@ def modify_bashrc():
     )
     
     with open("bash.bashrc", "w") as bashrc_file:
-        # Search and replace PS1 line only if it exists (prevents duplication)
+        # Search and replace PS1 line only if it exists
         ps1_replaced = False
         for line in lines:
-            if line.strip().startswith("PS1="):
+            if "PS1=" in line:
                 bashrc_file.write(new_ps1)
                 ps1_replaced = True
             else:
@@ -422,46 +412,28 @@ def update_bashrc(current_language_path, current_style):
         print(f"Error reading {BASHRC_PATH}: {e}")
         return
 
-    # --- Robust Marker-based Removal and Cleanup ---
+    # --- Robustly remove ALL previous menu startup commands and ALL aliases (m, e, g) ---
     filtered_lines = []
-    in_dedsec_block = False
-    
-    # 1. Filter out the current/old DedSec block defined by the new markers
+    # Regex to match the 'cd ... && python3 ...' startup command OR any alias like 'm', 'e', or 'g'
+    regex_pattern = re.compile(r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd .*DedSec/Scripts.*)")
     for line in lines:
-        if line == DEDSEC_START_MARKER:
-            in_dedsec_block = True
-            continue 
-        if line == DEDSEC_END_MARKER:
-            in_dedsec_block = False
-            continue 
-        if not in_dedsec_block:
+        if not regex_pattern.search(line):
             filtered_lines.append(line)
+    # -----------------------------------------------------------------------------------
 
-    # 2. Cleanup old, brittle configurations (like the multiple copies in the screenshot)
-    temp_lines = []
-    regex_pattern = re.compile(
-        r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|"
-        r"alias\s+(e|g)=.*cd .*DedSec/Scripts.*|"
-        r"# --- DedSec Menu Startup \(Set by Settings\.py\).*" # Old comment
-        r"# --------------------------------------------------)" # Old comment separator
-    )
-    for line in filtered_lines:
-        if not regex_pattern.search(line.strip()):
-            temp_lines.append(line)
-    filtered_lines = temp_lines
-    # ----------------------------------------------------
-
-    # --- Create NEW Configuration Block ---
+    # --- Create NEW Startup Command (for the selected language) ---
+    # This command automatically runs when Termux starts, launching the menu
     new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
+    
+    # --- Create NEW Aliases ('e' for English, 'g' for Greek) ---
     english_alias = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
     greek_alias = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
 
-    # Append the new block using the defined markers
-    filtered_lines.append("\n" + DEDSEC_START_MARKER)
+    filtered_lines.append("\n# --- DedSec Menu Startup (Set by Settings.py) ---\n")
     filtered_lines.append(new_startup)
     filtered_lines.append(english_alias)
     filtered_lines.append(greek_alias)
-    filtered_lines.append(DEDSEC_END_MARKER)
+    filtered_lines.append("# --------------------------------------------------\n")
     
     try:
         with open(BASHRC_PATH, "w") as f:
@@ -620,8 +592,7 @@ def browse_directory_list_menu(current_path, base_path):
     if os.path.abspath(current_path) != os.path.abspath(base_path):
         items.append(go_back_text)
     
-    # Use the corrected translation key [FOLDER]
-    folder_tag = _("[FOLDER]")
+    folder_tag = _("FOLDER_TAG")
     
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
@@ -712,8 +683,7 @@ def list_directory_entries(path, base_path):
     if os.path.abspath(path) != os.path.abspath(base_path):
         entries.append((go_back_text, None))
     
-    # Use the corrected translation key [FOLDER]
-    folder_tag = _("[FOLDER]")
+    folder_tag = _("FOLDER_TAG")
     
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
@@ -787,7 +757,6 @@ def run_grid_menu():
             total_visible_cells = max_cols * rows_per_page
             
             if total_visible_cells <= 0:
-                # Use translated message for small terminal window
                 stdscr.addstr(0, 0, _("Terminal window is too small."))
                 stdscr.refresh()
                 key = stdscr.getch()
@@ -894,7 +863,7 @@ def run_grid_menu():
             continue
             
         # Check for translated folder tag
-        if selected_entry[0].startswith(_("[FOLDER]")):
+        if selected_entry[0].startswith(_("FOLDER_TAG")):
             current_path = selected_entry[1]
             continue
             
