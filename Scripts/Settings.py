@@ -25,6 +25,11 @@ GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
 
+# --- DedSec Configuration Markers ---
+DEDSEC_START_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) START ---\n"
+DEDSEC_END_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) END ---\n"
+# ------------------------------------
+
 # --- Language Path Map ---
 LANGUAGE_MAP = {
     ENGLISH_BASE_PATH: 'english',
@@ -85,7 +90,7 @@ GREEK_STRINGS = {
     "back": "πίσω",
     "Go Back": "Πίσω",
     "No items found in this folder.": "Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.",
-    "Error running fzf": "Σφάλμα κατά την εκτέλεση του fzf",
+    "Error running fzf": "Σφάλμα κατά την εκτέλεσης του fzf",
     "Invalid selection. Exiting.": "Μη έγκυρη επιλογή. Έξοδος.",
     "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
     "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
@@ -102,8 +107,8 @@ GREEK_STRINGS = {
     "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
-    # ΝΕΑ ΠΡΟΣΘΗΚΗ:
-    "FOLDER_TAG": "[ΦΑΚΕΛΟΣ]", 
+    # Corrected FOLDER_TAG entry:
+    "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
 }
 
 # ------------------------------
@@ -142,7 +147,9 @@ def _(text):
 
 def run_command(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
-    return result.stdout.strip(), result.stderr.strip()
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    return stdout, stderr
 
 def get_termux_info():
     if shutil.which("termux-info"):
@@ -221,7 +228,8 @@ def update_dedsec():
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
         run_command("git fetch", cwd=existing_dedsec_path)
-        behind_count, _ = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
+        # FIX: Changed '_' to 'err' to prevent UnboundLocalError
+        behind_count, err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
         try:
             behind_count = int(behind_count)
         except Exception:
@@ -380,10 +388,10 @@ def modify_bashrc():
     )
     
     with open("bash.bashrc", "w") as bashrc_file:
-        # Search and replace PS1 line only if it exists
+        # Search and replace PS1 line only if it exists (prevents duplication)
         ps1_replaced = False
         for line in lines:
-            if "PS1=" in line:
+            if line.strip().startswith("PS1="):
                 bashrc_file.write(new_ps1)
                 ps1_replaced = True
             else:
@@ -411,28 +419,48 @@ def update_bashrc(current_language_path, current_style):
         print(f"Error reading {BASHRC_PATH}: {e}")
         return
 
-    # --- Robustly remove ALL previous menu startup commands and ALL aliases (m, e, g) ---
+    # --- Marker-based Robust Removal ---
+    # This logic guarantees that only ONE DedSec configuration block exists.
     filtered_lines = []
-    # Regex to match the 'cd ... && python3 ...' startup command OR any alias like 'm', 'e', or 'g'
-    regex_pattern = re.compile(r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd .*DedSec/Scripts.*)")
-    for line in lines:
-        if not regex_pattern.search(line):
-            filtered_lines.append(line)
-    # -----------------------------------------------------------------------------------
-
-    # --- Create NEW Startup Command (for the selected language) ---
-    # This command automatically runs when Termux starts, launching the menu
-    new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
+    in_dedsec_block = False
     
-    # --- Create NEW Aliases ('e' for English, 'g' for Greek) ---
+    # First, filter out the old DedSec block defined by the new markers
+    for line in lines:
+        if line == DEDSEC_START_MARKER:
+            in_dedsec_block = True
+            continue 
+        if line == DEDSEC_END_MARKER:
+            in_dedsec_block = False
+            continue 
+        if not in_dedsec_block:
+            filtered_lines.append(line)
+
+    # Second, remove lines from the previous version of the script 
+    # (which used a brittle regex for removal) to ensure cleanup.
+    temp_lines = []
+    regex_pattern = re.compile(
+        r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|"
+        r"alias\s+(e|g)=.*cd .*DedSec/Scripts.*|"
+        r"# --- DedSec Menu Startup \(Set by Settings\.py\).*" # Old comment
+        r"# --------------------------------------------------)" # Old comment separator
+    )
+    for line in filtered_lines:
+        if not regex_pattern.search(line.strip()):
+            temp_lines.append(line)
+    filtered_lines = temp_lines
+    # ----------------------------------------------------
+
+    # --- Create NEW Configuration Block ---
+    new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
     english_alias = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
     greek_alias = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
 
-    filtered_lines.append("\n# --- DedSec Menu Startup (Set by Settings.py) ---\n")
+    # Append the new block using the defined markers
+    filtered_lines.append("\n" + DEDSEC_START_MARKER)
     filtered_lines.append(new_startup)
     filtered_lines.append(english_alias)
     filtered_lines.append(greek_alias)
-    filtered_lines.append("# --------------------------------------------------\n")
+    filtered_lines.append(DEDSEC_END_MARKER)
     
     try:
         with open(BASHRC_PATH, "w") as f:
@@ -591,7 +619,8 @@ def browse_directory_list_menu(current_path, base_path):
     if os.path.abspath(current_path) != os.path.abspath(base_path):
         items.append(go_back_text)
     
-    folder_tag = _("FOLDER_TAG")
+    # Use the corrected translation key
+    folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
@@ -682,7 +711,8 @@ def list_directory_entries(path, base_path):
     if os.path.abspath(path) != os.path.abspath(base_path):
         entries.append((go_back_text, None))
     
-    folder_tag = _("FOLDER_TAG")
+    # Use the corrected translation key
+    folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
@@ -862,7 +892,7 @@ def run_grid_menu():
             continue
             
         # Check for translated folder tag
-        if selected_entry[0].startswith(_("FOLDER_TAG")):
+        if selected_entry[0].startswith(_("[FOLDER]")):
             current_path = selected_entry[1]
             continue
             
@@ -974,5 +1004,5 @@ if __name__ == "__main__":
         else:
             main()
     except KeyboardInterrupt:
-        print(_("\nKeyboardInterrupt received. Exiting gracefully..."))
+        print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
         sys.exit(0)
