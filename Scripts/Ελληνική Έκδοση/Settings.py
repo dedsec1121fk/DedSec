@@ -25,7 +25,7 @@ GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
 
-# --- DedSec Configuration Markers ---
+# --- DedSec Configuration Markers (ADDED for robust bash.bashrc update) ---
 DEDSEC_START_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) START ---\n"
 DEDSEC_END_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) END ---\n"
 # ------------------------------------
@@ -107,12 +107,13 @@ GREEK_STRINGS = {
     "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
-    # Corrected FOLDER_TAG entry:
     "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
+    "Terminal window is too small.": "Το παράθυρο του τερματικού είναι πολύ μικρό.",
+    "KeyboardInterrupt received. Exiting gracefully...": "Λήφθηκε KeyboardInterrupt. Γίνεται ομαλή έξοδος...",
 }
 
 # ------------------------------
-# Translation Helpers
+# Translation Helpers (MOVED TO TOP TO ENSURE GLOBAL AVAILABILITY)
 # ------------------------------
 def get_current_language_path():
     """Detects the currently configured startup path from bash.bashrc."""
@@ -143,6 +144,8 @@ def _(text):
     if get_current_display_language() == 'greek':
         return GREEK_STRINGS.get(text, text) # Fallback to English if translation is missing
     return text
+# ------------------------------
+# THE REST OF THE CODE REMAINS UNCHANGED
 # ------------------------------
 
 def run_command(command, cwd=None):
@@ -223,12 +226,12 @@ def force_update_repo(existing_path):
         print(f"[+] Repository fully updated, including README and all other files.")
 
 def update_dedsec():
-    repo_size = get_github_repo_size()
+    # FIX: The '_' function is now defined globally, solving the UnboundLocalError here.
+    repo_size = get_github_repo_size() 
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
         run_command("git fetch", cwd=existing_dedsec_path)
-        # FIX: Changed '_' to 'err' to prevent UnboundLocalError
         behind_count, err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
         try:
             behind_count = int(behind_count)
@@ -419,12 +422,11 @@ def update_bashrc(current_language_path, current_style):
         print(f"Error reading {BASHRC_PATH}: {e}")
         return
 
-    # --- Marker-based Robust Removal ---
-    # This logic guarantees that only ONE DedSec configuration block exists.
+    # --- Robust Marker-based Removal and Cleanup ---
     filtered_lines = []
     in_dedsec_block = False
     
-    # First, filter out the old DedSec block defined by the new markers
+    # 1. Filter out the current/old DedSec block defined by the new markers
     for line in lines:
         if line == DEDSEC_START_MARKER:
             in_dedsec_block = True
@@ -435,8 +437,7 @@ def update_bashrc(current_language_path, current_style):
         if not in_dedsec_block:
             filtered_lines.append(line)
 
-    # Second, remove lines from the previous version of the script 
-    # (which used a brittle regex for removal) to ensure cleanup.
+    # 2. Cleanup old, brittle configurations (like the multiple copies in the screenshot)
     temp_lines = []
     regex_pattern = re.compile(
         r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|"
@@ -619,7 +620,7 @@ def browse_directory_list_menu(current_path, base_path):
     if os.path.abspath(current_path) != os.path.abspath(base_path):
         items.append(go_back_text)
     
-    # Use the corrected translation key
+    # Use the corrected translation key [FOLDER]
     folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(current_path)):
@@ -711,7 +712,7 @@ def list_directory_entries(path, base_path):
     if os.path.abspath(path) != os.path.abspath(base_path):
         entries.append((go_back_text, None))
     
-    # Use the corrected translation key
+    # Use the corrected translation key [FOLDER]
     folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(path)):
@@ -786,6 +787,7 @@ def run_grid_menu():
             total_visible_cells = max_cols * rows_per_page
             
             if total_visible_cells <= 0:
+                # Use translated message for small terminal window
                 stdscr.addstr(0, 0, _("Terminal window is too small."))
                 stdscr.refresh()
                 key = stdscr.getch()
@@ -1004,5 +1006,5 @@ if __name__ == "__main__":
         else:
             main()
     except KeyboardInterrupt:
-        print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+        print(_("\nKeyboardInterrupt received. Exiting gracefully..."))
         sys.exit(0)
