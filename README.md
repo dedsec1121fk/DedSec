@@ -35,12 +35,12 @@ The **DedSec Project** is a toolkit designed for educational purposes, providing
 The toolkit includes the following main features:
 
 1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application. Features include text messaging, voice notes, file sharing (up to **10 GB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
-2.  **DedSec's Database**: A password-protected, **self-hosted, web-based file storage server**. It allows you to upload, download, search, and manage files through a secure web interface, automatically organizing them into categories like Documents, Images, and Videos. All files are stored in a **`Database`** folder created in the script's directory.
+2.  **DedSec's Database**: A password-protected, **self-hosted file storage server**. It allows you to upload, download, search, and manage files through a secure web interface, automatically organizing them into categories like Documents, Images, and Videos. All files are stored in a **`Database`** folder created in the script's directory.
 3.  **Radio**: An **offline music player** that allows you to download music "stations" from the official DedSec repository and play them locally. All downloaded music is saved to the **`~/DedSec-Radio`** folder in your Termux home directory.
 4.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
 5.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
 6.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
-7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can use it to quickly launch, view details for, uninstall, or extract the APK file of any launchable app.
+7.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can launch, view details for, uninstall, or extract the APK file of any app. It also includes an **App Perm Inspector** feature that scans the APK to identify dangerous permissions and detect embedded advertising trackers, generating a security report for your review.
 8.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
 9.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`** file.
 
@@ -55,7 +55,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 | Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
 | **Device** | Android with [Termux](https://f-droid.org/) installed |
-| **Storage** | Min **3GB** free. (The Radio feature requires more storage; images and recordings also consume space.) |
+| **Storage** | Min **6GB** free. (The Radio feature requires more storage; images and recordings also consume space.) |
 | **RAM** | Min **2GB** |
 
 ### Step-by-Step Setup
@@ -86,11 +86,13 @@ Get the DedSec Project command-line tools running on your **Android device with 
     ```
     > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list or grid**. Then, close Termux from your notifications and reopen it.
     > 
-    > **Tip:** You can open the menu later by just typing `m` in Termux.
+    > **Tip:** After setup, you can quickly open the menu by typing `e` (for the English version) or `g` (for the Greek version) in Termux.
 
 ---
 
 ## 💬 Contact Us & Credits
+
+### Contact Us
 
 For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
 
@@ -98,6 +100,15 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
 * **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+
+### Credits
+
+* **Creator:** dedsec1121fk
+* **Music Artists:** BFR TEAM, PLANNO MAN, KouNouPi, ADDICTED, JAVASPA, ICE, Lefka City, Lavyrinthos, Komis X, GR$, Sakin, Christina Markesini, Grave_North, Aroy, Pi Thita, Bossikan, Lau Jr, XALILOP, Scav, PS, ARES127, ELG FAMILY, Zepo & Xan
+* **Producer:** JK
+* **Artwork:** Christina Chatzidimitriou
+* **Voice-overs:** Dimitra Isxuropoulou
+* **Technical Help:** lamprouil, UKI_hunter, apoloco
 
 ---
 
@@ -115,7 +126,7 @@ This project, including all associated tools, scripts, and documentation ("the S
 
 3.  **No Warranty:** The Software is provided **"AS IS,"** without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make **no guarantee** that the Software will be error-free, secure, or uninterrupted.
 
-4.  **Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
+4.  **Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
 
 ---
 
