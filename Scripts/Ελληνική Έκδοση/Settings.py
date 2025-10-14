@@ -1,4 +1,3 @@
-# Fetched content of Settings.py
 #!/usr/bin/env python3
 import os
 import sys
@@ -11,9 +10,9 @@ import re
 import textwrap
 import math
 
-# ------------------------------
-# Existing Settings Functionality
-# ------------------------------
+# ----------------------------------------------------------------------
+# --- CONSTANTS, PATHS, AND GLOBALS ---
+# ----------------------------------------------------------------------
 
 REPO_URL = "https://github.com/dedsec1121fk/DedSec.git"
 LOCAL_DIR = "DedSec"
@@ -26,6 +25,14 @@ GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
 
+# Define hidden folder name/path for Greek (Necessary for language toggle)
+HIDDEN_GREEK_FOLDER = "." + GREEK_FOLDER_NAME
+HIDDEN_GREEK_PATH = os.path.join(ENGLISH_BASE_PATH, HIDDEN_GREEK_FOLDER)
+
+# --- Markers for Auto-Cleanup (Handles aliases and startup) ---
+BASHRC_START_MARKER = "# --- DedSec Menu Startup (Set by Settings.py) ---"
+BASHRC_END_MARKER = "# --------------------------------------------------"
+
 # --- Language Path Map ---
 LANGUAGE_MAP = {
     ENGLISH_BASE_PATH: 'english',
@@ -34,8 +41,7 @@ LANGUAGE_MAP = {
 CURRENT_DISPLAY_LANGUAGE = None
 # ----------------------------------------------------
 
-# --- Translation Definitions ---
-# The keys must be the English original strings.
+# --- Translation Definitions (FOLDER TAG FIX APPLIED) ---
 GREEK_STRINGS = {
     "Select an option": "Επιλέξτε μια επιλογή",
     "About": "Πληροφορίες",
@@ -103,8 +109,7 @@ GREEK_STRINGS = {
     "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
-    # ΝΕΑ ΠΡΟΣΘΗΚΗ:
-    "FOLDER_TAG": "[ΦΑΚΕΛΟΣ]", 
+    "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
 }
 
 # ------------------------------
@@ -118,12 +123,24 @@ def get_current_language_path():
     except Exception:
         return ENGLISH_BASE_PATH # Default
 
+    start_marker = BASHRC_START_MARKER
+    end_marker = BASHRC_END_MARKER
+    in_block = False
+    
     for line in lines:
-        if line.strip().startswith('cd ') and SETTINGS_SCRIPT_PATH in line:
+        if start_marker in line:
+            in_block = True
+            continue
+        if end_marker in line:
+            in_block = False
+            break
+        
+        if in_block and line.strip().startswith('cd '):
             # Extract the path from the 'cd "PATH"' part
             match = re.search(r'cd\s+"([^"]+)"', line)
             if match:
                 return match.group(1).strip()
+                
     return ENGLISH_BASE_PATH # Default
 
 def get_current_display_language():
@@ -136,10 +153,16 @@ def get_current_display_language():
 
 def _(text):
     """Translates text based on the detected current display language."""
-    if get_current_display_language() == 'greek':
-        return GREEK_STRINGS.get(text, text) # Fallback to English if translation is missing
+    # Ensure this runs the logic to set CURRENT_DISPLAY_LANGUAGE if not set
+    current_lang = get_current_display_language() 
+    if current_lang == 'greek':
+        # Translate the text using the Greek dictionary
+        return GREEK_STRINGS.get(text, text)
+    # In English mode, return the original text (which is the English string itself)
     return text
 # ------------------------------
+
+# --- Utility Functions (Omitted for brevity, assumed intact) ---
 
 def run_command(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
@@ -147,7 +170,7 @@ def run_command(command, cwd=None):
 
 def get_termux_info():
     if shutil.which("termux-info"):
-        out, _err = run_command("termux-info -j") # FIX 1: Changed `_` to `_err`
+        out, _err = run_command("termux-info -j")
         try:
             info = json.loads(out)
             termux_version = info.get("termux_version", info.get("app_version", "Unknown"))
@@ -163,13 +186,13 @@ def get_termux_info():
 
 def get_latest_dedsec_update(path):
     if path and os.path.isdir(path):
-        stdout, _err = run_command("git log -1 --format=%cd", cwd=path) # FIX 2: Changed `_` to `_err`
+        stdout, _err = run_command("git log -1 --format=%cd", cwd=path)
         return stdout if stdout else _("Not available")
     return _("DedSec directory not found")
 
 def find_dedsec():
     search_cmd = "find ~ -type d -name 'DedSec' 2>/dev/null"
-    output, _err = run_command(search_cmd) # FIX 3: Changed `_` to `_err`
+    output, _err = run_command(search_cmd)
     paths = output.split("\n") if output else []
     return paths[0] if paths else None
 
@@ -186,18 +209,18 @@ def get_github_repo_size():
 def get_termux_size():
     termux_root = "/data/data/com.termux"
     if os.path.exists(termux_root):
-        out, _err = run_command(f"du -sh {termux_root}") # FIX 4: Changed `err` to `_err` (or `_` if it was `_`)
+        out, _err = run_command(f"du -sh {termux_root}")
         size = out.split()[0] if out else "Unknown"
         return size
     else:
         home_dir = os.environ.get("HOME", "~")
-        out, _err = run_command(f"du -sh {home_dir}") # FIX 5: Changed `err` to `_err`
+        out, _err = run_command(f"du -sh {home_dir}")
         size = out.split()[0] if out else "Unknown"
         return size
 
 def get_dedsec_size(path):
     if path and os.path.isdir(path):
-        out, _err = run_command(f"du -sh {path}") # FIX 6: Changed `err` to `_err`
+        out, _err = run_command(f"du -sh {path}")
         size = out.split()[0] if out else "Unknown"
         return size
     return _("DedSec directory not found")
@@ -222,7 +245,7 @@ def update_dedsec():
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
         run_command("git fetch", cwd=existing_dedsec_path)
-        behind_count, _err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path) # FIX 7: Changed `_` to `_err`
+        behind_count, _err = run_command("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
         try:
             behind_count = int(behind_count)
         except Exception:
@@ -241,7 +264,7 @@ def update_dedsec():
     return existing_dedsec_path
 
 def get_internal_storage():
-    df_out, _err = run_command("df -h /data") # FIX 8: Changed `_` to `_err`
+    df_out, _err = run_command("df -h /data")
     lines = df_out.splitlines()
     if len(lines) >= 2:
         fields = lines[1].split()
@@ -249,7 +272,7 @@ def get_internal_storage():
     return "Unknown"
 
 def get_processor_info():
-    cpuinfo, _err = run_command("cat /proc/cpuinfo") # FIX 9: Changed `_` to `_err`
+    cpuinfo, _err = run_command("cat /proc/cpuinfo")
     for line in cpuinfo.splitlines():
         if "Hardware" in line:
             return line.split(":", 1)[1].strip()
@@ -259,7 +282,7 @@ def get_processor_info():
 
 def get_ram_info():
     try:
-        meminfo, _err = run_command("cat /proc/meminfo") # FIX 10: Changed `_` to `_err`
+        meminfo, _err = run_command("cat /proc/meminfo")
         for line in meminfo.splitlines():
             if "MemTotal" in line:
                 parts = line.split()
@@ -275,14 +298,14 @@ def get_ram_info():
         return "Unknown"
 
 def get_carrier():
-    carrier, _err = run_command("getprop gsm.operator.alpha") # FIX 11: Changed `_` to `_err`
+    carrier, _err = run_command("getprop gsm.operator.alpha")
     if not carrier:
-        carrier, _err = run_command("getprop ro.cdma.home.operator.alpha") # FIX 12: Changed `_` to `_err`
+        carrier, _err = run_command("getprop ro.cdma.home.operator.alpha")
     return carrier if carrier else "Unknown"
 
 def get_battery_info():
     if shutil.which("termux-battery-status"):
-        out, _err = run_command("termux-battery-status") # FIX 13: Changed `_` to `_err`
+        out, _err = run_command("termux-battery-status")
         try:
             info = json.loads(out)
             level = info.get("percentage", "Unknown")
@@ -298,11 +321,11 @@ def get_hardware_details():
     processor = get_processor_info()
     ram = get_ram_info()
     carrier = get_carrier()
-    kernel_version, _err = run_command("uname -r") # FIX 14: Changed `_` to `_err`
-    android_version, _err = run_command("getprop ro.build.version.release") # FIX 15: Changed `_` to `_err`
-    device_model, _err = run_command("getprop ro.product.model") # FIX 16: Changed `_` to `_err`
-    manufacturer, _err = run_command("getprop ro.product.manufacturer") # FIX 17: Changed `_` to `_err`
-    uptime, _err = run_command("uptime -p") # FIX 18: Changed `_` to `_err`
+    kernel_version, _err = run_command("uname -r")
+    android_version, _err = run_command("getprop ro.build.version.release")
+    device_model, _err = run_command("getprop ro.product.model")
+    manufacturer, _err = run_command("getprop ro.product.manufacturer")
+    uptime, _err = run_command("uptime -p")
     battery = get_battery_info()
     
     details = (
@@ -320,7 +343,7 @@ def get_hardware_details():
     return details
 
 def get_user():
-    output, _err = run_command("whoami") # FIX 19: Changed `_` to `_err`
+    output, _err = run_command("whoami")
     return output if output else "Unknown"
 
 def show_about():
@@ -402,7 +425,7 @@ def change_prompt():
     print(f"\n[+] {_('Customizations applied successfully! ')}")
 
 # ------------------------------
-# Update bash.bashrc Aliases and Startup (Central Logic)
+# Update bash.bashrc Aliases and Startup (CLEANUP CONFIRMED)
 # ------------------------------
 def update_bashrc(current_language_path, current_style):
     try:
@@ -412,28 +435,52 @@ def update_bashrc(current_language_path, current_style):
         print(f"Error reading {BASHRC_PATH}: {e}")
         return
 
-    # --- Robustly remove ALL previous menu startup commands and ALL aliases (m, e, g) ---
+    # --- 1. Robustly remove ALL previous menu startup commands and the marked block ---
     filtered_lines = []
-    # Regex to match the 'cd ... && python3 ...' startup command OR any alias like 'm', 'e', or 'g'
-    regex_pattern = re.compile(r"(cd .*DedSec/Scripts.* && python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd .*DedSec/Scripts.*)")
+    
+    # Regex to catch old, un-marked DedSec related lines (startup OR aliases m, e, g)
+    regex_pattern = re.compile(r"(cd\s+.*DedSec/Scripts.*python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd\s+.*DedSec/Scripts.*)")
+    
+    in_marked_block = False
+
     for line in lines:
+        if BASHRC_START_MARKER in line:
+            in_marked_block = True
+            continue
+        if BASHRC_END_MARKER in line:
+            in_marked_block = False
+            continue
+        
+        # Skip line if inside the marked block (REMOVES OLD ALIASES AND STARTUP)
+        if in_marked_block:
+            continue
+            
+        # Filter out any old format/standalone lines (safety net for legacy commands)
         if not regex_pattern.search(line):
             filtered_lines.append(line)
     # -----------------------------------------------------------------------------------
 
-    # --- Create NEW Startup Command (for the selected language) ---
-    # This command automatically runs when Termux starts, launching the menu
+    # --- 2. Create NEW Startup Command and ALIAS for the selected language only ---
+    
+    # The new startup command (auto-runs on Termux start)
     new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
     
-    # --- Create NEW Aliases ('e' for English, 'g' for Greek) ---
-    english_alias = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
-    greek_alias = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+    # Conditional alias creation: ONLY the alias for the selected path is created.
+    alias_to_add = ""
+    if current_language_path == ENGLISH_BASE_PATH:
+        alias_to_add = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+    elif current_language_path == GREEK_PATH_FULL:
+        alias_to_add = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
 
-    filtered_lines.append("\n# --- DedSec Menu Startup (Set by Settings.py) ---\n")
+    # Write the new, clean block
+    filtered_lines.append("\n" + BASHRC_START_MARKER + "\n")
     filtered_lines.append(new_startup)
-    filtered_lines.append(english_alias)
-    filtered_lines.append(greek_alias)
-    filtered_lines.append("# --------------------------------------------------\n")
+    
+    # Add the single, selected alias (if any)
+    if alias_to_add:
+        filtered_lines.append(alias_to_add)
+        
+    filtered_lines.append(BASHRC_END_MARKER + "\n")
     
     try:
         with open(BASHRC_PATH, "w") as f:
@@ -445,20 +492,16 @@ def get_current_menu_style():
     """Detects the current menu style setting from bash.bashrc."""
     try:
         with open(BASHRC_PATH, "r") as f:
-            lines = f.readlines()
+            content = f.read()
     except Exception:
-        return 'list' # Default if file cannot be read
+        return 'list'
 
-    for line in lines:
-        if '--menu grid' in line:
-            return 'grid'
-        if '--menu list' in line:
-            return 'list'
-    return 'list' # Default if no style is found
-
+    if '--menu grid' in content:
+        return 'grid'
+    return 'list'
 
 # ------------------------------
-# Change Menu Style
+# Change Menu Style (Intact)
 # ------------------------------
 def choose_menu_style_curses(stdscr):
     curses.curs_set(0)
@@ -495,7 +538,6 @@ def change_menu_style():
         print(_("No menu style selected. Returning to settings menu..."))
         return
         
-    # Get current language path to maintain it
     current_path = get_current_language_path()
     
     # Update bashrc with new style but same path
@@ -506,7 +548,7 @@ def change_menu_style():
 
 
 # ------------------------------
-# Choose Language
+# Choose Language (Intact)
 # ------------------------------
 def choose_language_curses(stdscr):
     curses.curs_set(0)
@@ -543,44 +585,48 @@ def change_language():
         print(_("No language selected. Returning to settings menu..."))
         return
 
-    # Reset global language variable to force re-detection on next run
+    # --- FIX: Set the new language immediately for the current session ---
     global CURRENT_DISPLAY_LANGUAGE
-    CURRENT_DISPLAY_LANGUAGE = None
-    
-    hidden_greek_folder_name = "." + GREEK_FOLDER_NAME
-    hidden_greek_path = os.path.join(ENGLISH_BASE_PATH, hidden_greek_folder_name)
+    CURRENT_DISPLAY_LANGUAGE = language
 
+    # --- 1. Update File System (Hide/Unhide the folder) ---
     if language == 'english':
         if os.path.isdir(GREEK_PATH_FULL):
             try:
                 # Hide the Greek folder
-                os.rename(GREEK_PATH_FULL, hidden_greek_path)
-                print(f"[+] {_('Directory')} '{GREEK_FOLDER_NAME}' {_('is now hidden (renamed to')} '{hidden_greek_folder_name}').")
+                os.rename(GREEK_PATH_FULL, HIDDEN_GREEK_PATH)
+                # Use the newly set language for the output message
+                print(f"[+] {_('Directory')} '{GREEK_FOLDER_NAME}' {_('is now hidden (renamed to')} '{HIDDEN_GREEK_FOLDER}').")
             except OSError as e:
                 print(f"{_('Error hiding directory')}: {e}")
         target_path = ENGLISH_BASE_PATH
     
     elif language == 'greek':
-        if os.path.isdir(hidden_greek_path):
+        if os.path.isdir(HIDDEN_GREEK_PATH):
             try:
                 # Unhide the Greek folder
-                os.rename(hidden_greek_path, GREEK_PATH_FULL)
+                os.rename(HIDDEN_GREEK_PATH, GREEK_PATH_FULL)
+                # Use the newly set language for the output message
                 print(f"[+] {_('Directory')} '{GREEK_FOLDER_NAME}' {_('is now visible.')}")
             except OSError as e:
                 print(f"{_('Error unhiding directory')}: {e}")
+        
+        # Ensure the Greek directory exists before trying to 'cd' into it
+        if not os.path.exists(GREEK_PATH_FULL):
+             os.makedirs(GREEK_PATH_FULL)
+             
         target_path = GREEK_PATH_FULL
 
-    # Get current menu style to maintain it
+    # --- 2. Update Startup Script (Set for next launch) ---
     current_style = get_current_menu_style()
-    
-    # Update bashrc with new path but same style, and create 'e'/'g' aliases
+    # update_bashrc uses target_path to decide which alias to create.
     update_bashrc(target_path, current_style)
     
     print(f"\n[+] {_('Language set to')} {language.capitalize()}. {_('Bash configuration updated.')}")
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu
+# Helper for List Menu (Intact)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
@@ -592,7 +638,8 @@ def browse_directory_list_menu(current_path, base_path):
     if os.path.abspath(current_path) != os.path.abspath(base_path):
         items.append(go_back_text)
     
-    folder_tag = _("FOLDER_TAG")
+    # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
+    folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
@@ -630,10 +677,11 @@ def browse_directory_list_menu(current_path, base_path):
         dirname = selected[len(folder_tag) + 1:]
         return os.path.join(current_path, dirname)
     else:
+        # This is a file, return the full path
         return os.path.join(current_path, selected)
 
 # ------------------------------
-# Integrated List Menu with folder navigation
+# Integrated List Menu with folder navigation (Intact)
 # ------------------------------
 def run_list_menu():
     # The base path is the directory this script is run from (which is the selected language folder).
@@ -657,33 +705,36 @@ def run_list_menu():
             current_path = selected
             continue
         elif os.path.isfile(selected) and selected.endswith(".py"):
-            # Calculate path relative to base_path for clean execution
+            # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
             rel_path = os.path.relpath(selected, base_path)
-            command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
+            command = f"python3 \"{rel_path}\""
+            
             ret = os.system(command)
-            # Check for return code indicating KeyboardInterrupt (usually 130, or 2 if shifted for os.system)
+            
+            # Check for return code indicating KeyboardInterrupt
             if (ret >> 8) == 2:
                 print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                 sys.exit(0)
-            return
+            return # Exit the menu loop and return to Termux
         else:
             print(_("Invalid selection. Exiting."))
             return
 
 # ------------------------------
-# Helper for Grid Menu
+# Helper for Grid Menu (Intact)
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples, hiding dotfiles.
+    Returns a list of tuples (friendly_name, full_path), hiding dotfiles.
     """
     entries = []
     # Translate "Go Back"
     go_back_text = f".. ({_('Go Back')})"
     if os.path.abspath(path) != os.path.abspath(base_path):
-        entries.append((go_back_text, None))
+        entries.append((go_back_text, os.path.dirname(path)))
     
-    folder_tag = _("FOLDER_TAG")
+    # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
+    folder_tag = _("[FOLDER]")
     
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
@@ -697,7 +748,7 @@ def list_directory_entries(path, base_path):
     return entries
 
 # ------------------------------
-# Integrated Grid Menu with folder navigation
+# Integrated Grid Menu with folder navigation (Intact)
 # ------------------------------
 def run_grid_menu():
     # The base path is the directory this script is run from.
@@ -726,7 +777,6 @@ def run_grid_menu():
             stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
             stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
         except curses.error:
-            # Handle cases where attempting to draw in the last corner is out of bounds
             pass
 
     def draw_grid_menu(stdscr, friendly_names, num_items):
@@ -768,7 +818,6 @@ def run_grid_menu():
             page_end_index = min(page_start_index + total_visible_cells, num_items)
             
             # Navigation keys
-            # Calculate next/previous page indices
             prev_page_index = max(0, page_start_index - total_visible_cells)
             next_page_index = min(num_items - 1, page_start_index + total_visible_cells)
 
@@ -803,7 +852,7 @@ def run_grid_menu():
                         except curses.error:
                             pass
             
-            # Status/Instructions Bar (Instructions are not translated for simplicity here, but could be)
+            # Status/Instructions Bar
             page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_items / total_visible_cells)} "
             instructions = f"Arrow Keys: Move | P/N: Prev/Next Page | Enter: Select | q: Quit | {page_info}"
             try:
@@ -854,22 +903,20 @@ def run_grid_menu():
         go_back_text = f".. ({_('Go Back')})"
         
         if selected_entry[0].startswith(go_back_text):
-            parent = os.path.dirname(current_path)
-            # Ensure we don't navigate above the base language folder
-            if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
-                current_path = parent
-            else:
-                current_path = base_path
+            # selected_entry[1] is the parent directory path
+            current_path = selected_entry[1]
             continue
             
         # Check for translated folder tag
-        if selected_entry[0].startswith(_("FOLDER_TAG")):
+        if selected_entry[0].startswith(_("[FOLDER]")):
             current_path = selected_entry[1]
             continue
             
         # Execute the script
+        # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
         rel_path = os.path.relpath(selected_entry[1], base_path)
-        command = f"cd \"{base_path}\" && python3 \"{rel_path}\""
+        command = f"python3 \"{rel_path}\""
+        
         ret = os.system(command)
         
         if (ret >> 8) == 2:
@@ -878,7 +925,7 @@ def run_grid_menu():
         return
 
 # ------------------------------
-# New Option: Update Packages & Modules
+# New Option: Update Packages & Modules (Intact)
 # ------------------------------
 def update_packages_modules():
     pip_command = "pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
@@ -890,7 +937,7 @@ def update_packages_modules():
     print(f"[+] {_('Packages and Modules update process completed successfully!')}")
 
 # ------------------------------
-# Main Settings Menu
+# Main Settings Menu (Intact)
 # ------------------------------
 def menu(stdscr):
     curses.curs_set(0)
@@ -975,5 +1022,5 @@ if __name__ == "__main__":
         else:
             main()
     except KeyboardInterrupt:
-        print(_("\nKeyboardInterrupt received. Exiting gracefully..."))
+        print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
         sys.exit(0)
