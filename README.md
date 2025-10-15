@@ -76,7 +76,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 2.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
-    git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
+    git clone https://github.com/dedsec1121fk/DedSec
     ```
 
 3.  **Run the Setup Script**
