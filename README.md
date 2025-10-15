@@ -69,7 +69,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 1.  **Update Packages & Install Git**
     Open Termux and run the following command to make sure your packages are up-to-date and `git` is installed:
     ```bash
-    pkg update -y && pkg upgrade -y && pkg install git nano -y
+    pkg update -y && pkg upgrade -y && pkg install git nano -y && termux-setup-storage
     ```
     > **Important:** Open the Termux application on your device before copying and pasting the command above.
 
@@ -124,7 +124,7 @@ This project, including all associated tools, scripts, and documentation ("the S
 
 2.  **Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is **strictly prohibited**. This includes, without limitation: accessing systems, systems, or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
 
-3.  **No Warranty:** The Software is provided **"AS IS,"** without any warranty of any kind, express or implied. This includes, but is not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make **no guarantee** that the Software will be error-free, secure, or uninterrupted.
+3.  **No Warranty:** The Software is provided **"AS IS,"** without any warranty of any kind, express or implied. This includes, but is not to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developers and contributors make **no guarantee** that the Software will be error-free, secure, or uninterrupted.
 
 4.  **Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
 
