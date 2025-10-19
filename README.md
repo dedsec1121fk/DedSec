@@ -1,15 +1,15 @@
 <div align="center">
-  <img src="httpss://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/ef4b1f5775f5a6fb7cf331d8f868ea744c43e41b/Assets/Images/Custom%20Purple%20Fox%20Logo.png" alt="DedSec Project Logo" width="150"/>
+  <img src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/ef4b1f5775f5a6fb7cf331d8f868ea744c43e41b/Assets/Images/Custom%20Purple%20Fox%20Logo.png" alt="DedSec Project Logo" width="150"/>
   <h1>DedSec Project</h1>
   <p>
-    <a href="httpss://ded-sec.space/"><strong>Official Website</strong></a>
+    <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
   </p>
   
   <p>
-    <img src="httpss://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
-    <img src="httpss://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
-    <img src="httpss://img.shields.io/badge/Language-Python%20%7C%20JS%20%7C%20Shell-yellow.svg" alt="Language: Python | JS | Shell">
-    <img src="httpss://img.shields.io/badge/Interface-EN%20%7C%20GR-lightgrey.svg" alt="Interface: EN | GR">
+    <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
+    <img src="https://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
+    <img src="https://img.shields.io/badge/Language-Python%20%7C%20JS%20%7C%20Shell-yellow.svg" alt="Language: Python | JS | Shell">
+    <img src="https://img.shields.io/badge/Interface-EN%20%7C%20GR-lightgrey.svg" alt="Interface: EN | GR">
   </p>
 </div>
 
@@ -57,7 +57,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 | Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
-| **Device** | Android with [Termux](httpss://f-droid.org/) installed |
+| **Device** | Android with [Termux](https://f-droid.org/) installed |
 | **Storage** | Min **8GB** free. (Images and recordings also consume space.) |
 | **RAM** | Min **2GB** |
 
@@ -65,7 +65,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 > **Note:** To install APKs (e.g., F-Droid), ensure you:
 > - Enable unknown sources (Settings > Security > **Install Unknown Apps**).
-> - Download F-Droid, then get Termux from [F-Droid](httpss://f-droid.org/).
+> - Download F-Droid, then get Termux from [F-Droid](https://f-droid.org/).
 > - Install add-ons: Termux:API, Termux:Styling.
 > - Allow the `fdroid` process when prompted.
 
@@ -79,7 +79,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 2.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
-    git clone [httpss://github.com/dedsec1121fk/DedSec](httpss://github.com/dedsec1121fk/DedSec)
+    git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
 
 3.  **Run the Setup Script**
@@ -99,10 +99,10 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
 
-* **Official Website:** [httpss://ded-sec.space/](httpss://ded-sec.space/)
-* **📱 WhatsApp:** [+37257263676](httpss://wa.me/37257263676)
-* **📸 Instagram:** [@dedsec_project_official](httpss://www.instagram.com/dedsec_project_official)
-* **✈️ Telegram:** [@dedsecproject](httpss://t.me/dedsecproject)
+* **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
+* **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
+* **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
 
 ### Credits
 
@@ -123,7 +123,7 @@ This project, including all associated tools, scripts, and documentation ("the S
 
 1.  **Assumption of Risk and Responsibility:** By accessing or using the Software, you acknowledge and agree that you are doing so at your own risk. You are **solely and entirely responsible for your actions** and for any consequences that may arise from the use or misuse of this Software. This includes, but is not limited to, compliance with all applicable local, state, national, and international laws and regulations related to cybersecurity, data privacy, and electronic communications.
 
-2.  **Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is **strictly prohibited**. This includes, without limitation: accessing systems, systems, or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
+2.  **Prohibited Activities:** Any use of the Software for unauthorized or malicious activities is **strictly prohibited**. This includes, without limitation: accessing systems or data without authorization; performing denial-of-service attacks; data theft; fraud; spreading malware; or any other activity that violates applicable laws. Engaging in such activities may result in severe civil and criminal penalties.
 
 3.  **No Warranty:** The Software is provided **"AS IS,"** without any warranty of any kind, express or implied. The developers and contributors make **no guarantee** that the Software will be error-free, secure, or uninterrupted.
 
