@@ -32,20 +32,43 @@ The **DedSec Project** is a toolkit designed for educational purposes, providing
 
 ### Toolkit Summary
 
-The toolkit includes the following main features:
+The toolkit includes the following main categories and tools:
 
-1.  **Fox Chat**: A secure, **end-to-end encrypted chat** application protected by a one-time Secret Key. Features include text messaging, voice notes, file sharing (up to **10 GB**), live camera capture, and **peer-to-peer video calls**. Files shared in the chat can be downloaded directly from the chat interface by the participants.
-2.  **DedSec's Database**: A password-protected, **self-hosted file storage server**. It allows you to upload, download, search, and manage files through a secure web interface, automatically organizing them into categories like Documents, Images, and Videos. All files are stored in a **`Database`** folder created in the script's directory.
-3.  **OSINTDS**: A comprehensive tool for **Open Source Intelligence (OSINT)** gathering and web reconnaissance. It performs scans for **WHOIS and DNS records, open ports, subdomains, and directories**, and checks for common vulnerabilities like **SQLi and XSS**. It also includes an interactive **HTML Inspector** to download a full copy of a website for offline analysis. All reports and downloaded websites are saved in a dedicated folder inside **`[Your Downloads]/OSINTDS/`**.
-4.  **Phishing Demonstrations**: Modules that demonstrate how a malicious webpage can trick a user into giving away access to their device's camera, microphone, and location, **or into entering personal details and card information**. These scripts are for testing on your own devices to understand the importance of verifying links before clicking them. For your self-tests, any demonstration credentials or data you enter are saved locally into appropriately named folders inside your phone's main **Downloads** folder for you to review.
-5.  **URL Masker**: An educational tool to demonstrate how links can be disguised, helping you learn to identify potentially malicious URLs by showing how a seemingly innocent link can redirect to a different destination.
-6.  **Android App Launcher**: A utility to **manage installed applications** on your Android device. You can launch, view details for, uninstall, or extract the APK file of any app. It also includes an **App Perm Inspector** feature that scans the APK to identify dangerous permissions and detect embedded advertising trackers, generating a security report for your review.
-7.  **Settings**: A central control panel to manage the DedSec Project. Use it to view system information, **update all project scripts and required packages**, **change the Termux prompt style**, and switch between list or grid menu layouts. This script modifies your **`/data/data/com.termux/files/usr/etc/bash.bashrc`** file to apply changes.
-8.  **Loading Screen**: Installs a custom **ASCII art loading screen** that appears when you start Termux. You can use the default art, provide your own, and set the display duration. This script works by adding configuration to your **`~/.bash_profile`** file.
-9.  **Digital Footprint Finder**: An OSINT (Open Source Intelligence) tool that helps you discover what public information exists about a username across multiple online platforms. It scans social media sites, coding platforms, and other services to find publicly accessible profiles associated with a username. The tool includes caching mechanisms to avoid repeated requests, stealth modes to reduce detection, and saves results in both text and JSON formats inside a **`Digital Footprint Finder`** folder in your phone's main **Downloads** directory for further analysis.
-10. **Internet Tools**: A comprehensive network analysis and security toolkit that provides various network utilities including Wi-Fi scanning, port scanning, network discovery, speed tests, and security auditing. Features include passive Wi-Fi network analysis, enhanced port scanning with service detection, HTTP header security analysis, DNS record lookups, and various network diagnostic tools. All results and configuration files are saved in a dedicated folder named **`Internet Tools Files`** inside the project directory for review.
-11. **Smart Notes**: A secure note-taking application with advanced features including encrypted storage, calendar integration, and a reminder system. It provides a curses-based TUI interface for easy navigation, supports rich text editing, and includes a sophisticated search system. The reminder feature can schedule notifications using Termux's job scheduler, making it a powerful organizational tool.
-12. **SSH Defender**: A honeypot security tool that mimics SSH servers to detect and log unauthorized access attempts. It cycles through common SSH ports, simulates real SSH server behavior to engage attackers, and comprehensively logs all connection attempts with detailed information including IP addresses, timestamps, and captured data. The tool includes a real-time TUI dashboard for monitoring attacks and saves detailed logs and statistics inside a **`SSH Defender`** folder in your phone's main **Downloads** directory for security analysis.
+#### 🛠️ Basic Toolkit
+
+1. **Android App Launcher**: Advanced Android application management and security analysis tool with APK extraction, permission inspection, and tracker detection.
+2. **DedSec's Network Toolkit**: Comprehensive network and security toolkit featuring Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, and SSH honeypot defense.
+3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across multiple platforms with stealth mode operation and comprehensive reporting.
+4. **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit.
+5. **File Converter**: Advanced interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
+6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 10GB file sharing, and WebRTC video calls.
+7. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs with automatic dependency installation.
+8. **Settings**: Central configuration and management tool for project updates, language selection, menu customization, and system information.
+9. **Smart Notes**: Advanced note-taking application with reminder functionality, TUI/CLI support, and automatic command execution.
+
+#### 🔧 Mods
+
+10. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and cleanuri.com fallback.
+11. **Loading Screen Manager**: Customizable ASCII art loading screen system for Termux startup with adjustable delay timers.
+
+#### 📱 Personal Information Capture (Educational Use Only)
+
+12. **Fake Back Camera Page**: Secretly activates device's rear camera while capturing login credentials with automatic photo capture.
+13. **Fake Front Camera Page**: Secretly activates device's front camera while capturing login credentials.
+14. **Fake Card Details Page**: Credit card phishing page disguised as antivirus subscription renewal.
+15. **Fake Data Grabber Page**: Comprehensive personal information collection disguised as membership application.
+16. **Fake Google Location Page**: Google-themed location verification page that tricks users into sharing GPS coordinates.
+17. **Fake Location Page**: Generic location access page for GPS coordinate collection.
+18. **Fake Microphone Page**: Secretly activates device's microphone while capturing login credentials with continuous audio recording.
+
+#### 📱 Social Media Fake Pages (Educational Use Only)
+
+19. **Fake Facebook Friends Page**: Facebook-themed phishing page with authentic UI replication.
+20. **Fake Snapchat Friends Page**: Snapchat-themed phishing page with ghost logo and yellow theme.
+21. **Fake Google Free Money Page**: Google-themed phishing page offering fake $500 credit reward.
+22. **Fake Instagram Followers Page**: Instagram-themed phishing page offering 10,000 free followers.
+23. **Fake TikTok Followers Page**: TikTok-themed phishing page offering 5,000 free followers.
+24. **What's Up Dude Page**: Custom social media phishing page with modern dark theme and green accents.
 
 ---
 
@@ -108,8 +131,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 * **Creator:** dedsec1121fk
 * **Artwork:** Christina Chatzidimitriou
-* **Voice-overs:** Dimitra Isxuropoulou
-* **Technical Help:** lamprouil, UKI_hunter, apoloco
+* **Technical Help:** lamprouil, UKI_hunter
 
 ---
 
