@@ -1,0 +1,1930 @@
+{
+    "social_media": {
+        "facebook": {
+            "name": "Facebook",
+            "method": "username_url",
+            "url_check": "https://www.facebook.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "content isn't available"
+            ]
+        },
+        "twitter": {
+            "name": "Twitter/X",
+            "method": "username_url",
+            "url_check": "https://twitter.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "instagram": {
+            "name": "Instagram",
+            "method": "username_url",
+            "url_check": "https://www.instagram.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "sorry, this page isn't available"
+            ]
+        },
+        "tiktok": {
+            "name": "TikTok",
+            "method": "username_url",
+            "url_check": "https://www.tiktok.com/@{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "couldn't find this account"
+            ]
+        },
+        "linkedin": {
+            "name": "LinkedIn",
+            "method": "username_url",
+            "url_check": "https://www.linkedin.com/in/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "profile not found"
+            ]
+        },
+        "pinterest": {
+            "name": "Pinterest",
+            "method": "username_url",
+            "url_check": "https://www.pinterest.com/{identifier}/",
+            "error_type": "status_code"
+        },
+        "snapchat": {
+            "name": "Snapchat",
+            "method": "username_url",
+            "url_check": "https://www.snapchat.com/add/{identifier}",
+            "error_type": "status_code"
+        },
+        "telegram": {
+            "name": "Telegram",
+            "method": "username_url",
+            "url_check": "https://t.me/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "if you have telegram, you can contact"
+            ]
+        },
+        "vk": {
+            "name": "VK",
+            "method": "username_url",
+            "url_check": "https://vk.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "user deleted or banned"
+            ]
+        },
+        "wechat": {
+            "name": "WeChat",
+            "method": "username_url",
+            "url_check": "https://web.wechat.com/",
+            "error_type": "string",
+            "not_found_text": [
+                "requires login"
+            ]
+        },
+        "threads": {
+            "name": "Threads",
+            "method": "username_url",
+            "url_check": "https://www.threads.net/@{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "sorry, this page isn't available"
+            ]
+        },
+        "bereal": {
+            "name": "BeReal",
+            "method": "username_url",
+            "url_check": "https://bere.al/{identifier}",
+            "error_type": "status_code"
+        }
+    },
+    "forums_and_communities": {
+        "reddit": {
+            "name": "Reddit",
+            "method": "username_url",
+            "url_check": "https://www.reddit.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "nobody on reddit goes by that name",
+                "page not found"
+            ]
+        },
+        "quora": {
+            "name": "Quora",
+            "method": "username_url",
+            "url_check": "https://www.quora.com/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page doesn't exist"
+            ]
+        },
+        "medium": {
+            "name": "Medium",
+            "method": "username_url",
+            "url_check": "https://medium.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "9gag": {
+            "name": "9GAG",
+            "method": "username_url",
+            "url_check": "https://9gag.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "producthunt": {
+            "name": "ProductHunt",
+            "method": "username_url",
+            "url_check": "https://www.producthunt.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "askfm": {
+            "name": "AskFM",
+            "method": "username_url",
+            "url_check": "https://ask.fm/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ]
+        },
+        "gaiaonline": {
+            "name": "Gaia Online",
+            "method": "username_url",
+            "url_check": "https://www.gaiaonline.com/profiles/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found"
+            ]
+        },
+        "disqus": {
+            "name": "Disqus",
+            "method": "username_url",
+            "url_check": "https://disqus.com/by/{identifier}/",
+            "error_type": "string",
+            "not_found_text": [
+                "profile not found"
+            ]
+        },
+        "ifunny": {
+            "name": "iFunny",
+            "method": "username_url",
+            "url_check": "https://ifunny.co/user/{identifier}",
+            "error_type": "status_code"
+        }
+    },
+    "development_and_code": {
+        "github": {
+            "name": "GitHub",
+            "method": "username_url",
+            "url_check": "https://github.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "gitlab": {
+            "name": "GitLab",
+            "method": "username_url",
+            "url_check": "https://gitlab.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "bitbucket": {
+            "name": "BitBucket",
+            "method": "username_url",
+            "url_check": "https://bitbucket.org/{identifier}/",
+            "error_type": "status_code"
+        },
+        "replit": {
+            "name": "Replit",
+            "method": "username_url",
+            "url_check": "https://replit.com/@{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found"
+            ]
+        },
+        "codepen": {
+            "name": "CodePen",
+            "method": "username_url",
+            "url_check": "https://codepen.io/{identifier}",
+            "error_type": "status_code"
+        },
+        "devto": {
+            "name": "DEV Community",
+            "method": "username_url",
+            "url_check": "https://dev.to/{identifier}",
+            "error_type": "status_code"
+        },
+        "sourceforge": {
+            "name": "SourceForge",
+            "method": "username_url",
+            "url_check": "https://sourceforge.net/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "hackerrank": {
+            "name": "HackerRank",
+            "method": "username_url",
+            "url_check": "https://www.hackerrank.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "something went wrong"
+            ]
+        },
+        "stackoverflow": {
+            "name": "Stack Overflow",
+            "method": "username_url",
+            "url_check": "https://stackoverflow.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "pypi": {
+            "name": "PyPI",
+            "method": "username_url",
+            "url_check": "https://pypi.org/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "dockerhub": {
+            "name": "Docker Hub",
+            "method": "username_url",
+            "url_check": "https://hub.docker.com/u/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found"
+            ]
+        },
+        "npmjs": {
+            "name": "NPM",
+            "method": "username_url",
+            "url_check": "https://www.npmjs.com/~{identifier}",
+            "error_type": "status_code"
+        },
+        "leetcode": {
+            "name": "LeetCode",
+            "method": "username_url",
+            "url_check": "https://leetcode.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "kaggle": {
+            "name": "Kaggle",
+            "method": "username_url",
+            "url_check": "https://www.kaggle.com/{identifier}",
+            "error_type": "status_code"
+        }
+    },
+    "gaming": {
+        "steam": {
+            "name": "Steam",
+            "method": "username_url",
+            "url_check": "https://steamcommunity.com/id/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "the specified profile could not be found"
+            ]
+        },
+        "twitch": {
+            "name": "Twitch",
+            "method": "username_url",
+            "url_check": "https://www.twitch.tv/{identifier}",
+            "error_type": "status_code"
+        },
+        "roblox": {
+            "name": "Roblox",
+            "method": "username_url",
+            "url_check": "https://www.roblox.com/user.aspx?username={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page cannot be found"
+            ]
+        },
+        "xboxgamertag": {
+            "name": "Xbox Gamertag",
+            "method": "username_url",
+            "url_check": "https://account.xbox.com/en-us/profile?gamertag={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "this gamertag could not be found"
+            ]
+        },
+        "chess": {
+            "name": "Chess.com",
+            "method": "username_url",
+            "url_check": "https://www.chess.com/member/{identifier}",
+            "error_type": "status_code"
+        },
+        "itchio": {
+            "name": "Itch.io",
+            "method": "username_url",
+            "url_check": "https://{identifier}.itch.io/",
+            "error_type": "status_code"
+        },
+        "psnprofiles": {
+            "name": "PSNProfiles",
+            "method": "username_url",
+            "url_check": "https://psnprofiles.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "speedrun": {
+            "name": "Speedrun.com",
+            "method": "username_url",
+            "url_check": "https://www.speedrun.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "osu": {
+            "name": "Osu!",
+            "method": "username_url",
+            "url_check": "https://osu.ppy.sh/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "lolchess": {
+            "name": "Lolchess",
+            "method": "username_url",
+            "url_check": "https://lolchess.gg/profile/na/{identifier}",
+            "error_type": "status_code"
+        },
+        "fortnitetracker": {
+            "name": "FortniteTracker",
+            "method": "username_url",
+            "url_check": "https://fortnitetracker.com/profile/all/{identifier}",
+            "error_type": "status_code"
+        },
+        "gog": {
+            "name": "GOG",
+            "method": "username_url",
+            "url_check": "https://www.gog.com/u/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "User not found"
+            ]
+        },
+        "nexusmods": {
+            "name": "Nexus Mods",
+            "method": "username_url",
+            "url_check": "https://users.nexusmods.com/users/lookup?name={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "\"found\":false"
+            ]
+        },
+        "curseforge": {
+            "name": "CurseForge",
+            "method": "username_url",
+            "url_check": "https://www.curseforge.com/members/{identifier}/projects",
+            "error_type": "status_code"
+        }
+    },
+    "creative_and_portfolio": {
+        "behance": {
+            "name": "Behance",
+            "method": "username_url",
+            "url_check": "https://www.behance.net/{identifier}",
+            "error_type": "status_code"
+        },
+        "dribbble": {
+            "name": "Dribbble",
+            "method": "username_url",
+            "url_check": "https://dribbble.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "deviantart": {
+            "name": "DeviantArt",
+            "method": "username_url",
+            "url_check": "https://www.deviantart.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "artstation": {
+            "name": "ArtStation",
+            "method": "username_url",
+            "url_check": "https://www.artstation.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "carbonmade": {
+            "name": "Carbonmade",
+            "method": "username_url",
+            "url_check": "https://{identifier}.carbonmade.com",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ]
+        },
+        "carrd": {
+            "name": "Carrd",
+            "method": "username_url",
+            "url_check": "https://{identifier}.carrd.co",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "flickr": {
+            "name": "Flickr",
+            "method": "username_url",
+            "url_check": "https://www.flickr.com/people/{identifier}",
+            "error_type": "status_code"
+        },
+        "unsplash": {
+            "name": "Unsplash",
+            "method": "username_url",
+            "url_check": "https://unsplash.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "500px": {
+            "name": "500px",
+            "method": "username_url",
+            "url_check": "https://500px.com/p/{identifier}",
+            "error_type": "status_code"
+        },
+        "wattpad": {
+            "name": "Wattpad",
+            "method": "username_url",
+            "url_check": "https://www.wattpad.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "goodreads": {
+            "name": "Goodreads",
+            "method": "username_url",
+            "url_check": "https://www.goodreads.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "figma": {
+            "name": "Figma",
+            "method": "username_url",
+            "url_check": "https://www.figma.com/@{identifier}",
+            "error_type": "status_code"
+        }
+    },
+    "video_and_music": {
+        "youtube": {
+            "name": "YouTube",
+            "method": "username_url",
+            "url_check": "https://www.youtube.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "vimeo": {
+            "name": "Vimeo",
+            "method": "username_url",
+            "url_check": "https://vimeo.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "soundcloud": {
+            "name": "SoundCloud",
+            "method": "username_url",
+            "url_check": "https://soundcloud.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "spotify": {
+            "name": "Spotify",
+            "method": "username_url",
+            "url_check": "https://open.spotify.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ]
+        },
+        "bandcamp": {
+            "name": "Bandcamp",
+            "method": "username_url",
+            "url_check": "https://bandcamp.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "dailymotion": {
+            "name": "Dailymotion",
+            "method": "username_url",
+            "url_check": "https://www.dailymotion.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "lastfm": {
+            "name": "Last.fm",
+            "method": "username_url",
+            "url_check": "https://last.fm/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "mixcloud": {
+            "name": "Mixcloud",
+            "method": "username_url",
+            "url_check": "https://www.mixcloud.com/{identifier}/",
+            "error_type": "status_code"
+        },
+        "patreon": {
+            "name": "Patreon",
+            "method": "username_url",
+            "url_check": "https://www.patreon.com/{identifier}",
+            "error_type": "status_code"
+        }
+    },
+    "misc_and_expanded": {
+        "0x0": {
+            "name": "0x0.st",
+            "method": "username_url",
+            "url_check": "https://0x0.st/~{identifier}",
+            "error_type": "status_code"
+        },
+        "10minutemail": {
+            "name": "10MinuteMail",
+            "method": "username_url",
+            "url_check": "https://10minutemail.com/@{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "2Dimensions": {
+            "name": "2Dimensions",
+            "method": "username_url",
+            "url_check": "https://2dimensions.com/a/{identifier}",
+            "error_type": "status_code"
+        },
+        "3dnews": {
+            "name": "3dnews",
+            "method": "username_url",
+            "url_check": "http://forum.3dnews.ru/member.php?username={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "4pda": {
+            "name": "4pda",
+            "method": "username_url",
+            "url_check": "https://4pda.ru/forum/index.php?showuser={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "no member found"
+            ]
+        },
+        "7cups": {
+            "name": "7cups",
+            "method": "username_url",
+            "url_check": "https://www.7cups.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "allmylinks": {
+            "name": "AllMyLinks",
+            "method": "username_url",
+            "url_check": "https://allmylinks.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "amino": {
+            "name": "Amino",
+            "method": "username_url",
+            "url_check": "https://aminoapps.com/u/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "apple_dev": {
+            "name": "Apple Developer",
+            "method": "username_url",
+            "url_check": "https://developer.apple.com/forums/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "404"
+            ]
+        },
+        "archive_is": {
+            "name": "Archive.is",
+            "method": "username_url",
+            "url_check": "https://archive.is/@{identifier}",
+            "error_type": "status_code"
+        },
+        "archiveofourown": {
+            "name": "Archive Of Our Own",
+            "method": "username_url",
+            "url_check": "https://archiveofourown.org/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "armorgames": {
+            "name": "ArmorGames",
+            "method": "username_url",
+            "url_check": "https://armorgames.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "boingboing": {
+            "name": "Boing Boing",
+            "method": "username_url",
+            "url_check": "https://bbs.boingboing.net/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "buymeacoffee": {
+            "name": "Buy Me a Coffee",
+            "method": "username_url",
+            "url_check": "https://www.buymeacoffee.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "buzzfeed": {
+            "name": "BuzzFeed",
+            "method": "username_url",
+            "url_check": "https://www.buzzfeed.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "canva": {
+            "name": "Canva",
+            "method": "username_url",
+            "url_check": "https://www.canva.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "cashme": {
+            "name": "CashMe",
+            "method": "username_url",
+            "url_check": "https://cash.me/${identifier}",
+            "error_type": "status_code"
+        },
+        "cevo": {
+            "name": "CEVO",
+            "method": "username_url",
+            "url_check": "https://cevo.com/member/{identifier}/",
+            "error_type": "status_code"
+        },
+        "championat": {
+            "name": "Championat",
+            "method": "username_url",
+            "url_check": "https://www.championat.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found"
+            ]
+        },
+        "chaos_social": {
+            "name": "Chaos.social",
+            "method": "username_url",
+            "url_check": "https://chaos.social/@{identifier}",
+            "error_type": "status_code"
+        },
+        "clojureverse": {
+            "name": "ClojureVerse",
+            "method": "username_url",
+            "url_check": "https://clojureverse.org/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "cloudflare": {
+            "name": "Cloudflare Community",
+            "method": "username_url",
+            "url_check": "https://community.cloudflare.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "cnet": {
+            "name": "CNET",
+            "method": "username_url",
+            "url_check": "https://www.cnet.com/profiles/{identifier}/",
+            "error_type": "status_code"
+        },
+        "codecademy": {
+            "name": "Codecademy",
+            "method": "username_url",
+            "url_check": "https://www.codecademy.com/profiles/{identifier}",
+            "error_type": "status_code"
+        },
+        "codechef": {
+            "name": "Codechef",
+            "method": "username_url",
+            "url_check": "https://www.codechef.com/users/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "codewars": {
+            "name": "Codewars",
+            "method": "username_url",
+            "url_check": "https://www.codewars.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "colourlovers": {
+            "name": "COLOURlovers",
+            "method": "username_url",
+            "url_check": "https://www.colourlovers.com/lover/{identifier}",
+            "error_type": "status_code"
+        },
+        "coroflot": {
+            "name": "Coroflot",
+            "method": "username_url",
+            "url_check": "https://www.coroflot.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "cracked": {
+            "name": "Cracked",
+            "method": "username_url",
+            "url_check": "https://www.cracked.com/members/{identifier}/",
+            "error_type": "status_code"
+        },
+        "crevado": {
+            "name": "Crevado",
+            "method": "username_url",
+            "url_check": "https://{identifier}.crevado.com",
+            "error_type": "status_code"
+        },
+        "crunchbase": {
+            "name": "Crunchbase",
+            "method": "username_url",
+            "url_check": "https://www.crunchbase.com/person/{identifier}",
+            "error_type": "status_code"
+        },
+        "crunchyroll": {
+            "name": "Crunchyroll",
+            "method": "username_url",
+            "url_check": "https://www.crunchyroll.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "culturepub": {
+            "name": "CulturePub",
+            "method": "username_url",
+            "url_check": "https://www.culturepub.fr/persona/{identifier}",
+            "error_type": "status_code"
+        },
+        "cyberforum": {
+            "name": "CyberForum",
+            "method": "username_url",
+            "url_check": "https://www.cyberforum.ru/members/{identifier}.html",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "dating_ru": {
+            "name": "Dating.ru",
+            "method": "username_url",
+            "url_check": "http://www.dating.ru/profile/{identifier}/",
+            "error_type": "status_code"
+        },
+        "devrant": {
+            "name": "devRant",
+            "method": "username_url",
+            "url_check": "https://devrant.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "dizzyjam": {
+            "name": "Dizzyjam",
+            "method": "username_url",
+            "url_check": "http://www.dizzyjam.com/shop/{identifier}/",
+            "error_type": "status_code"
+        },
+        "domru": {
+            "name": "DOM.ru",
+            "method": "username_url",
+            "url_check": "https://forum.domru.ru/index.php/user/{identifier}/",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "drom": {
+            "name": "Drom",
+            "method": "username_url",
+            "url_check": "https://www.drom.ru/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "drupal": {
+            "name": "Drupal",
+            "method": "username_url",
+            "url_check": "https://www.drupal.org/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "dtf": {
+            "name": "DTF",
+            "method": "username_url",
+            "url_check": "https://dtf.ru/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "duolingo": {
+            "name": "Duolingo",
+            "method": "username_url",
+            "url_check": "https://www.duolingo.com/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "ebay": {
+            "name": "eBay",
+            "method": "username_url",
+            "url_check": "https://www.ebay.com/usr/{identifier}",
+            "error_type": "status_code"
+        },
+        "eintracht": {
+            "name": "Eintracht Forum",
+            "method": "username_url",
+            "url_check": "https://community.eintracht.de/forum/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "e_hentai": {
+            "name": "E-Hentai",
+            "method": "username_url",
+            "url_check": "https://e-hentai.org/uploader/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "no hits"
+            ]
+        },
+        "ello": {
+            "name": "Ello",
+            "method": "username_url",
+            "url_check": "https://ello.co/{identifier}",
+            "error_type": "status_code"
+        },
+        "endomondo": {
+            "name": "Endomondo",
+            "method": "username_url",
+            "url_check": "https://www.endomondo.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "envato": {
+            "name": "Envato",
+            "method": "username_url",
+            "url_check": "https://www.author.envato.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "eroprofile": {
+            "name": "EroProfile",
+            "method": "username_url",
+            "url_check": "https://eroprofile.com/p/{identifier}",
+            "error_type": "status_code"
+        },
+        "etsy": {
+            "name": "Etsy",
+            "method": "username_url",
+            "url_check": "https://www.etsy.com/shop/{identifier}",
+            "error_type": "status_code"
+        },
+        "evernote": {
+            "name": "Evernote",
+            "method": "username_url",
+            "url_check": "https://www.evernote.com/pub/{identifier}",
+            "error_type": "status_code"
+        },
+        "eyeem": {
+            "name": "EyeEm",
+            "method": "username_url",
+            "url_check": "https://www.eyeem.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "facenews": {
+            "name": "Facenews",
+            "method": "username_url",
+            "url_check": "https://facenews.ua/user/view/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "fameswap": {
+            "name": "Fameswap",
+            "method": "username_url",
+            "url_check": "https://fameswap.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "fandom": {
+            "name": "Fandom",
+            "method": "username_url",
+            "url_check": "https://www.fandom.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "fanpop": {
+            "name": "Fanpop",
+            "method": "username_url",
+            "url_check": "http://www.fanpop.com/fans/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "fan does not exist"
+            ]
+        },
+        "fiverr": {
+            "name": "Fiverr",
+            "method": "username_url",
+            "url_check": "https://www.fiverr.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "fl": {
+            "name": "FL",
+            "method": "username_url",
+            "url_check": "https://www.fl.ru/users/{identifier}/",
+            "error_type": "status_code"
+        },
+        "flipboard": {
+            "name": "Flipboard",
+            "method": "username_url",
+            "url_check": "https://flipboard.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "football_ua": {
+            "name": "Football.ua",
+            "method": "username_url",
+            "url_check": "https://football.ua/profile/user_{identifier}.html",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "foursquare": {
+            "name": "Foursquare",
+            "method": "username_url",
+            "url_check": "https://foursquare.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "freelance_habr": {
+            "name": "Freelance.habr",
+            "method": "username_url",
+            "url_check": "https://freelance.habr.com/executors/{identifier}",
+            "error_type": "status_code"
+        },
+        "freelance_ru": {
+            "name": "Freelance.ru",
+            "method": "username_url",
+            "url_check": "https://freelance.ru/user/{identifier}/",
+            "error_type": "status_code"
+        },
+        "freelancer": {
+            "name": "Freelancer",
+            "method": "username_url",
+            "url_check": "https://www.freelancer.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "furaffinity": {
+            "name": "Fur Affinity",
+            "method": "username_url",
+            "url_check": "https://www.furaffinity.net/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "furrynetwork": {
+            "name": "Furry Network",
+            "method": "username_url",
+            "url_check": "https://furrynetwork.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "futhead": {
+            "name": "Futhead",
+            "method": "username_url",
+            "url_check": "https://www.futhead.com/user/{identifier}/",
+            "error_type": "status_code"
+        },
+        "gamedev_ru": {
+            "name": "Gamedev.ru",
+            "method": "username_url",
+            "url_check": "https://gamedev.ru/users/?id={identifier}",
+            "error_type": "status_code"
+        },
+        "gamespot": {
+            "name": "GameSpot",
+            "method": "username_url",
+            "url_check": "https://www.gamespot.com/profile/{identifier}/",
+            "error_type": "status_code"
+        },
+        "geeksforgeeks": {
+            "name": "GeeksForGeeks",
+            "method": "username_url",
+            "url_check": "https://auth.geeksforgeeks.org/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "getmyuni": {
+            "name": "GetMyUni",
+            "method": "username_url",
+            "url_check": "https://www.getmyuni.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "gfycat": {
+            "name": "Gfycat",
+            "method": "username_url",
+            "url_check": "https://gfycat.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "gitter": {
+            "name": "Gitter",
+            "method": "username_url",
+            "url_check": "https://gitter.im/{identifier}",
+            "error_type": "status_code"
+        },
+        "gravatar": {
+            "name": "Gravatar",
+            "method": "username_url",
+            "url_check": "http://en.gravatar.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "gumroad": {
+            "name": "Gumroad",
+            "method": "username_url",
+            "url_check": "https://gumroad.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "guru": {
+            "name": "Guru",
+            "method": "username_url",
+            "url_check": "https://www.guru.com/api/api/v1/user/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "habr": {
+            "name": "Habr",
+            "method": "username_url",
+            "url_check": "https://habr.com/ru/users/{identifier}/",
+            "error_type": "status_code"
+        },
+        "hackerone": {
+            "name": "HackerOne",
+            "method": "username_url",
+            "url_check": "https://hackerone.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "hackaday": {
+            "name": "Hackaday",
+            "method": "username_url",
+            "url_check": "https://hackaday.io/{identifier}",
+            "error_type": "status_code"
+        },
+        "hawaaworld": {
+            "name": "HawaaWorld",
+            "method": "username_url",
+            "url_check": "https://www.hawaaworld.com/member/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "hellas": {
+            "name": "Hellas.gr",
+            "method": "username_url",
+            "url_check": "http://{identifier}.hellas.gr/",
+            "error_type": "status_code"
+        },
+        "homify": {
+            "name": "Homify",
+            "method": "username_url",
+            "url_check": "https://www.homify.ru/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "hostingreview": {
+            "name": "HostingReview",
+            "method": "username_url",
+            "url_check": "https://www.hostingreview.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "hubpages": {
+            "name": "HubPages",
+            "method": "username_url",
+            "url_check": "https://hubpages.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "iMGSRC_RU": {
+            "name": "iMGSRC.RU",
+            "method": "username_url",
+            "url_check": "http://imgsrc.ru/main/user.php?user={identifier}",
+            "error_type": "status_code"
+        },
+        "imdb": {
+            "name": "IMDb",
+            "method": "username_url",
+            "url_check": "https://www.imdb.com/user/{identifier}/",
+            "error_type": "status_code"
+        },
+        "imgur": {
+            "name": "Imgur",
+            "method": "username_url",
+            "url_check": "https://imgur.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "instructables": {
+            "name": "Instructables",
+            "method": "username_url",
+            "url_check": "https://www.instructables.com/member/{identifier}",
+            "error_type": "status_code"
+        },
+        "interpals": {
+            "name": "Interpals",
+            "method": "username_url",
+            "url_check": "https://www.interpals.net/{identifier}",
+            "error_type": "status_code"
+        },
+        "intervarsity": {
+            "name": "InterVarsity",
+            "method": "username_url",
+            "url_check": "https://www.intervarsity.org/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "io9": {
+            "name": "io9",
+            "method": "username_url",
+            "url_check": "https://io9.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "issuu": {
+            "name": "Issuu",
+            "method": "username_url",
+            "url_check": "https://issuu.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "livejournal": {
+            "name": "LiveJournal",
+            "method": "username_url",
+            "url_check": "https://{identifier}.livejournal.com",
+            "error_type": "status_code"
+        },
+        "jpeg_cz": {
+            "name": "jpeg.cz",
+            "method": "username_url",
+            "url_check": "https://jpeg.cz/uzivatel/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "kali_community": {
+            "name": "Kali Community",
+            "method": "username_url",
+            "url_check": "https://forums.kali.org/member.php?username={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "kanobu": {
+            "name": "Kanobu",
+            "method": "username_url",
+            "url_check": "https://kanobu.ru/users/{identifier}/",
+            "error_type": "status_code"
+        },
+        "keybase": {
+            "name": "Keybase",
+            "method": "username_url",
+            "url_check": "https://keybase.io/{identifier}",
+            "error_type": "status_code"
+        },
+        "khanacademy": {
+            "name": "Khan Academy",
+            "method": "username_url",
+            "url_check": "https://www.khanacademy.org/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "kik": {
+            "name": "Kik",
+            "method": "username_url",
+            "url_check": "https://ws2.kik.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "kongregate": {
+            "name": "Kongregate",
+            "method": "username_url",
+            "url_check": "https://www.kongregate.com/accounts/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ]
+        },
+        "kwork": {
+            "name": "Kwork",
+            "method": "username_url",
+            "url_check": "https://kwork.ru/{identifier}",
+            "error_type": "status_code"
+        },
+        "labpentestit": {
+            "name": "Lab Pentestit",
+            "method": "username_url",
+            "url_check": "https://lab.pentestit.ru/users/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "launchpad": {
+            "name": "Launchpad",
+            "method": "username_url",
+            "url_check": "https://launchpad.net/~{identifier}",
+            "error_type": "status_code"
+        },
+        "leprosorium": {
+            "name": "Leprosorium",
+            "method": "username_url",
+            "url_check": "https://leprosorium.ru/users/{identifier}/",
+            "error_type": "status_code"
+        },
+        "livejournal_com": {
+            "name": "LiveJournal.com",
+            "method": "username_url",
+            "url_check": "https://{identifier}.livejournal.com",
+            "error_type": "status_code"
+        },
+        "mail_ru": {
+            "name": "Mail.ru",
+            "method": "username_url",
+            "url_check": "https://my.mail.ru/mail/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "mastodon_social": {
+            "name": "Mastodon.social",
+            "method": "username_url",
+            "url_check": "https://mastodon.social/@{identifier}",
+            "error_type": "status_code"
+        },
+        "mdn": {
+            "name": "MDN",
+            "method": "username_url",
+            "url_check": "https://developer.mozilla.org/en-US/profiles/{identifier}",
+            "error_type": "status_code"
+        },
+        "medium_com": {
+            "name": "Medium.com",
+            "method": "username_url",
+            "url_check": "https://medium.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "meetup": {
+            "name": "Meetup",
+            "method": "username_url",
+            "url_check": "https://www.meetup.com/members/{identifier}",
+            "error_type": "status_code"
+        },
+        "mercadolivre": {
+            "name": "Mercadolivre",
+            "method": "username_url",
+            "url_check": "https://perfil.mercadolivre.com.br/{identifier}",
+            "error_type": "status_code"
+        },
+        "moddb": {
+            "name": "ModDB",
+            "method": "username_url",
+            "url_check": "https://www.moddb.com/members/{identifier}",
+            "error_type": "status_code"
+        },
+        "moikrug": {
+            "name": "Moikrug",
+            "method": "username_url",
+            "url_check": "https://moikrug.ru/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "myanimelist": {
+            "name": "MyAnimeList",
+            "method": "username_url",
+            "url_check": "https://myanimelist.net/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "myspace": {
+            "name": "MySpace",
+            "method": "username_url",
+            "url_check": "https://myspace.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "mywot": {
+            "name": "MyWOT",
+            "method": "username_url",
+            "url_check": "https://www.mywot.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "nairaland": {
+            "name": "Nairaland",
+            "method": "username_url",
+            "url_check": "https://www.nairaland.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "namecheap": {
+            "name": "Namecheap",
+            "method": "username_url",
+            "url_check": "https://www.namecheap.com/myaccount/profile/view/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found"
+            ]
+        },
+        "namemc": {
+            "name": "NameMC",
+            "method": "username_url",
+            "url_check": "https://namemc.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "nationstates": {
+            "name": "NationStates",
+            "method": "username_url",
+            "url_check": "https://www.nationstates.net/nation={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "nation not found"
+            ]
+        },
+        "naturalproject": {
+            "name": "Natural Project",
+            "method": "username_url",
+            "url_check": "https://naturalproject.net/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "naver": {
+            "name": "Naver",
+            "method": "username_url",
+            "url_check": "https://blog.naver.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "newgrounds": {
+            "name": "Newgrounds",
+            "method": "username_url",
+            "url_check": "https://{identifier}.newgrounds.com",
+            "error_type": "status_code"
+        },
+        "okcupid": {
+            "name": "OkCupid",
+            "method": "username_url",
+            "url_check": "https://www.okcupid.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "onelovr": {
+            "name": "Onelovr",
+            "method": "username_url",
+            "url_check": "https://onelovr.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "oracle": {
+            "name": "Oracle",
+            "method": "username_url",
+            "url_check": "https://community.oracle.com/people/{identifier}",
+            "error_type": "status_code"
+        },
+        "openstreetmap_de": {
+            "name": "Openstreetmap.de",
+            "method": "username_url",
+            "url_check": "https://www.openstreetmap.de/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "pcpartpicker": {
+            "name": "PCPartPicker",
+            "method": "username_url",
+            "url_check": "https://pcpartpicker.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "pearltrees": {
+            "name": "Pearltrees",
+            "method": "username_url",
+            "url_check": "https://www.pearltrees.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "photobucket": {
+            "name": "Photobucket",
+            "method": "username_url",
+            "url_check": "https://photobucket.com/user/{identifier}/library",
+            "error_type": "status_code"
+        },
+        "pillowfort": {
+            "name": "Pillowfort",
+            "method": "username_url",
+            "url_check": "https://www.pillowfort.social/{identifier}",
+            "error_type": "status_code"
+        },
+        "pixiv": {
+            "name": "Pixiv",
+            "method": "username_url",
+            "url_check": "https://www.pixiv.net/en/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "plurk": {
+            "name": "Plurk",
+            "method": "username_url",
+            "url_check": "https://www.plurk.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "poetizer": {
+            "name": "Poetizer",
+            "method": "username_url",
+            "url_check": "https://poetizer.com/author/{identifier}",
+            "error_type": "status_code"
+        },
+        "polldaddy": {
+            "name": "Polldaddy",
+            "method": "username_url",
+            "url_check": "https://polldaddy.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "prameya": {
+            "name": "Prameya",
+            "method": "username_url",
+            "url_check": "https://prameyanews.com/author/{identifier}",
+            "error_type": "status_code"
+        },
+        "price_ua": {
+            "name": "Price.ua",
+            "method": "username_url",
+            "url_check": "https://price.ua/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "pro_linux": {
+            "name": "Pro-Linux",
+            "method": "username_url",
+            "url_check": "https://www.pro-linux.de/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "qoto": {
+            "name": "Qoto",
+            "method": "username_url",
+            "url_check": "https://qoto.org/@{identifier}",
+            "error_type": "status_code"
+        },
+        "radio_yandex": {
+            "name": "Radio.Yandex",
+            "method": "username_url",
+            "url_check": "https://radio.yandex.ru/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "raidforums": {
+            "name": "RaidForums",
+            "method": "username_url",
+            "url_check": "https://raidforums.com/User-{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "the member you specified is either invalid or doesn't exist"
+            ]
+        },
+        "rapidshare": {
+            "name": "Rapidshare",
+            "method": "username_url",
+            "url_check": "https://rapidshare.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "rateyourmusic": {
+            "name": "Rate Your Music",
+            "method": "username_url",
+            "url_check": "https://rateyourmusic.com/~{identifier}",
+            "error_type": "status_code"
+        },
+        "redbubble": {
+            "name": "RedBubble",
+            "method": "username_url",
+            "url_check": "https://www.redbubble.com/people/{identifier}",
+            "error_type": "status_code"
+        },
+        "researchgate": {
+            "name": "ResearchGate",
+            "method": "username_url",
+            "url_check": "https://www.researchgate.net/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "reverbnation": {
+            "name": "ReverbNation",
+            "method": "username_url",
+            "url_check": "https://www.reverbnation.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "riotgames": {
+            "name": "Riot Games",
+            "method": "username_url",
+            "url_check": "https://boards.eune.leagueoflegends.com/en/player/eune/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "404"
+            ]
+        },
+        "rubygems": {
+            "name": "RubyGems",
+            "method": "username_url",
+            "url_check": "https://rubygems.org/profiles/{identifier}",
+            "error_type": "status_code"
+        },
+        "scribd": {
+            "name": "Scribd",
+            "method": "username_url",
+            "url_check": "https://www.scribd.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "shit_happens": {
+            "name": "Shit Happens",
+            "method": "username_url",
+            "url_check": "https://shithappens.me/{identifier}",
+            "error_type": "status_code"
+        },
+        "simplenote": {
+            "name": "Simplenote",
+            "method": "username_url",
+            "url_check": "https://{identifier}.simplenote.com",
+            "error_type": "status_code"
+        },
+        "site_google": {
+            "name": "Site.google.com",
+            "method": "username_url",
+            "url_check": "https://sites.google.com/site/{identifier}",
+            "error_type": "status_code"
+        },
+        "snap_me": {
+            "name": "Snap.me",
+            "method": "username_url",
+            "url_check": "https://snap.me/{identifier}",
+            "error_type": "status_code"
+        },
+        "social_msdn": {
+            "name": "Social.msdn",
+            "method": "username_url",
+            "url_check": "https://social.msdn.microsoft.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "social_technet": {
+            "name": "Social.technet",
+            "method": "username_url",
+            "url_check": "https://social.technet.microsoft.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "soundcloud_com": {
+            "name": "Soundcloud.com",
+            "method": "username_url",
+            "url_check": "https://soundcloud.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "source_engine": {
+            "name": "Source Engine",
+            "method": "username_url",
+            "url_check": "https://forums.source.engine.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "sourceforge_net": {
+            "name": "SourceForge.net",
+            "method": "username_url",
+            "url_check": "https://sourceforge.net/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "spreadshirt": {
+            "name": "Spreadshirt",
+            "method": "username_url",
+            "url_check": "https://{identifier}.spreadshirt.com",
+            "error_type": "status_code"
+        },
+        "stackexchange": {
+            "name": "StackExchange",
+            "method": "username_url",
+            "url_check": "https://stackexchange.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "storenvy": {
+            "name": "Storenvy",
+            "method": "username_url",
+            "url_check": "https://{identifier}.storenvy.com",
+            "error_type": "status_code"
+        },
+        "strava": {
+            "name": "Strava",
+            "method": "username_url",
+            "url_check": "https://www.strava.com/athletes/{identifier}",
+            "error_type": "status_code"
+        },
+        "sublime_text": {
+            "name": "Sublime Text Forum",
+            "method": "username_url",
+            "url_check": "https://forum.sublimetext.com/u/{identifier}",
+            "error_type": "status_code"
+        },
+        "svidbook": {
+            "name": "Svidbook",
+            "method": "username_url",
+            "url_check": "https://svidbook.ru/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "taringa": {
+            "name": "Taringa",
+            "method": "username_url",
+            "url_check": "https://www.taringa.net/{identifier}",
+            "error_type": "status_code"
+        },
+        "teamtreehouse": {
+            "name": "Team Treehouse",
+            "method": "username_url",
+            "url_check": "https://teamtreehouse.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "technicpack": {
+            "name": "Technicpack",
+            "method": "username_url",
+            "url_check": "https://www.technicpack.net/profile/{identifier}/",
+            "error_type": "status_code"
+        },
+        "ted": {
+            "name": "TED",
+            "method": "username_url",
+            "url_check": "https://www.ted.com/profiles/{identifier}",
+            "error_type": "status_code"
+        },
+        "tellonym": {
+            "name": "Tellonym",
+            "method": "username_url",
+            "url_check": "https://tellonym.me/{identifier}",
+            "error_type": "status_code"
+        },
+        "test_io": {
+            "name": "Test.io",
+            "method": "username_url",
+            "url_check": "https://test.io/testers/{identifier}",
+            "error_type": "status_code"
+        },
+        "tfl_ru": {
+            "name": "Tfl.ru",
+            "method": "username_url",
+            "url_check": "https://tfl.ru/user/{identifier}/",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "the_dots": {
+            "name": "The-Dots",
+            "method": "username_url",
+            "url_check": "https://the-dots.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "theatlantic": {
+            "name": "Theatlantic",
+            "method": "username_url",
+            "url_check": "https://www.theatlantic.com/author/{identifier}",
+            "error_type": "status_code"
+        },
+        "theconversation": {
+            "name": "Theconversation",
+            "method": "username_url",
+            "url_check": "https://theconversation.com/profiles/{identifier}",
+            "error_type": "status_code"
+        },
+        "thedailybeast": {
+            "name": "Thedailybeast",
+            "method": "username_url",
+            "url_check": "https://www.thedailybeast.com/author/{identifier}",
+            "error_type": "status_code"
+        },
+        "theguardian": {
+            "name": "Theguardian",
+            "method": "username_url",
+            "url_check": "https://www.theguardian.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "thehackernews": {
+            "name": "Thehackernews",
+            "method": "username_url",
+            "url_check": "https://thehackernews.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "theverge": {
+            "name": "Theverge",
+            "method": "username_url",
+            "url_check": "https://www.theverge.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "tiny": {
+            "name": "Tiny",
+            "method": "username_url",
+            "url_check": "https://tiny.cc/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "tistory": {
+            "name": "Tistory",
+            "method": "username_url",
+            "url_check": "http://{identifier}.tistory.com",
+            "error_type": "status_code"
+        },
+        "tony_macx86": {
+            "name": "TonyMacx86",
+            "method": "username_url",
+            "url_check": "https://www.tonymacx86.com/members/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "toster": {
+            "name": "Toster",
+            "method": "username_url",
+            "url_check": "https://toster.ru/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "traderji": {
+            "name": "Traderji",
+            "method": "username_url",
+            "url_check": "https://www.traderji.com/community/members/{identifier}.html",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "trakt": {
+            "name": "Trakt",
+            "method": "username_url",
+            "url_check": "https://trakt.tv/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "trendme": {
+            "name": "Trendme",
+            "method": "username_url",
+            "url_check": "http://trendme.net/{identifier}",
+            "error_type": "status_code"
+        },
+        "tryhackme": {
+            "name": "TryHackMe",
+            "method": "username_url",
+            "url_check": "https://tryhackme.com/p/{identifier}",
+            "error_type": "status_code"
+        },
+        "turbosquid": {
+            "name": "TurboSquid",
+            "method": "username_url",
+            "url_check": "https://www.turbosquid.com/Search/Artists/{identifier}",
+            "error_type": "status_code"
+        },
+        "ukr_net": {
+            "name": "Ukr.net",
+            "method": "username_url",
+            "url_check": "https://my.ukr.net/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "unsplash_com": {
+            "name": "Unsplash.com",
+            "method": "username_url",
+            "url_check": "https://unsplash.com/@{identifier}",
+            "error_type": "status_code"
+        },
+        "uptobox": {
+            "name": "Uptobox",
+            "method": "username_url",
+            "url_check": "https://uptobox.com/user/{identifier}",
+            "error_type": "status_code"
+        },
+        "uservoice": {
+            "name": "UserVoice",
+            "method": "username_url",
+            "url_check": "https://{identifier}.uservoice.com",
+            "error_type": "status_code"
+        },
+        "veer": {
+            "name": "Veer",
+            "method": "username_url",
+            "url_check": "https://www.veer.com/member/{identifier}",
+            "error_type": "status_code"
+        },
+        "vimeo_com": {
+            "name": "Vimeo.com",
+            "method": "username_url",
+            "url_check": "https://vimeo.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "virgool": {
+            "name": "Virgool",
+            "method": "username_url",
+            "url_check": "https://virgool.io/@{identifier}",
+            "error_type": "status_code"
+        },
+        "vladtime": {
+            "name": "Vladtime",
+            "method": "username_url",
+            "url_check": "http://{identifier}.vladtime.com",
+            "error_type": "status_code"
+        },
+        "vsco": {
+            "name": "VSCO",
+            "method": "username_url",
+            "url_check": "https://vsco.co/{identifier}/images/1",
+            "error_type": "status_code"
+        },
+        "wallet": {
+            "name": "Wallet",
+            "method": "username_url",
+            "url_check": "https://www.wallet.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "warriorforum": {
+            "name": "Warriorforum",
+            "method": "username_url",
+            "url_check": "https://www.warriorforum.com/members/{identifier}.html",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "weber": {
+            "name": "Weber",
+            "method": "username_url",
+            "url_check": "https://www.weber.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "webflow": {
+            "name": "Webflow",
+            "method": "username_url",
+            "url_check": "https://webflow.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "weheartit": {
+            "name": "WeHeartIt",
+            "method": "username_url",
+            "url_check": "https://weheartit.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "wikipedia": {
+            "name": "Wikipedia",
+            "method": "username_url",
+            "url_check": "https://www.wikipedia.org/wiki/User:{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "does not exist"
+            ]
+        },
+        "windy": {
+            "name": "Windy",
+            "method": "username_url",
+            "url_check": "https://community.windy.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "wix": {
+            "name": "Wix",
+            "method": "username_url",
+            "url_check": "https://{identifier}.wix.com",
+            "error_type": "status_code"
+        },
+        "wordpress_com": {
+            "name": "WordPress.com",
+            "method": "username_url",
+            "url_check": "https://{identifier}.wordpress.com",
+            "error_type": "status_code"
+        },
+        "wordpress_org": {
+            "name": "WordPress.org",
+            "method": "username_url",
+            "url_check": "https://profiles.wordpress.org/{identifier}/",
+            "error_type": "status_code"
+        },
+        "xhamster": {
+            "name": "xHamster",
+            "method": "username_url",
+            "url_check": "https://xhamster.com/users/{identifier}",
+            "error_type": "status_code"
+        },
+        "xda_developers": {
+            "name": "XDA Developers",
+            "method": "username_url",
+            "url_check": "https://forum.xda-developers.com/member.php?u={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "not found"
+            ]
+        },
+        "xing": {
+            "name": "Xing",
+            "method": "username_url",
+            "url_check": "https://www.xing.com/profile/{identifier}",
+            "error_type": "status_code"
+        },
+        "yammer": {
+            "name": "Yammer",
+            "method": "username_url",
+            "url_check": "https://www.yammer.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "yandex": {
+            "name": "Yandex",
+            "method": "username_url",
+            "url_check": "https://{identifier}.ya.ru/",
+            "error_type": "status_code"
+        },
+        "zazzle": {
+            "name": "Zazzle",
+            "method": "username_url",
+            "url_check": "https://www.zazzle.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "zerply": {
+            "name": "Zerply",
+            "method": "username_url",
+            "url_check": "https://zerply.com/{identifier}",
+            "error_type": "status_code"
+        },
+        "zone": {
+            "name": "Zone",
+            "method": "username_url",
+            "url_check": "http://{identifier}.zone.ro",
+            "error_type": "status_code"
+        }
+    }
+}
