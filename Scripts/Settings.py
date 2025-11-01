@@ -25,6 +25,11 @@ GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
 
+# --- Persistent Language Config ---
+# Saves language preference to /data/data/com.termux/files/home/Language.json
+HOME_DIR = "/data/data/com.termux/files/home"
+LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
+
 # Define hidden folder name/path for Greek (Necessary for language toggle)
 HIDDEN_GREEK_FOLDER = "." + GREEK_FOLDER_NAME
 HIDDEN_GREEK_PATH = os.path.join(ENGLISH_BASE_PATH, HIDDEN_GREEK_FOLDER)
@@ -40,6 +45,38 @@ LANGUAGE_MAP = {
 }
 CURRENT_DISPLAY_LANGUAGE = None
 # ----------------------------------------------------
+
+# --- Language Preference Functions ---
+def save_language_preference(language):
+    """Saves the selected language to a persistent JSON file."""
+    try:
+        data = {}
+        # Read existing data first to not overwrite other settings (if any)
+        if os.path.exists(LANGUAGE_JSON_PATH):
+            with open(LANGUAGE_JSON_PATH, "r") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = {} # Overwrite corrupted file
+        
+        data['preferred_language'] = language
+        
+        with open(LANGUAGE_JSON_PATH, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        # This is a non-critical feature, so we don't stop the script
+        pass 
+
+def load_language_preference():
+    """Loads the preferred language from the persistent JSON file."""
+    if os.path.exists(LANGUAGE_JSON_PATH):
+        try:
+            with open(LANGUAGE_JSON_PATH, "r") as f:
+                data = json.load(f)
+                return data.get('preferred_language') # Returns None if key doesn't exist
+        except Exception:
+            return None # File might be corrupted or unreadable
+    return None
 
 # --- Translation Definitions (FOLDER TAG FIX APPLIED) ---
 GREEK_STRINGS = {
@@ -110,6 +147,7 @@ GREEK_STRINGS = {
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
     "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
+    "Invalid selection or non-executable script. Exiting.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script. Έξοδος.",
 }
 
 # ------------------------------
@@ -144,11 +182,23 @@ def get_current_language_path():
     return ENGLISH_BASE_PATH # Default
 
 def get_current_display_language():
-    """Determines the current active language based on the startup path in bash.bashrc."""
+    """
+    Determines the current active language.
+    Priority:
+    1. Language JSON file (persistent)
+    2. bash.bashrc startup path (legacy)
+    3. English (default)
+    """
     global CURRENT_DISPLAY_LANGUAGE
     if CURRENT_DISPLAY_LANGUAGE is None:
-        current_path = get_current_language_path()
-        CURRENT_DISPLAY_LANGUAGE = LANGUAGE_MAP.get(current_path, 'english')
+        # 1. Try loading from persistent JSON
+        lang_from_json = load_language_preference()
+        if lang_from_json in ['english', 'greek']:
+            CURRENT_DISPLAY_LANGUAGE = lang_from_json
+        else:
+            # 2. Fallback to bashrc path
+            current_path = get_current_language_path()
+            CURRENT_DISPLAY_LANGUAGE = LANGUAGE_MAP.get(current_path, 'english')
     return CURRENT_DISPLAY_LANGUAGE
 
 def _(text):
@@ -582,6 +632,10 @@ def change_language():
         print(_("No language selected. Returning to settings menu..."))
         return
 
+    # --- SAVE PERSISTENT PREFERENCE ---
+    save_language_preference(language)
+    # ----------------------------------
+
     # --- FIX: Set the new language immediately for the current session ---
     global CURRENT_DISPLAY_LANGUAGE
     CURRENT_DISPLAY_LANGUAGE = language
@@ -623,11 +677,11 @@ def change_language():
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu (Intact)
+# Helper for List Menu (MODIFIED)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
-    Lists subfolders and .py files, hiding dotfiles.
+    Lists subfolders and executable scripts (.py, .sh, +x), hiding dotfiles and Settings.py.
     """
     items = []
     # Translate "Go Back"
@@ -638,19 +692,31 @@ def browse_directory_list_menu(current_path, base_path):
     # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
     folder_tag = _("[FOLDER]")
     
+    settings_filename = os.path.basename(SETTINGS_SCRIPT_PATH)
+
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
             continue
+        # Don't list the settings script itself
+        if entry == settings_filename:
+            continue
+            
         full_path = os.path.join(current_path, entry)
         if os.path.isdir(full_path):
             # Use translated folder tag
             items.append(f"{folder_tag} {entry}")
-        elif entry.endswith(".py"):
-            items.append(entry)
+        # Check if it's a file AND (executable OR ends with .py/.sh)
+        elif os.path.isfile(full_path):
+             if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
+                 items.append(entry) # Just add the filename
     
-    if not items and os.path.abspath(current_path) != os.path.abspath(base_path):
-        print(_("No items found in this folder."))
-        return None
+    if not items and os.path.abspath(current_path) == os.path.abspath(base_path):
+        # Only show "No items" if we are in the root and it's empty
+        pass
+    elif not items:
+        # We are in a subfolder with no items
+        pass
+
 
     # Use a pipe for fzf input
     input_text = "\n".join(items)
@@ -678,7 +744,7 @@ def browse_directory_list_menu(current_path, base_path):
         return os.path.join(current_path, selected)
 
 # ------------------------------
-# Integrated List Menu with folder navigation (Intact)
+# Integrated List Menu with folder navigation (MODIFIED)
 # ------------------------------
 def run_list_menu():
     # The base path is the directory this script is run from (which is the selected language folder).
@@ -687,9 +753,11 @@ def run_list_menu():
     current_path = base_path
     while True:
         selected = browse_directory_list_menu(current_path, base_path)
+        
         if selected is None:
             print(_("No selection made. Exiting."))
             return
+            
         if selected == "back":
             parent = os.path.dirname(current_path)
             # Ensure we don't navigate above the base language folder
@@ -698,31 +766,47 @@ def run_list_menu():
             else:
                 current_path = base_path
             continue
+            
         if os.path.isdir(selected):
             current_path = selected
             continue
-        elif os.path.isfile(selected) and selected.endswith(".py"):
+            
+        elif os.path.isfile(selected):
             # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
             rel_path = os.path.relpath(selected, base_path)
-            command = f"python3 \"{rel_path}\""
+            command = ""
             
-            ret = os.system(command)
+            # Determine how to run it
+            if rel_path.endswith(".py"):
+                command = f"python3 \"{rel_path}\""
+            elif rel_path.endswith(".sh"):
+                command = f"bash \"{rel_path}\""
+            # Check for executable permission as fallback
+            elif os.access(selected, os.X_OK):
+                # Use ./ for other executables
+                command = f"./\"{rel_path}\""
             
-            # Check for return code indicating KeyboardInterrupt
-            if (ret >> 8) == 2:
-                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-                sys.exit(0)
-            return # Exit the menu loop and return to Termux
+            if command:
+                ret = os.system(command)
+                
+                # Check for return code indicating KeyboardInterrupt
+                if (ret >> 8) == 2:
+                    print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                    sys.exit(0)
+                return # Exit the menu loop and return to Termux
+            else:
+                print(_("Invalid selection or non-executable script. Exiting."))
+                return
         else:
             print(_("Invalid selection. Exiting."))
             return
 
 # ------------------------------
-# Helper for Grid Menu (Intact)
+# Helper for Grid Menu (MODIFIED)
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples (friendly_name, full_path), hiding dotfiles.
+    Returns a list of tuples (friendly_name, full_path), hiding dotfiles and Settings.py.
     """
     entries = []
     # Translate "Go Back"
@@ -733,19 +817,27 @@ def list_directory_entries(path, base_path):
     # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
     folder_tag = _("[FOLDER]")
     
+    settings_filename = os.path.basename(SETTINGS_SCRIPT_PATH)
+    
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
             continue
+        # Don't list the settings script itself
+        if entry == settings_filename:
+            continue
+            
         full = os.path.join(path, entry)
         if os.path.isdir(full):
             # Use translated folder tag
             entries.append((f"{folder_tag} {entry}", full))
-        elif entry.endswith(".py"):
-            entries.append((entry, full))
+        # Check if it's a file AND (executable OR ends with .py/.sh)
+        elif os.path.isfile(full):
+             if os.access(full, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
+                 entries.append((entry, full)) # (filename, full_path)
     return entries
 
 # ------------------------------
-# Integrated Grid Menu with folder navigation (Intact)
+# Integrated Grid Menu with folder navigation (MODIFIED)
 # ------------------------------
 def run_grid_menu():
     # The base path is the directory this script is run from.
@@ -883,9 +975,14 @@ def run_grid_menu():
     current_path = base_path
     while True:
         entries = list_directory_entries(current_path, base_path)
-        if not entries:
-            print(_("No entries found in this folder."))
+        if not entries and os.path.abspath(current_path) == os.path.abspath(base_path):
+            print(_("No items found in this folder."))
             return
+        elif not entries:
+             # We are in an empty subfolder, just go back
+             current_path = os.path.dirname(current_path)
+             continue
+             
         friendly_names = [entry[0] for entry in entries]
         
         # Wrap the drawing logic in curses.wrapper
@@ -910,16 +1007,32 @@ def run_grid_menu():
             continue
             
         # Execute the script
+        # selected_entry[0] is friendly_name, selected_entry[1] is full_path
+        selected_path = selected_entry[1]
+        
         # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
-        rel_path = os.path.relpath(selected_entry[1], base_path)
-        command = f"python3 \"{rel_path}\""
+        rel_path = os.path.relpath(selected_path, base_path)
+        command = ""
+
+        # Determine how to run it
+        if rel_path.endswith(".py"):
+            command = f"python3 \"{rel_path}\""
+        elif rel_path.endswith(".sh"):
+            command = f"bash \"{rel_path}\""
+        # Check for executable permission as fallback
+        elif os.access(selected_path, os.X_OK):
+            command = f"./\"{rel_path}\""
         
-        ret = os.system(command)
-        
-        if (ret >> 8) == 2:
-            print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-            sys.exit(0)
-        return
+        if command:
+            ret = os.system(command)
+            
+            if (ret >> 8) == 2:
+                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                sys.exit(0)
+            return # Exit menu loop
+        else:
+            print(_("Invalid selection or non-executable script. Exiting."))
+            return
 
 # ------------------------------
 # New Option: Update Packages & Modules (Intact)
@@ -1003,6 +1116,12 @@ def main():
 # ------------------------------
 if __name__ == "__main__":
     try:
+        # --- This is the main startup logic ---
+        
+        # 1. Set the display language from JSON or bashrc
+        get_current_display_language()
+        
+        # 2. Check if --menu flag is passed
         if len(sys.argv) > 1 and sys.argv[1] == "--menu":
             if len(sys.argv) > 2:
                 if sys.argv[2] == "list":
@@ -1012,11 +1131,14 @@ if __name__ == "__main__":
                     run_grid_menu()
                     sys.exit(0)
                 else:
+                    # Fallback to main settings if style is unknown
                     print(_("Unknown menu style. Use 'list' or 'grid'."))
+                    main()
             else:
                 # Fallback to main settings if no style is specified
                 main()
         else:
+            # If run directly (e.g. `python3 Settings.py`), show settings
             main()
     except KeyboardInterrupt:
         print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
