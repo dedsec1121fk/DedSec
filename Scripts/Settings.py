@@ -129,7 +129,7 @@ GREEK_STRINGS = {
     "back": "πίσω",
     "Go Back": "Πίσω",
     "No items found in this folder.": "Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.",
-    "Error running fzf": "Σφάλμα κατά την εκτέλεση του fzf",
+    "Error running fzf": "Σφάλμα κατά την εκτέεση του fzf",
     "Invalid selection. Exiting.": "Μη έγκυρη επιλογή. Έξοδος.",
     "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
     "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
@@ -681,7 +681,7 @@ def change_language():
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
-    Lists subfolders and executable scripts (.py, .sh, +x), hiding dotfiles and Settings.py.
+    Lists subfolders and executable scripts (.py, .sh, +x), hiding dotfiles.
     """
     items = []
     # Translate "Go Back"
@@ -692,13 +692,8 @@ def browse_directory_list_menu(current_path, base_path):
     # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
     folder_tag = _("[FOLDER]")
     
-    settings_filename = os.path.basename(SETTINGS_SCRIPT_PATH)
-
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
-            continue
-        # Don't list the settings script itself
-        if entry == settings_filename:
             continue
             
         full_path = os.path.join(current_path, entry)
@@ -793,6 +788,10 @@ def run_list_menu():
                 if (ret >> 8) == 2:
                     print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                     sys.exit(0)
+                
+                # If the script was Settings.py, it will show the settings menu.
+                # After the user exits settings, we return to the prompt.
+                # This is the same behavior as selecting any other script.
                 return # Exit the menu loop and return to Termux
             else:
                 print(_("Invalid selection or non-executable script. Exiting."))
@@ -806,7 +805,7 @@ def run_list_menu():
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples (friendly_name, full_path), hiding dotfiles and Settings.py.
+    Returns a list of tuples (friendly_name, full_path), hiding dotfiles.
     """
     entries = []
     # Translate "Go Back"
@@ -817,13 +816,8 @@ def list_directory_entries(path, base_path):
     # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
     folder_tag = _("[FOLDER]")
     
-    settings_filename = os.path.basename(SETTINGS_SCRIPT_PATH)
-    
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
-            continue
-        # Don't list the settings script itself
-        if entry == settings_filename:
             continue
             
         full = os.path.join(path, entry)
@@ -1029,6 +1023,8 @@ def run_grid_menu():
             if (ret >> 8) == 2:
                 print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                 sys.exit(0)
+            
+            # See note in run_list_menu()
             return # Exit menu loop
         else:
             print(_("Invalid selection or non-executable script. Exiting."))
@@ -1143,3 +1139,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
         sys.exit(0)
+```eof
+
+Let me know if you need any other adjustments!
