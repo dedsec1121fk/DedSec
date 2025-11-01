@@ -677,7 +677,7 @@ def change_language():
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu (MODIFIED)
+# Helper for List Menu (MODIFIED - FIX APPLIED)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
@@ -702,6 +702,11 @@ def browse_directory_list_menu(current_path, base_path):
             items.append(f"{folder_tag} {entry}")
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full_path):
+             # *** FIX START: Explicitly include Settings.py if it's a file in the current path.
+             if entry == "Settings.py" and full_path == SETTINGS_SCRIPT_PATH:
+                 items.append(entry)
+                 continue # Move to next entry to avoid double-check
+             # *** FIX END ***
              if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
                  items.append(entry) # Just add the filename
     
@@ -801,7 +806,7 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Helper for Grid Menu (MODIFIED)
+# Helper for Grid Menu (MODIFIED - FIX APPLIED)
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
@@ -826,6 +831,11 @@ def list_directory_entries(path, base_path):
             entries.append((f"{folder_tag} {entry}", full))
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full):
+             # *** FIX START: Explicitly include Settings.py if it's a file in the current path.
+             if entry == "Settings.py" and full == SETTINGS_SCRIPT_PATH:
+                 entries.append((entry, full))
+                 continue # Move to next entry to avoid double-check
+             # *** FIX END ***
              if os.access(full, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
                  entries.append((entry, full)) # (filename, full_path)
     return entries
@@ -1139,6 +1149,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
         sys.exit(0)
-```eof
-
-Let me know if you need any other adjustments!
