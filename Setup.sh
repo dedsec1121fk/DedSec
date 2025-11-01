@@ -10,7 +10,7 @@ pkg update -y && pkg upgrade -y
 # List of essential packages
 CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip"
 
-# Install Termux packages
+# Install Termux packages. '|| true' ensures the script continues on package failure.
 pkg install -y $CORE_PACKAGES || true
 
 echo "Termux package installation complete. Continuing to Python setup..."
@@ -18,7 +18,7 @@ echo "Termux package installation complete. Continuing to Python setup..."
 # --- 2. Python Package Setup ---
 echo "2. Upgrading pip, setuptools, and wheel..."
 
-# Upgrade pip and required build dependencies
+# Upgrade pip and required build dependencies.
 pip install --upgrade pip setuptools wheel --break-system-packages
 
 # --- 3. Python Package Installation ---
@@ -26,7 +26,7 @@ echo "3. Installing the target Python dependencies..."
 
 PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
 
-# Install all packages
+# Install all packages.
 pip install $PYTHON_PACKAGES
 
 if [ $? -eq 0 ]; then
@@ -36,9 +36,8 @@ else
 fi
 
 # --- 4. Execution Logic ---
-# NOTE: This section assumes the 'DedSec' directory already exists.
-REPO_DIR="DedSec"
-SCRIPT_PATH="./$REPO_DIR/Scripts/Settings.py"
+# Path is relative to the current directory (which is assumed to be 'DedSec').
+SCRIPT_PATH="./Scripts/Settings.py"
 
 echo "4. Attempting to run $SCRIPT_PATH..."
 
