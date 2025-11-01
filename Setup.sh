@@ -7,11 +7,10 @@ echo "1. Setting up storage, updating, and installing core packages..."
 termux-setup-storage
 pkg update -y && pkg upgrade -y
 
-# List of essential packages, including build tools (clang, rust) and utilities (termux-api, git).
-# The script uses '|| true' to continue past any non-existent packages like libffi-dev.
+# List of essential packages
 CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip"
 
-# Install Termux packages. '|| true' ensures the script continues on package failure.
+# Install Termux packages
 pkg install -y $CORE_PACKAGES || true
 
 echo "Termux package installation complete. Continuing to Python setup..."
@@ -19,7 +18,7 @@ echo "Termux package installation complete. Continuing to Python setup..."
 # --- 2. Python Package Setup ---
 echo "2. Upgrading pip, setuptools, and wheel..."
 
-# Upgrade pip and required build dependencies.
+# Upgrade pip and required build dependencies
 pip install --upgrade pip setuptools wheel --break-system-packages
 
 # --- 3. Python Package Installation ---
@@ -27,7 +26,7 @@ echo "3. Installing the target Python dependencies..."
 
 PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
 
-# Install all packages.
+# Install all packages
 pip install $PYTHON_PACKAGES
 
 if [ $? -eq 0 ]; then
@@ -36,22 +35,12 @@ else
     echo "WARNING: Python package installation had errors (see log above). Attempting to proceed."
 fi
 
-# --- 4. Git Clone ---
+# --- 4. Execution Logic ---
+# NOTE: This section assumes the 'DedSec' directory already exists.
 REPO_DIR="DedSec"
-echo "4. Cloning the $REPO_DIR repository..."
-
-git clone https://github.com/dedsec1121fk/DedSec
-
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to clone the $REPO_DIR repository. Exiting script."
-    exit 1
-fi
-echo "SUCCESS: Repository cloned successfully."
-
-# --- 5. Execution Logic ---
 SCRIPT_PATH="./$REPO_DIR/Scripts/Settings.py"
 
-echo "5. Attempting to run $SCRIPT_PATH..."
+echo "4. Attempting to run $SCRIPT_PATH..."
 
 # First attempt to run the script
 if [ -f "$SCRIPT_PATH" ]; then
