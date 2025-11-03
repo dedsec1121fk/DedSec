@@ -94,12 +94,12 @@ except Exception:
     console = None # type: ignore
     RICH_AVAILABLE = False
     # ... (Dummy classes from previous version, no changes) ...
-    class Progress: pass
-    class SpinnerColumn: pass
-    class TextColumn: pass
-    class BarColumn: pass
-    class TimeElapsedColumn: pass
-    class TaskID: pass
+    class Progress: pass # type: ignore
+    class SpinnerColumn: pass # type: ignore
+    class TextColumn: pass # type: ignore
+    class BarColumn: pass # type: ignore
+    class TimeElapsedColumn: pass # type: ignore
+    class TaskID: pass # type: ignore
 
 # ---------------------------
 # Helpers: DB manager, results folder
@@ -247,6 +247,10 @@ class DigitalFootprintFinder:
         # --- END FIX ---
         
         self.session = make_requests_session(timeout=DEFAULT_TIMEOUT, retries=DEFAULT_RETRIES, backoff=DEFAULT_BACKOFF, stealth=self.stealth)
+        
+        # --- NEW: For Google Search results ---
+        self.google_results_links: List[Tuple[str, str]] = []
+
 
     # --- START FIX: NEW HELPER METHOD ---
     def _find_or_create_platforms_json(self) -> str:
@@ -513,6 +517,11 @@ class DigitalFootprintFinder:
         else:
             print(f"  {phase_name}: Checking {len(keys_to_scan)} platforms...")
 
+        # --- MODIFIED: Added for text-based progress bar ---
+        completed_count = 0
+        total_count = len(keys_to_scan)
+        # --- END MODIFIED ---
+
         with ThreadPoolExecutor(max_workers=min(len(keys_to_scan), self.max_workers)) as executor:
             future_to_key = {executor.submit(self._check_platform, key, username): key for key in keys_to_scan}
             
@@ -526,10 +535,73 @@ class DigitalFootprintFinder:
                 except Exception:
                     pass
                 
+                # --- MODIFIED: Logic for both rich and text progress ---
+                completed_count += 1
                 if progress and task_id:
                     progress.update(task_id, advance=1)
+                elif not progress and total_count > 0:
+                    # Simple text progress bar
+                    percent = (completed_count * 100) // total_count
+                    bar_len = 20
+                    filled_len = int(bar_len * completed_count // total_count)
+                    bar = '█' * filled_len + '-' * (bar_len - filled_len)
+                    print(f"  Progress: [{bar}] {percent}% ({completed_count}/{total_count})", end='\r')
+                # --- END MODIFIED ---
+
+        if not progress:
+             print() # Print a newline to finish the progress bar
         
         return found_results
+
+    # --- NEW: Google Search Phase ---
+    def _run_google_search_phase(self, username: str, progress: Optional[Progress]) -> List[Tuple[str, str]]:
+        """
+        Generates Google search links (dorks) as a conceptual search.
+        This does NOT scrape Google, but provides links for manual investigation.
+        """
+        task_id = None
+        if progress:
+            task_id = progress.add_task("[yellow]Generating Google Suggestions...", total=1)
+        else:
+            print("\n  Generating Google Search Suggestions...")
+
+        if RICH_AVAILABLE:
+            console.print("  [bold yellow]INFO:[/bold yellow] This is a conceptual search for advanced OSINT.")
+            console.print("  To automate this, you would need to integrate a service like the [bold]Google Custom Search JSON API[/bold].")
+            console.print("  The following links are suggestions for [bold]manual searching[/bold]:")
+        else:
+            print("  INFO: This is a conceptual search for advanced OSINT.")
+            print("  To automate this, you would need to integrate a service like the Google Custom Search JSON API.")
+            print("  The following links are suggestions for manual searching:")
+
+        # Common dorks for platforms that are hard to scan or for finding more info
+        dorks = [
+            f'"https://www.linkedin.com/in/{username}"',
+            f'"https://github.com/{username}"',
+            f'"https://twitter.com/{username}"',
+            f'"{username}" site:stackoverflow.com/users',
+            f'"{username}" site:reddit.com/user',
+            f'"{username}" site:medium.com',
+            f'"{username}" site:dev.to'
+        ]
+        
+        results_for_file = []
+        for dork in dorks:
+            google_url = f"https://www.google.com/search?q={quote(dork)}"
+            # This name will be used to identify it in the report
+            name = f"Google Search: {dork}" 
+            if RICH_AVAILABLE:
+                console.print(f"  - [cyan]{dork}[/cyan]")
+            else:
+                print(f"  - {dork}")
+            results_for_file.append((name, google_url))
+        
+        if progress and task_id:
+            progress.update(task_id, advance=1)
+        
+        return results_for_file
+    # --- END NEW ---
+
 
     def run_account_discovery(self, username_list: List[str]):
         # ... (Code from previous version, no changes) ...
@@ -565,39 +637,59 @@ class DigitalFootprintFinder:
             
             try:
                 # --- FIX: Run a single, unified scan ---
-                all_found_results = self._run_scan_phase(
+                platform_results = self._run_scan_phase(
                     f"Scanning {len(self.all_platform_keys)} Platforms", # <-- Updated text
                     self.all_platform_keys, 
                     username, 
                     progress_manager
                 )
+                all_found_results.extend(platform_results)
                 # --- END FIX ---
+                
+                # --- NEW: Google Search Phase ---
+                self.google_results_links = self._run_google_search_phase(username, progress_manager)
+                all_found_results.extend(self.google_results_links)
+                # --- END NEW ---
             
             finally:
                 if progress_manager:
                     progress_manager.stop()
                     console.print(f"[bold]Scan for {username} complete.[/bold]")
 
-            # --- Save Results ---
+            # --- MODIFIED: Save Results ---
             txt_path = os.path.join(RESULTS_SAVE_FOLDER, f"{username}.txt")
             json_path = os.path.join(RESULTS_SAVE_FOLDER, f"{username}.json")
             try:
-                all_found_results.sort()
-                with open(txt_path, 'w', encoding='utf-8') as tf:
-                    if not all_found_results:
-                        tf.write(f"No digital footprint found for {username}\n")
-                    else:
-                        tf.write(f"Results for {username} ({len(all_found_results)} matches)\n{'='*40}\n")
-                        for name, url in all_found_results:
-                            tf.write(f"{name}: {url}\n")
-                
-                with open(json_path, 'w', encoding='utf-8') as jf:
-                    json.dump([{"platform": name, "url": url} for name, url in all_found_results], jf, indent=2)
+                # Separate platform results from Google suggestions
+                platform_results = sorted([res for res in all_found_results if not res[0].startswith("Google Search:")])
+                google_suggestions = [res for res in all_found_results if res[0].startswith("Google Search:")]
 
-                if RICH_AVAILABLE: console.print(f"[bold green]Saved {len(all_found_results)} results for {username} to {RESULTS_SAVE_FOLDER}[/bold green]")
-                else: print(f"Saved {len(all_found_results)} results for {username} to {RESULTS_SAVE_FOLDER}")
+                with open(txt_path, 'w', encoding='utf-8') as tf:
+                    if not platform_results:
+                        tf.write(f"No direct platform footprint found for {username}\n")
+                    else:
+                        tf.write(f"Results for {username} ({len(platform_results)} matches)\n{'='*40}\n")
+                        for name, url in platform_results:
+                            tf.write(f"{name}: {url}\n")
+                    
+                    if google_suggestions:
+                        tf.write(f"\n\nSuggested Google Searches\n{'='*40}\n")
+                        tf.write("These are not confirmed hits, but links to Google searches you can run manually.\n\n")
+                        for name, url in google_suggestions:
+                            # Clean up the name for the report
+                            clean_name = name.replace("Google Search: ", "")
+                            tf.write(f"Search: {clean_name}\n  -> Link: {url}\n")
+                
+                # JSON file will only contain confirmed platform results
+                with open(json_path, 'w', encoding='utf-8') as jf:
+                    json.dump([{"platform": name, "url": url} for name, url in platform_results], jf, indent=2)
+
+                if RICH_AVAILABLE: console.print(f"[bold green]Saved {len(platform_results)} results for {username} to {RESULTS_SAVE_FOLDER}[/bold green]")
+                else: print(f"Saved {len(platform_results)} results for {username} to {RESULTS_SAVE_FOLDER}")
+            
             except Exception as e:
                 if RICH_AVAILABLE: console.print(f"[red]Error saving results for {username}: {e}[/red]")
+            # --- END MODIFIED ---
 
     def run(self):
         # ... (Code from previous version, no changes) ...
@@ -614,7 +706,8 @@ class DigitalFootprintFinder:
         # ... (Code from previous version, no changes) ...
         print("--- Digital Footprint Finder — Console Mode ---")
         if self.proxies_list:
-            print(f"--- [bold green]Proxy Mode: ACTIVE ({len(self.proxies_list)} proxies loaded)[/bold green] ---", end='\n\n')
+            if RICH_AVAILABLE: console.print(f"--- [bold green]Proxy Mode: ACTIVE ({len(self.proxies_list)} proxies loaded)[/bold green] ---", end='\n\n')
+            else: print(f"--- Proxy Mode: ACTIVE ({len(self.proxies_list)} proxies loaded) ---\n")
         print("Enter usernames one per line. A blank line starts the scan.")
         usernames = []
         i = 1
@@ -664,7 +757,7 @@ class DigitalFootprintFinder:
                 x = w//2 - len(item)//2
                 y = h//2 - len(menu)//2 + i
                 if i == current:
-                    try: std.attron(curses.color_pair(1)); stdscr.addstr(y, x, item); stdscr.attroff(curses.color_pair(1))
+                    try: stdscr.attron(curses.color_pair(1)); stdscr.addstr(y, x, item); stdscr.attroff(curses.color_pair(1))
                     except Exception: stdscr.addstr(y, x, item, curses.A_REVERSE)
                 else:
                     stdscr.addstr(y, x, item)
@@ -729,7 +822,8 @@ Usage:
 1. Select "New Search".
 2. Enter usernames one per line (press ENTER on a blank line to start).
 3. The program scans all platforms in a single, unified scan.
-4. Results are saved as .txt and .json files.
+4. **NEW:** A conceptual Google search phase provides links for manual investigation.
+5. Results are saved as .txt (with Google links) and .json (platforms only).
 
 Advanced Features:
 - Stealth Mode (default ACTIVE):

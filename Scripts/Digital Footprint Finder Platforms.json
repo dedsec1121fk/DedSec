@@ -7,12 +7,15 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "content isn't available"
+                "content isn't available",
+                "this content isn't available right now"
             ],
             "profile_markers": [
                 "friends",
                 "followers",
-                "posts"
+                "posts",
+                "photos",
+                "about"
             ]
         },
         "twitter": {
@@ -22,12 +25,15 @@
             "error_type": "string",
             "not_found_text": [
                 "this account doesn’t exist",
-                "page doesn't exist"
+                "page doesn't exist",
+                "something went wrong"
             ],
             "profile_markers": [
                 "followers",
                 "following",
-                "tweets"
+                "tweets",
+                "posts",
+                "profile"
             ]
         },
         "instagram": {
@@ -41,7 +47,8 @@
             "profile_markers": [
                 "followers",
                 "following",
-                "posts"
+                "posts",
+                "profile"
             ]
         },
         "tiktok": {
@@ -50,12 +57,14 @@
             "url_check": "https://www.tiktok.com/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "couldn't find this account"
+                "couldn't find this account",
+                "this account is private"
             ],
             "profile_markers": [
                 "followers",
                 "following",
-                "likes"
+                "likes",
+                "videos"
             ]
         },
         "linkedin": {
@@ -64,11 +73,15 @@
             "url_check": "https://www.linkedin.com/in/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "profile not found"
+                "profile not found",
+                "an unknown error occurred"
             ],
             "profile_markers": [
                 "connections",
-                "followers"
+                "followers",
+                "experience",
+                "education",
+                "activity"
             ]
         },
         "pinterest": {
@@ -78,11 +91,14 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "this page is not available"
+                "this page is not available",
+                "we couldn't find that page"
             ],
             "profile_markers": [
                 "followers",
-                "following"
+                "following",
+                "pins",
+                "boards"
             ]
         },
         "snapchat": {
@@ -92,11 +108,13 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "404"
+                "404",
+                "could not find user"
             ],
             "profile_markers": [
                 "add friend",
-                "snapscore"
+                "snapscore",
+                "public profile"
             ]
         },
         "telegram": {
@@ -105,11 +123,13 @@
             "url_check": "https://t.me/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "if you have telegram, you can contact"
+                "if you have telegram, you can contact",
+                "no user found"
             ],
             "profile_markers": [
                 "subscribers",
-                "members"
+                "members",
+                "view channel"
             ]
         },
         "vk": {
@@ -119,11 +139,14 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "user deleted or banned"
+                "user deleted or banned",
+                "this page is private"
             ],
             "profile_markers": [
                 "friends",
-                "followers"
+                "followers",
+                "photos",
+                "posts"
             ]
         },
         "wechat": {
@@ -135,7 +158,8 @@
                 "requires login"
             ],
             "profile_markers": [
-                "profile"
+                "profile",
+                "moments"
             ]
         },
         "threads": {
@@ -144,11 +168,14 @@
             "url_check": "https://www.threads.net/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "sorry, this page isn't available"
+                "sorry, this page isn't available",
+                "couldn't find this account"
             ],
             "profile_markers": [
                 "followers",
-                "profile"
+                "profile",
+                "replies",
+                "threads"
             ]
         },
         "bereal": {
@@ -162,7 +189,40 @@
             ],
             "profile_markers": [
                 "friends",
-                "memories"
+                "memories",
+                "profile"
+            ]
+        },
+        "tumblr": {
+            "name": "Tumblr",
+            "method": "username_url",
+            "url_check": "https://{identifier}.tumblr.com",
+            "error_type": "string",
+            "not_found_text": [
+                "there's nothing here",
+                "not found"
+            ],
+            "profile_markers": [
+                "posts",
+                "archive",
+                "followers",
+                "ask"
+            ]
+        },
+        "mastodon": {
+            "name": "Mastodon",
+            "method": "username_url",
+            "url_check": "https://mastodon.social/@{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page does not exist",
+                "404 not found"
+            ],
+            "profile_markers": [
+                "posts",
+                "followers",
+                "following",
+                "toots"
             ]
         }
     },
@@ -174,12 +234,15 @@
             "error_type": "string",
             "not_found_text": [
                 "nobody on reddit goes by that name",
-                "page not found"
+                "page not found",
+                "this user may have been suspended"
             ],
             "profile_markers": [
                 "karma",
                 "post karma",
-                "comment karma"
+                "comment karma",
+                "posts",
+                "comments"
             ]
         },
         "quora": {
@@ -188,12 +251,15 @@
             "url_check": "https://www.quora.com/profile/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page doesn't exist"
+                "page doesn't exist",
+                "profile is not available"
             ],
             "profile_markers": [
                 "answers",
                 "questions",
-                "followers"
+                "followers",
+                "following",
+                "posts"
             ]
         },
         "medium": {
@@ -203,12 +269,14 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "user not found"
+                "user not found",
+                "404"
             ],
             "profile_markers": [
                 "followers",
                 "following",
-                "claps"
+                "claps",
+                "stories"
             ]
         },
         "9gag": {
@@ -217,12 +285,14 @@
             "url_check": "https://9gag.com/u/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "oops!"
             ],
             "profile_markers": [
                 "posts",
                 "comments",
-                "followers"
+                "followers",
+                "upvotes"
             ]
         },
         "producthunt": {
@@ -231,12 +301,14 @@
             "url_check": "https://www.producthunt.com/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "this page is lost in space"
             ],
             "profile_markers": [
                 "followers",
                 "following",
-                "upvotes"
+                "upvotes",
+                "made"
             ]
         },
         "askfm": {
@@ -245,11 +317,14 @@
             "url_check": "https://ask.fm/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "couldn't find the page"
             ],
             "profile_markers": [
                 "answers",
-                "likes"
+                "likes",
+                "questions",
+                "gifts"
             ]
         },
         "gaiaonline": {
@@ -258,12 +333,14 @@
             "url_check": "https://www.gaiaonline.com/profiles/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "user not found"
+                "user not found",
+                "we couldn't find that"
             ],
             "profile_markers": [
                 "profile",
                 "posts",
-                "joined"
+                "joined",
+                "journal"
             ]
         },
         "disqus": {
@@ -272,11 +349,13 @@
             "url_check": "https://disqus.com/by/{identifier}/",
             "error_type": "string",
             "not_found_text": [
-                "profile not found"
+                "profile not found",
+                "page you requested was not found"
             ],
             "profile_markers": [
                 "comments",
-                "discussions"
+                "discussions",
+                "followers"
             ]
         },
         "ifunny": {
@@ -285,12 +364,109 @@
             "url_check": "https://ifunny.co/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "posts",
                 "subscribers",
-                "profile"
+                "profile",
+                "smiles"
+            ]
+        },
+        "imgur": {
+            "name": "Imgur",
+            "method": "username_url",
+            "url_check": "https://imgur.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "oh noes, page not found",
+                "404"
+            ],
+            "profile_markers": [
+                "posts",
+                "comments",
+                "favorites",
+                "reputation"
+            ]
+        },
+        "letterboxd": {
+            "name": "Letterboxd",
+            "method": "username_url",
+            "url_check": "https://letterboxd.com/{identifier}/",
+            "error_type": "string",
+            "not_found_text": [
+                "sorry, we can’t find that member",
+                "page not found"
+            ],
+            "profile_markers": [
+                "films",
+                "diary",
+                "reviews",
+                "lists",
+                "followers"
+            ]
+        },
+        "myanimelist": {
+            "name": "MyAnimeList",
+            "method": "username_url",
+            "url_check": "https://myanimelist.net/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found",
+                "no user with that name"
+            ],
+            "profile_markers": [
+                "stats",
+                "favorites",
+                "friends",
+                "animelist"
+            ]
+        },
+        "tripadvisor": {
+            "name": "Tripadvisor",
+            "method": "username_url",
+            "url_check": "https://www.tripadvisor.com/Profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "profile does not exist"
+            ],
+            "profile_markers": [
+                "reviews",
+                "contributions",
+                "followers",
+                "photos"
+            ]
+        },
+        "yelp": {
+            "name": "Yelp",
+            "method": "username_url",
+            "url_check": "https://www.yelp.com/user_details?userid={identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "we're sorry, we couldn't find that user"
+            ],
+            "profile_markers": [
+                "reviews",
+                "friends",
+                "photos",
+                "compliments"
+            ]
+        },
+        "fandom": {
+            "name": "Fandom",
+            "method": "username_url",
+            "url_check": "https://www.fandom.com/u/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user profile page not found"
+            ],
+            "profile_markers": [
+                "contributions",
+                "activity",
+                "message wall"
             ]
         }
     },
@@ -307,7 +483,9 @@
             "profile_markers": [
                 "repositories",
                 "followers",
-                "following"
+                "following",
+                "contributions",
+                "stars"
             ]
         },
         "gitlab": {
@@ -317,12 +495,14 @@
             "error_type": "string",
             "not_found_text": [
                 "page is unavailable",
-                "user was not found"
+                "user was not found",
+                "404"
             ],
             "profile_markers": [
                 "projects",
                 "followers",
-                "following"
+                "following",
+                "activity"
             ]
         },
         "bitbucket": {
@@ -332,11 +512,13 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "user not found"
+                "user not found",
+                "repository not found"
             ],
             "profile_markers": [
                 "repositories",
-                "snippets"
+                "snippets",
+                "following"
             ]
         },
         "replit": {
@@ -345,10 +527,14 @@
             "url_check": "https://replit.com/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "user not found"
+                "user not found",
+                "page not found"
             ],
             "profile_markers": [
-                "repls"
+                "repls",
+                "followers",
+                "activity",
+                "cycles"
             ]
         },
         "codepen": {
@@ -357,12 +543,14 @@
             "url_check": "https://codepen.io/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "doesn't exist"
             ],
             "profile_markers": [
                 "pens",
                 "projects",
-                "collections"
+                "collections",
+                "followers"
             ]
         },
         "devto": {
@@ -371,12 +559,14 @@
             "url_check": "https://dev.to/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "posts",
                 "followers",
-                "following"
+                "following",
+                "joined"
             ]
         },
         "sourceforge": {
@@ -391,7 +581,8 @@
             "profile_markers": [
                 "projects",
                 "reviews",
-                "profile"
+                "profile",
+                "activity"
             ]
         },
         "hackerrank": {
@@ -400,12 +591,14 @@
             "url_check": "https://www.hackerrank.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "something went wrong"
+                "something went wrong",
+                "profile not found"
             ],
             "profile_markers": [
                 "badges",
                 "points",
-                "submissions"
+                "submissions",
+                "certificates"
             ]
         },
         "stackoverflow": {
@@ -420,7 +613,8 @@
             "profile_markers": [
                 "reputation",
                 "badges",
-                "answers"
+                "answers",
+                "questions"
             ]
         },
         "pypi": {
@@ -429,11 +623,13 @@
             "url_check": "https://pypi.org/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "404"
             ],
             "profile_markers": [
                 "projects",
-                "contributions"
+                "contributions",
+                "profile"
             ]
         },
         "dockerhub": {
@@ -442,11 +638,13 @@
             "url_check": "https://hub.docker.com/u/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "user not found"
+                "user not found",
+                "page not found"
             ],
             "profile_markers": [
                 "repositories",
-                "pulls"
+                "pulls",
+                "organizations"
             ]
         },
         "npmjs": {
@@ -455,11 +653,13 @@
             "url_check": "https://www.npmjs.com/~{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "404"
             ],
             "profile_markers": [
                 "packages",
-                "profile"
+                "profile",
+                "favorites"
             ]
         },
         "leetcode": {
@@ -474,7 +674,8 @@
             "profile_markers": [
                 "submissions",
                 "ranking",
-                "problems solved"
+                "problems solved",
+                "contest"
             ]
         },
         "kaggle": {
@@ -484,12 +685,46 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "user not found"
+                "user not found",
+                "404"
             ],
             "profile_markers": [
                 "datasets",
                 "notebooks",
-                "competitions"
+                "competitions",
+                "discussion"
+            ]
+        },
+        "gitea": {
+            "name": "Gitea",
+            "method": "username_url",
+            "url_check": "https://gitea.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "user not found"
+            ],
+            "profile_markers": [
+                "repositories",
+                "followers",
+                "following",
+                "activity"
+            ]
+        },
+        "keybase": {
+            "name": "Keybase",
+            "method": "username_url",
+            "url_check": "https://keybase.io/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found",
+                "page not found"
+            ],
+            "profile_markers": [
+                "proofs",
+                "followers",
+                "following",
+                "public key"
             ]
         }
     },
@@ -505,7 +740,9 @@
             "profile_markers": [
                 "level",
                 "games",
-                "friends"
+                "friends",
+                "badges",
+                "inventory"
             ]
         },
         "twitch": {
@@ -519,7 +756,8 @@
             "profile_markers": [
                 "followers",
                 "videos",
-                "clips"
+                "clips",
+                "about"
             ]
         },
         "roblox": {
@@ -528,7 +766,8 @@
             "url_check": "https://www.roblox.com/user.aspx?username={identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page cannot be found"
+                "page cannot be found",
+                "user not found"
             ],
             "profile_markers": [
                 "friends",
@@ -548,7 +787,8 @@
             "profile_markers": [
                 "gamerscore",
                 "friends",
-                "activity"
+                "activity",
+                "achievements"
             ]
         },
         "chess": {
@@ -558,12 +798,14 @@
             "error_type": "string",
             "not_found_text": [
                 "page not found",
-                "could not find"
+                "could not find",
+                "account not found"
             ],
             "profile_markers": [
                 "rating",
                 "stats",
-                "games"
+                "games",
+                "friends"
             ]
         },
         "itchio": {
@@ -572,12 +814,14 @@
             "url_check": "https://{identifier}.itch.io/",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "projects",
                 "games",
-                "collections"
+                "collections",
+                "followers"
             ]
         },
         "psnprofiles": {
@@ -591,7 +835,8 @@
             "profile_markers": [
                 "trophies",
                 "level",
-                "games"
+                "games",
+                "friends"
             ]
         },
         "speedrun": {
@@ -605,7 +850,8 @@
             "profile_markers": [
                 "runs",
                 "personal bests",
-                "profile"
+                "profile",
+                "games"
             ]
         },
         "osu": {
@@ -619,7 +865,8 @@
             "profile_markers": [
                 "performance",
                 "ranking",
-                "stats"
+                "stats",
+                "scores"
             ]
         },
         "lolchess": {
@@ -633,7 +880,8 @@
             "profile_markers": [
                 "rank",
                 "matches",
-                "profile"
+                "profile",
+                "stats"
             ]
         },
         "fortnitetracker": {
@@ -647,7 +895,8 @@
             "profile_markers": [
                 "stats",
                 "matches",
-                "events"
+                "events",
+                "kills"
             ]
         },
         "gog": {
@@ -661,7 +910,8 @@
             "profile_markers": [
                 "games",
                 "friends",
-                "profile"
+                "profile",
+                "wishlist"
             ]
         },
         "nexusmods": {
@@ -670,12 +920,14 @@
             "url_check": "https://users.nexusmods.com/users/lookup?name={identifier}",
             "error_type": "string",
             "not_found_text": [
-                "\"found\":false"
+                "\"found\":false",
+                "user not found"
             ],
             "profile_markers": [
                 "files",
                 "mods",
-                "profile"
+                "profile",
+                "donations"
             ]
         },
         "curseforge": {
@@ -684,12 +936,31 @@
             "url_check": "https://www.curseforge.com/members/{identifier}/projects",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "404"
             ],
             "profile_markers": [
                 "projects",
                 "contributions",
-                "profile"
+                "profile",
+                "points"
+            ]
+        },
+        "newgrounds": {
+            "name": "Newgrounds",
+            "method": "username_url",
+            "url_check": "https://{identifier}.newgrounds.com",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "no user by that name"
+            ],
+            "profile_markers": [
+                "projects",
+                "art",
+                "movies",
+                "games",
+                "posts"
             ]
         }
     },
@@ -700,12 +971,14 @@
             "url_check": "https://www.behance.net/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "projects",
                 "appreciations",
-                "followers"
+                "followers",
+                "following"
             ]
         },
         "dribbble": {
@@ -714,12 +987,14 @@
             "url_check": "https://dribbble.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "whoops"
             ],
             "profile_markers": [
                 "shots",
                 "projects",
-                "followers"
+                "followers",
+                "likes"
             ]
         },
         "deviantart": {
@@ -729,12 +1004,14 @@
             "error_type": "string",
             "not_found_text": [
                 "404",
-                "page not found"
+                "page not found",
+                "deactivated account"
             ],
             "profile_markers": [
                 "gallery",
                 "deviations",
-                "watchers"
+                "watchers",
+                "posts"
             ]
         },
         "artstation": {
@@ -743,12 +1020,14 @@
             "url_check": "https://www.artstation.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "profile not found"
             ],
             "profile_markers": [
                 "portfolio",
                 "projects",
-                "followers"
+                "followers",
+                "likes"
             ]
         },
         "carbonmade": {
@@ -757,12 +1036,14 @@
             "url_check": "https://{identifier}.carbonmade.com",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "portfolio",
                 "projects",
-                "contact"
+                "contact",
+                "about"
             ]
         },
         "carrd": {
@@ -771,11 +1052,13 @@
             "url_check": "https://{identifier}.carrd.co",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "site not found"
             ],
             "profile_markers": [
                 "profile",
-                "contact"
+                "contact",
+                "links"
             ]
         },
         "flickr": {
@@ -784,12 +1067,14 @@
             "url_check": "https://www.flickr.com/people/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "photostream",
                 "albums",
-                "galleries"
+                "galleries",
+                "faves"
             ]
         },
         "unsplash": {
@@ -798,12 +1083,14 @@
             "url_check": "https://unsplash.com/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "photos",
                 "collections",
-                "followers"
+                "followers",
+                "likes"
             ]
         },
         "500px": {
@@ -812,12 +1099,14 @@
             "url_check": "https://500px.com/p/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "user not found"
             ],
             "profile_markers": [
                 "photos",
                 "galleries",
-                "followers"
+                "followers",
+                "about"
             ]
         },
         "wattpad": {
@@ -831,7 +1120,8 @@
             "profile_markers": [
                 "works",
                 "reading lists",
-                "followers"
+                "followers",
+                "following"
             ]
         },
         "goodreads": {
@@ -845,7 +1135,8 @@
             "profile_markers": [
                 "bookshelves",
                 "reviews",
-                "friends"
+                "friends",
+                "stats"
             ]
         },
         "figma": {
@@ -854,12 +1145,150 @@
             "url_check": "https://www.figma.com/@{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "files",
                 "plugins",
-                "community"
+                "community",
+                "templates"
+            ]
+        },
+        "discogs": {
+            "name": "Discogs",
+            "method": "username_url",
+            "url_check": "https://www.discogs.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user does not exist",
+                "page not found"
+            ],
+            "profile_markers": [
+                "collection",
+                "wantlist",
+                "ratings",
+                "contributions"
+            ]
+        },
+        "ratemusic": {
+            "name": "RateYourMusic",
+            "method": "username_url",
+            "url_check": "https://rateyourmusic.com/~{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user not found",
+                "invalid user"
+            ],
+            "profile_markers": [
+                "ratings",
+                "reviews",
+                "lists",
+                "collection"
+            ]
+        },
+        "etsy": {
+            "name": "Etsy",
+            "method": "username_url",
+            "url_check": "https://www.etsy.com/people/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "uh oh!"
+            ],
+            "profile_markers": [
+                "favorites",
+                "shop",
+                "profile",
+                "following"
+            ]
+        },
+        "amazonauthor": {
+            "name": "Amazon Author",
+            "method": "username_url",
+            "url_check": "https://www.amazon.com/author/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "looking for something?"
+            ],
+            "profile_markers": [
+                "books",
+                "biography",
+                "blog"
+            ]
+        },
+        "linktree": {
+            "name": "Linktree",
+            "method": "username_url",
+            "url_check": "https://linktr.ee/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "this linktree profile does not exist"
+            ],
+            "profile_markers": [
+                "links",
+                "profile",
+                "socials"
+            ]
+        },
+        "gravatar": {
+            "name": "Gravatar",
+            "method": "username_url",
+            "url_check": "https://en.gravatar.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "profile not found"
+            ],
+            "profile_markers": [
+                "profile",
+                "links",
+                "photos"
+            ]
+        },
+        "scribd": {
+            "name": "Scribd",
+            "method": "username_url",
+            "url_check": "https://www.scribd.com/user/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ],
+            "profile_markers": [
+                "uploads",
+                "documents",
+                "profile"
+            ]
+        },
+        "slideshare": {
+            "name": "SlideShare",
+            "method": "username_url",
+            "url_check": "https://www.slideshare.net/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ],
+            "profile_markers": [
+                "presentations",
+                "uploads",
+                "followers"
+            ]
+        },
+        "modelmayhem": {
+            "name": "ModelMayhem",
+            "method": "username_url",
+            "url_check": "https://www.modelmayhem.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "member not found"
+            ],
+            "profile_markers": [
+                "portfolio",
+                "photos",
+                "about",
+                "casting calls"
             ]
         }
     },
@@ -871,11 +1300,14 @@
             "error_type": "string",
             "not_found_text": [
                 "this channel does not exist",
-                "page isn't available"
+                "page isn't available",
+                "404"
             ],
             "profile_markers": [
                 "subscribers",
-                "videos"
+                "videos",
+                "playlists",
+                "about"
             ]
         },
         "vimeo": {
@@ -884,11 +1316,14 @@
             "url_check": "https://vimeo.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "videos",
-                "followers"
+                "followers",
+                "following",
+                "collections"
             ]
         },
         "soundcloud": {
@@ -897,11 +1332,14 @@
             "url_check": "https://soundcloud.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "doesn't exist"
             ],
             "profile_markers": [
                 "tracks",
-                "followers"
+                "followers",
+                "playlists",
+                "reposts"
             ]
         },
         "spotify": {
@@ -910,12 +1348,14 @@
             "url_check": "https://open.spotify.com/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "user not found"
             ],
             "profile_markers": [
                 "profile",
                 "playlists",
-                "followers"
+                "followers",
+                "following"
             ]
         },
         "bandcamp": {
@@ -924,12 +1364,14 @@
             "url_check": "https://bandcamp.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "no such user"
             ],
             "profile_markers": [
                 "music",
                 "discography",
-                "community"
+                "community",
+                "merch"
             ]
         },
         "dailymotion": {
@@ -938,12 +1380,14 @@
             "url_check": "https://www.dailymotion.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "videos",
                 "playlists",
-                "followers"
+                "followers",
+                "featured"
             ]
         },
         "lastfm": {
@@ -952,12 +1396,14 @@
             "url_check": "https://last.fm/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "user not found"
+                "user not found",
+                "page not found"
             ],
             "profile_markers": [
                 "scrobbles",
                 "artists",
-                "tracks"
+                "tracks",
+                "library"
             ]
         },
         "mixcloud": {
@@ -966,12 +1412,14 @@
             "url_check": "https://www.mixcloud.com/{identifier}/",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "404"
             ],
             "profile_markers": [
                 "shows",
                 "tracks",
-                "followers"
+                "followers",
+                "following"
             ]
         },
         "patreon": {
@@ -980,12 +1428,46 @@
             "url_check": "https://www.patreon.com/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "page not found"
+                "page not found",
+                "is creating"
             ],
             "profile_markers": [
                 "creator",
                 "posts",
-                "community"
+                "community",
+                "patrons"
+            ]
+        },
+        "reverbnation": {
+            "name": "ReverbNation",
+            "method": "username_url",
+            "url_check": "https.www.reverbnation.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "artist not found"
+            ],
+            "profile_markers": [
+                "music",
+                "songs",
+                "shows",
+                "fans"
+            ]
+        },
+        "giphy": {
+            "name": "Giphy",
+            "method": "username_url",
+            "url_check": "https://giphy.com/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "404"
+            ],
+            "profile_markers": [
+                "gifs",
+                "stickers",
+                "channel",
+                "followers"
             ]
         }
     },
@@ -999,7 +1481,8 @@
                 "not found"
             ],
             "profile_markers": [
-                "inbox"
+                "inbox",
+                "email address"
             ]
         },
         "3dnews": {
@@ -1058,7 +1541,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "questions"
+                "questions",
+                "answers"
             ]
         },
         "championat": {
@@ -1072,7 +1556,8 @@
             "profile_markers": [
                 "profile",
                 "comments",
-                "activity"
+                "activity",
+                "blogs"
             ]
         },
         "codechef": {
@@ -1086,7 +1571,8 @@
             "profile_markers": [
                 "rating",
                 "submissions",
-                "profile"
+                "profile",
+                "stats"
             ]
         },
         "cyberforum": {
@@ -1100,7 +1586,8 @@
             "profile_markers": [
                 "profile",
                 "statistics",
-                "posts"
+                "posts",
+                "reputation"
             ]
         },
         "domru": {
@@ -1114,21 +1601,24 @@
             "profile_markers": [
                 "profile",
                 "activity",
-                "posts"
+                "posts",
+                "joined"
             ]
         },
         "duolingo": {
             "name": "Duolingo",
             "method": "username_url",
-            "url_check": "httpsM://www.duolingo.com/profile/{identifier}",
+            "url_check": "https://www.duolingo.com/profile/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "profile not found"
             ],
             "profile_markers": [
                 "xp",
                 "streak",
-                "following"
+                "following",
+                "achievements"
             ]
         },
         "eintracht": {
@@ -1142,7 +1632,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "activity"
+                "activity",
+                "joined"
             ]
         },
         "e_hentai": {
@@ -1156,7 +1647,8 @@
             "profile_markers": [
                 "gallery",
                 "uploads",
-                "favorites"
+                "favorites",
+                "profile"
             ]
         },
         "facenews": {
@@ -1170,7 +1662,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "comments"
+                "comments",
+                "activity"
             ]
         },
         "fanpop": {
@@ -1199,7 +1692,8 @@
             "profile_markers": [
                 "profile",
                 "comments",
-                "activity"
+                "activity",
+                "blogs"
             ]
         },
         "furaffinity": {
@@ -1208,7 +1702,8 @@
             "url_check": "https://www.furaffinity.net/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "user account disabled"
             ],
             "profile_markers": [
                 "gallery",
@@ -1223,12 +1718,14 @@
             "url_check": "https://auth.geeksforgeeks.org/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "user does not exist"
             ],
             "profile_markers": [
                 "profile",
                 "submissions",
-                "articles"
+                "articles",
+                "school"
             ]
         },
         "guru": {
@@ -1242,7 +1739,8 @@
             "profile_markers": [
                 "profile",
                 "portfolio",
-                "feedback"
+                "feedback",
+                "stats"
             ]
         },
         "hawaaworld": {
@@ -1256,7 +1754,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "topics"
+                "topics",
+                "activity"
             ]
         },
         "intervarsity": {
@@ -1270,7 +1769,8 @@
             "profile_markers": [
                 "profile",
                 "bio",
-                "contact"
+                "contact",
+                "donate"
             ]
         },
         "jpeg_cz": {
@@ -1284,7 +1784,8 @@
             "profile_markers": [
                 "gallery",
                 "photos",
-                "profile"
+                "profile",
+                "stats"
             ]
         },
         "kali_community": {
@@ -1298,7 +1799,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "statistics"
+                "statistics",
+                "activity"
             ]
         },
         "kik": {
@@ -1311,7 +1813,8 @@
             ],
             "profile_markers": [
                 "profile",
-                "username"
+                "username",
+                "displayname"
             ]
         },
         "kongregate": {
@@ -1325,7 +1828,8 @@
             "profile_markers": [
                 "points",
                 "badges",
-                "games"
+                "games",
+                "profile"
             ]
         },
         "labpentestit": {
@@ -1339,7 +1843,8 @@
             "profile_markers": [
                 "profile",
                 "activity",
-                "score"
+                "score",
+                "team"
             ]
         },
         "mail_ru": {
@@ -1348,12 +1853,14 @@
             "url_check": "https://my.mail.ru/mail/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "user deleted"
             ],
             "profile_markers": [
                 "profile",
                 "friends",
-                "photos"
+                "photos",
+                "blogs"
             ]
         },
         "mywot": {
@@ -1367,7 +1874,8 @@
             "profile_markers": [
                 "ratings",
                 "reviews",
-                "profile"
+                "profile",
+                "scorecard"
             ]
         },
         "namecheap": {
@@ -1376,7 +1884,8 @@
             "url_check": "https://www.namecheap.com/myaccount/profile/view/{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "user not found"
+                "user not found",
+                "login required"
             ],
             "profile_markers": [
                 "profile",
@@ -1395,7 +1904,8 @@
             "profile_markers": [
                 "nation",
                 "stats",
-                "factbooks"
+                "factbooks",
+                "region"
             ]
         },
         "price_ua": {
@@ -1409,7 +1919,8 @@
             "profile_markers": [
                 "profile",
                 "reviews",
-                "activity"
+                "activity",
+                "questions"
             ]
         },
         "raidforums": {
@@ -1423,7 +1934,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "reputation"
+                "reputation",
+                "threads"
             ]
         },
         "riotgames": {
@@ -1443,7 +1955,7 @@
         "svidbook": {
             "name": "Svidbook",
             "method": "username_url",
-            "url_check": "httpsS://svidbook.ru/user/{identifier}",
+            "url_check": "https://svidbook.ru/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
                 "not found"
@@ -1451,7 +1963,8 @@
             "profile_markers": [
                 "profile",
                 "friends",
-                "photos"
+                "photos",
+                "activity"
             ]
         },
         "tfl_ru": {
@@ -1465,7 +1978,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "activity"
+                "activity",
+                "blogs"
             ]
         },
         "thehackernews": {
@@ -1479,7 +1993,8 @@
             "profile_markers": [
                 "profile",
                 "comments",
-                "activity"
+                "activity",
+                "posts"
             ]
         },
         "tiny": {
@@ -1493,7 +2008,8 @@
             "profile_markers": [
                 "profile",
                 "links",
-                "dashboard"
+                "dashboard",
+                "stats"
             ]
         },
         "tony_macx86": {
@@ -1507,7 +2023,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "trophies"
+                "trophies",
+                "activity"
             ]
         },
         "traderji": {
@@ -1521,7 +2038,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "statistics"
+                "statistics",
+                "activity"
             ]
         },
         "ukr_net": {
@@ -1535,7 +2053,8 @@
             "profile_markers": [
                 "profile",
                 "friends",
-                "photos"
+                "photos",
+                "activity"
             ]
         },
         "wallet": {
@@ -1549,7 +2068,8 @@
             "profile_markers": [
                 "profile",
                 "transactions",
-                "activity"
+                "activity",
+                "balance"
             ]
         },
         "warriorforum": {
@@ -1563,13 +2083,14 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "statistics"
+                "statistics",
+                "reputation"
             ]
         },
         "weber": {
             "name": "Weber",
             "method": "username_url",
-            "url_check": "httpss://www.weber.com/user/{identifier}",
+            "url_check": "https://www.weber.com/user/{identifier}",
             "error_type": "string",
             "not_found_text": [
                 "not found"
@@ -1577,7 +2098,8 @@
             "profile_markers": [
                 "profile",
                 "recipes",
-                "activity"
+                "activity",
+                "reviews"
             ]
         },
         "wikipedia": {
@@ -1586,12 +2108,14 @@
             "url_check": "https://www.wikipedia.org/wiki/User:{identifier}",
             "error_type": "string",
             "not_found_text": [
-                "does not exist"
+                "does not exist",
+                "user page does not exist"
             ],
             "profile_markers": [
                 "user page",
                 "contributions",
-                "talk"
+                "talk",
+                "edit count"
             ]
         },
         "windy": {
@@ -1605,7 +2129,8 @@
             "profile_markers": [
                 "profile",
                 "posts",
-                "reputation"
+                "reputation",
+                "followers"
             ]
         },
         "xda_developers": {
@@ -1614,12 +2139,136 @@
             "url_check": "https://forum.xda-developers.com/member.php?u={identifier}",
             "error_type": "string",
             "not_found_text": [
-                "not found"
+                "not found",
+                "invalid user"
             ],
             "profile_markers": [
                 "profile",
                 "posts",
-                "devices"
+                "devices",
+                "thanks"
+            ]
+        },
+        "ebay": {
+            "name": "eBay",
+            "method": "username_url",
+            "url_check": "https://www.ebay.com/usr/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "user id not found",
+                "page not found"
+            ],
+            "profile_markers": [
+                "feedback",
+                "items for sale",
+                "profile",
+                "followers"
+            ]
+        },
+        "kickstarter": {
+            "name": "Kickstarter",
+            "method": "username_url",
+            "url_check": "https://www.kickstarter.com/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "oops"
+            ],
+            "profile_markers": [
+                "backed",
+                "created",
+                "profile",
+                "about"
+            ]
+        },
+        "indiegogo": {
+            "name": "Indiegogo",
+            "method": "username_url",
+            "url_check": "https://www.indiegogo.com/individuals/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "404"
+            ],
+            "profile_markers": [
+                "campaigns",
+                "contributions",
+                "profile",
+                "following"
+            ]
+        },
+        "opensea": {
+            "name": "OpenSea",
+            "method": "username_url",
+            "url_check": "https://opensea.io/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ],
+            "profile_markers": [
+                "collected",
+                "created",
+                "favorites",
+                "offers"
+            ]
+        },
+        "researchgate": {
+            "name": "ResearchGate",
+            "method": "username_url",
+            "url_check": "https://www.researchgate.net/profile/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found",
+                "profile not found"
+            ],
+            "profile_markers": [
+                "research",
+                "publications",
+                "citations",
+                "followers"
+            ]
+        },
+        "academia": {
+            "name": "Academia.edu",
+            "method": "username_url",
+            "url_check": "https://{identifier}.academia.edu",
+            "error_type": "string",
+            "not_found_text": [
+                "page not found"
+            ],
+            "profile_markers": [
+                "papers",
+                "followers",
+                "profile",
+                "analytics"
+            ]
+        },
+        "slack": {
+            "name": "Slack",
+            "method": "username_url",
+            "url_check": "https://{identifier}.slack.com",
+            "error_type": "string",
+            "not_found_text": [
+                "workspace not found"
+            ],
+            "profile_markers": [
+                "profile",
+                "workspace",
+                "contact"
+            ]
+        },
+        "discord": {
+            "name": "Discord",
+            "method": "username_url",
+            "url_check": "https://discord.com/users/{identifier}",
+            "error_type": "string",
+            "not_found_text": [
+                "unknown user"
+            ],
+            "profile_markers": [
+                "profile",
+                "mutual servers",
+                "mutual friends"
             ]
         }
     }
