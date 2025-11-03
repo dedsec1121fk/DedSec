@@ -27,7 +27,13 @@ from urllib3.util.retry import Retry
 DATA_FOLDER = "Digital Footprint Finder Files"
 PLATFORMS_FILE_NAME = "Digital Footprint Finder Platforms.json"
 OLD_DB_NAME = "footprint_history.db"
-NEW_DB_NAME = "search_history.db"
+
+# --- FIX ---
+# Changed the database name to 'search_history_v2.db'.
+# This forces the script to create a new, clean cache and ignore the old,
+# poisoned 'search_history.db' file, which contained the false positives.
+NEW_DB_NAME = "search_history_v2.db"
+# --- END FIX ---
 
 # Termux-friendly results path; fallback if unavailable
 RESULTS_SAVE_FOLDER = os.path.join(os.path.expanduser('~'), 'storage', 'downloads', 'Digital Footprint Finder')
@@ -528,12 +534,6 @@ class DigitalFootprintFinder:
                 # --- Phase 1: Scan Major Platforms ---
                 phase_1_results = self._run_scan_phase("Phase 1: Major Platforms", self.major_platform_keys, username, progress_manager)
                 all_found_results.extend(phase_1_results)
-                
-                # -----------------------------------------------------------------
-                # --- FIX: Removed 'if not phase_1_results: continue' block ---
-                # The scan will now *always* proceed to Phase 2,
-                # regardless of whether Phase 1 found any matches.
-                # -----------------------------------------------------------------
                 
                 # --- Phase 2: Scan Minor Platforms ---
                 phase_2_results = self._run_scan_phase("Phase 2: Minor Platforms", self.minor_platform_keys, username, progress_manager)
