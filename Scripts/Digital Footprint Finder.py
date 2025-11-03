@@ -440,10 +440,21 @@ class DigitalFootprintFinder:
                     found = True
             
             elif error_type == 'string':
-                # String check: Must be 200 AND NOT contain "not found" text
+                # --- ACCURACY LOGIC ---
+                # This is the new, more accurate check.
+                # 1. Must be 200
+                # 2. Must NOT contain "not found" text
+                # 3. Must ALSO contain "real content" markers
                 not_found_markers = [t.lower() for t in platform.get('not_found_text', [])]
                 if resp.status_code == 200 and not any(t in content_lower for t in not_found_markers):
-                    found = True
+                    
+                    # --- Accuracy Improvement ---
+                    # Now, also check for positive markers to be sure it's a real profile.
+                    if self._content_looks_real(content_lower, platform, username):
+                        found = True
+                    # If it passes the "not found" check but has no real content,
+                    # it's likely a generic page (e.g., search page, login wall).
+                    # In this case, 'found' remains False.
 
         if found:
             result = (platform.get('name', platform_key), url)
