@@ -27,13 +27,9 @@ from urllib3.util.retry import Retry
 DATA_FOLDER = "Digital Footprint Finder Files"
 PLATFORMS_FILE_NAME = "Digital Footprint Finder Platforms.json"
 OLD_DB_NAME = "footprint_history.db"
-
-# --- FIX ---
-# Changed the database name to 'search_history_v2.db'.
-# This forces the script to create a new, clean cache and ignore the old,
-# poisoned 'search_history.db' file, which contained the false positives.
+# Using v2 to avoid cache-poisoning from old, less-accurate scans
 NEW_DB_NAME = "search_history_v2.db"
-# --- END FIX ---
+
 
 # Termux-friendly results path; fallback if unavailable
 RESULTS_SAVE_FOLDER = os.path.join(os.path.expanduser('~'), 'storage', 'downloads', 'Digital Footprint Finder')
@@ -49,14 +45,6 @@ CACHE_DURATION_HOURS = 24
 STEALTH_DEFAULT = True
 STEALTH_MAX_WORKERS = 6
 NONSTEALTH_MAX_WORKERS = 30
-
-# Major platforms (prioritized)
-MAJOR_PLATFORMS_KEYS = [
-    "facebook", "twitter", "instagram", "tiktok", "linkedin",
-    "pinterest", "snapchat", "telegram", "vk", "wechat",
-    "threads", "bereal", "reddit", "quora", "medium",
-    "github", "gitlab", "bitbucket", "stackoverflow", "youtube", "twitch"
-]
 
 # Platforms known to be ambiguous or non-functional
 AMBIGUOUS_PLATFORMS_TO_SKIP = [
@@ -248,8 +236,10 @@ class DigitalFootprintFinder:
             if RICH_AVAILABLE:
                 console.print(f"[red]Proxy file {proxy_file} was empty or could not be read.[/red]")
         
-        self.major_platform_keys = [k for k in MAJOR_PLATFORMS_KEYS if k in self.platforms]
-        self.minor_platform_keys = [k for k in self.platforms.keys() if k not in self.major_platform_keys]
+        # --- FIX: Create one single, sorted list of all platforms ---
+        self.all_platform_keys = sorted(list(self.platforms.keys()))
+        # --- END FIX ---
+        
         self.session = make_requests_session(timeout=DEFAULT_TIMEOUT, retries=DEFAULT_RETRIES, backoff=DEFAULT_BACKOFF, stealth=self.stealth)
 
     def _initialize_file_structure(self):
@@ -349,7 +339,10 @@ class DigitalFootprintFinder:
                     url, found, ts_str = result
                     ts = datetime.fromisoformat(ts_str)
                     if datetime.now() - ts < timedelta(hours=CACHE_DURATION_HOURS):
-                        return (self.platforms[platform_key]['name'], url) if found else None
+                        # Use self.platforms.get to avoid key error if platform was removed from JSON
+                        platform = self.platforms.get(platform_key)
+                        if platform:
+                            return (platform['name'], url) if found else None
         except Exception:
             return None
         return None
@@ -531,13 +524,14 @@ class DigitalFootprintFinder:
                 progress_manager.start()
             
             try:
-                # --- Phase 1: Scan Major Platforms ---
-                phase_1_results = self._run_scan_phase("Phase 1: Major Platforms", self.major_platform_keys, username, progress_manager)
-                all_found_results.extend(phase_1_results)
-                
-                # --- Phase 2: Scan Minor Platforms ---
-                phase_2_results = self._run_scan_phase("Phase 2: Minor Platforms", self.minor_platform_keys, username, progress_manager)
-                all_found_results.extend(phase_2_results)
+                # --- FIX: Run a single, unified scan ---
+                all_found_results = self._run_scan_phase(
+                    "Scanning All Platforms", 
+                    self.all_platform_keys, 
+                    username, 
+                    progress_manager
+                )
+                # --- END FIX ---
             
             finally:
                 if progress_manager:
@@ -677,7 +671,7 @@ class DigitalFootprintFinder:
         input("\nPress ENTER to return to the menu...")
 
     def _display_help_console(self):
-        # --- ADVANCED: Updated help text ---
+        # --- FIX: Updated help text to remove "Phase" logic ---
         help_text = f"""
 Digital Footprint Finder - Help
 
@@ -688,7 +682,7 @@ Digital Footprint Finder - Help
 Usage:
 1. Select "New Search".
 2. Enter usernames one per line (press ENTER on a blank line to start).
-3. The program scans major platforms and then minor platforms.
+3. The program scans all platforms in a single, unified scan.
 4. Results are saved as .txt and .json files.
 
 Advanced Features:
@@ -709,6 +703,7 @@ Files:
 
 Press ENTER to return to the menu...
 """
+        # --- END FIX ---
         print(help_text)
         try:
             input()
