@@ -222,9 +222,15 @@ class DigitalFootprintFinder:
         self.keep_tui = keep_tui
         self.data_folder = DATA_FOLDER
         self.db_path = os.path.join(DATA_FOLDER, NEW_DB_NAME)
-        self.platforms_file = os.path.join(DATA_FOLDER, PLATFORMS_FILE_NAME)
+        
+        # --- START FIX ---
+        # This new method finds the correct platforms.json file path
+        # *before* any other initialization happens.
+        self.platforms_file = self._find_or_create_platforms_json()
+        # --- END FIX ---
+        
         self.max_workers = STEALTH_MAX_WORKERS if stealth else NONSTEALTH_MAX_WORKERS
-        self._initialize_file_structure()
+        self._initialize_file_structure() # This now only handles the DB
         self.platforms = self._load_platforms()
         self.history = self._load_history()
         
@@ -242,6 +248,41 @@ class DigitalFootprintFinder:
         
         self.session = make_requests_session(timeout=DEFAULT_TIMEOUT, retries=DEFAULT_RETRIES, backoff=DEFAULT_BACKOFF, stealth=self.stealth)
 
+    # --- START FIX: NEW HELPER METHOD ---
+    def _find_or_create_platforms_json(self) -> str:
+        """
+        Finds the platform JSON, prioritizing the local directory.
+        If not found anywhere, creates a default one in DATA_FOLDER.
+        """
+        local_path = PLATFORMS_FILE_NAME
+        data_folder_path = os.path.join(self.data_folder, PLATFORMS_FILE_NAME)
+
+        # 1. Check if it's in the local directory (alongside .py)
+        if os.path.exists(local_path):
+            if RICH_AVAILABLE:
+                console.print(f"[green]Using platforms file from local directory: {local_path}[/green]")
+            return local_path
+        
+        # 2. Check if it's already in the data folder
+        if os.path.exists(data_folder_path):
+            if RICH_AVAILABLE:
+                console.print(f"[green]Using platforms file from data folder: {data_folder_path}[/green]")
+            return data_folder_path
+
+        # 3. It's nowhere. Create the default one in the data folder.
+        os.makedirs(self.data_folder, exist_ok=True)
+        try:
+            with open(data_folder_path, 'w', encoding='utf-8') as f:
+                json.dump(DEFAULT_PLATFORMS, f, indent=2)
+            if RICH_AVAILABLE:
+                console.print(f"[yellow]Platforms JSON not found — created default at {data_folder_path}[/yellow]")
+        except Exception as e:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Warning: could not create default Platforms JSON: {e}[/red]")
+        
+        return data_folder_path
+    # --- END FIX ---
+
     def _initialize_file_structure(self):
         # ... (Code from previous version, no changes) ...
         os.makedirs(self.data_folder, exist_ok=True)
@@ -253,19 +294,16 @@ class DigitalFootprintFinder:
                     console.print(f"[green]Moved old DB '{OLD_DB_NAME}' -> '{db_target}'[/green]")
         except Exception:
             pass
-        if not os.path.exists(self.platforms_file):
-            try:
-                with open(self.platforms_file, 'w', encoding='utf-8') as f:
-                    json.dump(DEFAULT_PLATFORMS, f, indent=2)
-                if RICH_AVAILABLE:
-                    console.print(f"[yellow]Platforms JSON not found — created default at {self.platforms_file}[/yellow]")
-            except Exception as e:
-                if RICH_AVAILABLE:
-                    console.print(f"[red]Warning: could not create Platforms JSON: {e}[/red]")
+        
+        # --- START FIX ---
+        # The logic for creating platforms.json was REMOVED from here.
+        # It is now handled by _find_or_create_platforms_json() in the constructor.
+        # --- END FIX ---
 
     def _load_platforms(self) -> Dict[str, Any]:
         # ... (Code from previous version, no changes) ...
         try:
+            # self.platforms_file is now guaranteed to be the *correct* path
             with open(self.platforms_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
         except Exception:
@@ -286,6 +324,8 @@ class DigitalFootprintFinder:
             console.print(f"[yellow]Warning: Skipped loading ambiguous platforms: {', '.join(skipped_platforms)}[/yellow]")
         
         if not all_platforms:
+            if RICH_AVAILABLE:
+                console.print(f"[red]Error: No platforms loaded. Using internal default.[/red]")
             fallback = {}
             for category in DEFAULT_PLATFORMS.values():
                 fallback.update(category)
@@ -526,7 +566,7 @@ class DigitalFootprintFinder:
             try:
                 # --- FIX: Run a single, unified scan ---
                 all_found_results = self._run_scan_phase(
-                    "Scanning All Platforms", 
+                    f"Scanning {len(self.all_platform_keys)} Platforms", # <-- Updated text
                     self.all_platform_keys, 
                     username, 
                     progress_manager
@@ -671,13 +711,19 @@ class DigitalFootprintFinder:
         input("\nPress ENTER to return to the menu...")
 
     def _display_help_console(self):
-        # --- FIX: Updated help text to remove "Phase" logic ---
+        # --- FIX: Updated help text to reflect new platform file logic ---
         help_text = f"""
 Digital Footprint Finder - Help
 
 - Attempts to discover public accounts for a username across multiple platforms.
-- Uses a Platforms JSON database: '{PLATFORMS_FILE_NAME}' in the '{self.data_folder}' folder.
+- Uses a Platforms JSON database.
 - Results are saved to: {RESULTS_SAVE_FOLDER}
+
+Platform File:
+- The script will FIRST look for '{PLATFORMS_FILE_NAME}' in the SAME directory.
+- If not found, it will look in '{self.data_folder}'.
+- If not found anywhere, a small default file is created in '{self.data_folder}'.
+- **To use your large JSON, just keep it in the same folder as the .py script.**
 
 Usage:
 1. Select "New Search".
@@ -698,7 +744,7 @@ Advanced Features:
 
 Files:
 - DB & History: '{os.path.join(self.data_folder, NEW_DB_NAME)}'
-- Platforms JSON: '{self.platforms_file}'
+- Platforms JSON: '{self.platforms_file}' (This is the path it's *currently* using)
 - The database now includes a 24-hour cache to speed up repeated searches.
 
 Press ENTER to return to the menu...
