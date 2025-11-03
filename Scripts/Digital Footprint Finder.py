@@ -529,10 +529,11 @@ class DigitalFootprintFinder:
                 phase_1_results = self._run_scan_phase("Phase 1: Major Platforms", self.major_platform_keys, username, progress_manager)
                 all_found_results.extend(phase_1_results)
                 
-                if not phase_1_results:
-                    if RICH_AVAILABLE: console.print(f"[yellow]No accounts found for {username} on major platforms. Skipping full scan.[/yellow]")
-                    else: print(f"No results found for {username} on major platforms. Skipping full scan.")
-                    continue
+                # -----------------------------------------------------------------
+                # --- FIX: Removed 'if not phase_1_results: continue' block ---
+                # The scan will now *always* proceed to Phase 2,
+                # regardless of whether Phase 1 found any matches.
+                # -----------------------------------------------------------------
                 
                 # --- Phase 2: Scan Minor Platforms ---
                 phase_2_results = self._run_scan_phase("Phase 2: Minor Platforms", self.minor_platform_keys, username, progress_manager)
@@ -687,8 +688,7 @@ Digital Footprint Finder - Help
 Usage:
 1. Select "New Search".
 2. Enter usernames one per line (press ENTER on a blank line to start).
-3. The program first scans major platforms. If a match is found, it proceeds
-   to scan all other platforms. Otherwise, it skips to save time.
+3. The program scans major platforms and then minor platforms.
 4. Results are saved as .txt and .json files.
 
 Advanced Features:
