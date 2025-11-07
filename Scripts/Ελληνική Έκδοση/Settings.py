@@ -46,6 +46,14 @@ LANGUAGE_MAP = {
 CURRENT_DISPLAY_LANGUAGE = None
 # ----------------------------------------------------
 
+# --- File Type Icons ---
+FOLDER_ICON = "📁"
+PYTHON_ICON = "🐍"
+JAVASCRIPT_ICON = "☕"
+SHELL_ICON = "🐚"
+EXECUTABLE_ICON = "⚡"
+GENERIC_SCRIPT_ICON = "📜"
+
 # --- Language Preference Functions ---
 def save_language_preference(language):
     """Saves the selected language to a persistent JSON file."""
@@ -78,7 +86,7 @@ def load_language_preference():
             return None # File might be corrupted or unreadable
     return None
 
-# --- Translation Definitions (FOLDER TAG FIX APPLIED) ---
+# --- Translation Definitions (ICONS REPLACED FOLDER TAGS) ---
 GREEK_STRINGS = {
     "Select an option": "Επιλέξτε μια επιλογή",
     "About": "Πληροφορίες",
@@ -146,7 +154,6 @@ GREEK_STRINGS = {
     "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
-    "[FOLDER]": "[ΦΑΚΕΛΟΣ]", 
     "Invalid selection or non-executable script. Exiting.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script. Έξοδος.",
 }
 
@@ -185,20 +192,21 @@ def get_current_display_language():
     """
     Determines the current active language.
     Priority:
-    1. Language JSON file (persistent)
+    1. Language JSON file (persistent) - ALWAYS USED FIRST
     2. bash.bashrc startup path (legacy)
     3. English (default)
     """
     global CURRENT_DISPLAY_LANGUAGE
-    if CURRENT_DISPLAY_LANGUAGE is None:
-        # 1. Try loading from persistent JSON
-        lang_from_json = load_language_preference()
-        if lang_from_json in ['english', 'greek']:
-            CURRENT_DISPLAY_LANGUAGE = lang_from_json
-        else:
-            # 2. Fallback to bashrc path
-            current_path = get_current_language_path()
-            CURRENT_DISPLAY_LANGUAGE = LANGUAGE_MAP.get(current_path, 'english')
+    
+    # ALWAYS try to load from JSON first
+    lang_from_json = load_language_preference()
+    if lang_from_json in ['english', 'greek']:
+        CURRENT_DISPLAY_LANGUAGE = lang_from_json
+        return CURRENT_DISPLAY_LANGUAGE
+    
+    # Fallback to bashrc path detection only if JSON doesn't exist or is invalid
+    current_path = get_current_language_path()
+    CURRENT_DISPLAY_LANGUAGE = LANGUAGE_MAP.get(current_path, 'english')
     return CURRENT_DISPLAY_LANGUAGE
 
 def _(text):
@@ -211,6 +219,29 @@ def _(text):
     # In English mode, return the original text (which is the English string itself)
     return text
 # ------------------------------
+
+# --- File Type Detection Helper ---
+def get_file_icon(filename, full_path):
+    """Returns the appropriate icon for a file based on its type."""
+    if os.path.isdir(full_path):
+        return FOLDER_ICON
+    
+    # Check file extension and type
+    if filename.endswith('.py'):
+        return PYTHON_ICON
+    elif filename.endswith('.js') or filename.endswith('.javascript'):
+        return JAVASCRIPT_ICON
+    elif filename.endswith('.sh') or filename.endswith('.bash'):
+        return SHELL_ICON
+    elif os.access(full_path, os.X_OK):
+        return EXECUTABLE_ICON
+    else:
+        return GENERIC_SCRIPT_ICON
+
+def format_display_name(filename, full_path):
+    """Formats the display name with icons at both beginning and end without spaces."""
+    icon = get_file_icon(filename, full_path)
+    return f"{icon}{filename}{icon}"
 
 # --- Utility Functions (Omitted for brevity, assumed intact) ---
 
@@ -677,11 +708,12 @@ def change_language():
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu (MODIFIED - FIX APPLIED)
+# Helper for List Menu (MODIFIED - ICONS AT BOTH ENDS)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
     Lists subfolders and executable scripts (.py, .sh, +x), hiding dotfiles.
+    Uses icons at both beginning and end without spaces.
     """
     items = []
     # Translate "Go Back"
@@ -689,26 +721,26 @@ def browse_directory_list_menu(current_path, base_path):
     if os.path.abspath(current_path) != os.path.abspath(base_path):
         items.append(go_back_text)
     
-    # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
-    folder_tag = _("[FOLDER]")
-    
     for entry in sorted(os.listdir(current_path)):
         if entry.startswith('.'):
             continue
             
         full_path = os.path.join(current_path, entry)
+        
         if os.path.isdir(full_path):
-            # Use translated folder tag
-            items.append(f"{folder_tag} {entry}")
+            # Use format with icons at both ends
+            display_name = format_display_name(entry, full_path)
+            items.append(display_name)
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full_path):
-             # *** FIX START: Explicitly include Settings.py if it's a file in the current path.
+             # Explicitly include Settings.py if it's a file in the current path.
              if entry == "Settings.py" and full_path == SETTINGS_SCRIPT_PATH:
-                 items.append(entry)
-                 continue # Move to next entry to avoid double-check
-             # *** FIX END ***
+                 display_name = format_display_name(entry, full_path)
+                 items.append(display_name)
+                 continue
              if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
-                 items.append(entry) # Just add the filename
+                 display_name = format_display_name(entry, full_path)
+                 items.append(display_name)
     
     if not items and os.path.abspath(current_path) == os.path.abspath(base_path):
         # Only show "No items" if we are in the root and it's empty
@@ -716,7 +748,6 @@ def browse_directory_list_menu(current_path, base_path):
     elif not items:
         # We are in a subfolder with no items
         pass
-
 
     # Use a pipe for fzf input
     input_text = "\n".join(items)
@@ -734,17 +765,13 @@ def browse_directory_list_menu(current_path, base_path):
     if selected.startswith(".."):
         return "back"
     
-    # Check for translated folder tag
-    if selected.startswith(f"{folder_tag} "):
-        # Use the length of the translated tag plus one for the space
-        dirname = selected[len(folder_tag) + 1:]
-        return os.path.join(current_path, dirname)
-    else:
-        # This is a file, return the full path
-        return os.path.join(current_path, selected)
+    # Extract the actual filename by removing the icons from both ends
+    # Since icons are single characters, remove first and last character
+    actual_name = selected[1:-1]
+    return os.path.join(current_path, actual_name)
 
 # ------------------------------
-# Integrated List Menu with folder navigation (MODIFIED)
+# Integrated List Menu with folder navigation (MODIFIED - ICONS AT BOTH ENDS)
 # ------------------------------
 def run_list_menu():
     # The base path is the directory this script is run from (which is the selected language folder).
@@ -806,11 +833,12 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Helper for Grid Menu (MODIFIED - FIX APPLIED)
+# Helper for Grid Menu (MODIFIED - ICONS AT BOTH ENDS)
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
     Returns a list of tuples (friendly_name, full_path), hiding dotfiles.
+    Uses icons at both beginning and end without spaces.
     """
     entries = []
     # Translate "Go Back"
@@ -818,30 +846,30 @@ def list_directory_entries(path, base_path):
     if os.path.abspath(path) != os.path.abspath(base_path):
         entries.append((go_back_text, os.path.dirname(path)))
     
-    # Use the translated folder tag [FOLDER] or [ΦΑΚΕΛΟΣ]
-    folder_tag = _("[FOLDER]")
-    
     for entry in sorted(os.listdir(path)):
         if entry.startswith('.'):
             continue
             
         full = os.path.join(path, entry)
+        
         if os.path.isdir(full):
-            # Use translated folder tag
-            entries.append((f"{folder_tag} {entry}", full))
+            # Use format with icons at both ends
+            display_name = format_display_name(entry, full)
+            entries.append((display_name, full))
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full):
-             # *** FIX START: Explicitly include Settings.py if it's a file in the current path.
+             # Explicitly include Settings.py if it's a file in the current path.
              if entry == "Settings.py" and full == SETTINGS_SCRIPT_PATH:
-                 entries.append((entry, full))
-                 continue # Move to next entry to avoid double-check
-             # *** FIX END ***
+                 display_name = format_display_name(entry, full)
+                 entries.append((display_name, full))
+                 continue
              if os.access(full, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
-                 entries.append((entry, full)) # (filename, full_path)
+                 display_name = format_display_name(entry, full)
+                 entries.append((display_name, full))
     return entries
 
 # ------------------------------
-# Integrated Grid Menu with folder navigation (MODIFIED)
+# Integrated Grid Menu with folder navigation (MODIFIED - ICONS AT BOTH ENDS)
 # ------------------------------
 def run_grid_menu():
     # The base path is the directory this script is run from.
@@ -1005,11 +1033,6 @@ def run_grid_menu():
             current_path = selected_entry[1]
             continue
             
-        # Check for translated folder tag
-        if selected_entry[0].startswith(_("[FOLDER]")):
-            current_path = selected_entry[1]
-            continue
-            
         # Execute the script
         # selected_entry[0] is friendly_name, selected_entry[1] is full_path
         selected_path = selected_entry[1]
@@ -1124,7 +1147,7 @@ if __name__ == "__main__":
     try:
         # --- This is the main startup logic ---
         
-        # 1. Set the display language from JSON or bashrc
+        # 1. ALWAYS Set the display language from JSON first, then fallback
         get_current_display_language()
         
         # 2. Check if --menu flag is passed
