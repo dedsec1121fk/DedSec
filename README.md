@@ -41,7 +41,7 @@ The toolkit includes the following main categories and tools:
 3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across multiple platforms with stealth mode operation and comprehensive reporting.
 4. **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit.
 5. **File Converter**: Advanced interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
-6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 10GB file sharing, and WebRTC video calls.
+6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 50GB file sharing, and WebRTC video calls.
 7. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs with automatic dependency installation.
 8. **Settings**: Central configuration and management tool for project updates, language selection, menu customization, and system information.
 9. **Smart Notes**: Advanced note-taking application with reminder functionality, TUI/CLI support, and automatic command execution.
