@@ -38,7 +38,7 @@ The toolkit includes the following main categories and tools:
 
 1. **Android App Launcher**: Advanced Android application management and security analysis tool with APK extraction, permission inspection, and tracker detection.
 2. **DedSec's Network Toolkit**: Comprehensive network and security toolkit featuring Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, and SSH honeypot defense.
-3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across multiple platforms with stealth mode operation and comprehensive reporting.
+3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning, rate-limit handling, and saves comprehensive reports to a file.
 4. **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit.
 5. **File Converter**: Advanced interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
 6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 50GB file sharing, and WebRTC video calls.
@@ -102,7 +102,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 2.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
-    git clone https://github.com/dedsec1121fk/DedSec
+    git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
 
 3.  **Run the Setup Script**
