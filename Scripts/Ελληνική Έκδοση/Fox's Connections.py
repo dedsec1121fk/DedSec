@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
 # Fox Chat + DedSec's Database (Unified Login Script) - Greek Version
-#
-# Both apps are now served from a SINGLE server and URL with ONE secret key.
-# - Fox Chat is at: [Your_URL]/
-# - Database is at: [Your_URL]/db
-#
-# Fox Chat: Full UI restored, 10GB uploads, Termux-friendly
-# DedSec's Database: Made by DedSec Project/dedsec1121fk!
-# Combined and UI modified by Gemini
-# Greek translation by Assistant
 
 import os
 import sys
@@ -27,6 +18,7 @@ import datetime
 import contextlib
 import pathlib
 import logging
+import functools
 from base64 import b64decode
 
 # Try import requests to avoid runtime errors later; don't crash if it's missing
@@ -107,7 +99,8 @@ def generate_self_signed_cert(cert_path="cert.pem", key_path="key.pem"):
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(('10.255.255.255', 1))
+        # Use a public DNS server to find the most likely outbound IP
+        s.connect(('8.8.8.8', 80))
         IP = s.getsockname()[0]
     except Exception:
         IP = '127.0.0.1'
@@ -143,8 +136,8 @@ def wait_for_server(url, timeout=20):
     print(f"Σφάλμα: Ο τοπικός διακομιστής στο {url} δεν ξεκίνησε εντός του χρονικού ορίου.")
     return False
 
-# 10 GB limit for Fox Chat
-MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 * 1024  # 10,737,418,240 bytes
+# --- 50 GB limit for Fox Chat ---
+MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024 * 1024  # 53,687,091,200 bytes
 
 @contextlib.contextmanager
 def suppress_stdout_stderr():
@@ -159,7 +152,7 @@ def suppress_stdout_stderr():
 
 def start_cloudflared_tunnel(port, proto="https", name=""):
     """Starts a cloudflared tunnel, reads output for the URL, and lets the process run."""
-    print(f"🚀 Εκκίνηση σήραγγας Cloudflare για {name} (port {port})... παρακαλώ περιμένετε.")
+    print(f"🚀 Εκκίνηση σήραγγας Cloudflare για {name} (θύρα {port})... παρακαλώ περιμένετε.")
     
     cmd = ["cloudflared", "tunnel", "--url", f"{proto}://localhost:{port}", "--no-tls-verify"]
 
@@ -217,8 +210,8 @@ try:
     BASE_DIR = DOWNLOADS_DIR / "Βάση Δεδομένων DedSec"
     BASE_DIR.mkdir(exist_ok=True, parents=True)
 except Exception as e:
-    print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Δεν ήταν δυνατή η δημιουργία φακέλου στο φάκελο Λήψεις ({e}). Χρήση τοπικού φακέλου.")
-    BASE_DIR = pathlib.Path("Αρχεία_Βάσης_Δεδομένων_DedSec")
+    print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Δεν ήταν δυνατή η δημιουργία φακέλου στον φάκελο Λήψεις ({e}). Χρήση τοπικού φακέλου.")
+    BASE_DIR = pathlib.Path("Αρχεία_Bάσης_Δεδομένων_DedSec")
     BASE_DIR.mkdir(exist_ok=True)
 
 
@@ -278,6 +271,17 @@ def filesizeformat(value):
 # Register the filter with the blueprint
 db_blueprint.add_app_template_filter(filesizeformat, 'filesizeformat')
 
+# ==== DB AUTHENTICATION DECORATOR ====
+# This decorator protects the DB routes
+def db_auth_required(f):
+    @functools.wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('db_logged_in'):
+            # If not logged in via the main chat, redirect to chat login
+            return redirect(url_for('index_chat'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ==== HTML TEMPLATES (DB) ====
 # Note: url_for() is now used for all links/actions
 html_template_db = '''
@@ -288,44 +292,108 @@ html_template_db = '''
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes" />
 <title>Βάση Δεδομένων DedSec - Αρχεία</title>
 <style>
+    /* CSS Variables for Theming */
+    :root {
+        --bg-color: #0d021a;
+        --bg-color-container: #1a0f29;
+        --bg-color-item: #2a1f39;
+        --bg-color-item-hover: #3a2f49;
+        --text-color: #e0e0e0;
+        --text-color-light: #aaa;
+        --text-color-header: #fff;
+        --text-color-link: #c080c0;
+        --border-color: #4a2f4a;
+        --accent-color: #800080;
+        --accent-color-hover: #9c27b0;
+        --btn-color: #000;
+        --btn-text-color: #fff;
+        --btn-delete-bg: #8b0000;
+        --btn-delete-hover: #ff4d4d;
+        --shadow-color: rgba(128, 0, 128, 0.6);
+    }
+    
+    .light-theme {
+        --bg-color: #f0f2f5;
+        --bg-color-container: #ffffff;
+        --bg-color-item: #f8f8f8;
+        --bg-color-item-hover: #eeeeee;
+        --text-color: #1c1e21;
+        --text-color-light: #65676b;
+        --text-color-header: #000;
+        --text-color-link: #5851db;
+        --border-color: #dcdfe6;
+        --accent-color: #800080;
+        --accent-color-hover: #9c27b0;
+        --btn-color: #e4e6eb;
+        --btn-text-color: #050505;
+        --btn-delete-bg: #dc3545;
+        --btn-delete-hover: #c82333;
+        --shadow-color: rgba(0, 0, 0, 0.1);
+    }
+
     /* Global Reset and Base Styles */
     body {
-        background-color: #0d021a; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px;
+        background-color: var(--bg-color); color: var(--text-color); font-family: 'Segoe UI', sans-serif; margin: 0; padding: 10px;
     }
     .container {
-        background-color: #1a0f29; padding: 15px; border-radius: 10px; margin: auto;
-        box-shadow: 0 0 25px rgba(128, 0, 128, 0.6); border: 1px solid #800080;
+        background-color: var(--bg-color-container); padding: 15px; border-radius: 10px; margin: auto;
+        box-shadow: 0 0 25px var(--shadow-color); border: 1px solid var(--accent-color);
         max-width: 100%;
         min-height: 90vh;
     }
     
     /* Typography */
-    h1 { color: #fff; text-align: center; border-bottom: 1px solid #4a2f4a; padding-bottom: 10px; }
-    h2 { margin-top: 25px; font-size: 1.2em; color: #c080c0; border-left: 5px solid #800080; padding-left: 10px; }
+    h1 { color: var(--text-color-header); text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+    h2 { margin-top: 25px; font-size: 1.2em; color: var(--text-color-link); border-left: 5px solid var(--accent-color); padding-left: 10px; }
     
+    /* Header Bar */
+    .header-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 10px;
+    }
+    #themeToggleBtn {
+        background: none;
+        border: 1px solid var(--border-color);
+        color: var(--text-color);
+        font-size: 1.5rem;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        line-height: 1;
+    }
+    h1 { flex-grow: 1; border-bottom: none; padding-bottom: 0; margin: 0; }
+
     /* Flash Messages */
     .flash { padding: 10px; margin-bottom: 15px; border-radius: 5px; font-weight: bold; }
     .flash.success { background-color: #004d00; border: 1px solid #00ff00; color: #00ff00; }
     .flash.error { background-color: #4d0000; border: 1px solid #ff4d4d; color: #ff4d4d; }
     .flash.warning { background-color: #4d4d00; border: 1px solid #ffff00; color: #ffff00; }
+    .light-theme .flash.success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+    .light-theme .flash.error { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+    .light-theme .flash.warning { background-color: #fff3cd; border-color: #ffeeba; color: #856404; }
+
 
     /* Forms and Inputs */
     .form-group {
         display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; padding: 10px; 
-        background: #2a1f39; border-radius: 6px; 
+        background: var(--bg-color-item); border-radius: 6px; 
     }
     input, select, .button {
-        padding: 8px; border-radius: 4px; border: 1px solid #4a2f4a; background: #1a0f29; color: #fff;
+        padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-color-container); color: var(--text-color);
     }
     input[type="submit"] {
-        background-color: #000; color: #fff; cursor: pointer; border-color: #800080; transition: all 0.3s ease;
+        background-color: var(--btn-color); color: var(--btn-text-color); cursor: pointer; border-color: var(--accent-color); transition: all 0.3s ease;
     }
-    input[type="submit"]:hover { background-color: #800080; box-shadow: 0 0 10px #800080; }
+    input[type="submit"]:hover { background-color: var(--accent-color); color: #fff; box-shadow: 0 0 10px var(--accent-color); }
 
     /* Manager Section */
     .manager-section { 
         margin-top: 20px; 
-        background: #3a2f49;
+        background: var(--bg-color-item-hover);
         padding: 10px;
         border-radius: 6px;
         text-align: center; /* Centering the button */
@@ -334,9 +402,9 @@ html_template_db = '''
         padding: 10px 15px;
         font-size: 1em;
         font-weight: bold;
-        background-color: #000;
-        color: #fff;
-        border: 1px solid #800080;
+        background-color: var(--btn-color);
+        color: var(--btn-text-color);
+        border: 1px solid var(--accent-color);
         cursor: pointer;
         border-radius: 4px;
         transition: all 0.3s ease;
@@ -344,20 +412,21 @@ html_template_db = '''
         margin: 5px 0; 
     }
     .icon-button:hover {
-        background-color: #800080;
-        box-shadow: 0 0 10px #800080;
+        background-color: var(--accent-color);
+        color: #fff;
+        box-shadow: 0 0 10px var(--accent-color);
     }
     
     /* File List Items */
     .file-item {
-        background: #2a1f39; padding: 10px 12px; border-radius: 6px; display: flex; 
+        background: var(--bg-color-item); padding: 10px 12px; border-radius: 6px; display: flex; 
         flex-direction: column;
         align-items: flex-start;
         gap: 10px; margin-bottom: 8px; transition: background-color 0.2s ease;
         max-width: 100%;
         box-sizing: border-box;
     }
-    .file-item:hover { background: #3a2f49; }
+    .file-item:hover { background: var(--bg-color-item-hover); }
     
     .filename { 
         flex-grow: 1; font-weight: bold; 
@@ -372,16 +441,23 @@ html_template_db = '''
     }
     .button { 
         text-decoration: none; font-size: 0.9em; padding: 6px 10px;
-        background-color: #000;
+        background-color: var(--btn-color);
+        color: var(--btn-text-color);
+        border-color: var(--border-color);
     }
-    .delete-button { background-color:#8b0000; }
-    .delete-button:hover { background-color:#ff4d4d; }
+    .button:hover {
+        background-color: var(--accent-color-hover);
+        color: #fff;
+    }
+    .delete-button { background-color: var(--btn-delete-bg); color: #fff; }
+    .delete-button:hover { background-color: var(--btn-delete-hover); color: #fff; }
     
     /* Info Popup */
     .info-popup {
-        display: none; position: absolute; background: #1a0f29; border: 1px solid #800080; border-radius: 5px;
-        padding: 10px; color: #e0e0e0; z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-size: 0.9em;
+        display: none; position: absolute; background: var(--bg-color-container); border: 1px solid var(--accent-color); border-radius: 5px;
+        padding: 10px; color: var(--text-color); z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.5); font-size: 0.9em;
     }
+    .light-theme .info-popup { box-shadow: 0 5px 15px var(--shadow-color); }
 
     /* Media Query for larger screens */
     @media (min-width: 600px) {
@@ -391,7 +467,7 @@ html_template_db = '''
         }
     }
     
-    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: #6a4f6a; }
+    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; color: var(--text-color-light); }
 </style>
 <script>
     function toggleInfo(event, id) {
@@ -405,11 +481,43 @@ html_template_db = '''
     document.addEventListener('click', () => {
         document.querySelectorAll('.info-popup').forEach(p => p.style.display = 'none');
     });
+
+    // Theme Toggle Logic
+    function applyTheme(theme) {
+        const toggleBtn = document.getElementById('themeToggleBtn');
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+            if (toggleBtn) toggleBtn.textContent = '🌙';
+        } else {
+            document.body.classList.remove('light-theme');
+            if (toggleBtn) toggleBtn.textContent = '☀️';
+        }
+    }
+
+    function toggleTheme() {
+        const currentTheme = localStorage.getItem('theme') || 'dark';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('theme', newTheme);
+        applyTheme(newTheme);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        applyTheme(savedTheme);
+        
+        const toggleBtn = document.getElementById('themeToggleBtn');
+        if (toggleBtn) {
+            toggleBtn.onclick = toggleTheme;
+        }
+    });
 </script>
 </head>
 <body>
 <div class="container">
-    <h1>Βάση Δεδομένων DedSec</h1>
+    <div class="header-bar">
+        <h1>Βάση Δεδομένων DedSec</h1>
+        <button id="themeToggleBtn" title="Αλλαγή Θέματος">☀️</button>
+    </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -421,7 +529,7 @@ html_template_db = '''
 
     <div class="manager-section">
         <button class="icon-button" onclick="document.getElementById('file-upload-input').click()">
-            ⬆️ Αποστολή Αρχείου
+            ⬆️ Μεταφόρτωση Αρχείου
         </button>
         
         <form id="upload-form" action="{{ url_for('database.upload_file') }}" method="POST" enctype="multipart/form-data" style="display:none;">
@@ -442,10 +550,10 @@ html_template_db = '''
         <select name="sort">
             <option value="a-z" {% if sort=='a-z' %}selected{% endif %}>Ταξινόμηση Α-Ω</option>
             <option value="z-a" {% if sort=='z-a' %}selected{% endif %}>Ταξινόμηση Ω-Α</option>
-            <option value="newest" {% if sort=='newest' %}selected{% endif %}>Πιο Πρόσφατα</option>
-            <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Πιο Παλιά</option>
-            <option value="biggest" {% if sort=='biggest' %}selected{% endif %}>Μεγαλύτερα Αρχεία</option>
-            <option value="smallest" {% if sort=='smallest' %}selected{% endif %}>Μικρότερα Αρχεία</option>
+            <option value="newest" {% if sort=='newest' %}selected{% endif %}>Νεότερα Πρώτα</option>
+            <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Παλαιότερα Πρώτα</option>
+            <option value="biggest" {% if sort=='biggest' %}selected{% endif %}>Μεγαλύτερα Πρώτα</option>
+            <option value="smallest" {% if sort=='smallest' %}selected{% endif %}>Μικρότερα Πρώτα</option>
         </select>
         <input type="submit" value="Φίλτρο" />
     </form>
@@ -471,9 +579,9 @@ html_template_db = '''
                         <b>Προστέθηκε:</b> {{ info['mtime_str'] }}
                     </div>
                     
-                    <a href="{{ url_for('database.download_file', filename=f) }}" class="button" download onclick="return confirm(&quot;Λήψη &apos;{{ f }}&apos; τώρα;&quot;)">Λήψη</a>
+                    <a href="{{ url_for('database.download_file', filename=f) }}" class="button" download>Λήψη</a>
                     
-                    <a href="{{ url_for('database.delete_path', filename=f, sort=sort) }}" class="button delete-button" onclick="return confirm(&quot;Διαγραφή &apos;{{ f }}&apos;? Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.&quot;)">Διαγραφή</a>
+                    <a href="{{ url_for('database.delete_path', filename=f, sort=sort) }}" class="button delete-button">Διαγραφή</a>
                 </div>
             </div>
             {% endfor %}
@@ -486,7 +594,7 @@ html_template_db = '''
         {% if request.args.get('query') %}
             Δεν βρέθηκαν αρχεία που να ταιριάζουν με την αναζήτησή σας στη Βάση Δεδομένων.
         {% else %}
-            Η Βάση Δεδομένων είναι άδεια. Χρησιμοποιήστε το κουμπί ⬆️ Αποστολή για να προσθέσετε αρχεία.
+            Η Βάση Δεδομένων είναι άδεια. Χρησιμοποιήστε το κουμπί ⬆️ Μεταφόρτωση για να προσθέσετε αρχεία.
         {% endif %}
         </p>
     {% endif %}
@@ -497,10 +605,9 @@ html_template_db = '''
 '''
 
 # ==== FLASK ROUTING & AUTH (DB) ====
-# No password required anymore for the DB. Access is open to anyone with the link.
-# The main chat is still protected by the secret key.
 
 @db_blueprint.route("/", methods=["GET"])
+@db_auth_required
 def index():
     query = request.args.get("query", "").lower()
     sort = request.args.get("sort", "a-z")
@@ -553,6 +660,7 @@ def index():
 
 
 @db_blueprint.route("/upload", methods=["POST"])
+@db_auth_required
 def upload_file():
     uploaded_files = request.files.getlist("file")
     sort = request.form.get("sort", "a-z")
@@ -566,14 +674,15 @@ def upload_file():
                 file.save(BASE_DIR / filename)
                 uploaded_count += 1
             except Exception:
-                flash(f"Σφάλμα κατά την αποστολή του {filename}.", 'error')
+                flash(f"Σφάλμα κατά τη μεταφόρτωση του {filename}.", 'error')
 
     if uploaded_count > 0:
-        flash(f"Επιτυχής αποστολή {uploaded_count} αρχείου/ων.", 'success')
+        flash(f"Επιτυχής μεταφόρτωση {uploaded_count} αρχείου/ων.", 'success')
             
     return redirect(url_for('database.index', sort=sort))
 
 @db_blueprint.route("/download/<filename>", methods=["GET"])
+@db_auth_required
 def download_file(filename):
     basename = os.path.basename(filename)
     full_path = BASE_DIR / basename
@@ -587,6 +696,7 @@ def download_file(filename):
 # --- FILE MANAGEMENT ROUTES ---
 
 @db_blueprint.route("/delete_path", methods=["GET"])
+@db_auth_required
 def delete_path():
     filename_to_delete = request.args.get("filename") 
     sort = request.args.get("sort", "a-z")
@@ -622,24 +732,63 @@ VIDEO_ROOM = "global_video_room"
 # --- Register the Database Blueprint ---
 app.register_blueprint(db_blueprint)
 
-# Full original HTML UI (restored). I used your original long UI, with client-side MAX_FILE_SIZE set to 10GB.
-# --- MODIFIED FOR INSTAGRAM DM UI ---
+# --- MODIFIED FOR VIBER UI + THEMES ---
 HTML = '''
 <!DOCTYPE html>
 <html lang="el">
 <head>
-<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
 <title>Fox Chat</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <style>
+/* --- CSS Variables for Theming --- */
+:root {
+    --bg-color-main: #121212;
+    --bg-color-header: #1e1e1e;
+    --bg-color-input: #1e1e1e;
+    --bg-color-input-field: #2c2c2c;
+    --bg-color-bubble-self: #3737a1;
+    --bg-color-bubble-other: #3a3a3a;
+    --text-color-main: #e0e0e0;
+    --text-color-header: #9c27b0;
+    --text-color-light: #aaa;
+    --text-color-self: #fff;
+    --text-color-other: #e0e0e0;
+    --text-color-btn: #fff;
+    --border-color: #333;
+    --shadow-color: rgba(0,0,0,0.5);
+    --link-color: #90caf9;
+    --accent-color-green: #4caf50;
+    --accent-color-red: #f44336;
+}
+.light-theme {
+    --bg-color-main: #ffffff;
+    --bg-color-header: #ffffff;
+    --bg-color-input: #ffffff;
+    --bg-color-input-field: #f0f2f5;
+    --bg-color-bubble-self: #0084ff;
+    --bg-color-bubble-other: #e4e6eb;
+    --text-color-main: #050505;
+    --text-color-header: #800080; /* Kept purple */
+    --text-color-light: #65676b;
+    --text-color-self: #fff;
+    --text-color-other: #050505;
+    --text-color-btn: #050505;
+    --border-color: #ced0d4;
+    --shadow-color: rgba(0,0,0,0.1);
+    --link-color: #0062cc;
+    --accent-color-green: #28a745;
+    --accent-color-red: #dc3545;
+}
+
 /* --- Global & Login --- */
-body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#121212;color:#e0e0e0;overflow:hidden;}
+body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:var(--bg-color-main);color:var(--text-color-main);overflow:hidden;}
 #login-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;justify-content:center;align-items:center;z-index:1000}
-#login-box{background:#1e1e1e;padding:25px;border-radius:8px;text-align:center;box-shadow:0 0 15px rgba(0,0,0,0.5)}
-#login-box h2{margin-top:0;color:#9c27b0}
-#login-box input{width:90%;padding:10px;margin:15px 0;background:#2c2c2c;border:1px solid #333;color:#e0e0e0;border-radius:4px}
-#login-box button{width:95%;padding:10px;background:#4caf50;border:none;color:#fff;border-radius:4px;cursor:pointer}
-#login-error{color:#f44336;margin-top:10px;height:1em}
+#login-box{background:var(--bg-color-header);padding:25px;border-radius:8px;text-align:center;box-shadow:0 0 15px var(--shadow-color)}
+#login-box h2{margin-top:0;color:var(--text-color-header)}
+#login-box input{width:90%;padding:10px;margin:15px 0;background:var(--bg-color-input-field);border:1px solid var(--border-color);color:var(--text-color-main);border-radius:4px}
+#login-box button{width:95%;padding:10px;background:var(--accent-color-green);border:none;color:#fff;border-radius:4px;cursor:pointer}
+#login-error{color:var(--accent-color-red);margin-top:10px;height:1em}
 
 /* --- Main Layout (Flex Column) --- */
 #main-content{display:none; display: flex; flex-direction: column; height: 100%;} 
@@ -649,41 +798,54 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background:#1e1e1e;
+    background:var(--bg-color-header);
     margin:0;
     padding: 10px 15px;
     font-size:1.5em;
-    color:#9c27b0;
-    border-bottom:1px solid #333; 
+    color:var(--text-color-header);
+    border-bottom:1px solid var(--border-color); 
     flex-shrink: 0;
 }
-#toggleCallUIBtn {
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+#toggleCallUIBtn, #themeToggleBtn {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-color-btn);
     font-size: 1.5rem;
     cursor: pointer;
+}
+#themeToggleBtn {
+    font-size: 1.3rem; /* Slightly smaller */
 }
 
 /* --- Call UI (Hidden by default) --- */
 #call-ui-container { display: none; flex-shrink: 0; }
 #main-content.show-call #call-ui-container { display: block; }
 
-#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:#1e1e1e;width:100%;}
-#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px}
-#controls button:hover:not(:disabled){background:#3a3a3a}
+#controls{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:12px;background:var(--bg-color-header);width:100%;}
+#controls button{flex:1 1 100px;max-width:150px;min-width:80px;padding:10px;background:var(--bg-color-input-field);color:var(--text-color-btn);border:1px solid var(--border-color);border-radius:4px}
+#controls button:hover:not(:disabled){background:var(--bg-color-bubble-other)}
 #controls button:disabled{opacity:.4}
 
 #videos{display:none;padding:8px;background:#000;flex-wrap:wrap;gap:6px;width:100%;position:relative;}
-#videos video{width:calc(25% - 8px);max-width:120px;height:auto;object-fit:cover;border:2px solid #333;border-radius:6px;cursor:zoom-in}
+#videos video{width:calc(25% - 8px);max-width:120px;height:auto;object-fit:cover;border:2px solid var(--border-color);border-radius:6px;cursor:zoom-in}
 #videos video:not(#local){display:none} 
 #videos #local{display:block;} 
 #videos.show{display:flex} 
 #videos.show video:not(#local){display:block} 
 
-#video-controls-header{display:none;text-align:center;padding:5px;background-color:#1e1e1e;}
+#video-controls-header{display:none;text-align:center;padding:5px;background-color:var(--bg-color-header);}
 #videos.show + #video-controls-header{display:block}
-#toggleVideosBtn{background:none;border:none;color:#fff;font-size:1.5em;cursor:pointer}
+#toggleVideosBtn{background:none;border:none;color:var(--text-color-btn);font-size:1.5em;cursor:pointer}
 #videos.collapsed{display:none !important} 
 
 /* --- Chat Container (Takes remaining space) --- */
@@ -728,7 +890,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     /* Show username above bubble for 'other' */
     display: block;
     font-size: 0.8em;
-    color: #aaa;
+    color: var(--text-color-light);
     margin-left: 15px;
     margin-bottom: 2px;
     /* We need to wrap strong and content in a div for this */
@@ -746,13 +908,13 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     line-height: 1.4;
 }
 .chat-message.self .message-content{
-    background: #3737a1; /* IG Blue */
-    color: #fff;
+    background: var(--bg-color-bubble-self);
+    color: var(--text-color-self);
     border-bottom-right-radius: 5px;
 }
 .chat-message.other .message-content{
-    background: #3a3a3a; /* Dark Grey */
-    color: #e0e0e0;
+    background: var(--bg-color-bubble-other);
+    color: var(--text-color-other);
     border-bottom-left-radius: 5px;
 }
 
@@ -765,7 +927,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
 .message-content audio {
     width: 100%;
 }
-.file-link{cursor:pointer;color:#90caf9;text-decoration:underline; font-weight: bold;}
+.file-link{cursor:pointer;color:var(--link-color);text-decoration:underline; font-weight: bold;}
 
 
 .message-actions{
@@ -778,10 +940,10 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     cursor:pointer;
     font-size:1.1em;
     padding: 2px 5px;
-    color: #888;
+    color: var(--text-color-light);
 }
 .message-actions button:hover {
-    color: #fff;
+    color: var(--text-color-main);
 }
 .chat-message.other {
     /* Re-order for other: [bubble] [actions] */
@@ -803,26 +965,27 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     order: 2;
 }
 
-/* --- Input Bar (Fixed Bottom) --- */
+/* --- Input Bar (Viber Style) --- */
 .controls{
-    position:sticky; /* Changed from fixed to sticky to bottom of flex container */
+    position:sticky;
     bottom:0;
     left:0;
     right:0;
     display:flex;
-    flex-wrap:nowrap; /* Don't wrap */
+    flex-direction: column; /* CHANGED */
     gap: 8px;
     padding: 10px;
-    background:#1e1e1e; 
+    background:var(--bg-color-input); 
     z-index: 10;
-    align-items: center;
+    /* align-items: center; <-- REMOVED */
     flex-shrink: 0;
+    border-top: 1px solid var(--border-color);
 }
 #message {
     flex-grow: 1;
-    background: #2c2c2c;
-    border: 1px solid #333;
-    color: #e0e0e0;
+    background: var(--bg-color-input-field);
+    border: 1px solid var(--border-color);
+    color: var(--text-color-main);
     border-radius: 20px;
     padding: 10px 15px;
     font-size: 1em;
@@ -833,45 +996,76 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
 .controls button {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text-color-btn);
     font-size: 1.5em;
     cursor: pointer;
     padding: 5px;
     flex-shrink: 0;
 }
 .controls button#sendBtn {
-    font-size: 1em;
-    font-weight: bold;
-    color: #4caf50;
-    padding: 8px 10px;
+    font-size: 1.5em; /* Match other icons */
+    color: var(--accent-color-green);
+    padding: 5px 10px; /* Adjust padding */
 }
+
+/* --- NEW CSS for Input Layout --- */
+.input-row {
+    display: flex;
+    align-items: flex-end; /* Align to bottom as textarea grows */
+    gap: 8px;
+    width: 100%;
+}
+.button-row {
+    display: flex;
+    justify-content: space-around;
+    gap: 8px;
+    width: 100%;
+}
+.button-row button {
+    flex-grow: 1; /* Make buttons share space */
+    padding: 8px; /* Give them a bit more padding */
+}
+/* --- END NEW CSS --- */
+
 
 /* --- UI & FEATURE STYLES --- */
 #media-preview-overlay, #camera-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:3000}
+.light-theme #media-preview-overlay, .light-theme #camera-overlay { background: rgba(255,255,255,0.9); }
+
 #media-preview-overlay img, #media-preview-overlay video, #media-preview-overlay audio{max-width:90vw;max-height:80vh;border:2px solid #fff}
+.light-theme #media-preview-overlay img, .light-theme #media-preview-overlay video, .light-theme #media-preview-overlay audio { border-color: #000; }
+
 #media-preview-overlay .file-placeholder{font-size:5em;color:#fff}
+.light-theme #media-preview-overlay .file-placeholder { color: #000; }
+
 #media-preview-controls, #camera-controls{display:flex;gap:15px;margin-top:15px;flex-wrap:wrap;justify-content:center}
-#media-preview-controls button, #media-preview-controls a, #camera-controls button{background:#2c2c2c;color:#fff;border:1px solid #333;border-radius:4px;padding:10px 15px;cursor:pointer;text-decoration:none;font-size:1em}
-#camera-preview{max-width:100%;max-height:80vh;border:2px solid #333;background:#000}
-.edit-input{background:#3a3a3a;color:#e0e0e0;border:1px solid #555;border-radius:4px;width:80%}
+#media-preview-controls button, #media-preview-controls a, #camera-controls button{background:var(--bg-color-input-field);color:var(--text-color-btn);border:1px solid var(--border-color);border-radius:4px;padding:10px 15px;cursor:pointer;text-decoration:none;font-size:1em}
+#camera-preview{max-width:100%;max-height:80vh;border:2px solid var(--border-color);background:#000}
+.edit-input{background:var(--bg-color-bubble-other);color:var(--text-color-other);border:1px solid var(--border-color);border-radius:4px;width:80%}
 .fullscreen-video{position:fixed !important;top:0;left:0;width:100vw;height:100vh;max-width:none !important;max-height:none !important;margin:0;background-color:#000;object-fit:contain;z-index:2000;border-radius:0 !important;border:none !important}
 .close-fullscreen-btn{position:fixed;top:15px;right:15px;z-index:2001;background:rgba(0,0,0,0.5);color:#fff;border:1px solid #fff;border-radius:50%;width:40px;height:40px;font-size:24px;line-height:40px;text-align:center;cursor:pointer}
 .secure-watermark{position:absolute;top:0;left:0;width:100%;height:100%;overflow:hidden;pointer-events:none;z-index:100}
 .secure-watermark::before{content:attr(data-watermark);position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:3em;color:rgba(255,255,255,0.08);white-space:nowrap}
+.light-theme .secure-watermark::before { color: rgba(0,0,0,0.06); }
 </style>
 </head>
 <body>
-<div id="login-overlay"><div id="login-box"><h2>Εισάγετε Μυστικό Κλειδί</h2><input type="text" id="key-input" placeholder="Επικολλήστε το κλειδί εδώ..."><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
+<div id="login-overlay"><div id="login-box"><h2>Εισαγωγή Μυστικού Κλειδιού</h2><input type="text" id="key-input" placeholder="Επικόλληση κλειδιού εδώ..."><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
 
 <div id="main-content">
-    <h1 class="header">
-        <span>Fox Chat</span>
-        <button id="toggleCallUIBtn">📞</button>
-    </h1>
+    <div class="header">
+        <div class="header-left">
+            <span>Fox Chat</span>
+        </div>
+        <div class="header-right">
+            <button id="themeToggleBtn" title="Αλλαγή Θέματος">☀️</button>
+            <button id="toggleCallUIBtn" title="Εμφάνιση/Απόκρυψη Κλήσης">📞</button>
+        </div>
+    </div>
     
     <div id="call-ui-container">
         <div id="controls">
-            <button id="joinBtn">Σύνδεση σε Κλήση</button>
+            <button id="joinBtn">Συμμετοχή σε Κλήση</button>
             <button id="muteBtn" disabled>Σίγαση</button>
             <button id="videoBtn" disabled>Κάμερα Off</button>
             <button id="leaveBtn" disabled>Αποχώρηση</button>
@@ -892,19 +1086,49 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:#1212
     </div>
     
     <div class="controls">
-        <button id="liveCameraBtn" onclick="openLiveCamera()" title="Κάμερα">📸</button>
-        <button onclick="sendFile()" title="Επισύναψη Αρχείου">📄</button>
-        <button id="recordButton" onclick="toggleRecording()" title="Φωνητικό Μήνυμα">🎙️</button>
-        <textarea id="message" placeholder="Πληκτρολογήστε ένα μήνυμα..." rows="1"></textarea>
-        <button id="sendBtn" onclick="sendMessage()">Αποστολή</button>
-        <button id="dbButton" onclick="window.open('/db', '_blank');" title="Βάση Δεδομένων DedSec">🛡️</button>
-        <button id="infoButton" onclick="showInfo()" title="Πληροφορίες">ℹ️</button>
+        <div class="input-row">
+            <textarea id="message" placeholder="Πληκτρολογήστε ένα μήνυμα..." rows="1"></textarea>
+            <button id="recordButton" onclick="toggleRecording()" title="Φωνητικό Μήνυμα">🎙️</button>
+            <button id="sendBtn" onclick="sendMessage()" title="Αποστολή" style="display:none;">&#10148;</button>
+        </div>
+        <div class="button-row">
+            <button id="liveCameraBtn" onclick="openLiveCamera()" title="Κάμερα">📸</button>
+            <button onclick="sendFile()" title="Επισύναψη Αρχείου">📄</button>
+            <button id="dbButton" onclick="window.open('/db', '_blank');" title="Βάση Δεδομένων DedSec">🛡️</button>
+            <button id="infoButton" onclick="showInfo()" title="Πληροφορίες">ℹ️</button>
+        </div>
         <input type="file" id="fileInput" style="display:none">
     </div>
 </div>
 
 <script>
+// --- Theme Toggle Logic ---
+function applyTheme(theme) {
+    const toggleBtn = document.getElementById('themeToggleBtn');
+    if (theme === 'light') {
+        document.body.classList.add('light-theme');
+        if (toggleBtn) toggleBtn.textContent = '🌙';
+    } else {
+        document.body.classList.remove('light-theme');
+        if (toggleBtn) toggleBtn.textContent = '☀️';
+    }
+}
+
+function toggleTheme() {
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', newTheme);
+    applyTheme(newTheme);
+}
+// --- End Theme Logic ---
+
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Apply saved theme on load
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    applyTheme(savedTheme);
+    document.getElementById('themeToggleBtn').onclick = toggleTheme;
+
     const keyInput = document.getElementById('key-input');
     const connectBtn = document.getElementById('connect-btn');
     const loginError = document.getElementById('login-error');
@@ -921,38 +1145,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
     
-    // Auto-resize textarea
+    // Auto-resize textarea and toggle Send/Mic buttons
     const messageInput = document.getElementById('message');
+    const sendBtn = document.getElementById('sendBtn');
+    const recordBtn = document.getElementById('recordButton');
+    
     messageInput.addEventListener('input', function() {
         this.style.height = 'auto';
         this.style.height = (this.scrollHeight) + 'px';
+        
+        // Viber-like button toggle
+        if (this.value.trim().length > 0) {
+            sendBtn.style.display = 'block';
+            recordBtn.style.display = 'none';
+        } else {
+            sendBtn.style.display = 'none';
+            recordBtn.style.display = 'block';
+        }
     });
 });
 
 function showInfo() {
     const infoText = `Καλώς ήρθατε στο Fox Chat!
 
---- Πώς να Χρησιμοποιήσετε ---
+--- Πώς να χρησιμοποιήσετε ---
 
 Συνομιλία:
 • Πληκτρολογήστε ένα μήνυμα στο πλαίσιο και πατήστε 'Αποστολή' ή Enter.
 • 📸: Ανοίξτε την κάμερα της συσκευής σας για να τραβήξετε και να στείλετε μια φωτογραφία.
-• 📄: Επισυνάψτε και στείλτε οποιοδήποτε αρχείο από τη συσκευή σας (μέχρι 10GB).
+• 📄: Επισυνάψτε και στείλτε οποιοδήποτε αρχείο από τη συσκευή σας (έως 50GB).
 • 🎙️: Πατήστε για εγγραφή φωνητικού μηνύματος. Πατήστε ξανά για διακοπή και αποστολή.
-• 🛡️: Ανοίγει τη βάση δεδομένων αρχείων σε νέα καρτέλα. Μπορείτε να ανεβάζετε, κατεβάζετε και να διαχειρίζεστε αρχεία εκεί.
+• 🛡️: Ανοίγει τη βάση δεδομένων αρχείων σε νέα καρτέλα. Πρέπει να είστε συνδεδεμένοι στη συνομιλία για να τη δείτε.
+• ☀️/🌙: Εναλλαγή μεταξύ φωτεινής και σκοτεινής λειτουργίας.
 
-Βίντεο Κλήση:
+Βιντεοκλήση:
 • Πατήστε το εικονίδιο 📞 στην κορυφή για να εμφανίσετε τα στοιχεία ελέγχου κλήσης.
-• Σύνδεση σε Κλήση: Ξεκινά την κάμερα/μικρόφωνό σας και σας συνδέει στην κλήση.
+• Συμμετοχή σε Κλήση: Ξεκινά την κάμερα/μικρόφωνό σας και σας συνδέει στην κλήση.
 • Σίγαση/Κάμερα Off: Εναλλαγή μικροφώνου και κάμερας.
-• Αποχώρηση: Αποσυνδέει από την βίντεο κλήση.
+• Αποχώρηση: Αποσυνδέει από τη βιντεοκλήση.
 • 🔄: Εναλλαγή μεταξύ μπροστινής και πίσω κάμερας.
-• Κάντε κλικ σε οποιαδήποτε ροή βίντεο για να την δείτε σε πλήρη οθόνη.
+• Κάντε κλικ σε οποιαδήποτε ροή βίντεο για προβολή σε πλήρη οθόνη.
 
 Μηνύματα:
 • Τα δικά σας μηνύματα έχουν κουμπιά 📝 (επεξεργασία) και ❌ (διαγραφή).
 • Κάντε κλικ σε αποσταλμένες εικόνες/βίντεο για προεπισκόπηση.`;
-    alert(infoText.trim());
+    
+    // Use a custom modal instead of alert()
+    const infoModal = document.createElement('div');
+    infoModal.id = 'info-modal-overlay';
+    infoModal.style = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:5000;padding:15px;box-sizing:border-box;';
+    infoModal.onclick = () => infoModal.remove();
+    
+    const infoBox = document.createElement('div');
+    infoBox.id = 'info-modal-box';
+    infoBox.style = 'background:var(--bg-color-header);color:var(--text-color-main);padding:20px;border-radius:8px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto;border:1px solid var(--border-color);';
+    infoBox.onclick = (e) => e.stopPropagation(); // Prevent modal from closing when clicking box
+    
+    const infoPre = document.createElement('pre');
+    infoPre.style = 'white-space:pre-wrap;font-family:inherit;font-size:1em;';
+    infoPre.textContent = infoText.trim();
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Κλείσιμο';
+    closeBtn.style = 'width:100%;padding:10px;margin-top:15px;background:var(--accent-color-green);border:none;color:#fff;border-radius:4px;cursor:pointer;';
+    closeBtn.onclick = () => infoModal.remove();
+    
+    infoBox.appendChild(infoPre);
+    infoBox.appendChild(closeBtn);
+    infoModal.appendChild(infoBox);
+    document.body.appendChild(infoModal);
 }
 
 function initializeChat(secretKey) {
@@ -979,7 +1240,7 @@ function initializeChat(secretKey) {
         document.getElementById('main-content').classList.toggle('show-call');
     };
 
-    const MAX_FILE_SIZE = 10 * 1024 * 1024 * 1024; // 10 GB
+    const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50 GB
     const fileInput = document.getElementById('fileInput');
     const chat = document.getElementById('chat');
     const chatContainer = document.getElementById('chat-container');
@@ -988,7 +1249,8 @@ function initializeChat(secretKey) {
     function handleFileSelection(file) {
         if (!file) return;
         if (file.size > MAX_FILE_SIZE) {
-            alert(`Το αρχείο είναι πολύ μεγάλο. Μέγιστο: 10 GB`);
+            // Use custom alert
+            showCustomAlert(`Το αρχείο είναι πολύ μεγάλο. Μέγιστο: 50 GB`);
             return;
         }
         let reader = new FileReader();
@@ -1006,13 +1268,14 @@ function initializeChat(secretKey) {
         socket.emit("message", { id: generateId(), username: localStorage.getItem("username"), message: safeText });
         messageInput.value = '';
         messageInput.style.height = 'auto'; // Reset height
+        messageInput.style.height = (messageInput.scrollHeight) + 'px'; // Recalculate for 1 line
+        
+        // Toggle buttons back
+        document.getElementById('sendBtn').style.display = 'none';
+        document.getElementById('recordButton').style.display = 'block';
     };
-    messageInput.addEventListener('keydown', (e) => { 
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault(); // Prevent newline
-            sendMessage(); 
-        }
-    });
+    
+    // --- KEYDOWN LISTENER REMOVED ---
     
     let mediaRecorder, recordedChunks = [], isRecording = false;
     window.toggleRecording = () => {
@@ -1030,7 +1293,7 @@ function initializeChat(secretKey) {
                 mediaRecorder.onstop = () => {
                     isRecording = false;
                     recordButton.textContent = '🎙️';
-                    recordButton.style.color = 'white';
+                    recordButton.style.color = 'var(--text-color-btn)';
                     stream.getTracks().forEach(track => track.stop());
                     const blob = new Blob(recordedChunks, { type: 'audio/webm' });
                     const reader = new FileReader();
@@ -1038,7 +1301,7 @@ function initializeChat(secretKey) {
                     reader.readAsDataURL(blob);
                 };
                 mediaRecorder.start();
-            }).catch(err => alert("Η πρόσβαση στο μικρόφωνο απορρίφθηκε."));
+            }).catch(err => showCustomAlert("Η πρόσβαση στο μικρόφωνο απορρίφθηκε."));
         }
     };
     
@@ -1047,6 +1310,33 @@ function initializeChat(secretKey) {
     function emitFile(dataURL, type, name) {
         socket.emit("message", { id: generateId(), username: localStorage.getItem("username"), message: dataURL, fileType: type, filename: name });
     };
+
+    function showCustomAlert(message) {
+        // Re-using the info modal structure for alerts
+        const alertModal = document.createElement('div');
+        alertModal.id = 'alert-modal-overlay';
+        alertModal.style = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:5001;padding:15px;box-sizing:border-box;';
+        alertModal.onclick = () => alertModal.remove();
+        
+        const alertBox = document.createElement('div');
+        alertBox.id = 'alert-modal-box';
+        alertBox.style = 'background:var(--bg-color-header);color:var(--text-color-main);padding:20px;border-radius:8px;max-width:500px;width:100%;text-align:center;border:1px solid var(--border-color);';
+        alertBox.onclick = (e) => e.stopPropagation();
+        
+        const alertText = document.createElement('p');
+        alertText.textContent = message;
+        alertText.style = 'margin:0;font-size:1.1em;';
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'OK';
+        closeBtn.style = 'width:100%;padding:10px;margin-top:20px;background:var(--accent-color-green);border:none;color:#fff;border-radius:4px;cursor:pointer;';
+        closeBtn.onclick = () => alertModal.remove();
+        
+        alertBox.appendChild(alertText);
+        alertBox.appendChild(closeBtn);
+        alertModal.appendChild(alertBox);
+        document.body.appendChild(alertModal);
+    }
 
     function showMediaPreview(data) {
         let existingPreview = document.getElementById('media-preview-overlay');
@@ -1057,7 +1347,7 @@ function initializeChat(secretKey) {
         
         const base64Data = data.message.split(',')[1];
         if (!base64Data) {
-            alert("Σφάλμα ανάγνωσης δεδομένων αρχείου.");
+            showCustomAlert("Σφάλμα ανάγνωσης δεδομένων αρχείου.");
             return;
         }
 
@@ -1067,6 +1357,7 @@ function initializeChat(secretKey) {
             previewContent = document.createElement('video');
             previewContent.controls = true;
             previewContent.autoplay = true;
+            previewContent.playsInline = true;
         } else if (data.fileType.startsWith('audio/')) {
             previewContent = document.createElement('audio');
             previewContent.controls = true;
@@ -1113,6 +1404,7 @@ function initializeChat(secretKey) {
         const video = document.createElement('video');
         video.id = 'camera-preview';
         video.autoplay = true;
+        video.playsInline = true; // Added for iOS compatibility
         const controls = document.createElement('div');
         controls.id = 'camera-controls';
         const captureBtn = document.createElement('button');
@@ -1132,7 +1424,7 @@ function initializeChat(secretKey) {
                     video.srcObject = stream;
                 })
                 .catch(err => {
-                    alert('Δεν ήταν δυνατή η πρόσβαση στην κάμερα. Ελέγξτε τα δικαιώματα.');
+                    showCustomAlert('Δεν ήταν δυνατή η πρόσβαση στην κάμερα. Ελέγξτε τα δικαιώματα.');
                     overlay.remove();
                 });
         };
@@ -1216,6 +1508,7 @@ function initializeChat(secretKey) {
                 const video = document.createElement('video');
                 video.src = data.message;
                 video.controls = true;
+                video.playsInline = true;
                 video.onclick = () => showMediaPreview(data);
                 content.appendChild(video);
             } else {
@@ -1227,7 +1520,7 @@ function initializeChat(secretKey) {
             content.textContent = messageText;
             if (data.username === 'Σύστημα') {
                 content.style.background = 'none';
-                content.style.color = '#888';
+                content.style.color = 'var(--text-color-light)';
                 content.style.textAlign = 'center';
                 div.style.maxWidth = '100%';
                 div.style.justifyContent = 'center';
@@ -1385,7 +1678,7 @@ function initializeChat(secretKey) {
             socket.emit('join-room');
         } catch (err) {
             console.error("Error accessing media devices:", err); 
-            alert('Δεν ήταν δυνατή η εκκίνηση βίντεο. Ελέγξτε τα δικαιώματα.');
+            showCustomAlert('Δεν ήταν δυνατή η εκκίνηση βίντεο. Ελέγξτε τα δικαιώματα.');
         }
     };
     
@@ -1402,6 +1695,10 @@ function initializeChat(secretKey) {
         document.querySelectorAll('#videos video:not(#local)').forEach(v => v.remove());
         if (fullscreenState.element) toggleFullscreen(null);
         toggleCallButtons(false);
+        
+        // --- ADDED ---
+        // Hide the entire call UI container
+        document.getElementById('main-content').classList.remove('show-call');
     };
 
     // Switch Camera
@@ -1432,7 +1729,7 @@ function initializeChat(secretKey) {
             }
         } catch (err) {
             console.error('Failed to switch camera:', err);
-            alert('Αποτυχία αλλαγής κάμερας.');
+            showCustomAlert('Αποτυχία αλλαγής κάμερας.');
             currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
         }
     };
@@ -1442,7 +1739,7 @@ function initializeChat(secretKey) {
         if (!localStream) return;
         isMuted = !isMuted;
         localStream.getAudioTracks().forEach(track => track.enabled = !isMuted);
-        muteBtn.textContent = isMuted ? 'Κατάργηση Σίγασης' : 'Σίγαση';
+        muteBtn.textContent = isMuted ? 'Επαναφορά Ήχου' : 'Σίγαση';
     };
 
     // Video On/Off
@@ -1616,14 +1913,25 @@ def handle_message(data):
             if ',' not in data['message']: return
             header, encoded = data['message'].split(",", 1)
             
-            decoded_len = (len(encoded) * 3) // 4
-            if decoded_len > MAX_FILE_SIZE_BYTES:
-                emit("message", {'id': f'reject_{int(time.time())}', 'username': 'Σύστημα', 'message': 'Απόρριψη αρχείου: υπερβαίνει το όριο διακομιστή.'}, room=request.sid)
+            # Check size before decoding
+            # This is an approximation, but good for catching huge payloads early
+            # A base64 string is ~33% larger than the binary data
+            decoded_len_approx = (len(encoded) * 3) // 4
+            if decoded_len_approx > MAX_FILE_SIZE_BYTES:
+                emit("message", {'id': f'reject_{int(time.time())}', 'username': 'Σύστημα', 'message': 'Το αρχείο απορρίφθηκε: υπερβαίνει το όριο διακομιστή (50GB).'}, room=request.sid)
                 return
                 
-            binascii.a2b_base64(encoded.encode('utf-8'))
+            # A full decode is too memory-intensive for 50GB.
+            # We will trust the client-side check for the exact limit
+            # and rely on the approximation above as a basic safeguard.
+            # A more robust solution would involve streaming uploads,
+            # but that's a major architecture change.
             
-        except (ValueError, binascii.Error, IndexError):
+            # Quick check for valid base64 characters
+            if re.search(r'[^a-zA-Z0-9+/=]', encoded):
+                 return # Invalid characters
+            
+        except Exception:
             return 
             
         data['filename'] = html.escape(data.get('filename', 'αρχείο'))
@@ -1672,7 +1980,12 @@ def signal(data):
 def on_disconnect():
     leave_room(VIDEO_ROOM)
     emit("user-left", {"sid": request.sid}, to=VIDEO_ROOM)
-    if request.sid in connected_users: del connected_users[request.sid]
+    username = "Ένας χρήστης"
+    if request.sid in connected_users:
+        username = connected_users[request.sid].get('username', 'Ένας χρήστης')
+        if username == 'pending': username = 'Ένας χρήστης'
+        del connected_users[request.sid]
+    emit('message', {'id': f'leave_{int(time.time())}','username': 'Σύστημα','message': f'{username} έχει αποσυνδεθεί.'}, broadcast=True)
 
 
 # -------------------------------------------------------------------
@@ -1697,13 +2010,13 @@ if __name__ == '__main__' and "--server" not in sys.argv:
         
         try:
             # --- ONLY ONE KEY IS NEEDED ---
-            SECRET_KEY = input("🔑 Δημιουργήστε ένα μυστικό κλειδί μίας χρήσης για αυτή τη συνεδρία: ").strip()
+            SECRET_KEY = input("🔑 Δημιουργήστε ένα μυστικό κλειδί μιας χρήσης για αυτή τη συνεδρία: ").strip()
             if not SECRET_KEY:
                 print("Δεν εισήχθη μυστικό κλειδί. Έξοδος.")
                 sys.exit(1)
                 
         except Exception:
-            print("ΚΡΙΣΙΜΟ: Δεν ήταν δυνατή η ανάγνωση εισόδου για το κλειδί. Έξοδος.")
+            print("ΣΦΑΛΜΑ: Δεν ήταν δυνατή η ανάγνωση εισόδου για το κλειδί. Έξοδος.")
             sys.exit(1)
             
         # Pass the single key to the server process
@@ -1720,18 +2033,18 @@ if __name__ == '__main__' and "--server" not in sys.argv:
             if shutil.which("cloudflared"):
                 tunnel_proc, online_url = start_cloudflared_tunnel(5000, "https", "Fox Chat")
             else:
-                 print("Το 'cloudflared' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Διαδικτυακός Σύνδεσμος.")
+                 print("Το 'cloudflared' δεν είναι εγκατεστημένο, επομένως δεν δημιουργήθηκε Online Link.")
 
             os.system('cls' if os.name == 'nt' else 'clear')
             print(
 f"""✅ Το Fox Chat είναι πλέον ενεργό!
 =================================================================
-🔑 Το μυστικό κλειδί μίας χρήσης σας (για σύνδεση):
+🔑 Το μυστικό κλειδί μιας χρήσης σας (για σύνδεση):
    {SECRET_KEY}
 =================================================================
 --- Διεύθυνση Διακομιστή ---
-🔗 Διαδικτυακά (Internet):     {online_url or 'Δ/Υ'}
-🏠 Εσωτερικά (Hotspot/LAN): {local_url}
+🔗 Online (Διαδίκτυο):     {online_url or 'Μη Διαθέσιμο'}
+🏠 Offline (Hotspot/LAN): {local_url}
 
 Πατήστε Ctrl+C για να σταματήσετε τον διακομιστή."""
             )
@@ -1743,12 +2056,12 @@ f"""✅ Το Fox Chat είναι πλέον ενεργό!
             except KeyboardInterrupt:
                 pass # Handled by finally
         else:
-            print("\nΚρίσιμο σφάλμα: Ο διακομιστής απέτυχε να ξεκινήσει. Έξοδος.")
+            print("\nΣφάλμα: Ο διακομιστής απέτυχε να ξεκινήσει. Έξοδος.")
             
     except KeyboardInterrupt:
         print("\nΤερματισμός διακομιστών...")
     except Exception as e:
-        print(f"\nΠροέκυψε ένα μη αναμενόμενο σφάλμα: {e}")
+        print(f"\nΠροέκυψε ένα απρόσμενο σφάλμα: {e}")
     finally:
         # Terminate all subprocesses
         try:
@@ -1787,11 +2100,11 @@ if __name__ == '__main__' and "--server" in sys.argv:
         pass
 
     if not SECRET_KEY_SERVER or not DB_PASSWORD_SERVER:
-        print("ΚΡΙΣΙΜΟ: Ο διακομιστής ξεκίνησε χωρίς μυστικό κλειδί.")
+        print("ΣΦΑΛΜΑ: Ο διακομιστής ξεκίνησε χωρίς μυστικό κλειδί.")
         sys.exit(1)
 
     # --- Set passwords for the apps ---
-    SERVER_PASSWORD = DB_PASSWORD_SERVER # Set global for DB blueprint
+    SERVER_PASSWORD = DB_PASSWORD_SERVER # Set global for DB blueprint (though now unused)
     app.config['SECRET_KEY'] = SECRET_KEY_SERVER # Main secret key for session
     
     if QUIET_MODE_SERVER:
