@@ -426,9 +426,9 @@ def main():
     else:
         print("No valid option selected.")
 
-    # After performing the selected action, run menu.py
-    print("\nLaunching menu...")
-    os.system(f"{sys.executable} menu.py")
+    # After performing the selected action, run Settings.py
+    print("\nLaunching settings...")
+    os.system(f"{sys.executable} Settings.py")
 
 if __name__ == "__main__":
     main()
