@@ -9,6 +9,7 @@ import curses
 import re
 import textwrap
 import math
+import zipfile  # <-- Added for backup/restore
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -24,11 +25,13 @@ GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
 GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
 BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
+MOTD_PATH = "/data/data/com.termux/files/usr/etc/motd" # <-- Added for backup/restore
 
 # --- Persistent Language Config ---
 # Saves language preference to /data/data/com.termux/files/home/Language.json
 HOME_DIR = "/data/data/com.termux/files/home"
 LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
+BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip") # <-- Added for backup/restore
 
 # Define hidden folder name/path for Greek (Necessary for language toggle)
 HIDDEN_GREEK_FOLDER = "." + GREEK_FOLDER_NAME
@@ -53,6 +56,7 @@ JAVASCRIPT_ICON = "☕"
 SHELL_ICON = "🐚"
 EXECUTABLE_ICON = "⚡"
 GENERIC_SCRIPT_ICON = "📜"
+HOME_ICON = "🏠" # <-- NEW: Icon for Home Scripts
 
 # --- Language Preference Functions ---
 def save_language_preference(language):
@@ -94,8 +98,9 @@ GREEK_STRINGS = {
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
-    "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα", # This one remains dual-language
+    "Choose Language/Επιλέξτε ΓλώσSA": "Choose Language/Επιλέξτε Γλώσσα", # This one remains dual-language
     "Credits": "Συντελεστές",
+    "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec", # <-- New Translation
     "Exit": "Έξοδος",
     "System Information": "Πληροφορίες Συστήματος",
     "The Latest DedSec Project Update": "Η Τελευταία Ενημέρωση του Έργου DedSec",
@@ -142,7 +147,7 @@ GREEK_STRINGS = {
     "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
     "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
     "GitHub repository size": "Μέγεθος αποθετηρίου GitHub",
-    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέρωσης...",
+    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέ π",
     "Update applied. DedSec Project Size": "Ενημέρωση εφαρμόστηκε. Μέγεθος Έργου DedSec",
     "No available update found.": "Δεν βρέθηκε διαθέσιμη ενημέρωση.",
     "Cloned new DedSec repository. DedSec Project Size": "Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec",
@@ -155,6 +160,22 @@ GREEK_STRINGS = {
     "Exiting...": "Γίνεται έξοδος...",
     "Unknown menu style. Use 'list' or 'grid'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list' ή 'grid'.",
     "Invalid selection or non-executable script. Exiting.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script. Έξοδος.",
+    # --- New Uninstall Translations ---
+    "This will restore backed-up files and remove the DedSec project. ARE YOU SURE? (y/n): ": "Αυτό θα επαναφέρει αρχεία από το αντίγραφο ασφαλείας και θα αφαιρέσει το έργο DedSec. ΕΙΣΤΕ ΣΙΓΟΥΡΟΙ; (y/n): ",
+    "Uninstallation cancelled.": "Η απεγκατάσταση ακυρώθηκε.",
+    "Restoring files from Termux.zip...": "Επαναφορά αρχείων από το Termux.zip...",
+    "Restored bash.bashrc and motd from backup.": "Επαναφέρθηκαν τα bash.bashrc και motd από το αντίγραφο ασφαλείας.",
+    "Removed Termux.zip backup.": "Το αντίγραφο ασφαλείας Termux.zip αφαιρέθηκε.",
+    "Error restoring from backup: ": "Σφάλμα κατά την επαναφορά από αντίγραφο ασφαλείας: ",
+    "Backup Termux.zip not found. Cleaning up configuration manually...": "Το αντίγραφο ασφαλείας Termux.zip δεν βρέθηκε. Εκκαθάριση διαμόρφωσης μη αυτόματα...",
+    "Removing language configuration...": "Αφαίρεση διαμόρφωσης γλώσσας...",
+    "Configuration files have been reset.": "Έγινε επαναφορά των αρχείων διαμόρφωσης.",
+    "To complete the uninstallation, please exit this script and run the following command:": "Για να ολοκληρώσετε την απεγκατάσταση, βγείτε από αυτό το script και εκτελέστε την ακόλουθη εντολή:",
+    "Creating one-time configuration backup to Termux.zip...": "Δημιουργία εφάπαξ αντιγράφου ασφαλείας διαμόρφωσης στο Termux.zip...",
+    "Backup successful.": "Το αντίγραφο ασφαλείας δημιουργήθηκε με επιτυχία.",
+    "Warning: Failed to create backup: ": "Προειδοποίηση: Αποτυχία δημιουργίας αντιγράφου ασφαλείας: ",
+    # --- NEW Home Scripts Translation ---
+    "Home Scripts": "Scripts Αρχικής",
 }
 
 # ------------------------------
@@ -505,6 +526,47 @@ def change_prompt():
 # ------------------------------
 # Update bash.bashrc Aliases and Startup (CLEANUP CONFIRMED)
 # ------------------------------
+
+# --- NEW: Function to ONLY clean bashrc (used by Uninstall) ---
+def cleanup_bashrc():
+    """Removes all DedSec-related blocks and aliases from bash.bashrc."""
+    try:
+        with open(BASHRC_PATH, "r") as f:
+            lines = f.readlines()
+    except Exception as e:
+        print(f"Error reading {BASHRC_PATH}: {e}")
+        return False
+
+    # --- Robustly remove ALL previous menu startup commands and the marked block ---
+    filtered_lines = []
+    
+    # Regex to catch old, un-marked DedSec related lines (startup OR aliases m, e, g)
+    regex_pattern = re.compile(r"(cd\s+.*DedSec/Scripts.*python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd\s+.*DedSec/Scripts.*)")
+    
+    in_marked_block = False
+
+    for line in lines:
+        if BASHRC_START_MARKER in line:
+            in_marked_block = True
+            continue
+        if BASHRC_END_MARKER in line:
+            in_marked_block = False
+            continue
+        
+        if in_marked_block:
+            continue
+            
+        if not regex_pattern.search(line):
+            filtered_lines.append(line)
+    
+    try:
+        with open(BASHRC_PATH, "w") as f:
+            f.writelines(filtered_lines)
+        return True
+    except Exception as e:
+        print(f"Error writing to {BASHRC_PATH}: {e}")
+        return False
+
 def update_bashrc(current_language_path, current_style):
     try:
         with open(BASHRC_PATH, "r") as f:
@@ -708,24 +770,36 @@ def change_language():
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu (MODIFIED - ICONS AT BOTH ENDS)
+# Helper for List Menu (MODIFIED - ICONS AT BOTH ENDS + HOME SCRIPTS)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
     Lists subfolders and executable scripts (.py, .sh, +x), hiding dotfiles.
-    Uses icons at both beginning and end without spaces.
+    Includes virtual "Home Scripts" folder.
     """
     items = []
-    # Translate "Go Back"
+    listing_dir = current_path
     go_back_text = f".. ({_('Go Back')})"
-    if os.path.abspath(current_path) != os.path.abspath(base_path):
+
+    if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
+        # We are browsing the Home Directory
         items.append(go_back_text)
+        listing_dir = HOME_DIR
+    elif os.path.abspath(current_path) == os.path.abspath(base_path):
+        # We are at the Project Root, add Home Scripts folder
+        items.append(f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}")
+        listing_dir = base_path
+    else:
+        # We are in a Project Subfolder
+        items.append(go_back_text)
+        listing_dir = current_path
+
     
-    for entry in sorted(os.listdir(current_path)):
+    for entry in sorted(os.listdir(listing_dir)):
         if entry.startswith('.'):
             continue
             
-        full_path = os.path.join(current_path, entry)
+        full_path = os.path.join(listing_dir, entry)
         
         if os.path.isdir(full_path):
             # Use format with icons at both ends
@@ -738,6 +812,8 @@ def browse_directory_list_menu(current_path, base_path):
                  display_name = format_display_name(entry, full_path)
                  items.append(display_name)
                  continue
+             
+             # Show all scripts
              if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
                  display_name = format_display_name(entry, full_path)
                  items.append(display_name)
@@ -765,13 +841,17 @@ def browse_directory_list_menu(current_path, base_path):
     if selected.startswith(".."):
         return "back"
     
+    if selected == f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}":
+        return "go_home" # Special key for navigation
+    
     # Extract the actual filename by removing the icons from both ends
     # Since icons are single characters, remove first and last character
     actual_name = selected[1:-1]
-    return os.path.join(current_path, actual_name)
+    # Return the full, absolute path to the selected item
+    return os.path.join(listing_dir, actual_name)
 
 # ------------------------------
-# Integrated List Menu with folder navigation (MODIFIED - ICONS AT BOTH ENDS)
+# Integrated List Menu with folder navigation (MODIFIED - HOME SCRIPTS)
 # ------------------------------
 def run_list_menu():
     # The base path is the directory this script is run from (which is the selected language folder).
@@ -786,32 +866,49 @@ def run_list_menu():
             return
             
         if selected == "back":
-            parent = os.path.dirname(current_path)
-            # Ensure we don't navigate above the base language folder
-            if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
-                current_path = parent
+            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
+                current_path = base_path # Go from Home back to Project Root
             else:
-                current_path = base_path
+                parent = os.path.dirname(current_path)
+                # Ensure we don't navigate above the base language folder
+                if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
+                    current_path = parent
+                else:
+                    current_path = base_path
+            continue
+        
+        if selected == "go_home":
+            current_path = HOME_DIR # Navigate into Home
             continue
             
         if os.path.isdir(selected):
-            current_path = selected
+            current_path = selected # Navigate into Project subfolder
             continue
             
         elif os.path.isfile(selected):
-            # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
-            rel_path = os.path.relpath(selected, base_path)
+            # 'selected' is an absolute path
             command = ""
             
-            # Determine how to run it
-            if rel_path.endswith(".py"):
-                command = f"python3 \"{rel_path}\""
-            elif rel_path.endswith(".sh"):
-                command = f"bash \"{rel_path}\""
-            # Check for executable permission as fallback
-            elif os.access(selected, os.X_OK):
-                # Use ./ for other executables
-                command = f"./\"{rel_path}\""
+            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
+                # We are executing from the HOME_DIR
+                # We need to cd to HOME_DIR to ensure scripts find their files
+                file_name = os.path.basename(selected)
+                if file_name.endswith(".py"):
+                    command = f"cd \"{HOME_DIR}\" && python3 \"{file_name}\""
+                elif file_name.endswith(".sh"):
+                    command = f"cd \"{HOME_DIR}\" && bash \"{file_name}\""
+                elif os.access(selected, os.X_OK):
+                    command = f"cd \"{HOME_DIR}\" && ./{file_name}"
+            else:
+                # We are executing from the Project Dir (base_path)
+                # We use relative path from base_path, as CWD is base_path
+                rel_path = os.path.relpath(selected, base_path)
+                if rel_path.endswith(".py"):
+                    command = f"python3 \"{rel_path}\""
+                elif rel_path.endswith(".sh"):
+                    command = f"bash \"{rel_path}\""
+                elif os.access(selected, os.X_OK):
+                    command = f"./\"{rel_path}\""
             
             if command:
                 ret = os.system(command)
@@ -833,43 +930,58 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Helper for Grid Menu (MODIFIED - ICONS AT BOTH ENDS)
+# Helper for Grid Menu (MODIFIED - HOME SCRIPTS)
 # ------------------------------
 def list_directory_entries(path, base_path):
     """
-    Returns a list of tuples (friendly_name, full_path), hiding dotfiles.
+    Returns a list of tuples (friendly_name, full_path_or_key), hiding dotfiles.
     Uses icons at both beginning and end without spaces.
+    Includes virtual "Home Scripts" folder.
     """
     entries = []
-    # Translate "Go Back"
+    listing_dir = path
     go_back_text = f".. ({_('Go Back')})"
-    if os.path.abspath(path) != os.path.abspath(base_path):
-        entries.append((go_back_text, os.path.dirname(path)))
     
-    for entry in sorted(os.listdir(path)):
+    if os.path.abspath(path) == os.path.abspath(HOME_DIR):
+        # We are browsing Home
+        entries.append((go_back_text, "back")) # "back" key
+        listing_dir = HOME_DIR
+    elif os.path.abspath(path) == os.path.abspath(base_path):
+        # We are at Project Root
+        entries.append((f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}", "go_home")) # "go_home" key
+        listing_dir = base_path
+    else:
+        # We are in a Project Subfolder
+        entries.append((go_back_text, "back")) # "back" key
+        listing_dir = path
+
+    
+    for entry in sorted(os.listdir(listing_dir)):
         if entry.startswith('.'):
             continue
             
-        full = os.path.join(path, entry)
+        full_path = os.path.join(listing_dir, entry)
         
-        if os.path.isdir(full):
+        if os.path.isdir(full_path):
             # Use format with icons at both ends
-            display_name = format_display_name(entry, full)
-            entries.append((display_name, full))
+            display_name = format_display_name(entry, full_path)
+            entries.append((display_name, full_path))
         # Check if it's a file AND (executable OR ends with .py/.sh)
-        elif os.path.isfile(full):
+        elif os.path.isfile(full_path):
              # Explicitly include Settings.py if it's a file in the current path.
-             if entry == "Settings.py" and full == SETTINGS_SCRIPT_PATH:
-                 display_name = format_display_name(entry, full)
-                 entries.append((display_name, full))
+             if entry == "Settings.py" and full_path == SETTINGS_SCRIPT_PATH:
+                 display_name = format_display_name(entry, full_path)
+                 entries.append((display_name, full_path))
                  continue
-             if os.access(full, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
-                 display_name = format_display_name(entry, full)
-                 entries.append((display_name, full))
+             
+             # Show all scripts
+             if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
+                 display_name = format_display_name(entry, full_path)
+                 entries.append((display_name, full_path))
     return entries
 
 # ------------------------------
-# Integrated Grid Menu with folder navigation (MODIFIED - ICONS AT BOTH ENDS)
+# Integrated Grid Menu with folder navigation (MODIFIED - HOME SCRIPTS)
 # ------------------------------
 def run_grid_menu():
     # The base path is the directory this script is run from.
@@ -1025,43 +1137,59 @@ def run_grid_menu():
             return
         
         selected_entry = entries[selected_index]
+        selected_path = selected_entry[1] # This is either "back", "go_home", or a full_path
+
+        if selected_path == "back":
+            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
+                current_path = base_path # Go from Home back to Project Root
+            else:
+                current_path = os.path.dirname(current_path)
+            continue
         
-        go_back_text = f".. ({_('Go Back')})"
-        
-        if selected_entry[0].startswith(go_back_text):
-            # selected_entry[1] is the parent directory path
-            current_path = selected_entry[1]
+        if selected_path == "go_home":
+            current_path = HOME_DIR # Navigate into Home
             continue
             
+        if os.path.isdir(selected_path):
+            current_path = selected_path # Navigate into Project subfolder
+            continue
+        
         # Execute the script
-        # selected_entry[0] is friendly_name, selected_entry[1] is full_path
-        selected_path = selected_entry[1]
+        # selected_path is an absolute path to the file
         
-        # EXECUTION: Run the script using the path RELATIVE to the BASE_PATH
-        rel_path = os.path.relpath(selected_path, base_path)
-        command = ""
-
-        # Determine how to run it
-        if rel_path.endswith(".py"):
-            command = f"python3 \"{rel_path}\""
-        elif rel_path.endswith(".sh"):
-            command = f"bash \"{rel_path}\""
-        # Check for executable permission as fallback
-        elif os.access(selected_path, os.X_OK):
-            command = f"./\"{rel_path}\""
+        if os.path.isfile(selected_path):
+            command = ""
+            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
+                # We are executing from the HOME_DIR
+                file_name = os.path.basename(selected_path)
+                if file_name.endswith(".py"):
+                    command = f"cd \"{HOME_DIR}\" && python3 \"{file_name}\""
+                elif file_name.endswith(".sh"):
+                    command = f"cd \"{HOME_DIR}\" && bash \"{file_name}\""
+                elif os.access(selected_path, os.X_OK):
+                    command = f"cd \"{HOME_DIR}\" && ./{file_name}"
+            else:
+                # We are executing from the Project Dir (base_path)
+                rel_path = os.path.relpath(selected_path, base_path)
+                if rel_path.endswith(".py"):
+                    command = f"python3 \"{rel_path}\""
+                elif rel_path.endswith(".sh"):
+                    command = f"bash \"{rel_path}\""
+                elif os.access(selected_path, os.X_OK):
+                    command = f"./\"{rel_path}\""
         
-        if command:
-            ret = os.system(command)
-            
-            if (ret >> 8) == 2:
-                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-                sys.exit(0)
-            
-            # See note in run_list_menu()
-            return # Exit menu loop
-        else:
-            print(_("Invalid selection or non-executable script. Exiting."))
-            return
+            if command:
+                ret = os.system(command)
+                
+                if (ret >> 8) == 2:
+                    print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                    sys.exit(0)
+                
+                # See note in run_list_menu()
+                return # Exit menu loop
+            else:
+                print(_("Invalid selection or non-executable script. Exiting."))
+                return
 
 # ------------------------------
 # New Option: Update Packages & Modules (Intact)
@@ -1076,7 +1204,78 @@ def update_packages_modules():
     print(f"[+] {_('Packages and Modules update process completed successfully!')}")
 
 # ------------------------------
-# Main Settings Menu (Intact)
+# --- NEW: Backup and Uninstall ---
+# ------------------------------
+
+def create_backup_zip_if_not_exists():
+    """Creates a zip backup of original config files on first run."""
+    if os.path.exists(BACKUP_ZIP_PATH):
+        return # Backup already exists
+    
+    print(_("Creating one-time configuration backup to Termux.zip..."))
+    try:
+        with zipfile.ZipFile(BACKUP_ZIP_PATH, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # We write the file with its absolute path as the 'arcname'
+            # This allows us to extract it to the root '/' directory later
+            if os.path.exists(BASHRC_PATH):
+                zf.write(BASHRC_PATH, arcname=BASHRC_PATH)
+            if os.path.exists(MOTD_PATH):
+                zf.write(MOTD_PATH, arcname=MOTD_PATH)
+        print(_("Backup successful."))
+    except Exception as e:
+        print(f"{_('Warning: Failed to create backup: ')}{e}")
+
+def uninstall_dedsec():
+    """Restores config files from backup and instructs user on final folder removal."""
+    print(f"--- {_('Uninstall DedSec Project')} ---")
+    confirm = input(_("This will restore backed-up files and remove the DedSec project. ARE YOU SURE? (y/n): ")).lower().strip()
+    
+    if confirm != 'y':
+        print(_("Uninstallation cancelled."))
+        return False # Do not exit main loop
+
+    # 1. Restore from Zip
+    if os.path.exists(BACKUP_ZIP_PATH):
+        print(_("Restoring files from Termux.zip..."))
+        try:
+            with zipfile.ZipFile(BACKUP_ZIP_PATH, 'r') as zf:
+                # Extract all files to the root directory, overwriting
+                zf.extractall("/")
+            print(_("Restored bash.bashrc and motd from backup."))
+            # Remove the backup zip after successful restore
+            os.remove(BACKUP_ZIP_PATH)
+            print(_("Removed Termux.zip backup."))
+        except Exception as e:
+            print(f"{_('Error restoring from backup: ')}{e}")
+    else:
+        # 2. Fallback: If zip is gone, manually clean bashrc
+        print(_("Backup Termux.zip not found. Cleaning up configuration manually..."))
+        cleanup_bashrc()
+
+    # 3. Remove Language JSON
+    if os.path.exists(LANGUAGE_JSON_PATH):
+        print(_("Removing language configuration..."))
+        os.remove(LANGUAGE_JSON_PATH)
+
+    # 4. Find DedSec Path
+    dedsec_path = find_dedsec()
+    if not dedsec_path:
+        # Best guess if find fails
+        dedsec_path = os.path.join(HOME_DIR, LOCAL_DIR) 
+
+    # 5. Final Instructions
+    print("\n" + "="*40)
+    print(" [!] UNINSTALLATION ALMOST COMPLETE [!]")
+    print("="*40)
+    print(_("Configuration files have been reset."))
+    print(_("To complete the uninstallation, please exit this script and run the following command:"))
+    print(f"\n    rm -rf \"{dedsec_path}\"\n")
+    print(_("Exiting..."))
+    
+    return True # Signal main loop to exit
+
+# ------------------------------
+# Main Settings Menu (MODIFIED)
 # ------------------------------
 def menu(stdscr):
     curses.curs_set(0)
@@ -1091,7 +1290,8 @@ def menu(stdscr):
         _("Change Menu Style"),
         _("Choose Language/Επιλέξτε Γλώσσα"), # Keep this one dual-language
         _("Credits"),
-        _("Exit")
+        _("Uninstall DedSec Project"), # <-- New Option
+        _("Exit") # <-- Shifted
     ]
     current_row = 0
     while True:
@@ -1135,13 +1335,20 @@ def main():
             change_language()
         elif selected == 6:
             show_credits()
-        elif selected == 7:
+        elif selected == 7: # <-- New Uninstall
+            should_exit = uninstall_dedsec()
+            if should_exit:
+                break # Exit the while loop
+        elif selected == 8: # <-- New Exit index
             print(_("Exiting..."))
             break
-        input(f"\n{_('Press Enter to return to the settings menu...')}")
+        
+        # Only ask to press Enter if we are NOT exiting
+        if 'should_exit' not in locals() or not should_exit:
+            input(f"\n{_('Press Enter to return to the settings menu...')}")
 
 # ------------------------------
-# Entry Point
+# Entry Point (MODIFIED)
 # ------------------------------
 if __name__ == "__main__":
     try:
@@ -1150,7 +1357,10 @@ if __name__ == "__main__":
         # 1. ALWAYS Set the display language from JSON first, then fallback
         get_current_display_language()
         
-        # 2. Check if --menu flag is passed
+        # 2. Create the one-time backup if it doesn't exist
+        create_backup_zip_if_not_exists()
+        
+        # 3. Check if --menu flag is passed
         if len(sys.argv) > 1 and sys.argv[1] == "--menu":
             if len(sys.argv) > 2:
                 if sys.argv[2] == "list":
