@@ -70,6 +70,10 @@ The toolkit includes the following main categories and tools:
 23. **Fake TikTok Followers Page**: TikTok-themed phishing page offering 5,000 free followers.
 24. **What's Up Dude Page**: Custom social media phishing page with modern dark theme and green accents.
 
+#### 🎮 Games
+
+25. **Tamagotchi**: Advanced virtual pet simulation game with comprehensive pet management system featuring pet evolution through life stages, personality traits, skill development, mini-games, job system, and legacy retirement with stardust rewards.
+
 ---
 
 ## 🚀 How To Install And Setup The DedSec Project
@@ -125,10 +129,13 @@ The DedSec Project includes a comprehensive **Settings** tool that provides cent
 - **Project Updates**: Automatic package management and updates
 - **Language Selection**: Persistent language preference (English/Greek)
 - **Menu Customization**: Choose between list or grid menu styles
-- **System Information**: Display hardware details and system status
 - **Prompt Configuration**: Customize your terminal prompt
-- **Integrated Navigation**: Easy access to all tools from settings menu
+- **System Information**: Display hardware details and system status
+- **Home Scripts Integration**: Access and run scripts from your home directory
+- **Backup & Restore**: Automatic configuration backup and restore functionality
+- **Complete Uninstall**: Remove the project completely with cleanup
 - **Automatic Bash Configuration**: Updates your Termux configuration automatically
+- **Credits & Project Information**: View project credits and information
 
 ### First-Time Setup
 
