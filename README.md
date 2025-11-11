@@ -38,18 +38,18 @@ The toolkit includes the following main categories and tools:
 
 1. **Android App Launcher**: Advanced Android application management and security analysis tool with APK extraction, permission inspection, and tracker detection.
 2. **DedSec's Network Toolkit**: Comprehensive network and security toolkit featuring Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, and SSH honeypot defense.
-3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning, rate-limit handling, and saves comprehensive reports to a file.
+3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across multiple platforms with stealth mode operation and smart caching.
 4. **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit.
 5. **File Converter**: Advanced interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
 6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 50GB file sharing, and WebRTC video calls.
-7. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs with automatic dependency installation.
-8. **Settings**: Central configuration and management tool for project updates, language selection, menu customization, and system information.
+7. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs with automatic dependency installation and organized folder structure.
+8. **Settings**: Central configuration and management tool for project updates, language selection, menu customization, and system information with persistent preferences.
 9. **Smart Notes**: Advanced note-taking application with reminder functionality, TUI/CLI support, and automatic command execution.
 
 #### 🔧 Mods
 
 10. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and cleanuri.com fallback.
-11. **Loading Screen Manager**: Customizable ASCII art loading screen system for Termux startup with adjustable delay timers.
+11. **Loading Screen Manager**: Customizable ASCII art loading screen system for Termux startup with adjustable delay timers and automatic installation.
 
 #### 📱 Personal Information Capture (Educational Use Only)
 
@@ -113,6 +113,30 @@ Get the DedSec Project command-line tools running on your **Android device with 
     > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list or grid**. Then, close Termux from your notifications and reopen it.
     > 
     > **Tip:** After setup, you can quickly open the menu by typing `e` (for the English version) or `g` (for the Greek version) in Termux.
+
+---
+
+## ⚙️ Settings & Configuration
+
+The DedSec Project includes a comprehensive **Settings** tool that provides centralized control over your toolkit:
+
+### Settings Features
+
+- **Project Updates**: Automatic package management and updates
+- **Language Selection**: Persistent language preference (English/Greek)
+- **Menu Customization**: Choose between list or grid menu styles
+- **System Information**: Display hardware details and system status
+- **Prompt Configuration**: Customize your terminal prompt
+- **Integrated Navigation**: Easy access to all tools from settings menu
+- **Automatic Bash Configuration**: Updates your Termux configuration automatically
+
+### First-Time Setup
+
+After installation, access the settings menu to:
+1. Select your preferred language
+2. Choose your menu style (list/grid)
+3. Configure system preferences
+4. Update all tools to latest versions
 
 ---
 
