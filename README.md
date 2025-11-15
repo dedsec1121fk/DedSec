@@ -4,6 +4,9 @@
   <p>
     <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
   </p>
+  <p>
+    <a href="https://github.com/sponsors/dedsec1121fk"><img src="https://img.shields.io/badge/Sponsor-❤-purple?style=for-the-badge&logo=GitHub" alt="Sponsor Project"></a>
+  </p>
   
   <p>
     <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
@@ -19,60 +22,11 @@ The **DedSec Project** is a toolkit designed for educational purposes, providing
 
 ## 📋 Table of Contents
 
-* [Understand What The DedSec Project Does](#🛡️-understand-what-the-dedsec-project-does)
 * [How To Install And Setup The DedSec Project](#🚀-how-to-install-and-setup-the-dedsec-project)
+* [Settings & Configuration](#⚙️-settings--configuration)
+* [Explore The Toolkit](#🛡️-explore-the-toolkit)
 * [Contact Us & Credits](#💬-contact-us--credits)
 * [Disclaimer & Terms of Use](#⚠️-disclaimer--terms-of-use)
-
----
-
-## 🛡️ Understand What The DedSec Project Does
-
-> **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
-
-### Toolkit Summary
-
-The toolkit includes the following main categories and tools:
-
-#### 🛠️ Basic Toolkit
-
-1. **Android App Launcher**: Advanced Android application management and security analysis tool with APK extraction, permission inspection, and tracker detection.
-2. **DedSec's Network Toolkit**: Comprehensive network and security toolkit featuring Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, and SSH honeypot defense.
-3. **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across multiple platforms with stealth mode operation and smart caching.
-4. **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit.
-5. **File Converter**: Advanced interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
-6. **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with real-time messaging, 50GB file sharing, and WebRTC video calls.
-7. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs with automatic dependency installation and organized folder structure.
-8. **Settings**: Central configuration and management tool for project updates, language selection, menu customization, and system information with persistent preferences.
-9. **Smart Notes**: Advanced note-taking application with reminder functionality, TUI/CLI support, and automatic command execution.
-
-#### 🔧 Mods
-
-10. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and cleanuri.com fallback.
-11. **Loading Screen Manager**: Customizable ASCII art loading screen system for Termux startup with adjustable delay timers and automatic installation.
-
-#### 📱 Personal Information Capture (Educational Use Only)
-
-12. **Fake Back Camera Page**: Secretly activates device's rear camera while capturing login credentials with automatic photo capture.
-13. **Fake Front Camera Page**: Secretly activates device's front camera while capturing login credentials.
-14. **Fake Card Details Page**: Credit card phishing page disguised as antivirus subscription renewal.
-15. **Fake Data Grabber Page**: Comprehensive personal information collection disguised as membership application.
-16. **Fake Google Location Page**: Google-themed location verification page that tricks users into sharing GPS coordinates.
-17. **Fake Location Page**: Generic location access page for GPS coordinate collection.
-18. **Fake Microphone Page**: Secretly activates device's microphone while capturing login credentials with continuous audio recording.
-
-#### 📱 Social Media Fake Pages (Educational Use Only)
-
-19. **Fake Facebook Friends Page**: Facebook-themed phishing page with authentic UI replication.
-20. **Fake Snapchat Friends Page**: Snapchat-themed phishing page with ghost logo and yellow theme.
-21. **Fake Google Free Money Page**: Google-themed phishing page offering fake $500 credit reward.
-22. **Fake Instagram Followers Page**: Instagram-themed phishing page offering 10,000 free followers.
-23. **Fake TikTok Followers Page**: TikTok-themed phishing page offering 5,000 free followers.
-24. **What's Up Dude Page**: Custom social media phishing page with modern dark theme and green accents.
-
-#### 🎮 Games
-
-25. **Tamagotchi**: Advanced virtual pet simulation game with comprehensive pet management system featuring pet evolution through life stages, personality traits, skill development, mini-games, job system, and legacy retirement with stardust rewards.
 
 ---
 
@@ -106,7 +60,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
 2.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
-    git clone https://github.com/dedsec1121fk/DedSec
+    git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
 
 3.  **Run the Setup Script**
@@ -144,6 +98,57 @@ After installation, access the settings menu to:
 2. Choose your menu style (list/grid)
 3. Configure system preferences
 4. Update all tools to latest versions
+
+---
+
+## 🛡️ Explore The Toolkit
+
+> **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes ONLY**. Their function is to demonstrate how common attacks work, so you can learn to recognize and protect yourself against them. They should only be used in a controlled environment, **on your own devices and accounts**, for self-testing.
+
+### Toolkit Summary
+
+The toolkit includes the following main categories and tools:
+
+#### 🛠️ Basic Toolkit
+
+1.  **Android App Launcher**: Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection. Includes comprehensive security reporting for installed applications.
+2.  **DedSec's Network Toolkit**: Comprehensive network and security toolkit for Termux and Linux systems. Features Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, SSH honeypot defense, and network diagnostics. Runs 100% without root access and optimized for low-resource devices.
+3.  **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning, advanced detection logic with rate-limit handling, and automatic dependency installation. Saves comprehensive reports to a TXT file in the Downloads folder.
+4.  **Dark**: Comprehensive dark web intelligence and reconnaissance platform with advanced crawling, analysis, and data extraction capabilities. Features automated Tor network integration, intelligent web crawling, powerful data extraction (emails, crypto, PGP keys), and supports both interactive UI and CLI modes.
+5.  **Extra Content**: Utility script for managing and extracting extra content in the DedSec toolkit. Automatically copies the 'Extra Content' folder from the DedSec directory to the Downloads folder for easy access and management.
+6.  **File Converter**: Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives.
+7.  **Fox's Connections**: Unified application combining Fox Chat and DedSec's Database with single secret key authentication. Provides real-time messaging, 50GB file uploads, WebRTC video calls, and integrated file management.
+8.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder.
+9.  **Settings**: Central configuration and management tool for project updates, language selection, menu style customization, prompt configuration, and system information display with persistent preferences.
+10. **Smart Notes**: Advanced note-taking application with reminder functionality, featuring both TUI (Text User Interface) and CLI support. Includes sophisticated reminder system with due dates and automatic command execution.
+
+#### 🔧 Mods
+
+11. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and falls back to cleanuri.com.
+12. **Loading Screen Manager**: Customizable ASCII art loading screen system for Termux startup with adjustable delay timers and automatic installation.
+
+#### 📱 Personal Information Capture (Educational Use Only)
+
+13. **Fake Back Camera Page**: Advanced phishing page that secretly activates the device's rear camera while capturing login credentials. Features stealth camera activation and automatic photo capture.
+14. **Fake Front Camera Page**: Advanced phishing page that secretly activates the device's front camera while capturing login credentials. Features stealth camera activation and automatic photo capture.
+15. **Fake Card Details Page**: Advanced credit card phishing page disguised as an antivirus subscription renewal.
+16. **Fake Data Grabber Page**: Comprehensive personal information collection page disguised as a membership application, gathering extensive personal details and a photo.
+17. **Fake Google Location Page**: Google-themed location verification page that tricks users into sharing their GPS coordinates, with reverse geocoding and IP info collection.
+18. **Fake Location Page**: Generic location access page that tricks users into sharing GPS coordinates for "service improvement."
+19. **Fake Microphone Page**: Advanced phishing page that secretly activates the device's microphone while capturing login credentials, featuring continuous audio recording.
+
+#### 📱 Social Media Fake Pages (Educational Use Only)
+
+20. **Fake Facebook Friends Page**: Facebook-themed phishing page with authentic UI replication to collect login credentials.
+21. **Fake Snapchat Friends Page**: Snapchat-themed phishing page with ghost logo and yellow theme, promising instant friends.
+22. **Fake Google Free Money Page**: Google-themed phishing page offering a fake $500 credit reward to collect login credentials.
+23. **Fake Instagram Followers Page**: Instagram-themed phishing page offering 10,000 free followers to collect login credentials.
+24. **Fake TikTok Followers Page**: TikTok-themed phishing page offering 5,000 free followers to collect login credentials.
+25. **What's Up Dude Page**: Custom social media phishing page with a modern dark theme and green accents to collect login credentials.
+
+#### 🎮 Games
+
+26. **Tamagotchi**: Advanced virtual pet simulation game with comprehensive pet management system. Features pet evolution, personality traits, skill development, mini-games, a job system, and legacy retirement.
 
 ---
 
