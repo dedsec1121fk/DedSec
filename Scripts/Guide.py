@@ -5,12 +5,49 @@ import sys
 import os
 
 # ==============================================================================
-#  SCRIPT DATABASE & CONFIGURATION
+#  SCRIPT DATABASE & CONFIGURATION (UPDATED WITH FAQ)
 # ==============================================================================
 
 # This dictionary contains all the manual data organized by categories
 GUIDE_DATA = {
     "Basic Toolkit": {
+        "Simple Websites Creator.py": {
+            "Description": "A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features include multiple hosting guides, real-time preview, mobile-friendly designs, and professional templates. Perfect for creating portfolios, business sites, or personal blogs directly from your terminal.",
+            "How to Use": "1. Run the script. 2. Choose 'Create Website' from the menu. 3. Follow the prompts to customize your site. 4. Access publishing guides to deploy your website online.",
+            "Save Location": "Websites are saved in: ~/storage/downloads/Websites/",
+            "Requirements": "Requires Termux storage permissions (run `termux-setup-storage` first) and Python 3.",
+            "Tips": "Use the built-in publishing guide to deploy your website for free on platforms like GitHub Pages, Netlify, or Vercel.",
+            "Features": [
+                "Responsive HTML Website Generation",
+                "Customizable Layouts & Color Schemes",
+                "Font Selection & Typography Controls",
+                "SEO & Meta Tag Configuration",
+                "Mobile-First Responsive Design",
+                "Built-in Publishing Guides (6 Free Hosting Options)",
+                "Professional Templates & Components",
+                "Website Management (Edit, List, Delete)",
+                "Cross-Platform Compatibility"
+            ]
+        },
+        "Sod - Advanced Load Testing Framework.py": {
+            "Description": "A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring. Perfect for stress testing your own web applications and APIs.",
+            "How to Use": "1. Run the script (auto-installs dependencies first). 2. Configure target IP/port in the menu. 3. Select test type (HTTP, WebSocket, Database, etc.). 4. Set thread count and duration. 5. Monitor real-time metrics during testing.",
+            "Save Location": "Configuration: load_test_config.json in script directory | Results: Displayed in terminal",
+            "Requirements": "Python 3.6+, internet connectivity. Auto-installs: requests, urllib3, websocket-client, psutil",
+            "Tips": "Use 'Mixed Workload' for realistic user simulation and monitor system resources during high-load tests to avoid overwhelming your device.",
+            "Features": [
+                "Multiple Testing Methods (HTTP, WebSocket, Database, File Upload)",
+                "Real-Time Performance Metrics & Analytics",
+                "Auto-Dependency Installation & Management",
+                "Realistic User Behavior Simulation",
+                "System Resource Monitoring (CPU, RAM, Network)",
+                "Adaptive Rate Limiting & Connection Pooling",
+                "Response Time Percentiles (P50, P95, P99)",
+                "Bandwidth & Throughput Monitoring",
+                "Configuration Persistence & Save/Load",
+                "Comprehensive Test Summary Reports"
+            ]
+        },
         "Android App Launcher.py": {
             "Description": "A utility to manage Android apps directly from the terminal. It can launch apps, extract APK files, uninstall apps, and analyze security permissions. Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection. Includes comprehensive security reporting for installed applications.",
             "How to Use": "1. Run the script. 2. It will scan your device for installed apps. 3. Select an app from the list. 4. Choose an action: Launch, App Info, Uninstall, Extract APK, or App Perm Inspector.",
@@ -26,7 +63,7 @@ GUIDE_DATA = {
                 "Risk Level Assessment"
             ]
         },
-        "DedSec's Network.py": {
+        "DedSec's Network Toolkit.py": {
             "Description": "An all-in-one advanced network toolkit. Includes Wi-Fi scanning, Port scanning, SSH Honeypot, OSINT scanner, and vulnerability testing. Comprehensive network and security toolkit for Termux and Linux systems. Features Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, SSH honeypot defense, and network diagnostics. Runs 100% without root access and optimized for low-resource devices.",
             "How to Use": "1. Run the script to see the main menu. 2. Use Arrow Keys to navigate categories (Wi-Fi, Network, OSINT, etc.). 3. Select a tool like 'Nmap Wrapper' or 'OSINTDS Scanner'.",
             "Save Location": "Reports and logs are saved in: ~/DedSec's Network",
@@ -60,7 +97,7 @@ GUIDE_DATA = {
             ]
         },
         "Dark.py": {
-            "Description": "A Dark Web (Tor) crawler and search engine tool. It allows you to crawl .onion links, search via Ahmia, and extract data like emails and crypto addresses. Comprehensive dark web intelligence and reconnaissance platform with advanced crawling, analysis, and data extraction capabilities. Features automated Tor network integration with background service management, intelligent web crawling with configurable depth and domain restrictions, and powerful data extraction for emails, cryptocurrencies, PGP keys, and contact information.",
+            "Description": "A Dark Web (Tor) crawler and search engine tool. It allows you to crawl .onion links, search via Ahmia, and extract data like emails and crypto addresses. Comprehensive dark web intelligence and reconnaissance platform with advanced crawling, analysis, and data extraction capabilities. Features automated Tor network integration with background service management, intelligent web crawling with configurable depth and domain restrictions, and powerful data extraction for emails, cryptocurrencies, PGP keys, and contact information. Includes a modular plugin architecture with pre-built analyzers for metadata, links, content cleaning, and automated exports.",
             "How to Use": "1. Ensure Tor is running (run 'tor' in a separate terminal). 2. Select 'Crawl a URL' to scan a specific .onion site. 3. Select 'Search Ahmia' to search the dark web for keywords.",
             "Save Location": "Results (JSON/CSV/TXT) are saved in: /sdcard/Download/DarkNet (or ~/DarkNet if storage permission is missing)",
             "Requirements": "Requires 'tor' package (`pkg install tor`) and Python modules `requests`, `bs4`.",
@@ -73,7 +110,14 @@ GUIDE_DATA = {
                 "Ahmia Dark Web Search Integration & Result Processing",
                 "Interactive Curses UI for Easy Navigation & Management",
                 "Traditional CLI Mode for Automation & Scripting",
-                "Multiple Export Formats (JSON, CSV, TXT) with Organized Storage"
+                "Multiple Export Formats (JSON, CSV, TXT) with Organized Storage",
+                "Automatic HTML Snapshots for Forensic Analysis",
+                "Flexible SOCKS Proxy Support (Default: Tor)",
+                "Cross-Platform Compatibility (Termux, Linux, Android)",
+                "Automatic Dependency Installation & Environment Setup",
+                "Real-time Progress Monitoring & Status Updates",
+                "Customizable Crawling Delays & Request Throttling",
+                "Comprehensive Error Handling & Connection Resilience"
             ]
         },
         "Extra Content.py": {
@@ -143,7 +187,7 @@ GUIDE_DATA = {
             ]
         },
         "Settings.py": {
-            "Description": "Configuration manager. Handles language, menu style, and uninstallation. Central configuration and management tool for the DedSec Project. Provides comprehensive system control including project updates, language selection, menu style customization, prompt configuration, and system information display with persistent language preference and icon-based menu navigation.",
+            "Description": "Configuration manager. Handles language, menu style, and uninstallation. Central configuration and management tool for the DedSec Project. Provides comprehensive system control including project updates, language selection, menu style customization, prompt configuration, and system information display with persistent language preference and icon-based menu navigation. Features Home Scripts integration, backup/restore functionality, and complete uninstall capability.",
             "How to Use": "Run to change between List/Grid menu or English/Greek.",
             "Save Location": "Config: `~/.smart_notes_config.json`.",
             "Requirements": "None.",
@@ -155,9 +199,11 @@ GUIDE_DATA = {
                 "Menu Style Customization (List/Grid)",
                 "Custom Prompt Configuration",
                 "System Information & Hardware Details",
-                "Home Scripts Integration",
+                "Home Scripts Integration (Access scripts in home directory)",
                 "Automatic Configuration Backup & Restore",
-                "Complete Project Uninstall with Cleanup"
+                "Complete Project Uninstall with Cleanup",
+                "Automatic Bash Configuration Updates",
+                "Credits & Project Information"
             ]
         },
         "Smart Notes.py": {
@@ -180,7 +226,7 @@ GUIDE_DATA = {
     },
     
     "Mods": {
-        "Masker.py": {
+        "URL Masker.py": {
             "Description": "URL Masker. Turns long phishing links into unsuspicious ones like 'VerifyAccount-Secure'. Advanced URL masking tool that shortens URLs using is.gd with custom aliases and falls back to cleanuri.com. Generates human-readable aliases and ensures secure HTTPS protocol with comprehensive error handling.",
             "How to Use": "1. Run script. 2. Paste a URL. 3. Get masked link.",
             "Save Location": "N/A (Output to screen).",
@@ -196,7 +242,7 @@ GUIDE_DATA = {
                 "No Root Access Required"
             ]
         },
-        "Loading Screen.py": {
+        "Loading Screen Manager.py": {
             "Description": "Customizes your Termux startup with ASCII art loading screens. Customizable ASCII art loading screen system for Termux startup. Features automatic installation, custom art support, adjustable delay timers, and seamless integration with Termux bash configuration. Includes automatic cleanup to ensure one-time display and global bashrc patching for delayed script execution.",
             "How to Use": "1. Run script. 2. Choose Install, Custom Art, or Remove.",
             "Save Location": "Modifies `.bash_profile` and `bash.bashrc`.",
@@ -334,7 +380,7 @@ GUIDE_DATA = {
     
     "Social Media Fake Pages": {
         "Fake Facebook Friends Page.py": {
-            "Description": "Phishing Tool. Hosts a fake Facebook login page promoting 'Connect with friends'. Captures credentials. Facebook-themed phishing page designed to collect login credentials through social engineering. Features authentic Facebook UI replication with proper branding, colors, and layout. Creates convincing login interface that captures usernames and passwords, then redirects with realistic loading animation.",
+            "Description": "Phishing Tool. Hosts a fake Facebook login page promoting 'Connect with friends'. Captures credentials. Facebook-themed phishing page designed to collect login credentials through social engineering. Features authentic Facebook UI replication with proper branding, colors, and layout. Creates convincing login interface that captures usernames and passwords, then redirects with realistic loading animation. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login attempt.",
             "Save Location": "~/storage/downloads/FacebookFriends",
             "Requirements": "flask, cloudflared.",
@@ -350,7 +396,7 @@ GUIDE_DATA = {
             ]
         },
         "Fake Snapchat Friends Page.py": {
-            "Description": "Phishing Tool. Hosts a fake Snapchat login page promising '100+ Friends'. Captures credentials. Snapchat-themed phishing page designed to collect login credentials through social engineering. Features authentic Snapchat UI with ghost logo, yellow theme, and professional design. Promises instant friends addition to lure users into entering credentials.",
+            "Description": "Phishing Tool. Hosts a fake Snapchat login page promising '100+ Friends'. Captures credentials. Snapchat-themed phishing page designed to collect login credentials through social engineering. Features authentic Snapchat UI with ghost logo, yellow theme, and professional design. Promises instant friends addition to lure users into entering credentials. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login.",
             "Save Location": "~/storage/downloads/SnapchatFriends",
             "Requirements": "flask, cloudflared.",
@@ -366,7 +412,7 @@ GUIDE_DATA = {
             ]
         },
         "Fake Google Free Money Page.py": {
-            "Description": "Phishing Tool. Hosts a fake Google page offering a '$500 Credit'. Captures Google credentials. Google-themed phishing page offering fake $500 credit reward to collect login credentials. Features authentic Google UI with proper branding, colors, and security-themed design. Uses reward psychology to trick users into entering credentials.",
+            "Description": "Phishing Tool. Hosts a fake Google page offering a '$500 Credit'. Captures Google credentials. Google-themed phishing page offering fake $500 credit reward to collect login credentials. Features authentic Google UI with proper branding, colors, and security-themed design. Uses reward psychology to trick users into entering credentials. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login.",
             "Save Location": "~/storage/downloads/GoogleFreeMoney",
             "Requirements": "flask, cloudflared.",
@@ -382,7 +428,7 @@ GUIDE_DATA = {
             ]
         },
         "Fake Instagram Followers Page.py": {
-            "Description": "Phishing Tool. Hosts a fake Instagram login page promising 'Free Followers'. Captures credentials. Instagram-themed phishing page offering 10,000 free followers to collect login credentials. Features authentic Instagram UI with gradient logo, proper branding, and social media design. Uses follower growth promise to lure users into entering credentials.",
+            "Description": "Phishing Tool. Hosts a fake Instagram login page promising 'Free Followers'. Captures credentials. Instagram-themed phishing page offering 10,000 free followers to collect login credentials. Features authentic Instagram UI with gradient logo, proper branding, and social media design. Uses follower growth promise to lure users into entering credentials. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login.",
             "Save Location": "~/storage/downloads/InstagramFollowers",
             "Requirements": "flask, cloudflared.",
@@ -397,8 +443,8 @@ GUIDE_DATA = {
                 "Cloudflare Tunneling Integration"
             ]
         },
-        "Fake Tik Tok Followers Page.py": {
-            "Description": "Phishing Tool. Hosts a fake TikTok login page promising '5000 Free Followers'. Captures credentials. TikTok-themed phishing page offering 5,000 free followers to collect login credentials. Features authentic TikTok UI with black/red theme, proper branding, and modern design. Uses follower growth promise and social proof to lure users into entering credentials.",
+        "Fake TikTok Followers Page.py": {
+            "Description": "Phishing Tool. Hosts a fake TikTok login page promising '5000 Free Followers'. Captures credentials. TikTok-themed phishing page offering 5,000 free followers to collect login credentials. Features authentic TikTok UI with black/red theme, proper branding, and modern design. Uses follower growth promise and social proof to lure users into entering credentials. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login.",
             "Save Location": "~/storage/downloads/TikTokFollowers",
             "Requirements": "flask, cloudflared.",
@@ -413,8 +459,8 @@ GUIDE_DATA = {
                 "Cloudflare Tunneling Integration"
             ]
         },
-        "What's Up Dude.py": {
-            "Description": "Phishing Tool. Hosts a fake WhatsApp-style login page. Captures credentials. Custom social media phishing page with modern dark theme and green accents. Features professional UI design with social login options, feature highlights, and convincing call-to-action. Uses connection psychology to lure users into entering credentials.",
+        "What's Up Dude Page.py": {
+            "Description": "Phishing Tool. Hosts a fake WhatsApp-style login page. Captures credentials. Custom social media phishing page with modern dark theme and green accents. Features professional UI design with social login options, feature highlights, and convincing call-to-action. Uses connection psychology to lure users into entering credentials. Automatically generates public access links via cloudflare tunneling.",
             "How to Use": "1. Run script. 2. Send link. 3. Credentials saved on login.",
             "Save Location": "~/storage/downloads/WhatsUpDude",
             "Requirements": "flask, cloudflared.",
@@ -452,11 +498,46 @@ GUIDE_DATA = {
                 "Auto-save Functionality with Background Threading"
             ]
         }
+    },
+    
+    "Frequently Asked Questions": {
+        "Are these scripts malware?": {
+            "Description": "No. These are security auditing tools and educational scripts. However, because they are capable of actions like 'Phishing' or 'Network Scanning,' your antivirus or Play Protect might flag them as 'HackTools'. This is normal for cybersecurity software. The code is open-source on GitHub for you to review.",
+            "How to Use": "N/A",
+            "Save Location": "N/A",
+            "Requirements": "N/A",
+            "Tips": "N/A",
+            "Features": []
+        },
+        "Do I need to pay to use the main toolkit?": {
+            "Description": "No. The core DedSec Project, including all 40+ tools listed in the Basic Toolkit, Mods, and Personal Information Capture sections, is completely free and open-source. We believe in accessible education for everyone. We only charge for premium custom development services found in the Store.",
+            "How to Use": "N/A",
+            "Save Location": "N/A",
+            "Requirements": "N/A",
+            "Tips": "N/A",
+            "Features": []
+        },
+        "Is this legal to use?": {
+            "Description": "The tools are legal to install and study. However, using them to attack networks, computers, or people without their explicit written permission is illegal. DedSec Project is built for educational purposes and ethical hacking (Penetration Testing) only.",
+            "How to Use": "N/A",
+            "Save Location": "N/A",
+            "Requirements": "N/A",
+            "Tips": "N/A",
+            "Features": []
+        },
+        "Will this harm my device?": {
+            "Description": "Generally, no. The tools run inside the Termux sandbox and do not require Root access, meaning they cannot easily damage your core Android system. However, you should always be careful when running scripts and ensure you have enough storage space.",
+            "How to Use": "N/A",
+            "Save Location": "N/A",
+            "Requirements": "N/A",
+            "Tips": "N/A",
+            "Features": []
+        }
     }
 }
 
 # ==============================================================================
-#  UI LOGIC
+#  UI LOGIC (UPDATED WITH FAQ SUPPORT)
 # ==============================================================================
 
 def safe_addstr(stdscr, y, x, string, attr=0):
@@ -525,10 +606,15 @@ def show_script_details(stdscr, script_name, category_name):
         
         current_y = 3
         
-        # Helper to print sections
+        # Helper to print sections (updated to handle FAQ items)
         def print_section(title, content, color_pair, is_list=False):
             nonlocal current_y
             if current_y >= h - 2: return 
+            
+            # Skip empty or N/A sections for FAQ
+            if category_name == "Frequently Asked Questions" and title != "Description":
+                if content == "N/A" or not content or (is_list and not content):
+                    return
             
             # Print Title
             safe_addstr(stdscr, current_y, pad_x, title.upper(), curses.color_pair(color_pair) | curses.A_BOLD)
@@ -553,12 +639,22 @@ def show_script_details(stdscr, script_name, category_name):
                     current_y += 1
                 current_y += 1 # Extra spacing
 
-        # Print all sections
+        # Print all sections (adjusted for FAQ)
         print_section("Description", data["Description"], 1)
-        print_section("How to Use", data["How to Use"], 5)
-        print_section("Save Location", data["Save Location"], 6)
-        print_section("Requirements", data["Requirements"], 3)
-        print_section("Pro Tips", data["Tips"], 2)
+        
+        # Only show additional sections if not FAQ or if they have content
+        if category_name != "Frequently Asked Questions" or data["How to Use"] != "N/A":
+            print_section("How to Use", data["How to Use"], 5)
+        
+        if category_name != "Frequently Asked Questions" or data["Save Location"] != "N/A":
+            print_section("Save Location", data["Save Location"], 6)
+        
+        if category_name != "Frequently Asked Questions" or data["Requirements"] != "N/A":
+            print_section("Requirements", data["Requirements"], 3)
+        
+        if category_name != "Frequently Asked Questions" or data["Tips"] != "N/A":
+            print_section("Pro Tips", data["Tips"], 2)
+        
         if "Features" in data and data["Features"]:
             print_section("Features", data["Features"], 4, is_list=True)
 
@@ -568,32 +664,41 @@ def show_script_details(stdscr, script_name, category_name):
         if key in [ord('q'), ord('Q'), 27, 10, 13]: # Quit or Enter goes back
             break
 
-def format_list_item(name):
+def format_list_item(name, category_name=""):
     """Formats the script name with icons to match the visual style."""
-    # Default icon
-    icon = "📁" 
-    if name.endswith(".py"):
-        icon = "🐍"
-    elif "Camera" in name:
-        icon = "📷"
-    elif "Location" in name:
-        icon = "📍"
-    elif "Microphone" in name:
-        icon = "🎤"
-    elif "Card" in name:
-        icon = "💳"
-    elif "Facebook" in name or "Instagram" in name or "Snapchat" in name or "TikTok" in name:
-        icon = "📱"
-    elif "Network" in name:
-        icon = "🌐"
-    elif "Notes" in name:
-        icon = "📝"
-    elif "Settings" in name:
-        icon = "⚙️"
-    elif "Tamagotchi" in name:
-        icon = "🐣"
-    elif "QR" in name:
-        icon = "📱"
+    # FAQ items get question mark icon
+    if category_name == "Frequently Asked Questions":
+        icon = "❓"
+    else:
+        # Default icon
+        icon = "📁" 
+        if name.endswith(".py"):
+            icon = "🐍"
+        elif "Camera" in name:
+            icon = "📷"
+        elif "Location" in name:
+            icon = "📍"
+        elif "Microphone" in name:
+            icon = "🎤"
+        elif "Card" in name:
+            icon = "💳"
+        elif "Facebook" in name or "Instagram" in name or "Snapchat" in name or "TikTok" in name:
+            icon = "📱"
+        elif "Network" in name:
+            icon = "🌐"
+        elif "Notes" in name:
+            icon = "📝"
+        elif "Settings" in name:
+            icon = "⚙️"
+        elif "Tamagotchi" in name:
+            icon = "🐣"
+        elif "QR" in name:
+            icon = "📱"
+        elif "Websites" in name:
+            icon = "🌐"
+        elif "Sod" in name:
+            icon = "⚡"
+    
     # Format with icons
     return f"{icon} {name}"
 
@@ -661,7 +766,7 @@ def show_category_tools(stdscr, category_name):
             y = menu_start_y + i
             tool_name = tools[idx]
             
-            display_text = format_list_item(tool_name)
+            display_text = format_list_item(tool_name, category_name)
             x = 2 
             
             if idx == current_selection:
