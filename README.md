@@ -213,9 +213,3 @@ This project, including all associated tools, scripts, and documentation ("the S
 4.  **Limitation of Liability:** In no event shall the developers, contributors, or distributors of the Software be liable for any claim, damages, or other liability, whether in an action of contract, tort, or otherwise, arising from, out of, or in connection with the Software or the use or other dealings in the Software. This includes any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not in, procurement of substitute goods or services; loss of use, data, or profits; or business interruption).
 
 ---
-
-### Privacy Policy Summary
-
-We are committed to protecting your privacy. **We do not store or transmit your personal data**. We use third-party services like Google AdSense, which may use cookies for advertising. Please review their policies. By using our service, you agree to our full Privacy Policy.
-
-> **By using the Software, you confirm that you have read, understood, and agree to be bound by all the terms and conditions outlined in this disclaimer and our full Privacy Policy.**
