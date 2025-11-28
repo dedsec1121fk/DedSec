@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import requests
+import curses
 import re
 import textwrap
 import math
@@ -48,6 +49,15 @@ LANGUAGE_MAP = {
 CURRENT_DISPLAY_LANGUAGE = None
 # ----------------------------------------------------
 
+# --- File Type Icons ---
+FOLDER_ICON = "📁"
+PYTHON_ICON = "🐍"
+JAVASCRIPT_ICON = "☕"
+SHELL_ICON = "🐚"
+EXECUTABLE_ICON = "⚡"
+GENERIC_SCRIPT_ICON = "📜"
+HOME_ICON = "🏠" # <-- NEW: Icon for Home Scripts
+
 # --- Language Preference Functions ---
 def save_language_preference(language):
     """Saves the selected language to a persistent JSON file."""
@@ -80,7 +90,7 @@ def load_language_preference():
             return None # File might be corrupted or unreadable
     return None
 
-# --- Translation Definitions ---
+# --- Translation Definitions (ICONS REPLACED FOLDER TAGS) ---
 GREEK_STRINGS = {
     "Select an option": "Επιλέξτε μια επιλογή",
     "About": "Πληροφορίες",
@@ -88,9 +98,9 @@ GREEK_STRINGS = {
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
-    "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα",
+    "Choose Language/Επιλέξτε ΓλώσSA": "Choose Language/Επιλέξτε Γλώσσα", # This one remains dual-language
     "Credits": "Συντελεστές",
-    "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec",
+    "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec", # <-- New Translation
     "Exit": "Έξοδος",
     "System Information": "Πληροφορίες Συστήματος",
     "The Latest DedSec Project Update": "Η Τελευταία Ενημέρωση του Έργου DedSec",
@@ -231,7 +241,30 @@ def _(text):
     return text
 # ------------------------------
 
-# --- Utility Functions ---
+# --- File Type Detection Helper ---
+def get_file_icon(filename, full_path):
+    """Returns the appropriate icon for a file based on its type."""
+    if os.path.isdir(full_path):
+        return FOLDER_ICON
+    
+    # Check file extension and type
+    if filename.endswith('.py'):
+        return PYTHON_ICON
+    elif filename.endswith('.js') or filename.endswith('.javascript'):
+        return JAVASCRIPT_ICON
+    elif filename.endswith('.sh') or filename.endswith('.bash'):
+        return SHELL_ICON
+    elif os.access(full_path, os.X_OK):
+        return EXECUTABLE_ICON
+    else:
+        return GENERIC_SCRIPT_ICON
+
+def format_display_name(filename, full_path):
+    """Formats the display name with icons at both beginning and end without spaces."""
+    icon = get_file_icon(filename, full_path)
+    return f"{icon}{filename}{icon}"
+
+# --- Utility Functions (Omitted for brevity, assumed intact) ---
 
 def run_command(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
@@ -608,37 +641,41 @@ def get_current_menu_style():
     return 'list'
 
 # ------------------------------
-# Change Menu Style (Numbered Menu)
+# Change Menu Style (Intact)
 # ------------------------------
-def choose_menu_style():
-    """Numbered menu for choosing menu style."""
-    print(f"\n=== {_('Choose Menu Style')} ===\n")
-    options = [_("List Style"), _("Grid Style")]
-    
-    for i, option in enumerate(options, 1):
-        print(f"{i}. {option}")
-    
-    print(f"0. {_('Go Back')}")
-    
+def choose_menu_style_curses(stdscr):
+    curses.curs_set(0)
+    options = [ _("List Style"), _("Grid Style")]
+    current = 0
     while True:
-        try:
-            choice = input(f"\n{_('Select an option')} (0-{len(options)}): ").strip()
-            if choice == '0':
-                print(_("No menu style selected. Returning to settings menu..."))
-                return None
-            elif choice == '1':
-                return "list"
-            elif choice == '2':
-                return "grid"
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        title = _("Choose Menu Style")
+        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        for idx, option in enumerate(options):
+            x = width // 2 - len(option) // 2
+            y = height // 2 - len(options) // 2 + idx
+            if idx == current:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
             else:
-                print(f"Invalid choice. Please enter 0-{len(options)}")
-        except KeyboardInterrupt:
-            print(_("\nNo menu style selected. Returning to settings menu..."))
+                stdscr.addstr(y, x, option)
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP and current > 0:
+            current -= 1
+        elif key == curses.KEY_DOWN and current < len(options) - 1:
+            current += 1
+        elif key in [10, 13]:
+            return "list" if current == 0 else "grid"
+        elif key in [ord('q'), ord('Q')]:
             return None
 
 def change_menu_style():
-    style = choose_menu_style()
+    style = curses.wrapper(choose_menu_style_curses)
     if style is None:
+        print(_("No menu style selected. Returning to settings menu..."))
         return
         
     current_path = get_current_language_path()
@@ -649,38 +686,43 @@ def change_menu_style():
     print(f"\n[+] {_('Menu style changed to')} {style.capitalize()} {_('Style')}. {_('Bash configuration updated.')}")
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
+
 # ------------------------------
-# Choose Language (Numbered Menu)
+# Choose Language (Intact)
 # ------------------------------
-def choose_language():
-    """Numbered menu for choosing language."""
-    print(f"\n=== {_('Choose Language/Επιλέξτε Γλώσσα')} ===\n")
+def choose_language_curses(stdscr):
+    curses.curs_set(0)
     options = ["English", "Ελληνικά"]
-    
-    for i, option in enumerate(options, 1):
-        print(f"{i}. {option}")
-    
-    print(f"0. {_('Go Back')}")
-    
+    current = 0
     while True:
-        try:
-            choice = input(f"\n{_('Select an option')} (0-{len(options)}): ").strip()
-            if choice == '0':
-                print(_("No language selected. Returning to settings menu..."))
-                return None
-            elif choice == '1':
-                return "english"
-            elif choice == '2':
-                return "greek"
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        title = _("Choose Language/Επιλέξτε Γλώσσα") # This title remains dual-language
+        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        for idx, option in enumerate(options):
+            x = width // 2 - len(option) // 2
+            y = height // 2 - len(options) // 2 + idx
+            if idx == current:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
             else:
-                print(f"Invalid choice. Please enter 0-{len(options)}")
-        except KeyboardInterrupt:
-            print(_("\nNo language selected. Returning to settings menu..."))
+                stdscr.addstr(y, x, option)
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP and current > 0:
+            current -= 1
+        elif key == curses.KEY_DOWN and current < len(options) - 1:
+            current += 1
+        elif key in [10, 13]:
+            return "english" if current == 0 else "greek"
+        elif key in [ord('q'), ord('Q')]:
             return None
 
 def change_language():
-    language = choose_language()
+    language = curses.wrapper(choose_language_curses)
     if language is None:
+        print(_("No language selected. Returning to settings menu..."))
         return
 
     # --- SAVE PERSISTENT PREFERENCE ---
@@ -728,7 +770,7 @@ def change_language():
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
 # ------------------------------
-# Helper for List Menu (MODIFIED - NO ICONS + HOME SCRIPTS)
+# Helper for List Menu (MODIFIED - ICONS AT BOTH ENDS + HOME SCRIPTS)
 # ------------------------------
 def browse_directory_list_menu(current_path, base_path):
     """
@@ -745,7 +787,7 @@ def browse_directory_list_menu(current_path, base_path):
         listing_dir = HOME_DIR
     elif os.path.abspath(current_path) == os.path.abspath(base_path):
         # We are at the Project Root, add Home Scripts folder
-        items.append(_("Home Scripts"))
+        items.append(f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}")
         listing_dir = base_path
     else:
         # We are in a Project Subfolder
@@ -760,17 +802,21 @@ def browse_directory_list_menu(current_path, base_path):
         full_path = os.path.join(listing_dir, entry)
         
         if os.path.isdir(full_path):
-            items.append(entry)
+            # Use format with icons at both ends
+            display_name = format_display_name(entry, full_path)
+            items.append(display_name)
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full_path):
              # Explicitly include Settings.py if it's a file in the current path.
              if entry == "Settings.py" and full_path == SETTINGS_SCRIPT_PATH:
-                 items.append(entry)
+                 display_name = format_display_name(entry, full_path)
+                 items.append(display_name)
                  continue
              
              # Show all scripts
              if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
-                 items.append(entry)
+                 display_name = format_display_name(entry, full_path)
+                 items.append(display_name)
     
     if not items and os.path.abspath(current_path) == os.path.abspath(base_path):
         # Only show "No items" if we are in the root and it's empty
@@ -795,11 +841,14 @@ def browse_directory_list_menu(current_path, base_path):
     if selected.startswith(".."):
         return "back"
     
-    if selected == _("Home Scripts"):
+    if selected == f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}":
         return "go_home" # Special key for navigation
     
+    # Extract the actual filename by removing the icons from both ends
+    # Since icons are single characters, remove first and last character
+    actual_name = selected[1:-1]
     # Return the full, absolute path to the selected item
-    return os.path.join(listing_dir, selected)
+    return os.path.join(listing_dir, actual_name)
 
 # ------------------------------
 # Integrated List Menu with folder navigation (MODIFIED - HOME SCRIPTS)
@@ -881,11 +930,12 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Helper for Numbered Menu (MODIFIED - NO ICONS + HOME SCRIPTS)
+# Helper for Grid Menu (MODIFIED - HOME SCRIPTS)
 # ------------------------------
-def list_directory_entries_numbered(path, base_path):
+def list_directory_entries(path, base_path):
     """
-    Returns a numbered list of tuples (display_number, friendly_name, full_path_or_key), hiding dotfiles.
+    Returns a list of tuples (friendly_name, full_path_or_key), hiding dotfiles.
+    Uses icons at both beginning and end without spaces.
     Includes virtual "Home Scripts" folder.
     """
     entries = []
@@ -894,19 +944,18 @@ def list_directory_entries_numbered(path, base_path):
     
     if os.path.abspath(path) == os.path.abspath(HOME_DIR):
         # We are browsing Home
-        entries.append(("0", go_back_text, "back")) # "back" key
+        entries.append((go_back_text, "back")) # "back" key
         listing_dir = HOME_DIR
     elif os.path.abspath(path) == os.path.abspath(base_path):
         # We are at Project Root
-        entries.append(("0", _("Home Scripts"), "go_home")) # "go_home" key
+        entries.append((f"{HOME_ICON}{_('Home Scripts')}{HOME_ICON}", "go_home")) # "go_home" key
         listing_dir = base_path
     else:
         # We are in a Project Subfolder
-        entries.append(("0", go_back_text, "back")) # "back" key
+        entries.append((go_back_text, "back")) # "back" key
         listing_dir = path
 
     
-    item_number = 1
     for entry in sorted(os.listdir(listing_dir)):
         if entry.startswith('.'):
             continue
@@ -914,32 +963,162 @@ def list_directory_entries_numbered(path, base_path):
         full_path = os.path.join(listing_dir, entry)
         
         if os.path.isdir(full_path):
-            entries.append((str(item_number), entry, full_path))
-            item_number += 1
+            # Use format with icons at both ends
+            display_name = format_display_name(entry, full_path)
+            entries.append((display_name, full_path))
         # Check if it's a file AND (executable OR ends with .py/.sh)
         elif os.path.isfile(full_path):
              # Explicitly include Settings.py if it's a file in the current path.
              if entry == "Settings.py" and full_path == SETTINGS_SCRIPT_PATH:
-                 entries.append((str(item_number), entry, full_path))
-                 item_number += 1
+                 display_name = format_display_name(entry, full_path)
+                 entries.append((display_name, full_path))
                  continue
              
              # Show all scripts
              if os.access(full_path, os.X_OK) or entry.endswith(".py") or entry.endswith(".sh"):
-                 entries.append((str(item_number), entry, full_path))
-                 item_number += 1
+                 display_name = format_display_name(entry, full_path)
+                 entries.append((display_name, full_path))
     return entries
 
 # ------------------------------
-# Integrated Numbered Menu with folder navigation (MODIFIED - HOME SCRIPTS)
+# Integrated Grid Menu with folder navigation (MODIFIED - HOME SCRIPTS)
 # ------------------------------
-def run_numbered_menu():
+def run_grid_menu():
     # The base path is the directory this script is run from.
     base_path = os.getcwd()
 
+    def draw_box(stdscr, y, x, height, width, highlight=False):
+        color = curses.color_pair(2)
+        if highlight:
+            color = curses.color_pair(1)
+        # Check bounds before drawing
+        term_height, term_width = stdscr.getmaxyx()
+        if y + height > term_height or x + width > term_width:
+            return
+
+        for i in range(x, x + width):
+            stdscr.addch(y, i, curses.ACS_HLINE, color)
+            stdscr.addch(y + height - 1, i, curses.ACS_HLINE, color)
+        for j in range(y, y + height):
+            stdscr.addch(j, x, curses.ACS_VLINE, color)
+            stdscr.addch(j, x + width - 1, curses.ACS_VLINE, color)
+        
+        # Draw corners
+        try:
+            stdscr.addch(y, x, curses.ACS_ULCORNER, color)
+            stdscr.addch(y, x + width - 1, curses.ACS_URCORNER, color)
+            stdscr.addch(y + height - 1, x, curses.ACS_LLCORNER, color)
+            stdscr.addch(y + height - 1, x + width - 1, curses.ACS_LRCORNER, color)
+        except curses.error:
+            pass
+
+    def draw_grid_menu(stdscr, friendly_names, num_items):
+        curses.curs_set(0)
+        stdscr.nodelay(0)
+        stdscr.timeout(-1)
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        curses.init_pair(2, curses.COLOR_MAGENTA, -1)
+        curses.init_pair(3, curses.COLOR_WHITE, -1)
+        current_index = 0
+        while True:
+            stdscr.clear()
+            term_height, term_width = stdscr.getmaxyx()
+            
+            # Dynamic calculation for better screen utilization
+            ICON_WIDTH = max(15, term_width // 5)
+            ICON_HEIGHT = max(7, term_height // 6)
+            max_cols = term_width // ICON_WIDTH
+            
+            # Adjust icon width if max_cols is zero
+            if max_cols == 0:
+                ICON_WIDTH = term_width
+                max_cols = 1
+            
+            rows_per_page = (term_height - 1) // ICON_HEIGHT # -1 for the status bar
+            total_visible_cells = max_cols * rows_per_page
+            
+            if total_visible_cells <= 0:
+                stdscr.addstr(0, 0, _("Terminal window is too small."))
+                stdscr.refresh()
+                key = stdscr.getch()
+                if key in [ord('q'), ord('Q'), 10, 13]:
+                    return None
+                continue
+
+            page_start_index = (current_index // total_visible_cells) * total_visible_cells
+            page_end_index = min(page_start_index + total_visible_cells, num_items)
+            
+            # Navigation keys
+            prev_page_index = max(0, page_start_index - total_visible_cells)
+            next_page_index = min(num_items - 1, page_start_index + total_visible_cells)
+
+            for idx_on_page, actual_index in enumerate(range(page_start_index, page_end_index)):
+                i = idx_on_page // max_cols
+                j = idx_on_page % max_cols
+                y = i * ICON_HEIGHT
+                x = j * ICON_WIDTH
+                
+                # Check if box will fit on screen (y + ICON_HEIGHT is the last line of the box)
+                if y + ICON_HEIGHT >= term_height - 1: # -1 for status bar
+                    continue
+
+                draw_box(stdscr, y, x, ICON_HEIGHT, ICON_WIDTH, highlight=(actual_index == current_index))
+                name = friendly_names[actual_index]
+                box_text_width = ICON_WIDTH - 4
+                wrapped_lines = textwrap.wrap(name, box_text_width)
+                
+                total_lines = len(wrapped_lines)
+                padding_y = (ICON_HEIGHT - total_lines) // 2
+                
+                for line_idx, line in enumerate(wrapped_lines):
+                    line_y = y + padding_y + line_idx
+                    padding_x = (ICON_WIDTH - len(line)) // 2
+                    line_x = x + padding_x
+                    
+                    if line_y < term_height - 1 and line_x < term_width:
+                        try:
+                            # Truncate line if it extends past the screen edge
+                            display_line = line[:term_width - line_x]
+                            stdscr.addstr(line_y, line_x, display_line, curses.color_pair(3))
+                        except curses.error:
+                            pass
+            
+            # Status/Instructions Bar
+            page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_items / total_visible_cells)} "
+            instructions = f"Arrow Keys: Move | P/N: Prev/Next Page | Enter: Select | q: Quit | {page_info}"
+            try:
+                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
+            except curses.error:
+                pass
+            
+            stdscr.refresh()
+            
+            key = stdscr.getch()
+            
+            if key == curses.KEY_UP and current_index - max_cols >= 0:
+                current_index -= max_cols
+            elif key == curses.KEY_DOWN and current_index + max_cols < num_items:
+                current_index += max_cols
+            elif key == curses.KEY_LEFT and current_index % max_cols > 0:
+                current_index -= 1
+            elif key == curses.KEY_RIGHT and (current_index % max_cols) < (max_cols - 1) and (current_index + 1) < num_items:
+                current_index += 1
+            elif key in [ord('p'), ord('P')]:
+                current_index = prev_page_index
+            elif key in [ord('n'), ord('N')]:
+                current_index = next_page_index
+            elif key in [10, 13]:
+                return current_index
+            elif key in [ord('q'), ord('Q')]:
+                return None
+            elif key == curses.KEY_RESIZE:
+                pass
+
     current_path = base_path
     while True:
-        entries = list_directory_entries_numbered(current_path, base_path)
+        entries = list_directory_entries(current_path, base_path)
         if not entries and os.path.abspath(current_path) == os.path.abspath(base_path):
             print(_("No items found in this folder."))
             return
@@ -947,31 +1126,18 @@ def run_numbered_menu():
              # We are in an empty subfolder, just go back
              current_path = os.path.dirname(current_path)
              continue
+             
+        friendly_names = [entry[0] for entry in entries]
         
-        print(f"\n=== {os.path.basename(current_path) if current_path != HOME_DIR else 'Home'} ===\n")
-        for num, name, path in entries:
-            print(f"{num}. {name}")
+        # Wrap the drawing logic in curses.wrapper
+        selected_index = curses.wrapper(lambda stdscr: draw_grid_menu(stdscr, friendly_names, len(friendly_names)))
         
-        print(f"\n{_('Select an option')} (0-{len(entries)-1}): ", end="")
-        
-        try:
-            choice = input().strip()
-        except KeyboardInterrupt:
-            print(_("\nNo selection made. Exiting."))
+        if selected_index is None:
+            print(_("No selection made. Exiting."))
             return
         
-        # Find the selected entry
-        selected_entry = None
-        for num, name, path in entries:
-            if num == choice:
-                selected_entry = (name, path)
-                break
-        
-        if selected_entry is None:
-            print(_("Invalid selection. Exiting."))
-            return
-        
-        selected_name, selected_path = selected_entry
+        selected_entry = entries[selected_index]
+        selected_path = selected_entry[1] # This is either "back", "go_home", or a full_path
 
         if selected_path == "back":
             if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
@@ -1109,44 +1275,51 @@ def uninstall_dedsec():
     return True # Signal main loop to exit
 
 # ------------------------------
-# Main Settings Menu (Numbered Menu)
+# Main Settings Menu (MODIFIED)
 # ------------------------------
-def show_main_menu():
-    """Displays the main settings menu as a numbered list."""
-    print(f"\n=== {_('Select an option')} ===\n")
+def menu(stdscr):
+    curses.curs_set(0)
+    curses.start_color()
+    curses.use_default_colors()
+    # Translate menu options
     menu_options = [
         _("About"),
         _("DedSec Project Update"),
         _("Update Packages & Modules"),
         _("Change Prompt"),
         _("Change Menu Style"),
-        _("Choose Language/Επιλέξτε Γλώσσα"),
+        _("Choose Language/Επιλέξτε Γλώσσα"), # Keep this one dual-language
         _("Credits"),
-        _("Uninstall DedSec Project"),
-        _("Exit")
+        _("Uninstall DedSec Project"), # <-- New Option
+        _("Exit") # <-- Shifted
     ]
-    
-    for i, option in enumerate(menu_options, 1):
-        print(f"{i}. {option}")
-    
-    print(f"0. {_('Exit')}")
-    
+    current_row = 0
     while True:
-        try:
-            choice = input(f"\n{_('Select an option')} (0-{len(menu_options)}): ").strip()
-            if choice == '0':
-                return len(menu_options) - 1  # Exit is the last option
-            elif choice.isdigit() and 1 <= int(choice) <= len(menu_options):
-                return int(choice) - 1
+        stdscr.clear()
+        height, width = stdscr.getmaxyx()
+        title = _("Select an option")
+        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        for idx, option in enumerate(menu_options):
+            x = width // 2 - len(option) // 2
+            y = height // 2 - len(menu_options) // 2 + idx
+            if idx == current_row:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, x, option)
+                stdscr.attroff(curses.A_REVERSE)
             else:
-                print(f"Invalid choice. Please enter 0-{len(menu_options)}")
-        except KeyboardInterrupt:
-            print(_("\nExiting..."))
-            return len(menu_options) - 1  # Exit on Ctrl+C
+                stdscr.addstr(y, x, option)
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
+            current_row += 1
+        elif key in [curses.KEY_ENTER, 10, 13]:
+            return current_row
 
 def main():
     while True:
-        selected = show_main_menu()
+        selected = curses.wrapper(menu)
         os.system("clear")
         if selected == 0:
             show_about()
@@ -1162,11 +1335,11 @@ def main():
             change_language()
         elif selected == 6:
             show_credits()
-        elif selected == 7: # Uninstall
+        elif selected == 7: # <-- New Uninstall
             should_exit = uninstall_dedsec()
             if should_exit:
                 break # Exit the while loop
-        elif selected == 8: # Exit
+        elif selected == 8: # <-- New Exit index
             print(_("Exiting..."))
             break
         
@@ -1194,8 +1367,7 @@ if __name__ == "__main__":
                     run_list_menu()
                     sys.exit(0)
                 elif sys.argv[2] == "grid":
-                    # Grid style now uses numbered menu instead of curses
-                    run_numbered_menu()
+                    run_grid_menu()
                     sys.exit(0)
                 else:
                     # Fallback to main settings if style is unknown
