@@ -5,10 +5,9 @@
 Έκδοση 3.1 CLI: Οργανώνει όλους τους φακέλους σε έναν κύριο κατάλογο "File Converter".
 
 Αυτό το σενάριο θα:
-1. Ελέγξει και θα εγκαταστήσει τις απαιτούμενες βιβλιοθήκες Python.
-2. Ελέγξει για εξωτερικά εκτελέσιμα (ffmpeg, unrar, cairo).
-3. Δημιουργήσει έναν φάκελο "File Converter" στα Λήψεις (Downloads),
-   ο οποίος περιέχει 40 υπο-φακέλους οργάνωσης.
+1. Ελέγξει και θα εγκαταστήσει τις απαιτούμενες βιβλιοθήκες Python (PIP).
+2. Θα εγκαταστήσει αυτόματα τις απαραίτητες εξωτερικές εξαρτήσεις Termux (pkg install -y).
+3. Δημιουργήσει έναν φάκελο "File Converter" στα Λήψεις (Downloads).
 4. Παρέχει ένα τυπικό περιβάλλον CLI για πλοήγηση με χρήση αριθμητικών επιλογών.
 5. Υποστηρίζει πολλές μετατροπές εγγράφων, εικόνων, Ήχου/Βίντεο και δεδομένων.
 
@@ -49,6 +48,9 @@ REQUIRED_MODULES = {
     "rarfile": "rarfile",       # Εξαγωγή RAR
     "py7zr": "py7zr"          # Εξαγωγή 7-Zip
 }
+
+# Global list of Termux packages needed for external operations (Auto-installed)
+TERMUX_PACKAGES = ["ffmpeg", "unrar", "libcairo", "libgirepository", "libjpeg-turbo", "libpng"]
 
 # (40) Folders to create
 FOLDER_NAMES = [
@@ -99,6 +101,7 @@ def check_and_install_dependencies():
             all_installed = False
             print(f"Εγκατάσταση '{package_name}'...")
             try:
+                # Use subprocess to install via pip
                 with open(os.devnull, 'w') as devnull:
                     with redirect_stdout(devnull), redirect_stderr(devnull):
                         subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
@@ -107,13 +110,45 @@ def check_and_install_dependencies():
                 print(f"ΣΦΑΛΜΑ: Απέτυχε η εγκατάσταση του '{package_name}'.")
                 print(f"Παρακαλώ εγκαταστήστε το χειροκίνητα: pip install {package_name}")
                 sys.exit(1)
-        # else:
-            # print(f"Η βιβλιοθήκη '{package_name}' είναι ήδη εγκατεστημένη.")
     
     if all_installed:
         print("Όλες οι βιβλιοθήκες Python είναι παρούσες.\n")
     else:
         print("Όλες οι απαιτούμενες βιβλιοθήκες έχουν εγκατασταθεί.\n")
+    time.sleep(0.5)
+
+def install_termux_dependencies():
+    """Silently and automatically installs required Termux packages using pkg install -y."""
+    print("--- Αυτόματη Εγκατάσταση Εξωτερικών Εξαρτήσεων Termux ---")
+    
+    full_pkg_command = ' '.join(TERMUX_PACKAGES)
+    command = ["pkg", "install", "-y"] + TERMUX_PACKAGES
+    
+    print(f"Προσπάθεια εγκατάστασης/ενημέρωσης: {full_pkg_command}")
+    print("Παρακαλώ περιμένετε (απαιτείται πρόσβαση στο δίκτυο)...")
+    
+    try:
+        # Run the installation, suppressing output for a cleaner, non-interactive experience
+        # We also redirect standard error just in case, though '-y' should handle most interaction
+        with open(os.devnull, 'w') as devnull:
+            process = subprocess.run(command, check=False, stdout=devnull, stderr=devnull)
+        
+        if process.returncode == 0:
+            print("Η εγκατάσταση/επιβεβαίωση των εξωτερικών εξαρτήσεων ολοκληρώθηκε επιτυχώς.\n")
+        else:
+            # Fallback for detailed error, though we suppressed output above
+            print("\n[ΠΡΟΕΙΔΟΠΟΙΗΣΗ] Η αυτόματη εγκατάσταση/ενημέρωση του Termux μπορεί να μην ήταν επιτυχής.")
+            print("ΣΗΜΑΝΤΙΚΟ: Βεβαιωθείτε ότι έχετε σύνδεση στο διαδίκτυο και εκτελέστε χειροκίνητα:")
+            print(f"pkg install {full_pkg_command}")
+            input("Πατήστε Enter για να συνεχίσετε (θα γίνει έλεγχος λειτουργικότητας).")
+
+    except FileNotFoundError:
+        print("\n[ΚΡΙΣΙΜΟ ΣΦΑΛΜΑ] Η εντολή 'pkg' δεν βρέθηκε. Βεβαιωθείτε ότι εκτελείτε το σενάριο στο Termux.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n[ΚΡΙΣΙΜΟ ΣΦΑΛΜΑ] Απρόβλεπτο σφάλμα κατά την εγκατάσταση: {e}")
+        input("Πατήστε Enter για να συνεχίσετε.")
+    
     time.sleep(0.5)
 
 def check_external_bins():
@@ -129,7 +164,6 @@ def check_external_bins():
         HAS_FFMPEG = True
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το 'ffmpeg' δεν βρέθηκε. Οι μετατροπές Ήχου/Βίντεο είναι ΑΝΕΝΕΡΓΕΣ.")
-        print("  Για ενεργοποίηση, εκτελέστε: pkg install ffmpeg")
         HAS_FFMPEG = False
 
     # Check unrar
@@ -140,17 +174,14 @@ def check_external_bins():
         HAS_UNRAR = True
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το 'unrar' δεν βρέθηκε. Η εξαγωγή RAR είναι ΑΝΕΝΕΡΓΗ.")
-        print("  Για ενεργοποίηση, εκτελέστε: pkg install unrar")
         HAS_UNRAR = False
         
-    # Check cairo (for SVG)
+    # Check cairo (for SVG) - relies on cairosvg python module
     if importlib.util.find_spec("cairosvg") is not None:
         print("Βρέθηκε το 'cairosvg'. Οι μετατροπές SVG είναι ΕΝΕΡΓΕΣ.")
         HAS_CAIRO = True
     else:
         print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Η βιβλιοθήκη Python 'cairosvg' δεν βρέθηκε. Η μετατροπή SVG είναι ΑΝΕΝΕΡΓΗ.")
-        print("  Το σενάριο προσπάθησε να την εγκαταστήσει, αλλά μπορεί να απέτυχε.")
-        print("  Μπορεί επίσης να χρειαστείτε: pkg install libcairo libgirepository")
         HAS_CAIRO = False
         
     print("\n")
@@ -209,8 +240,7 @@ except ImportError as e:
     sys.exit(1)
 
 # --- 4. CORE CONVERSION LOGIC (ΔΕΝ χρειάζονται μετάφραση) ---
-# (Διατηρείται ο κώδικας της λογικής μετατροπής ίδιος)
-# ... (all conversion handler functions remain in English) ...
+
 def get_text_from_file(input_path, in_ext):
     """Helper to extract raw text from various document types."""
     text_lines = []
@@ -264,7 +294,6 @@ def get_text_from_file(input_path, in_ext):
     return text_lines
 
 def write_text_to_pdf(text_lines, output_path):
-    # (Unchanged)
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     margin_x, margin_y = 0.75 * inch, 1 * inch
@@ -272,7 +301,7 @@ def write_text_to_pdf(text_lines, output_path):
     text_object.setFont("Helvetica", 10)
     line_height, y = 12, height - margin_y
     for line in text_lines:
-        for sub_line in line.split('\n'): # Handle multi-line strings
+        for sub_line in line.split('\n'): 
             if y < margin_y:
                 c.drawText(text_object)
                 c.showPage()
@@ -285,7 +314,6 @@ def write_text_to_pdf(text_lines, output_path):
     c.save()
 
 def handle_image_conversion(in_path, out_path):
-    # (Pillow handler, unchanged)
     with Image.open(in_path) as img:
         if out_path.lower().endswith(('.jpg', '.jpeg')):
             if img.mode == 'RGBA':
@@ -311,7 +339,6 @@ def handle_psd_conversion(in_path, out_path):
     composite_image.save(out_path)
 
 def handle_av_conversion(in_path, out_path):
-    # (Unchanged - Note: curses.endwin() is removed)
     if not HAS_FFMPEG:
         raise Exception("Το 'ffmpeg' δεν βρέθηκε. Η μετατροπή Ήχου/Βίντεο είναι απενεργοποιημένη.")
     command = ['ffmpeg', '-i', in_path, '-y', out_path]
@@ -343,11 +370,11 @@ def handle_extraction(in_path, out_folder_path, in_ext):
     elif in_ext == '.gz':
         if not in_path.endswith('.tar.gz'): # Single file gzip
              out_filename = os.path.splitext(os.path.basename(in_path))[0]
-             out_path = os.path.join(out_folder_path, out_filename) # Extract to folder, not subfolder
+             out_path = os.path.join(out_folder_path, out_filename) 
              with gzip.open(in_path, 'rb') as f_in:
                  with open(out_path, 'wb') as f_out:
                      shutil.copyfileobj(f_in, f_out)
-             return f"Αποσυμπιέστηκε σε: {out_path}" # Return different message
+             return f"Αποσυμπιέστηκε σε: {out_path}" 
         else: # .tar.gz
             with tarfile.open(in_path, 'r:gz') as tf:
                 tf.extractall(extract_path)
@@ -360,7 +387,7 @@ def handle_extraction(in_path, out_folder_path, in_ext):
         with py7zr.SevenZipFile(in_path, 'r') as zf:
             zf.extractall(extract_path)
             
-    return f"Εξαγωγή σε: {extract_path}" # Default success message
+    return f"Εξαγωγή σε: {extract_path}" 
 
 def handle_data_conversion(in_path, out_path, in_ext, out_ext):
     """Handles CSV <-> JSON conversions."""
@@ -389,14 +416,12 @@ def handle_data_conversion(in_path, out_path, in_ext, out_ext):
         raise Exception(f"Η μετατροπή δεδομένων {in_ext} σε {out_ext} δεν υποστηρίζεται.")
 
 def handle_md_to_html(in_path, out_path):
-    # (Unchanged)
     with open(in_path, 'r', encoding='utf-8') as f:
         html = markdown.markdown(f.read())
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
 def handle_single_image_to_pdf(in_path, out_path):
-    # (Unchanged)
     try:
         with Image.open(in_path) as img:
             img_rgb = img.convert('RGB')
@@ -405,7 +430,6 @@ def handle_single_image_to_pdf(in_path, out_path):
         raise Exception(f"Σφάλμα Pillow (Εικόνα->PDF): {e}")
 
 def handle_multi_image_to_pdf(image_paths, out_path):
-    # (Unchanged)
     try:
         images_rgb = []
         for path in image_paths:
@@ -437,8 +461,6 @@ def convert_file(in_path, out_folder_name):
     try:
         # --- Route 1: Extraction ---
         if in_ext in ARCHIVE_EXTS and out_folder_name.upper() in [f.replace('.', '').upper() for f in ARCHIVE_EXTS]:
-            # For extraction, output folder is usually the same as input type (e.g., ZIP -> ZIP folder)
-            # GZ is handled specially in handle_extraction (for single files)
             message = handle_extraction(in_path, out_folder_path, in_ext)
             return (True, message)
 
@@ -629,7 +651,7 @@ def run_help():
         " - PDF Πολλαπλών Εικόνων: Κατά την επιλογή αρχείου από φάκελο εικόνων (JPG, PNG, κ.λπ.), επιλέξτε την ειδική επιλογή:",
         "   '** Μετατροπή ΟΛΩΝ... **' για να συνδυάσετε όλες τις εικόνες αυτού του φακέλου σε ένα PDF.",
         " - Δεδομένα: Μπορείτε να μετατρέψετε CSV <-> JSON.",
-        " - Ήχος/Βίντεο: Οι μετατροπές Ήχου/Βίντεο απαιτούν το 'ffmpeg' (δείτε την αρχική εκκίνηση)."
+        " - Ήχος/Βίντεο: Οι μετατροπές Ήχου/Βίντεο απαιτούν το 'ffmpeg' (το οποίο εγκαθίσταται αυτόματα στην εκκίνηση)."
     ]
     for line in help_text:
         print(line)
@@ -700,7 +722,7 @@ def main_cli():
         main_choice = run_numerical_menu(
             "Κύριο Μενού", 
             ["Μετατροπή Αρχείου", "Βοήθεια / Οδηγίες Χρήσης", "Έξοδος"], 
-            back_option=False # Exit is explicitly handled
+            back_option=False 
         )
         
         if main_choice == "Έξοδος": break
@@ -761,7 +783,14 @@ if __name__ == "__main__":
     try:
         clear_screen_standard()
         print("--- Εκκίνηση Termux Μετατροπέας v3.1 CLI (40 Μορφές) ---")
+        
+        # 1. Install Python PIP dependencies
         check_and_install_dependencies()
+        
+        # 2. Install Termux PKG dependencies (Automatic/Non-interactive)
+        install_termux_dependencies()
+        
+        # 3. Check binaries and setup folders
         check_external_bins()
         check_storage_access()
         setup_folders()
