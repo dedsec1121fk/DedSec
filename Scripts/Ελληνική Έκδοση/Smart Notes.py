@@ -7,7 +7,6 @@ import json
 import subprocess
 import time
 import shutil
-import curses
 import calendar
 import shlex
 import traceback
@@ -19,7 +18,7 @@ NOTES_FILE = os.path.join(HOME, '.smart_notes.json')
 CONFIG_FILE = os.path.join(HOME, '.smart_notes_config.json')
 ERROR_LOG = os.path.join(HOME, '.smart_notes_error.log')
 
-# Ensure files exist
+# Βεβαιωθείτε ότι τα αρχεία υπάρχουν
 for path, default in [(NOTES_FILE, {}), (CONFIG_FILE, {})]:
     if not os.path.exists(path):
         try:
@@ -28,13 +27,13 @@ for path, default in [(NOTES_FILE, {}), (CONFIG_FILE, {})]:
         except Exception:
             pass
 
-# Optional dependencies
+# Προαιρετικές εξαρτήσεις
 try:
     from dateutil import parser as dateparser
 except Exception:
     dateparser = None
 
-# Load timezones
+# Φόρτωση ζωνών ώρας
 def load_timezones():
     try:
         from zoneinfo import available_timezones
@@ -50,764 +49,448 @@ def load_timezones():
         pass
     return sorted([
         'UTC', 'Europe/Athens', 'Europe/London', 'Europe/Berlin', 'Europe/Paris',
-        'America/New_York', 'America/Los_Angeles', 'America/Chicago', 'Asia/Tokyo',
-        'Asia/Shanghai', 'Asia/Kolkata', 'Asia/Dubai', 'Australia/Sydney',
-        'Pacific/Auckland', 'Africa/Johannesburg'
+        'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Australia/Sydney'
     ])
 
-# Load countries
-def load_countries():
-    try:
-        import pycountry
-        names = [c.name for c in pycountry.countries]
-        return sorted(set(names))
-    except Exception:
-        return sorted([
-            'Greece', 'United States', 'United Kingdom', 'Germany', 'France', 'Spain',
-            'Italy', 'India', 'China', 'Japan', 'Australia', 'Canada', 'Brazil', 'Russia',
-            'South Africa', 'Egypt', 'Turkey', 'Mexico', 'Netherlands', 'Sweden'
-        ])
-
 TIMEZONES = load_timezones()
-COUNTRIES = load_countries()
 
-# --- I/O helpers ---
-
-def _safe_read_json(path):
-    try:
-        with open(path, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
+# -----------------
+# Βασική Λογική Αρχείων
+# -----------------
 
 def load_notes():
-    raw = _safe_read_json(NOTES_FILE)
-    if not isinstance(raw, dict):
-        raw = {}
-    norm = {}
-    for k, v in raw.items():
-        if k == '_reminders':
-            norm[k] = v if isinstance(v, list) else []
-            continue
-        if isinstance(v, str):
-            norm[k] = v
-        else:
-            try:
-                norm[k] = json.dumps(v, indent=2, ensure_ascii=False)
-            except Exception:
-                norm[k] = str(v)
-    return norm
-
+    """Φορτώνει τις σημειώσεις από το αρχείο JSON."""
+    if not os.path.exists(NOTES_FILE):
+        return {}
+    try:
+        with open(NOTES_FILE, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Σφάλμα φόρτωσης σημειώσεων: {e}. Ξεκινάμε με κενό σύνολο.")
+        return {}
 
 def save_notes(notes):
+    """Αποθηκεύει τις σημειώσεις στο αρχείο JSON."""
     try:
         with open(NOTES_FILE, 'w') as f:
-            json.dump(notes, f, indent=2, ensure_ascii=False)
-        return True
-    except Exception:
-        return False
-
-
-def load_config():
-    cfg = _safe_read_json(CONFIG_FILE)
-    return cfg if isinstance(cfg, dict) else {}
-
-
-def save_config(cfg):
-    try:
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(cfg, f, indent=2)
-        return True
-    except Exception:
-        return False
-
-
-def ensure_termux_api():
-    return bool(shutil.which('termux-notification'))
-
-# --- utilities ---
-
-def log_exception(exc: Exception):
-    try:
-        with open(ERROR_LOG, 'a') as f:
-            f.write('\n--- %s ---\n' % datetime.now().isoformat())
-            traceback.print_exc(file=f)
-    except Exception:
-        pass
-
-
-def score_query(a, b):
-    return SequenceMatcher(None, (a or '').lower(), (b or '').lower()).ratio()
-
-
-def reinit_curses():
-    stdscr = curses.initscr()
-    curses.noecho()
-    curses.cbreak()
-    stdscr.keypad(True)
-    try:
-        curses.curs_set(0)
-    except Exception:
-        pass
-    stdscr.clear()
-    return stdscr
-
-
-def centered_addstr(win, y, text, attr=0):
-    try:
-        h, w = win.getmaxyx()
-        x = max(0, (w - len(text)) // 2)
-        win.addstr(y, x, text, attr)
-    except Exception:
-        pass
-
-# --- curses UI components ---
-
-def curses_editor(stdscr, initial_text):
-    curses.curs_set(1)
-    stdscr.clear()
-    h, w = stdscr.getmaxyx()
-    lines = initial_text.split('\n') if initial_text else ['']
-    cursor_y, cursor_x = 0, 0
-    while True:
-        stdscr.erase()
-        title = ' Nano-like editor — Ctrl+X αποθήκευση, Ctrl+C ακύρωση '
-        stdscr.attron(curses.A_REVERSE)
-        centered_addstr(stdscr, 0, title[:w-1])
-        stdscr.attroff(curses.A_REVERSE)
-        max_display = h - 4
-        start = 0
-        if cursor_y >= max_display:
-            start = cursor_y - max_display + 1
-        for idx in range(start, min(start + max_display, len(lines))):
-            ln = lines[idx]
-            try:
-                stdscr.addstr(2 + idx - start, 2, ln[:w-4])
-            except Exception:
-                pass
-        status = f"Γρ {cursor_y+1}, Στ {cursor_x+1} — Ctrl+X=αποθ."
-        centered_addstr(stdscr, h-2, status[:w-1])
-        try:
-            stdscr.move(2 + cursor_y - start, 2 + cursor_x)
-        except Exception:
-            pass
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch == 24:  # Ctrl+X
-            curses.curs_set(0)
-            return '\n'.join(lines)
-        elif ch in (3,):  # Ctrl+C
-            curses.curs_set(0)
-            return None
-        elif ch in (curses.KEY_BACKSPACE, 127, 8):
-            if cursor_x > 0:
-                lines[cursor_y] = lines[cursor_y][:cursor_x-1] + lines[cursor_y][cursor_x:]
-                cursor_x -= 1
-            else:
-                if cursor_y > 0:
-                    prev = lines[cursor_y-1]
-                    cur = lines.pop(cursor_y)
-                    cursor_x = len(prev)
-                    lines[cursor_y-1] = prev + cur
-                    cursor_y -= 1
-        elif ch == curses.KEY_LEFT:
-            if cursor_x > 0:
-                cursor_x -= 1
-            elif cursor_y > 0:
-                cursor_y -= 1
-                cursor_x = len(lines[cursor_y])
-        elif ch == curses.KEY_RIGHT:
-            if cursor_x < len(lines[cursor_y]):
-                cursor_x += 1
-            elif cursor_y < len(lines)-1:
-                cursor_y += 1
-                cursor_x = 0
-        elif ch == curses.KEY_UP:
-            if cursor_y > 0:
-                cursor_y -= 1
-                cursor_x = min(cursor_x, len(lines[cursor_y]))
-        elif ch == curses.KEY_DOWN:
-            if cursor_y < len(lines)-1:
-                cursor_y += 1
-                cursor_x = min(cursor_x, len(lines[cursor_y]))
-        elif ch in (10, 13):
-            cur = lines[cursor_y]
-            left = cur[:cursor_x]
-            right = cur[cursor_x:]
-            lines[cursor_y] = left
-            lines.insert(cursor_y+1, right)
-            cursor_y += 1
-            cursor_x = 0
-        elif ch == curses.KEY_DC:
-            if cursor_x < len(lines[cursor_y]):
-                lines[cursor_y] = lines[cursor_y][:cursor_x] + lines[cursor_y][cursor_x+1:]
-            else:
-                if cursor_y < len(lines)-1:
-                    lines[cursor_y] = lines[cursor_y] + lines.pop(cursor_y+1)
-        elif 0 <= ch <= 255:
-            lines[cursor_y] = lines[cursor_y][:cursor_x] + chr(ch) + lines[cursor_y][cursor_x:]
-            cursor_x += 1
-        cursor_x = max(0, min(cursor_x, len(lines[cursor_y])))
-        if cursor_y < 0:
-            cursor_y = 0
-        if cursor_y >= len(lines):
-            cursor_y = len(lines)-1
-
-
-def curses_input(stdscr, prompt, default=''):
-    curses.curs_set(1)
-    h,w = stdscr.getmaxyx()
-    inp = list(default)
-    pos = len(inp)
-    while True:
-        stdscr.erase()
-        centered_addstr(stdscr, h//2 - 2, prompt)
-        disp = ''.join(inp)
-        x = max(0, (w - len(disp)) // 2)
-        try:
-            stdscr.addstr(h//2, x, disp[:w-2])
-        except Exception:
-            pass
-        stdscr.move(h//2, x + pos)
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch in (10,13):
-            curses.curs_set(0)
-            return disp
-        elif ch in (27,):
-            curses.curs_set(0)
-            return None
-        elif ch in (curses.KEY_BACKSPACE, 127, 8):
-            if pos > 0:
-                inp.pop(pos-1)
-                pos -= 1
-        elif ch == curses.KEY_LEFT:
-            pos = max(0, pos-1)
-        elif ch == curses.KEY_RIGHT:
-            pos = min(len(inp), pos+1)
-        elif 0 <= ch <= 255:
-            inp.insert(pos, chr(ch))
-            pos += 1
-
-
-def curses_select_from_list(stdscr, title, options, start_index=0):
-    curses.curs_set(0)
-    if not options:
-        return None
-    idx = start_index
-    while True:
-        stdscr.erase()
-        h, w = stdscr.getmaxyx()
-        centered_addstr(stdscr, 1, title)
-        per_page = max(6, h - 8)
-        page = idx // per_page
-        start = page * per_page
-        end = min(len(options), start + per_page)
-        for i in range(start, end):
-            attr = curses.A_REVERSE if i == idx else 0
-            centered_addstr(stdscr, 3 + i - start, f" {options[i]} ", attr)
-        centered_addstr(stdscr, h-2, 'Πάνω/Κάτω κίνηση, Αρ/Δεξ σελίδα, Enter επιλογή, / αναζήτηση, ESC ακύρωση')
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch in (curses.KEY_UP,):
-            idx = (idx - 1) % len(options)
-        elif ch in (curses.KEY_DOWN,):
-            idx = (idx + 1) % len(options)
-        elif ch == curses.KEY_LEFT:
-            idx = max(0, idx - per_page)
-        elif ch == curses.KEY_RIGHT:
-            idx = min(len(options)-1, idx + per_page)
-        elif ch in (10,13):
-            return options[idx]
-        elif ch == 27:
-            return None
-        elif ch == ord('/'):
-            q = curses_input(stdscr, 'Αναζήτηση:')
-            if q:
-                ql = q.lower()
-                for i,opt in enumerate(options):
-                    if ql in opt.lower():
-                        idx = i
-                        break
-
-# Search
-def curses_search(stdscr, notes):
-    try:
-        curses.curs_set(1)
-        h, w = stdscr.getmaxyx()
-        query = ''
-        matches = []
-        selected = 0
-        keys = [k for k in notes.keys() if k != '_reminders']
-        while True:
-            stdscr.erase()
-            centered_addstr(stdscr, 1, ' Αναζήτηση Σημειώσεων (πληκτρολογήστε για φιλτράρισμα) — Enter επιλογή, ESC πίσω ')
-            stdscr.addstr(3, max(2, (w - 60)//2), 'Ερώτημα: ' + query + ' ')
-            scored = []
-            for k in keys:
-                s = score_query(query, k) if query else 0
-                s2 = score_query(query, notes.get(k, '')) if query else 0
-                score = max(s, s2)
-                scored.append((score, k))
-            scored.sort(reverse=True)
-            matches = [k for sc,k in scored if sc>0 or not query][:min(20, len(scored))]
-            start_y = 5
-            for idx, key in enumerate(matches):
-                marker = '>' if idx == selected else ' '
-                line = f"{marker} {key}"
-                try:
-                    stdscr.addstr(start_y+idx, max(2, (w - 60)//2), line[:60])
-                except Exception:
-                    pass
-            stdscr.refresh()
-            ch = stdscr.getch()
-            if ch in (27,):
-                curses.curs_set(0)
-                return None
-            elif ch in (10,13):
-                if not matches:
-                    continue
-                curses.curs_set(0)
-                return matches[selected]
-            elif ch == curses.KEY_UP:
-                selected = max(0, selected-1)
-            elif ch == curses.KEY_DOWN:
-                selected = min(len(matches)-1, selected+1)
-            elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                query = query[:-1]
-                selected = 0
-            elif 0 <= ch <= 255:
-                query += chr(ch)
-                selected = 0
+            json.dump(notes, f, indent=4, ensure_ascii=False)
     except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα αναζήτησης', traceback.format_exc())
-        return None
+        print(f"Σφάλμα αποθήκευσης σημειώσεων: {e}")
 
-# Confirm dialog
-def confirm_dialog(stdscr, text):
-    h,w = stdscr.getmaxyx()
-    while True:
-        stdscr.erase()
-        centered_addstr(stdscr, h//2 - 1, text + ' (Ν/Ο)')
-        centered_addstr(stdscr, h//2 + 1, 'Ν: Ναι    Ο: Όχι')
-        stdscr.refresh()
-        ch = stdscr.getch()
-        if ch in (ord('y'), ord('Y'), ord('ν'), ord('Ν')):
-            return True
-        elif ch in (ord('n'), ord('N'), ord('ο'), ord('Ο'), 27):
-            return False
+# -----------------
+# Λογική Υπενθυμίσεων
+# -----------------
 
-# View note
-def view_note_curses(stdscr, title, content):
-    try:
-        h,w = stdscr.getmaxyx()
-        stdscr.clear()
-        if not isinstance(content, str):
-            try:
-                content = json.dumps(content, indent=2, ensure_ascii=False)
-            except Exception:
-                content = str(content)
-        lines = content.split('\n')
-        pos = 0
-        while True:
-            stdscr.erase()
-            centered_addstr(stdscr, 1, f' {title} ')
-            for i in range(min(h-6, len(lines)-pos)):
-                try:
-                    stdscr.addstr(3+i, 2, lines[pos+i][:w-4])
-                except Exception:
-                    pass
-            centered_addstr(stdscr, h-2, 'Πάνω/Κάτω κύλιση, Β για πίσω')
-            stdscr.refresh()
-            ch = stdscr.getch()
-            if ch == curses.KEY_DOWN:
-                if pos + (h-6) < len(lines):
-                    pos += 1
-            elif ch == curses.KEY_UP:
-                pos = max(0, pos-1)
-            elif ch in (ord('b'), ord('B'), 27):
-                return
-    except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα προβολής', traceback.format_exc())
+def _parse_reminder_data(note_content: str) -> dict:
+    """Αναλύει τα μεταδεδομένα υπενθύμισης από την αρχή μιας σημείωσης."""
+    data = {}
+    lines = note_content.split('\n')
+    for line in lines:
+        if line.strip().startswith('#reminder:'):
+            parts = line.split(':', 2)
+            if len(parts) == 3:
+                key = parts[1].strip()
+                value = parts[2].strip()
+                data[key] = value
+        elif not line.strip(): # Σταματά στην πρώτη κενή γραμμή
+            break
+        elif not line.strip().startswith('#'): # Σταματά στην πρώτη μη-σχόλιο/μη-κενή γραμμή
+            break
+    return data
 
-# Actions for note
-def action_for_note(stdscr, key, notes):
-    try:
-        h,w = stdscr.getmaxyx()
-        while True:
-            stdscr.erase()
-            centered_addstr(stdscr, 1, f' Σημείωση: {key} ')
-            content = notes.get(key, '')
-            if not isinstance(content, str):
-                try:
-                    preview_text = json.dumps(content, indent=2, ensure_ascii=False)
-                except Exception:
-                    preview_text = str(content)
-            else:
-                preview_text = content
-            preview = preview_text.split('\n')[:10]
-            for i,line in enumerate(preview):
-                try:
-                    stdscr.addstr(3+i, 2, line[:w-4])
-                except Exception:
-                    pass
-            centered_addstr(stdscr, h-4, 'V: Προβολή  E: Επεξεργασία  D: Διαγραφή  B: Πίσω')
-            stdscr.refresh()
-            ch = stdscr.getch()
-            if ch in (ord('v'), ord('V')):
-                view_note_curses(stdscr, key, content)
-            elif ch in (ord('e'), ord('E')):
-                initial = preview_text if isinstance(content, (dict, list)) else str(content)
-                new = curses_editor(stdscr, initial)
-                if new is not None:
-                    notes[key] = new
-                    save_notes(notes)
-            elif ch in (ord('d'), ord('D')):
-                confirmed = confirm_dialog(stdscr, f'Διαγραφή σημείωσης "{key}"?')
-                if confirmed:
-                    notes.pop(key, None)
-                    save_notes(notes)
-                    return
-            elif ch in (ord('b'), ord('B'), 27):
-                return
-    except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα ενέργειας σημείωσης', traceback.format_exc())
-
-# Add note (curses)
-def add_note_curses(stdscr):
-    try:
-        notes = load_notes()
-        name = curses_input(stdscr, 'Όνομα σημείωσης:')
-        if name is None or not name.strip():
-            return
-        name = name.strip()
-        if name in notes:
-            overwrite = curses_input(stdscr, 'Αντικατάσταση υπάρχουσας; (y/N):', 'N')
-            if not overwrite or overwrite.lower() not in ('y', 'ν'):
-                return
-        new = curses_editor(stdscr, notes.get(name, ''))
-        if new is None:
-            return
-        notes[name] = new
-        save_notes(notes)
-    except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα προσθήκης σημείωσης', traceback.format_exc())
-
-# Date/time picker
-def curses_date_picker(stdscr, initial_dt=None):
-    try:
-        curses.curs_set(0)
-        now = datetime.now()
-        year = initial_dt.year if initial_dt else now.year
-        month = initial_dt.month if initial_dt else now.month
-        day = initial_dt.day if initial_dt else now.day
-        hour = initial_dt.hour if initial_dt else now.hour
-        minute = initial_dt.minute if initial_dt else 0
-        fields = ['year','month','day','hour','minute','confirm']
-        idx = 0
-        while True:
-            stdscr.erase()
-            h,w = stdscr.getmaxyx()
-            centered_addstr(stdscr, 1, ' Επιλέξτε ημερομηνία & ώρα για υπενθύμιση ')
-            centered_addstr(stdscr, 3, f' Έτος:   {year} ', curses.A_REVERSE if fields[idx]=='year' else 0)
-            centered_addstr(stdscr, 5, f' Μήνας:  {month} ', curses.A_REVERSE if fields[idx]=='month' else 0)
-            centered_addstr(stdscr, 7, f' Ημέρα:  {day} ', curses.A_REVERSE if fields[idx]=='day' else 0)
-            centered_addstr(stdscr, 9, f' Ώρα:   {hour:02d} ', curses.A_REVERSE if fields[idx]=='hour' else 0)
-            centered_addstr(stdscr, 11, f' Λεπτό: {minute:02d} ', curses.A_REVERSE if fields[idx]=='minute' else 0)
-            centered_addstr(stdscr, 13, f' [ Επιβεβαίωση ] ', curses.A_REVERSE if fields[idx]=='confirm' else 0)
-            centered_addstr(stdscr, h-2, 'Αριστερά/Δεξιά πεδίο, Πάνω/Κάτω τιμή, Enter επιβεβαίωση, ESC ακύρωση')
-            stdscr.refresh()
-            ch = stdscr.getch()
-            if ch == curses.KEY_LEFT:
-                idx = (idx - 1) % len(fields)
-            elif ch == curses.KEY_RIGHT:
-                idx = (idx + 1) % len(fields)
-            elif ch == curses.KEY_UP:
-                if fields[idx] == 'year':
-                    year += 1
-                elif fields[idx] == 'month':
-                    month = 12 if month == 12 else month + 1
-                    _, mdays = calendar.monthrange(year, month)
-                    if day > mdays:
-                        day = mdays
-                elif fields[idx] == 'day':
-                    _, mdays = calendar.monthrange(year, month)
-                    day = 1 if day >= mdays else day + 1
-                elif fields[idx] == 'hour':
-                    hour = (hour + 1) % 24
-                elif fields[idx] == 'minute':
-                    minute = (minute + 1) % 60
-            elif ch == curses.KEY_DOWN:
-                if fields[idx] == 'year':
-                    year = max(now.year, year - 1)
-                elif fields[idx] == 'month':
-                    month = 1 if month == 1 else month - 1
-                    _, mdays = calendar.monthrange(year, month)
-                    if day > mdays:
-                        day = mdays
-                elif fields[idx] == 'day':
-                    _, mdays = calendar.monthrange(year, month)
-                    day = mdays if day <= 1 else day - 1
-                elif fields[idx] == 'hour':
-                    hour = (hour - 1) % 24
-                elif fields[idx] == 'minute':
-                    minute = (minute - 1) % 60
-            elif ch in (10,13):
-                if fields[idx] == 'confirm':
-                    try:
-                        picked = datetime(year, month, day, hour, minute)
-                        if picked <= datetime.now():
-                            centered_addstr(stdscr, (h//2)+6, 'Παρακαλώ επιλέξτε μια μελλοντική ώρα', curses.A_BOLD)
-                            stdscr.refresh()
-                            time.sleep(1.2)
-                            continue
-                        return picked
-                    except Exception:
-                        centered_addstr(stdscr, (h//2)+6, 'Μη έγκυρη ημερομηνία, προσαρμόστε τις τιμές', curses.A_BOLD)
-                        stdscr.refresh()
-                        time.sleep(1.2)
-                        continue
-            elif ch == 27:
-                return None
-    except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα επιλογής ημερομηνίας', traceback.format_exc())
-        return None
-
-# Reminders menu
-def curses_reminders_menu(stdscr):
-    try:
-        notes = load_notes()
-        reminders = notes.get('_reminders', [])
-        idx = 0
-        options = ['Προσθήκη υπενθύμισης','Λίστα υπενθυμίσεων','Διαγραφή υπενθύμισης','Πίσω']
-        while True:
-            stdscr.erase()
-            h,w = stdscr.getmaxyx()
-            centered_addstr(stdscr, 1, ' Ημερολόγιο / Υπενθυμίσεις ')
-            total_h = len(options) * 2
-            start_y = max(3, (h - total_h) // 2)
-            for i,opt in enumerate(options):
-                centered_addstr(stdscr, start_y + i*2, f" {opt} ", curses.A_REVERSE if i==idx else 0)
-            stdscr.refresh()
-            ch = stdscr.getch()
-            if ch == curses.KEY_UP:
-                idx = (idx - 1) % len(options)
-            elif ch == curses.KEY_DOWN:
-                idx = (idx + 1) % len(options)
-            elif ch in (10,13):
-                choice = options[idx]
-                if choice == 'Προσθήκη υπενθύμισης':
-                    title = curses_input(stdscr, 'Τίτλος υπενθύμισης:')
-                    if title is None:
-                        continue
-                    title = title.strip()
-                    dt = curses_date_picker(stdscr)
-                    if dt is None:
-                        continue
-                    note_text = curses_editor(stdscr, '')
-                    if note_text is None:
-                        note_text = ''
-                    reminders.append({'title': title, 'datetime': dt.isoformat(), 'text': note_text})
-                    notes['_reminders'] = reminders
-                    save_notes(notes)
-                    scheduled = schedule_termux_notification(title, dt, note_text)
-                    stdscr.erase()
-                    centered_addstr(stdscr, h//2, 'Η υπενθύμιση αποθηκεύτηκε.' + (' Προγραμματίστηκε.' if scheduled else ' Αποθηκεύτηκε (δεν προγραμματίστηκε).'))
-                    stdscr.refresh()
-                    time.sleep(1.2)
-                elif choice == 'Λίστα υπενθυμίσεων':
-                    stdscr.erase()
-                    centered_addstr(stdscr, 1, ' Προγραμματισμένες υπενθυμίσεις ')
-                    if not reminders:
-                        centered_addstr(stdscr, h//2, 'Δεν υπάρχουν υπενθυμίσεις')
-                    else:
-                        for i,r in enumerate(reminders[:h-6]):
-                            centered_addstr(stdscr, 3+i, f"{i+1}) {r['title']} at {r['datetime']}")
-                    centered_addstr(stdscr, h-2, 'Πατήστε οποιοδήποτε πλήκτρο για συνέχεια')
-                    stdscr.refresh()
-                    stdscr.getch()
-                elif choice == 'Διαγραφή υπενθύμισης':
-                    if not reminders:
-                        stdscr.erase()
-                        centered_addstr(stdscr, h//2, 'Δεν υπάρχουν υπενθυμίσεις για διαγραφή')
-                        stdscr.refresh()
-                        time.sleep(1.0)
-                    else:
-                        opts = [f"{r['title']} @ {r['datetime']}" for r in reminders]
-                        sel = curses_select_from_list(stdscr, 'Επιλέξτε υπενθύμιση για διαγραφή', opts)
-                        if sel is None:
-                            continue
-                        sel_idx = opts.index(sel)
-                        if confirm_dialog(stdscr, f'Διαγραφή "{reminders[sel_idx]["title"]}"?'):
-                            reminders.pop(sel_idx)
-                            notes['_reminders'] = reminders
-                            save_notes(notes)
-                elif choice == 'Πίσω':
-                    return
-            elif ch == 27:
-                return
-    except Exception as e:
-        log_exception(e)
-        error_dialog(stdscr, 'Σφάλμα υπενθυμίσεων', traceback.format_exc())
-
-# Scheduler (creates a small shell script safely quoted)
-def schedule_termux_notification(title, dt, text):
-    try:
-        job_bin = shutil.which('termux-job-scheduler')
-        notif_bin = shutil.which('termux-notification')
-        if not notif_bin:
-            return False
-        epoch_ms = int(dt.timestamp() * 1000)
-        if job_bin:
-            job_id = f"smart_notes_{int(time.time())}"
-            script_path = os.path.join(HOME, f'.smart_notes_job_{job_id}.sh')
-            safe_title = shlex.quote(title)
-            safe_text = shlex.quote(text or '')
-            try:
-                with open(script_path, 'w') as f:
-                    f.write('#!/data/data/com.termux/files/usr/bin/sh\n')
-                    f.write(f'termux-notification --title {safe_title} --content {safe_text}\n')
-                os.chmod(script_path, 0o755)
-                subprocess.check_call([
-                    'termux-job-scheduler', '-s', job_id, '-t', str(epoch_ms),
-                    '--service', 'com.termux.job.JobService', '-c', f'sh {shlex.quote(script_path)}'
-                ])
-                return True
-            except Exception:
-                return False
-        else:
-            at_bin = shutil.which('at')
-            if at_bin:
-                try:
-                    # Use at if available (best-effort)
-                    cmd = f'termux-notification --title {shlex.quote(title)} --content {shlex.quote(text or "")}'
-                    at_time_str = dt.strftime('%H:%M %Y-%m-%d')
-                    p = subprocess.Popen(['at', '-M', at_time_str], stdin=subprocess.PIPE)
-                    p.communicate(input=(cmd + "\n").encode())
-                    return True
-                except Exception:
-                    return False
-    except Exception:
-        return False
-    return False
-
-# Run pending reminders
-def run_pending_reminders():
-    notes = load_notes()
-    reminders = notes.get('_reminders', [])
-    now = datetime.now()
-    changed = False
-    for r in list(reminders):
-        try:
-            dt = datetime.fromisoformat(r['datetime'])
-        except Exception:
+def get_reminder_content(note_content: str) -> str:
+    """Αφαιρεί τις γραμμές μεταδεδομένων από το περιεχόμενο σημείωσης για εμφάνιση."""
+    lines = note_content.split('\n')
+    content_lines = []
+    metadata_done = False
+    for line in lines:
+        if not metadata_done and line.strip().startswith('#reminder:'):
             continue
-        if dt <= now:
-            if ensure_termux_api():
+        if not metadata_done and not line.strip():
+            metadata_done = True
+            continue
+        if not metadata_done and not line.strip().startswith('#'):
+            metadata_done = True
+            
+        if metadata_done:
+            content_lines.append(line)
+    return '\n'.join(content_lines).strip()
+
+def run_reminders(auto_run=False):
+    """Ελέγχει και εκτελεί εκπρόθεσμες υπενθυμίσεις."""
+    notes = load_notes()
+    reminders_run = 0
+    
+    if not dateparser:
+        if auto_run: return # Δεν μπορεί να τρέξει χωρίς dateutil
+        print('Δεν μπορώ να εκτελέσω υπενθυμίσεις: Απαιτείται η βιβλιοθήκη dateutil.')
+        print('Παρακαλώ εγκαταστήστε την με: pip install python-dateutil')
+        return
+
+    print("\n--- Έλεγχος Υπενθυμίσεων ---")
+    
+    for name, content in notes.items():
+        data = _parse_reminder_data(content)
+        
+        # Έλεγχος για ενεργοποίηση υπενθύμισης
+        if 'due' in data:
+            try:
+                # Χρήση dateparser για ευέλικτη ανάλυση μορφών ημερομηνιών
+                due_time = dateparser.parse(data['due'])
+                
+                # Υπόθεση τοπικής ζώνης ώρας αν δεν έχει καθοριστεί στο string 'due'
+                if due_time.tzinfo is None or due_time.tzinfo.utcoffset(due_time) is None:
+                    # Εντοπισμός (υποθέτοντας τοπική ώρα συστήματος)
+                    due_time = due_time.astimezone(datetime.now().astimezone().tzinfo)
+                    
+                if due_time < datetime.now().astimezone():
+                    print(f"\n🔔 Εκπρόθεσμη Υπενθύμιση: {name} (Προθεσμία: {data['due']})")
+                    print("-" * (len(name) + 25))
+                    print(get_reminder_content(content))
+                    
+                    command = data.get('run_cmd')
+                    if command:
+                        print(f"\n[!] Εκτέλεση εντολής: {command}")
+                        try:
+                            # Χρήση shlex για ασφαλή διαχωρισμό string εντολής
+                            process = subprocess.run(shlex.split(command), capture_output=True, text=True, timeout=10)
+                            print(f"Έξοδος Εντολής:\n{process.stdout}")
+                            if process.stderr:
+                                print(f"Σφάλμα Εντολής:\n{process.stderr}")
+                            print(f"Η εντολή ολοκληρώθηκε με κωδικό εξόδου {process.returncode}")
+                        except Exception as e:
+                            print(f"❌ Σφάλμα εκτέλεσης εντολής: {e}")
+                            
+                    # Αφαίρεση μεταδεδομένων υπενθύμισης μετά την εκτέλεση (αν έχει οριστεί auto_remove)
+                    if data.get('auto_remove', 'False').lower() == 'true':
+                        print("\n[!] Αυτόματη αφαίρεση μεταδεδομένων υπενθύμισης...")
+                        new_lines = []
+                        for line in content.split('\n'):
+                            if not line.strip().startswith('#reminder:'):
+                                new_lines.append(line)
+                        notes[name] = '\n'.join(new_lines).strip()
+                        save_notes(notes)
+                    
+                    reminders_run += 1
+                    print("-" * (len(name) + 25))
+                    
+            except Exception as e:
+                print(f"❌ Σφάλμα ανάλυσης ημερομηνίας για σημείωση {name}: {e}")
+                
+    if reminders_run == 0:
+        print("Δεν βρέθηκαν εκπρόθεσμες υπενθυμίσεις.")
+
+    return reminders_run
+
+# -----------------
+# Λογική Απλής Αριθμημένης Διεπαφής
+# -----------------
+
+class SimpleTUI:
+    def __init__(self):
+        self.notes = load_notes()
+        self.config = self._load_config()
+        self.filter_text = ""
+        self.current_notes = self.get_filtered_notes()
+
+    def _load_config(self):
+        """Φορτώνει τη διαμόρφωση ή επιστρέφει την προεπιλεγμένη."""
+        if not os.path.exists(CONFIG_FILE):
+            return {"last_opened_note": None, "editor_cmd": "$EDITOR"}
+        try:
+            with open(CONFIG_FILE, 'r') as f:
+                return json.load(f)
+        except Exception:
+            return {"last_opened_note": None, "editor_cmd": "$EDITOR"}
+
+    def _save_config(self):
+        """Αποθηκεύει την τρέχουσα διαμόρφωση."""
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            self._log_error(f"Σφάλμα Αποθήκευσης Διαμόρφωσης: {e}")
+
+    def _log_error(self, message):
+        """Καταγράφει ένα σφάλμα με χρονική σήμανση."""
+        try:
+            with open(ERROR_LOG, 'a') as f:
+                f.write(f"[{datetime.now().isoformat()}] {message}\n")
+        except Exception:
+            pass # Ασφάλεια
+
+    def get_filtered_notes(self):
+        """Φιλτράρει σημειώσεις βάσει του τρέχοντος κειμένου φίλτρου."""
+        notes = sorted(self.notes.keys(), key=str.lower)
+        if not self.filter_text:
+            return notes
+            
+        filter_lower = self.filter_text.lower()
+        
+        # Ακριβές ταίριασμα / ξεκινά με
+        filtered = [name for name in notes if name.lower().startswith(filter_lower)]
+        # Περιέχει
+        filtered.extend([name for name in notes if filter_lower in name.lower() and name not in filtered])
+        # Ασαφές ταίριασμα (λόγος ομοιότητας)
+        filtered.extend([
+            name for name in notes 
+            if name not in filtered and SequenceMatcher(None, filter_lower, name.lower()).ratio() > 0.3
+        ])
+
+        return filtered
+
+    def _display_main_screen(self):
+        """Εμφανίζει την κύρια οθόνη λίστας."""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        
+        # Τίτλος
+        print("=" * 60)
+        print(" " * 20 + "Έξυπνες Σημειώσεις" + " " * 20)
+        print("=" * 60)
+        print(f"Σημειώσεις: {len(self.current_notes)}/{len(self.notes)}")
+        
+        if self.filter_text:
+            print(f"Φίλτρο: {self.filter_text}")
+        
+        print("-" * 60)
+        
+        # Λίστα Σημειώσεων με αριθμούς
+        if not self.current_notes:
+            print("Δεν βρέθηκαν σημειώσεις.")
+        else:
+            for idx, note_name in enumerate(self.current_notes, 1):
+                # Έλεγχος κατάστασης υπενθύμισης
+                has_reminder = False
+                is_overdue = False
+                
                 try:
-                    subprocess.check_call(['termux-notification', '--title', r['title'], '--content', r.get('text','')])
+                    data = _parse_reminder_data(self.notes.get(note_name, ""))
+                    if 'due' in data:
+                        has_reminder = True
+                        if dateparser:
+                            due_time = dateparser.parse(data['due']).astimezone(datetime.now().astimezone().tzinfo)
+                            if due_time < datetime.now().astimezone():
+                                is_overdue = True
                 except Exception:
                     pass
-            reminders.remove(r)
-            changed = True
-    if changed:
-        notes['_reminders'] = reminders
-        save_notes(notes)
+                
+                # Μορφοποίηση εμφάνισης με δείκτες
+                indicator = ""
+                if is_overdue:
+                    indicator = " [ΕΚΠΡΟΘΕΣΜΗ!]"
+                elif has_reminder:
+                    indicator = " [ΥΠΕΝΘΥΜΙΣΗ]"
+                
+                print(f"{idx:2d}. {note_name}{indicator}")
+        
+        print("-" * 60)
+        print("Εντολές: αριθμός=Άνοιγμα | π=Προσθήκη | δ=Διαγραφή | φ=Φίλτρο | υ=Υπενθυμίσεις | β=Βοήθεια | ε=Έξοδος")
+        print("-" * 60)
 
-# Main menu
-def main_menu(stdscr):
-    curses.noecho()
-    curses.cbreak()
-    stdscr.keypad(True)
-    try:
-        curses.curs_set(0)
-    except Exception:
-        pass
-    while True:
-        notes = load_notes()
-        options = ['Προσθήκη Σημείωσης','Αναζήτηση Σημείωσης','Ημερολόγιο / Υπενθυμίσεις','Ρυθμίσεις (χώρα/ζώνη ώρας)','Έξοδος']
-        idx = 0
+    def _open_note_view(self, note_name):
+        """Ανοίγει μια προβολή μόνο ανάγνωσης του περιεχομένου της σημείωσης."""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        
+        content = self.notes.get(note_name, "Η ΣΗΜΕΙΩΣΗ ΔΕΝ ΒΡΕΘΗΚΕ")
+        
+        print("=" * 60)
+        print(f"Σημείωση: {note_name}")
+        print("=" * 60)
+        
+        data = _parse_reminder_data(content)
+        if data:
+            print("--- Μεταδεδομένα ---")
+            for k, v in data.items():
+                print(f"  {k}: {v}")
+            print("--- Περιεχόμενο ---")
+        
+        print(get_reminder_content(content))
+        print("=" * 60)
+        input("Πατήστε Enter για συνέχεια...")
+
+    def _external_edit(self, note_name=None):
+        """Εκκινεί εξωτερικό επεξεργαστή για μια σημείωση."""
+        
+        # 1. Προετοιμασία προσωρινού αρχείου με τρέχον περιεχόμενο
+        temp_file = os.path.join(HOME, f".smart_notes_temp_{os.getpid()}.txt")
+        initial_content = self.notes.get(note_name, "") if note_name else ""
+        
         try:
-            while True:
-                stdscr.erase()
-                h, w = stdscr.getmaxyx()
-                centered_addstr(stdscr, 1, ' Έξυπνες Σημειώσεις — Termux ')
-                total_h = len(options) * 2
-                start_y = max(3, (h - total_h) // 2)
-                for i, opt in enumerate(options):
-                    y = start_y + i*2
-                    attr = curses.A_REVERSE if i == idx else 0
-                    centered_addstr(stdscr, y, f" {opt} ", attr)
-                stdscr.refresh()
-                ch = stdscr.getch()
-                if ch in (curses.KEY_UP,):
-                    idx = (idx - 1) % len(options)
-                elif ch in (curses.KEY_DOWN,):
-                    idx = (idx + 1) % len(options)
-                elif ch in (10,13):
-                    choice = options[idx]
-                    if choice == 'Προσθήκη Σημείωσης':
-                        add_note_curses(stdscr)
-                        break
-                    elif choice == 'Αναζήτηση Σημείωσης':
-                        key = curses_search(stdscr, notes)
-                        if key:
-                            action_for_note(stdscr, key, notes)
-                        break
-                    elif choice == 'Ημερολόγιο / Υπενθυμίσεις':
-                        curses_reminders_menu(stdscr)
-                        break
-                    elif choice == 'Ρυθμίσεις (χώρα/ζώνη ώρας)':
-                        sel_country = curses_select_from_list(stdscr, 'Επιλέξτε χώρα (ESC για ακύρωση)', COUNTRIES + ['Προσαρμοσμένη'])
-                        if sel_country is None:
-                            break
-                        if sel_country == 'Προσαρμοσμένη':
-                            sel_country = curses_input(stdscr, 'Πληκτρολογήστε όνομα χώρας:')
-                            if sel_country is None:
-                                break
-                        sel_tz = curses_select_from_list(stdscr, 'Επιλέξτε ζώνη ώρας (ESC για ακύρωση)', TIMEZONES + ['Προσαρμοσμένη'])
-                        if sel_tz is None:
-                            break
-                        if sel_tz == 'Προσαρμοσμένη':
-                            sel_tz = curses_input(stdscr, 'Πληκτρολογήστε ζώνη ώρας (π.χ. Europe/Athens):')
-                            if sel_tz is None:
-                                break
-                        cfg = load_config()
-                        cfg['country'] = sel_country
-                        cfg['timezone'] = sel_tz
-                        save_config(cfg)
-                        stdscr.erase()
-                        centered_addstr(stdscr, h//2, 'Οι ρυθμίσεις αποθηκεύτηκαν.')
-                        stdscr.refresh()
-                        time.sleep(1.0)
-                        break
-                    elif choice == 'Έξοδος':
-                        return
-                elif ch in (27,):
-                    return
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write(initial_content)
         except Exception as e:
-            log_exception(e)
-            error_dialog(stdscr, 'Απρόσμενο σφάλμα στο κύριο μενού', traceback.format_exc())
+            print(f"Σφάλμα προετοιμασίας προσωρινού αρχείου: {e}")
+            return
+            
+        # 2. Λήψη εντολής επεξεργαστή
+        editor_cmd = self.config.get("editor_cmd", "$EDITOR")
+        editor_cmd = os.environ.get('EDITOR', 'vi') if editor_cmd == '$EDITOR' else editor_cmd
+        
+        full_command = f"{editor_cmd} {shlex.quote(temp_file)}"
 
-# CLI fallback add
-def add_note_interactive():
+        # 3. Εκκίνηση επεξεργαστή
+        try:
+            print(f"Εκκίνηση εξωτερικού επεξεργαστή: {full_command}")
+            subprocess.run(shlex.split(full_command), check=True)
+            print("Ο επεξεργαστής έκλεισε. Ανάγνωση νέου περιεχομένου...")
+            
+            # 4. Ανάγνωση περιεχομένου πίσω
+            with open(temp_file, 'r', encoding='utf-8') as f:
+                new_content = f.read().strip()
+            
+            # 5. Χειρισμός αποθήκευσης
+            if not note_name:
+                # Περίπτωση νέας σημείωσης
+                name = input("Εισάγετε όνομα νέας σημείωσης: ").strip()
+                if not name:
+                    print("Ακυρώθηκε: Κενό όνομα.")
+                    return
+                if name in self.notes:
+                    if input('Αντικατάσταση υπάρχουσας; (ν/Ο): ').lower() != 'ν':
+                        print('Ακυρώθηκε.')
+                        return
+                
+                self.notes[name] = new_content
+                self.config['last_opened_note'] = name
+            else:
+                # Περίπτωση υπάρχουσας σημείωσης
+                self.notes[note_name] = new_content
+                self.config['last_opened_note'] = note_name
+                
+            save_notes(self.notes)
+            self._save_config()
+            print("Η σημείωση αποθηκεύτηκε.")
+
+        except subprocess.CalledProcessError:
+            print("Ο επεξεργαστής απέτυχε με σφάλμα. Η σημείωση δεν αποθηκεύτηκε.")
+        except KeyboardInterrupt:
+            print("\nΗ επεξεργασία ακυρώθηκε από τον χρήστη.")
+        except Exception as e:
+            print(f"Παρουσιάστηκε σφάλμα κατά την εξωτερική επεξεργασία: {e}")
+            self._log_error(f"Σφάλμα Εξωτερικής Επεξεργασίας: {e}\n{traceback.format_exc()}")
+        finally:
+            # Καθαρισμός προσωρινού αρχείου
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+            
+            # Επαν-φιλτράρισμα/επαν-επιλογή
+            self.current_notes = self.get_filtered_notes()
+
+    def _delete_note(self, note_name):
+        """Διαγράφει μια σημείωση μετά από επιβεβαίωση."""
+        confirmation = input(f"Διαγραφή '{note_name}'; (ν/Ο): ").strip().lower()
+        if confirmation in ('ν', 'ναι'):
+            del self.notes[note_name]
+            save_notes(self.notes)
+            if self.config.get('last_opened_note') == note_name:
+                self.config['last_opened_note'] = None
+                self._save_config()
+                
+            self.current_notes = self.get_filtered_notes()
+            print(f"Η σημείωση '{note_name}' διαγράφηκε.")
+        else:
+            print("Η διαγραφή ακυρώθηκε.")
+        input("Πατήστε Enter για συνέχεια...")
+
+    def _help_screen(self):
+        """Εμφανίζει την οθόνη βοήθειας."""
+        os.system('clear' if os.name == 'posix' else 'cls')
+        help_text = """
+Έξυπνες Σημειώσεις - Βοήθεια
+
+Εντολές:
+  αριθμός    : Άνοιγμα/Προβολή επιλεγμένης σημείωσης (π.χ., '1' για πρώτη σημείωση)
+  π          : Προσθήκη νέας σημείωσης (εκκινεί εξωτερικό επεξεργαστή)
+  δ αριθμός  : Διαγραφή επιλεγμένης σημείωσης (π.χ., 'δ 1' για διαγραφή πρώτης σημείωσης)
+  φ          : Ορισμός κειμένου φίλτρου
+  υ          : Εκτέλεση εκπρόθεσμων υπενθυμίσεων (ελέγχει όλες τις σημειώσεις)
+  ε          : Έξοδος από την εφαρμογή
+  β          : Εμφάνιση αυτής της οθόνης βοήθειας
+
+Διαμόρφωση Επεξεργαστή:
+- Χρησιμοποιεί τη μεταβλητή περιβάλλοντος $EDITOR (π.χ., nano, vi).
+- Για αλλαγή, επεξεργαστείτε: ~/.smart_notes_config.json
+  Παράδειγμα: {"editor_cmd": "nano"}
+
+Μορφή Υπενθύμισης (Αρχή σημείωσης):
+#reminder:due: ΕΕΕΕ-ΜΜ-ΗΗ ΩΩ:ΛΛ:ΔΔ (π.χ., 2025-10-20 18:00)
+#reminder:run_cmd: εντολή προς εκτέλεση (π.χ., 'notify-send "Υπενθύμιση"')
+#reminder:auto_remove: True (αφαιρεί τα μεταδεδομένα μετά την εκτέλεση)
+
+Αρχεία:
+- Σημειώσεις: ~/.smart_notes.json
+- Διαμόρφωση: ~/.smart_notes_config.json
+- Αρχείο Σφαλμάτων: ~/.smart_notes_error.log
+"""
+        print(help_text)
+        input("Πατήστε Enter για συνέχεια...")
+
+    def run(self):
+        """Κύριος βρόχος διεπαφής."""
+        
+        # Έλεγχος για υπενθυμίσεις κατά την εκκίνηση
+        if run_reminders(auto_run=True) > 0:
+            input("Εκτελέστηκαν εκπρόθεσμες υπενθυμίσεις. Πατήστε Enter για συνέχεια στις σημειώσεις.")
+
+        while True:
+            self._display_main_screen()
+            command = input("Εισάγετε εντολή: ").strip().lower()
+            
+            if command == 'ε':
+                break
+            elif command == 'π':
+                self._external_edit() # Προσθήκη νέας σημείωσης
+            elif command == 'β':
+                self._help_screen()
+            elif command == 'φ':
+                self.filter_text = input("Εισάγετε κείμενο φίλτρου: ").strip()
+                self.current_notes = self.get_filtered_notes()
+            elif command == 'υ':
+                run_reminders()
+                input("Ο έλεγχος υπενθυμίσεων ολοκληρώθηκε. Πατήστε Enter για συνέχεια στις σημειώσεις.")
+                self.notes = load_notes() # Ανανέωση σημειώσεων σε περίπτωση χρήσης auto_remove
+            elif command.startswith('δ '):
+                # Διαγραφή με αριθμό: "δ 1"
+                try:
+                    num = int(command[2:].strip())
+                    if 1 <= num <= len(self.current_notes):
+                        note_name = self.current_notes[num - 1]
+                        self._delete_note(note_name)
+                    else:
+                        print("Μη έγκυρος αριθμός σημείωσης.")
+                        input("Πατήστε Enter για συνέχεια...")
+                except ValueError:
+                    print("Μη έγκυρη μορφή. Χρησιμοποιήστε 'δ αριθμός' (π.χ., 'δ 1')")
+                    input("Πατήστε Enter για συνέχεια...")
+            elif command.isdigit():
+                # Άνοιγμα σημείωσης με αριθμό
+                num = int(command)
+                if 1 <= num <= len(self.current_notes):
+                    note_name = self.current_notes[num - 1]
+                    self._open_note_view(note_name)
+                else:
+                    print("Μη έγκυρος αριθμός σημείωσης.")
+                    input("Πατήστε Enter για συνέχεια...")
+            else:
+                print("Άγνωστη εντολή. Πληκτρολογήστε 'β' για βοήθεια.")
+                input("Πατήστε Enter για συνέχεια...")
+
+# -----------------
+# Λογική Κονσόλας/Γραμμής Εντολών
+# -----------------
+
+def cli_add_note():
+    """Προσθέτει μια σημείωση μέσω τυπικής εισαγωγής κονσόλας (για widget/αυτοματοποίηση Termux)."""
     notes = load_notes()
-    print('\n=== Προσθήκη Σημείωσης ===')
-    name = input('Όνομα σημείωσης: ').strip()
+    name = input('Εισάγετε όνομα σημείωσης: ').strip()
     if not name:
         print('Ακυρώθηκε: κενό όνομα')
         return
     if name in notes:
-        if input('Αντικατάσταση υπάρχουσας; (ν/Ο): ').lower() not in ('y', 'ν'):
+        if input('Αντικατάσταση υπάρχουσας; (ν/Ο): ').lower() not in ('ν', 'ναι'):
             print('Ακυρώθηκε')
             return
-    print('Εκκίνηση επεξεργαστή. Τερματίστε με μια γραμμή που περιέχει μόνο .save')
+    print('Εκκίνηση επεξεργαστή. Τερματισμός με γραμμή που περιέχει μόνο .save')
     try:
         lines = []
         while True:
@@ -823,27 +506,33 @@ def add_note_interactive():
     save_notes(notes)
     print('Αποθηκεύτηκε.')
 
-# Help
+# Βοήθεια
 def print_help():
     print('Έξυπνες Σημειώσεις - Termux')
     print('Εντολές:')
-    print('  (χωρίς ορίσματα) -> περιβάλλον curses')
+    print('  (χωρίς ορίσματα) -> απλή αριθμημένη διεπαφή')
     print('  --add            -> προσθήκη σημείωσης μέσω γραμμής εντολών')
-    print('  --run-reminders  -> εκτέλεση ληξιπρόθεσμων υπενθυμίσεων')
-    print('  --help           -> αυτή η βοήθεια')
+    print('  --run-reminders  -> εκτέλεση εκπρόθεσμων υπενθυμίσεων')
+    print('  --help           -> αυτή η οθόνη βοήθειας')
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         if arg == '--add':
-            add_note_interactive(); sys.exit(0)
-        if arg == '--run-reminders':
-            run_pending_reminders(); sys.exit(0)
-        if arg in ('-h','--help'):
-            print_help(); sys.exit(0)
-    try:
-        curses.wrapper(main_menu)
-    except Exception as e:
-        log_exception(e)
-        print('Μοιραίο σφάλμα — καταγράφηκε στο', ERROR_LOG)
-        traceback.print_exc()
+            cli_add_note()
+        elif arg == '--run-reminders':
+            run_reminders()
+        elif arg == '--help':
+            print_help()
+        else:
+            print(f"Άγνωστο όρισμα: {arg}. Χρησιμοποιήστε --help για χρήση.")
+    else:
+        # Λειτουργία Απλής Αριθμημένης Διεπαφής
+        try:
+            tui = SimpleTUI()
+            tui.run()
+        except KeyboardInterrupt:
+            print("\nΑντίο!")
+        except Exception as e:
+            print(f"Παρουσιάστηκε μη αναμενόμενο σφάλμα: {e}")
+            traceback.print_exc()
