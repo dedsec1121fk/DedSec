@@ -9,12 +9,13 @@ import time
 import socket
 import subprocess
 import argparse
+import curses
 from urllib.parse import urljoin, urlparse, quote_plus
 from collections import deque
 from datetime import datetime
 
 # -------------------------
-# Αυτόματη εγκατάσταση pip (best-effort)
+# Αυτόματη εγκατάσταση pip (προσπάθεια)
 # -------------------------
 REQ = ["requests", "bs4", "lxml", "validators", "tldextract", "python_dotenv", "pysocks"]
 MISSING = []
@@ -47,14 +48,14 @@ def pip_install(pkgs):
 
 
 def ensure_dependencies():
-    """Προσπάθεια εγκατάστασης λείπων πακέτων python και επανεισαγωγή τους. Επιστρέφει tuple (ok, missing_list)"""
+    """Προσπαθεί να εγκαταστήσει τα λείποντα πακέτα python και να τα εισαγάγει ξανά. Επιστρέφει tuple (ok, missing_list)"""
     global MISSING
     if not MISSING:
         return True, []
     ok = pip_install(MISSING)
     if not ok:
         return False, MISSING
-    # επανάληψη εισαγωγών
+    # ξαναπροσπαθεί τις εισαγωγές
     failed = []
     for p in list(MISSING):
         try:
@@ -64,12 +65,12 @@ def ensure_dependencies():
     MISSING = failed
     return (len(failed) == 0), failed
 
-# Προσπάθεια αυτόματης εγκατάστασης λείπων εξαρτήσεων πριν από εισαγωγή μονάδων
+# Προσπάθεια αυτόματης εγκατάστασης λείποντων εξαρτήσεων πριν από την εισαγωγή των modules
 if MISSING:
     success, failed = ensure_dependencies()
     if not success:
         print("[!] Κάποια πακέτα python απέτυχαν να εγκατασταθούν αυτόματα:", failed)
-        print("[!] Συνεχίζουμε αλλά κάποια χαρακτηριστικά μπορεί να μην είναι διαθέσιμα.")
+        print("[!] Συνεχίζουμε αλλά κάποιες λειτουργίες μπορεί να μην είναι διαθέσιμες.")
 
 # Προσπάθεια εισαγωγής ξανά (κάποια περιβάλλοντα μπορεί ακόμα να αποτύχουν)
 try:
@@ -80,7 +81,7 @@ try:
     from dotenv import load_dotenv
 except Exception as e:
     print("[!] Κάποιες προαιρετικές εξαρτήσεις απέτυχαν να εισαχθούν:", e)
-    # το script θα συνεχίσει να τρέχει αλλά κάποια χαρακτηριστικά μπορεί να σπάσουν
+    # το script θα συνεχίσει να τρέχει αλλά κάποιες λειτουργίες μπορεί να σπάσουν
 
 # -------------------------
 # Σταθερές & διαδρομές
@@ -106,7 +107,7 @@ def ensure_results_and_plugins():
             os.makedirs(FALLBACK_RESULTS, exist_ok=True)
             results_dir = FALLBACK_RESULTS
         except Exception:
-            # τελική εφεδρική: τρέχων κατάλογος
+            # τελική εφεδρική: τρέχοντας κατάλογος
             results_dir = os.path.join(os.getcwd(), "DarkNet")
             os.makedirs(results_dir, exist_ok=True)
     plugins_dir = os.path.join(results_dir, PLUGINS_SUB)
@@ -301,7 +302,7 @@ def install_plugins():
     os.environ["TORBOT_RESULTS_DIR"] = RESULTS_DIR
     return installed
 
-# διασφάλιση ότι υπάρχουν κάποια plugins κατά την εκκίνηση για καλύτερη εμπειρία χρήστη
+# διασφαλίζει ότι υπάρχουν κάποια plugins κατά την εκκίνηση για καλύτερη εμπειρία χρήστη
 try:
     if not os.listdir(PLUGINS_DIR):
         install_plugins()
@@ -369,7 +370,7 @@ def is_tor_running(host="127.0.0.1", port=9050, timeout=2):
 def try_start_tor_background():
     tor_bin = shutil_which("tor")
     if not tor_bin:
-        # προσπάθεια αυτόματης εγκατάστασης tor μέσω κοινών διαχειριστών πακέτων (best-effort, μπορεί να απαιτεί δικαιώματα)
+        # προσπάθεια αυτόματης εγκατάστασης tor μέσω κοινών διαχειριστών πακέτων (προσπάθεια, μπορεί να απαιτεί δικαιώματα)
         # termux: pkg install tor
         attempts = [
             ("pkg", ["pkg", "install", "tor", "-y"]),
@@ -386,7 +387,7 @@ def try_start_tor_background():
                     pass
         tor_bin = shutil_which("tor")
         if not tor_bin:
-            return False, "Δεν βρέθηκε δυαδικό 'tor' μετά από προσπάθειες εγκατάστασης. Παρακαλώ εγκαταστήστε χειροκίνητα (pkg/apt/brew)."
+            return False, "Δεν βρέθηκε το δυαδικό 'tor' μετά από προσπάθειες εγκατάστασης. Παρακαλώ εγκαταστήστε χειροκίνητα (pkg/apt/brew)."
     try:
         p = subprocess.Popen([tor_bin], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(4)
@@ -431,7 +432,7 @@ def normalize_url(u):
 
 
 def safe_get(url, allow_redirects=True, timeout=DEFAULT_TIMEOUT):
-    # ισχυρό safe_get: αν λείπει session requests, πέφτει πίσω σε urllib
+    # εύρωστο safe_get: αν λείπει το session requests, επιστροφή σε urllib
     if session:
         try:
             r = session.get(url, timeout=timeout, allow_redirects=allow_redirects)
@@ -493,7 +494,7 @@ def clean_text(html):
     except Exception:
         return ""
 
-# Scrape μοναδικής σελίδας
+# Απόσπαση μεμονωμένης σελίδας
 def scrape_page(url, save_snapshot=False):
     norm = normalize_url(url)
     r = safe_get(norm)
@@ -665,7 +666,7 @@ def load_plugins():
                 plugins.append({"name": fname, "run": ns["run"]})
                 log(f"Φορτώθηκε plugin: {fname}")
             else:
-                log(f"Το plugin {fname} δεν έχει run(data) συνάρτηση; παραλείφθηκε", "WARN")
+                log(f"Το plugin {fname} δεν έχει συνάρτηση run(data); παραλείφθηκε", "WARN")
         except Exception as e:
             log(f"Αποτυχία φόρτωσης plugin {fname}: {e}", "ERROR")
     return plugins
@@ -682,73 +683,129 @@ def run_plugins(plugins, data):
     return data
 
 # -------------------------
-# Διεπαφή με αριθμημένο μενού
+# Συναρτήσεις Curses UI
 # -------------------------
+# (αμετάβλητες από το πρωτότυπο αλλά βελτιωμένες προστασίες)
 
-def display_menu():
-    print("\n" + "="*50)
-    print("TorBot All-in-One (Ελληνική Έκδοση)")
-    print("="*50)
-    print(f"Κατάλογος αποτελεσμάτων: {RESULTS_DIR}")
-    print(f"Tor socks: {DEFAULT_SOCKS}")
-    print(f"Tor εκτελείται: {is_tor_running()}")
-    print(f"Plugins: {len(os.listdir(PLUGINS_DIR)) if os.path.isdir(PLUGINS_DIR) else 0} εγκατεστημένα")
-    print("-"*50)
-    print("1. Εγκατάσταση παραδειγμάτων plugins")
-    print("2. Έλεγχος/εκκίνηση Tor")
-    print("3. Crawl μιας URL")
-    print("4. Αναζήτηση Ahmia")
-    print("5. Φόρτωση & εκτέλεση plugins σε τελευταία αποτελέσματα")
-    print("6. Εξαγωγή τελευταίων αποτελεσμάτων (json/csv/txt)")
-    print("0. Έξοδος")
-    print("="*50)
+def draw_menu(stdscr, selected_idx, menu_items, title, status_msg=""):
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    try:
+        stdscr.attron(curses.color_pair(1))
+        stdscr.addstr(0, max(0, (w - len(title)) // 2), title)
+        stdscr.attroff(curses.color_pair(1))
+    except Exception:
+        pass
+    if status_msg:
+        stdscr.addstr(1, 0, status_msg[:w-1])
+    info_lines = [
+        f"Κατάλογος αποτελεσμάτων: {RESULTS_DIR}",
+        f"Tor socks: {DEFAULT_SOCKS}",
+        f"Tor εκτελείται: {is_tor_running()}",
+        f"Plugins: {len(os.listdir(PLUGINS_DIR)) if os.path.isdir(PLUGINS_DIR) else 0} εγκατεστημένα"
+    ]
+    for i, line in enumerate(info_lines):
+        stdscr.addstr(3 + i, 0, line[:w-1])
+    start_y = 8
+    for idx, item in enumerate(menu_items):
+        x = 2
+        y = start_y + idx
+        if idx == selected_idx:
+            try:
+                stdscr.attron(curses.color_pair(2))
+                stdscr.addstr(y, x, f"> {item}")
+                stdscr.attroff(curses.color_pair(2))
+            except Exception:
+                stdscr.addstr(y, x, f"> {item}")
+        else:
+            stdscr.addstr(y, x, f"  {item}")
+    stdscr.addstr(h-2, 0, "Χρησιμοποιήστε ↑↓ για πλοήγηση, Enter για επιλογή, q για έξοδο")
+    stdscr.refresh()
 
-def get_user_input(prompt, default=""):
+
+def get_user_input(stdscr, prompt, default=""):
+    curses.echo()
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    stdscr.addstr(0, 0, prompt)
     if default:
-        user_input = input(f"{prompt} [Προεπιλογή: {default}]: ").strip()
-        return user_input if user_input else default
+        stdscr.addstr(1, 0, f"Προεπιλογή: {default}")
+        stdscr.addstr(2, 0, "Εισαγωγή: ")
     else:
-        return input(f"{prompt}: ").strip()
+        stdscr.addstr(1, 0, "Εισαγωγή: ")
+    stdscr.refresh()
+    try:
+        if default:
+            user_input = stdscr.getstr(2, 12, 200).decode('utf-8').strip()
+        else:
+            user_input = stdscr.getstr(1, 12, 200).decode('utf-8').strip()
+    except Exception:
+        user_input = ""
+    curses.noecho()
+    return user_input if user_input else default
 
-def show_message(message):
-    print("\n" + message)
-    input("Πατήστε Enter για συνέχεια...")
 
-def number_menu():
+def show_message(stdscr, message):
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    lines = message.split('\n')
+    for i, line in enumerate(lines):
+        if i < h - 2:
+            stdscr.addstr(i, 0, line[:w-1])
+    stdscr.addstr(h-1, 0, "Πατήστε οποιοδήποτε πλήκτρο για συνέχεια...")
+    stdscr.refresh()
+    stdscr.getch()
+
+
+def curses_menu(stdscr):
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    menu_items = [
+        "Εγκατάσταση παραδειγμάτων plugins",
+        "Έλεγχος/εκκίνηση Tor",
+        "Crawl σε URL",
+        "Αναζήτηση Ahmia",
+        "Φόρτωση & εκτέλεση plugins σε τελευταία αποτελέσματα",
+        "Εξαγωγή τελευταίων αποτελεσμάτων (json/csv/txt)",
+        "Έξοδος"
+    ]
+    current_selection = 0
+    status_msg = ""
     while True:
-        display_menu()
-        try:
-            choice = input("\nΕισάγετε την επιλογή σας (0-6): ").strip()
-            if choice == "0":
-                print("Αντίο!")
-                break
-            elif choice == "1":
+        draw_menu(stdscr, current_selection, menu_items, "TorBot All-in-One", status_msg)
+        status_msg = ""
+        key = stdscr.getch()
+        if key == curses.KEY_UP:
+            current_selection = (current_selection - 1) % len(menu_items)
+        elif key == curses.KEY_DOWN:
+            current_selection = (current_selection + 1) % len(menu_items)
+        elif key == ord('\n') or key == ord(' '):
+            if current_selection == 0:
                 installed = install_plugins()
-                show_message(f"Εγκαταστάθηκαν {len(installed)} plugins: {', '.join(installed)}")
-            elif choice == "2":
+                status_msg = f"Εγκαταστάθηκαν {len(installed)} plugins: {', '.join(installed)}"
+            elif current_selection == 1:
                 if is_tor_running():
-                    show_message("[*] Το Tor φαίνεται να εκτελείται (SOCKS ανοιχτό).")
+                    status_msg = "[*] Το Tor φαίνεται να εκτελείται (SOCKS ανοιχτό)."
                 else:
                     ok, msg = try_start_tor_background()
-                    show_message(f"[*] try_start_tor_background -> {ok}, {msg}")
+                    status_msg = f"[*] try_start_tor_background -> {ok}, {msg}"
                     time.sleep(1)
                     if is_tor_running():
                         create_session(DEFAULT_SOCKS)
-                        show_message("Το Tor εκτελείται και η συνεδρία ρυθμίστηκε.")
+                        status_msg += " Το Tor εκτελείται και η συνεδρία ρυθμίστηκε."
                     else:
-                        show_message("Το Tor ακόμα δεν εκτελείται.")
-            elif choice == "3":
-                url = get_user_input("Εισάγετε URL εκκίνησης (.onion ή http)")
+                        status_msg += " Το Tor ακόμα δεν εκτελείται."
+            elif current_selection == 2:
+                url = get_user_input(stdscr, "Εισάγετε URL εκκίνησης (.onion ή http):")
                 if not url:
-                    show_message("Δεν δόθηκε URL, παράλειψη crawl.")
+                    status_msg = "Δεν δόθηκε URL, παράλειψη crawl."
                     continue
-                max_pages = get_user_input("Μέγιστος αριθμός σελίδων", "200")
-                depth = get_user_input("Μέγιστο βάθος", "2")
-                same_domain_input = get_user_input("Μόνο ίδιο domain; (y/N)", "n").lower()
-                same_domain = same_domain_input.startswith('y')
-                save_snap_input = get_user_input("Αποθήκευση στιγμιότυπων; (y/N)", "n").lower()
-                save_snap = save_snap_input.startswith('y')
-                socks_proxy = get_user_input("SOCKS proxy", DEFAULT_SOCKS)
+                max_pages = get_user_input(stdscr, "Μέγιστος αριθμός σελίδων:", "200")
+                depth = get_user_input(stdscr, "Μέγιστο βάθος:", "2")
+                same_domain = get_user_input(stdscr, "Μόνο ίδιο domain; (y/N):", "n").lower().startswith('y')
+                save_snap = get_user_input(stdscr, "Αποθήκευση στιγμιότυπων; (y/N):", "n").lower().startswith('y')
+                socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
                 try:
                     max_pages = int(max_pages)
                     depth = int(depth)
@@ -756,12 +813,12 @@ def number_menu():
                     max_pages = 200
                     depth = 2
                 if not is_tor_running() and (".onion" in url):
-                    show_message("[*] Δεν εντοπίστηκε Tor SOCKS; προσπάθεια αυτόματης εκκίνησης tor.")
+                    status_msg = "[*] Δεν εντοπίστηκε Tor SOCKS; προσπάθεια αυτόματης εκκίνησης tor."
                     ok, msg = try_start_tor_background()
-                    show_message(f"Αποτέλεσμα: {ok}, {msg}")
+                    status_msg += f" Αποτέλεσμα: {ok}, {msg}"
                 set_socks(socks_proxy or DEFAULT_SOCKS)
                 create_session(socks_proxy or DEFAULT_SOCKS)
-                print("Έναρξη crawl... Αυτό μπορεί να πάρει λίγο χρόνο.")
+                show_message(stdscr, "Έναρξη crawl... Αυτό μπορεί να πάρει λίγο χρόνο.")
                 out = crawl(url, max_pages=max_pages, max_depth=depth,
                            same_domain=same_domain, save_snapshots=save_snap, verbose=False)
                 # Εκτέλεση plugins
@@ -772,79 +829,76 @@ def number_menu():
                 fn_json = save_json(f"crawl_{int(time.time())}.json", out)
                 save_csv(f"crawl_{int(time.time())}.csv", out)
                 save_txt(f"crawl_{int(time.time())}.txt", out)
-                show_message(f"Το crawl ολοκληρώθηκε. Βρέθηκαν {len(out)} σελίδες. JSON: {fn_json}")
-            elif choice == "4":
-                query = get_user_input("Εισάγετε ερώτημα αναζήτησης")
+                status_msg = f"Το crawl ολοκληρώθηκε. Βρέθηκαν {len(out)} σελίδες. JSON: {fn_json}"
+            elif current_selection == 3:
+                query = get_user_input(stdscr, "Εισάγετε ερώτημα αναζήτησης:")
                 if not query:
-                    show_message("Δεν δόθηκε ερώτημα, παράλειψη αναζήτησης.")
+                    status_msg = "Δεν δόθηκε ερώτημα, παράλειψη αναζήτησης."
                     continue
-                limit = get_user_input("Όριο αποτελεσμάτων", "50")
-                socks_proxy = get_user_input("SOCKS proxy", DEFAULT_SOCKS)
+                limit = get_user_input(stdscr, "Όριο αποτελεσμάτων:", "50")
+                socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
                 try:
                     limit = int(limit)
                 except:
                     limit = 50
                 set_socks(socks_proxy or DEFAULT_SOCKS)
                 create_session(socks_proxy or DEFAULT_SOCKS)
-                print("Αναζήτηση... Παρακαλώ περιμένετε.")
+                show_message(stdscr, "Αναζήτηση... Παρακαλώ περιμένετε.")
                 res = search_combined(query, limit=limit)
                 if not res:
-                    show_message("Δεν βρέθηκαν αποτελέσματα ή απέτυχε το ερώτημα στο Ahmia.")
+                    status_msg = "Δεν βρέθηκαν αποτελέσματα ή απέτυχε η αναζήτηση στο Ahmia."
                 else:
                     save_json(f"search_{int(time.time())}.json", res)
-                    show_message(f"Βρέθηκαν {len(res)} αποτελέσματα. Αποθηκεύτηκε σε JSON.")
-            elif choice == "5":
+                    status_msg = f"Βρέθηκαν {len(res)} αποτελέσματα. Αποθηκεύτηκαν σε JSON."
+            elif current_selection == 4:
                 files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
                 if not files:
-                    show_message("Δεν βρέθηκαν αρχεία αποτελεσμάτων. Εκτελέστε πρώτα ένα crawl.")
+                    status_msg = "Δεν βρέθηκαν αρχεία αποτελεσμάτων. Εκτελέστε πρώτα ένα crawl."
                     continue
                 files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
                 default_file = os.path.join(RESULTS_DIR, files[0])
-                file_path = get_user_input("Διαδρομή προς αρχείο JSON αποτελεσμάτων", default_file)
+                file_path = get_user_input(stdscr, "Διαδρομή προς αρχείο JSON αποτελεσμάτων:", default_file)
                 if not os.path.isfile(file_path):
-                    show_message(f"Δεν βρέθηκε αρχείο: {file_path}")
+                    status_msg = f"Δεν βρέθηκε αρχείο: {file_path}"
                     continue
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                 except Exception as e:
-                    show_message(f"Αποτυχία φόρτωσης JSON: {e}")
+                    status_msg = f"Αποτυχία φόρτωσης JSON: {e}"
                     continue
                 plugins = load_plugins()
                 if not plugins:
-                    show_message("Δεν φορτώθηκαν plugins.")
+                    status_msg = "Δεν φορτώθηκαν plugins."
                     continue
-                print("Εκτέλεση plugins... Παρακαλώ περιμένετε.")
+                show_message(stdscr, "Εκτέλεση plugins... Παρακαλώ περιμένετε.")
                 out = run_plugins(plugins, data)
                 save_json(f"plugins_out_{int(time.time())}.json", out)
-                show_message(f"Η εκτέλεση plugins ολοκληρώθηκε. Επεξεργάστηκε {len(out) if isinstance(out, list) else 1} αντικείμενα.")
-            elif choice == "6":
+                status_msg = f"Η εκτέλεση plugins ολοκληρώθηκε. Επεξεργάστηκε {len(out) if isinstance(out, list) else 1} αντικείμενο(α)."
+            elif current_selection == 5:
                 files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
                 if not files:
-                    show_message("Δεν βρέθηκαν αρχεία αποτελεσμάτων. Εκτελέστε πρώτα ένα crawl.")
+                    status_msg = "Δεν βρέθηκαν αρχεία αποτελεσμάτων. Εκτελέστε πρώτα ένα crawl."
                     continue
                 files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
                 default_file = os.path.join(RESULTS_DIR, files[0])
-                file_path = get_user_input("Διαδρομή προς αρχείο JSON αποτελεσμάτων", default_file)
+                file_path = get_user_input(stdscr, "Διαδρομή προς αρχείο JSON αποτελεσμάτων:", default_file)
                 if not os.path.isfile(file_path):
-                    show_message(f"Δεν βρέθηκε αρχείο: {file_path}")
+                    status_msg = f"Δεν βρέθηκε αρχείο: {file_path}"
                     continue
                 try:
                     with open(file_path, "r", encoding="utf-8") as f:
                         data = json.load(f)
                 except Exception as e:
-                    show_message(f"Αποτυχία φόρτωσης JSON: {e}")
+                    status_msg = f"Αποτυχία φόρτωσης JSON: {e}"
                     continue
                 save_csv(f"export_{int(time.time())}.csv", data)
                 save_txt(f"export_{int(time.time())}.txt", data)
-                show_message(f"Η εξαγωγή ολοκληρώθηκε. Επεξεργάστηκε {len(data)} αντικείμενα.")
-            else:
-                show_message("Μη έγκυρη επιλογή. Παρακαλώ εισάγετε αριθμό μεταξύ 0-6.")
-        except KeyboardInterrupt:
-            print("\n\nΔιακόπηκε από τον χρήστη. Αντίο!")
+                status_msg = f"Η εξαγωγή ολοκληρώθηκε. Επεξεργάστηκε {len(data)} αντικείμενα."
+            elif current_selection == 6:
+                break
+        elif key == ord('q'):
             break
-        except Exception as e:
-            show_message(f"Προέκυψε σφάλμα: {e}")
 
 # -------------------------
 # Διεπαφή γραμμής εντολών (διατηρήθηκε για συμβατότητα)
@@ -866,7 +920,7 @@ def cmd_check_start_tor(args):
         create_session(DEFAULT_SOCKS)
         print("[*] Το Tor εκτελείται και η συνεδρία ρυθμίστηκε να το χρησιμοποιεί.")
     else:
-        print("[!] Το Tor ακόμα δεν εκτελείται. Μπορείτε να εγκαταστήσετε και να εκτελέσετε 'tor' (pkg install tor) ή να τρέξετε Orbot/Termux-Tor.")
+        print("[!] Το Tor ακόμα δεν εκτελείται. Μπορείτε να εγκαταστήσετε και να εκτελέσετε 'tor' (pkg install tor) ή να εκτελέσετε Orbot/Termux-Tor.")
 
 
 def cmd_crawl(args):
@@ -904,7 +958,7 @@ def cmd_search(args):
     create_session(args.socks or DEFAULT_SOCKS)
     res = search_combined(q, limit=args.limit)
     if not res:
-        print("[!] Δεν βρέθηκαν αποτελέσματα ή απέτυχε το ερώτημα στο Ahmia.")
+        print("[!] Δεν βρέθηκαν αποτελέσματα ή απέτυχε η αναζήτηση στο Ahmia.")
         return
     print(f"Βρέθηκαν {len(res)} αποτελέσματα:")
     for i, r in enumerate(res, 1):
@@ -963,17 +1017,17 @@ def cmd_export(args):
 
 
 def main_cli():
-    p = argparse.ArgumentParser(prog="dark.py", description="TorBot All-in-One (Ελληνική Έκδοση) (Termux)")
+    p = argparse.ArgumentParser(prog="dark.py", description="TorBot All-in-One (Termux)")
     sub = p.add_subparsers(dest="cmd")
     sub_install = sub.add_parser("install-plugins", help="Εγγραφή παραδειγμάτων plugins στον κατάλογο plugins")
     sub_install.set_defaults(func=cmd_install_plugins)
     sub_tor = sub.add_parser("tor", help="Έλεγχος/εκκίνηση Tor")
     sub_tor.set_defaults(func=cmd_check_start_tor)
-    sub_crawl = sub.add_parser("crawl", help="Crawl μιας URL εκκίνησης")
+    sub_crawl = sub.add_parser("crawl", help="Crawl σε URL εκκίνησης")
     sub_crawl.add_argument("url", nargs="?", help="URL εκκίνησης")
     sub_crawl.add_argument("--max-pages", dest="max_pages", default=200, help="Μέγιστος αριθμός σελίδων")
     sub_crawl.add_argument("--depth", dest="depth", default=2, help="Μέγιστο βάθος")
-    sub_crawl.add_argument("--no-same-domain", dest="no_same_domain", action="store_true", help="Μην περιοριστείτε στο ίδιο domain")
+    sub_crawl.add_argument("--no-same-domain", dest="no_same_domain", action="store_true", help="Να μην περιοριστεί στο ίδιο domain")
     sub_crawl.add_argument("--snapshot", dest="snapshot", action="store_true", help="Αποθήκευση στιγμιότυπων")
     sub_crawl.add_argument("--socks", dest="socks", help="SOCKS proxy (π.χ. socks5h://127.0.0.1:9050)")
     sub_crawl.add_argument("--quiet", dest="quiet", action="store_true")
@@ -991,15 +1045,18 @@ def main_cli():
     sub_export.add_argument("--file", "-f", help="Διαδρομή προς αρχείο JSON")
     sub_export.set_defaults(func=cmd_export)
     # επιπλέον: αυτόματη εγκατάσταση εξαρτήσεων / έλεγχος
-    sub_deps = sub.add_parser("ensure-deps", help="Προσπάθεια αυτόματης εγκατάστασης python εξαρτήσεων και προαιρετικού tor")
+    sub_deps = sub.add_parser("ensure-deps", help="Προσπάθεια αυτόματης εγκατάστασης python εξαρτήσεων και προαιρετικό tor")
     sub_deps.add_argument("--install-tor", action="store_true", help="Επίσης προσπάθεια εγκατάστασης tor μέσω διαχειριστή πακέτων (μπορεί να απαιτεί δικαιώματα)")
     sub_deps.set_defaults(func=lambda args: print(ensure_dependencies(), try_start_tor_background() if args.install_tor else None))
 
     args = p.parse_args()
     if not args.cmd:
-        # Χρήση διεπαφής με αριθμημένο μενού
-        number_menu()
-        return
+        # Χρήση διεπαφής curses· αν αποτύχει, επιστροφή σε απλή CLI
+        try:
+            curses.wrapper(curses_menu)
+            return
+        except Exception:
+            print("[!] Το curses δεν είναι διαθέσιμο ή απέτυχε· επιστροφή σε λειτουργία CLI.")
     # κλήση υποεντολής
     try:
         args.func(args)
