@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Προηγμένο Εργαλείο Δικτύων & Ασφάλειας
-Συνδυασμένο, βελτιστοποιημένο και βελτιωμένο για Termux.
-Λειτουργεί 100% χωρίς δικαιώματα root.
-Βελτιστοποιημένο για συσκευές με περιορισμένους πόρους (π.χ. 2GB RAM).
-"""
-
 import os
 import sys
 import subprocess
@@ -26,19 +19,18 @@ import hashlib
 import random
 import string
 import struct
-import select  # Προστέθηκε για SSH Defender
-import math    # Προστέθηκε για SSH Defender
+import select  # Προστέθηκε για το SSH Defender
+import math    # Προστέθηκε για το SSH Defender
 import queue
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor # Προστέθηκε για SSH Defender
+from concurrent.futures import ThreadPoolExecutor # Προστέθηκε για το SSH Defender
 import html
 import tempfile
 import webbrowser
 import shutil
 
 
-# --- Εισαγωγές Εξαρτήσεων & Παγκόσμιες Σημαίες ---
-CURSES_AVAILABLE = False
+# --- Εισαγωγές Εξαρτήσεων & Καθολικές Σημαίες ---
 COLORS_AVAILABLE = False
 SPEEDTEST_AVAILABLE = False
 BS4_AVAILABLE = False
@@ -53,16 +45,9 @@ BeautifulSoup = None
 paramiko = None
 whois = None
 dns_resolver = None
-csv = None # Για το module OSINTDS
+csv = None # Για την ενότητα OSINTDS
 
-# 1. Curses (TUI)
-try:
-    import curses
-    CURSES_AVAILABLE = True
-except ImportError:
-    pass
-
-# 2. Colorama
+# 1. Colorama
 try:
     from colorama import Fore, Style, Back, init
     init()
@@ -73,9 +58,9 @@ except ImportError:
         def __getattr__(self, name): return ''
     Fore = Back = Style = DummyColor()
 
-# 3. Δυναμικές απόπειρες εισαγωγής για άλλα modules
+# 2. Δυναμικές προσπάθειες εισαγωγής για άλλες ενότητες
 def _try_import(module_name, global_var_name):
-    """Δυναμική εισαγωγή module και ρύθμιση παγκόσμιας σημαίας."""
+    """Εισάγει δυναμικά μια ενότητα και ορίζει μια καθολική σημαία."""
     try:
         module = importlib.import_module(module_name)
         globals()[global_var_name] = module
@@ -93,29 +78,29 @@ if BS4_AVAILABLE:
 PARAMIKO_AVAILABLE = _try_import('paramiko', 'paramiko')
 WHOIS_AVAILABLE = _try_import('whois', 'whois')
 DNS_AVAILABLE = _try_import('dns.resolver', 'dns_resolver')
-_try_import('csv', 'csv') # Για το module OSINTDS
+_try_import('csv', 'csv') # Για την ενότητα OSINTDS
 
 
 # ==============================================================================
-# SSH DEFENDER - ΠΑΓΚΟΣΜΙΕΣ ΣΤΑΘΕΡΕΣ
+# SSH DEFENDER - ΚΑΘΟΛΙΚΕΣ ΣΤΑΘΕΡΕΣ
 # ==============================================================================
 
-# Κατάταξη γνωστών θυρών SSH/Honeypot για κυκλική εναλλαγή
+# Καταταγμένη λίστα γνωστών θυρών SSH/Honeypot για εναλλαγή
 FAMOUS_SSH_PORTS = [
-    22,    # Τυπική SSH
-    2222,  # Κοινή εναλλακτική SSH
-    80,    # HTTP (συχνά σαρώνεται από bots που ψάχνουν για ανοιχτές θύρες)
-    443,   # HTTPS (συχνά σαρώνεται από bots που ψάχνουν για ανοιχτές θύρες)
-    21,    # FTP (συχνά brute-force)
-    23     # Telnet (συχνά brute-force)
+    22,    # Standard SSH
+    2222,  # Common alternative SSH
+    80,    # HTTP (often scanned by bots looking for any open port)
+    443,   # HTTPS (often scanned by bots looking for any open port)
+    21,    # FTP (often brute-forced)
+    23     # Telnet (often brute-forced)
 ]
 
 # Διαμόρφωση (Οι διαδρομές θα οριστούν από την κλάση AdvancedNetworkTools)
 HOST = '0.0.0.0'
-# BASE_DIR, LOG_DIR, STATS_FILE ορίζονται δυναμικά στο run_ssh_defender
+# BASE_DIR, LOG_DIR, STATS_FILE are now set dynamically in run_ssh_defender
 EMPTY_CHECK_INTERVAL = 60  # 1 λεπτό
 
-# Κοινά banners SSH για προσομοίωση πραγματικών διακομιστών
+# Κοινά SSH banners για μίμηση πραγματικών διακομιστών
 SSH_BANNERS = [
     b"SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.3\r\n",
     b"SSH-2.0-OpenSSH_7.4p1 Debian-10+deb9u7\r\n", 
@@ -124,12 +109,12 @@ SSH_BANNERS = [
 ]
 
 # Όρια επίθεσης
-MAX_ATTEMPTS = 5         # Μέγιστες απόπειρες πριν την καταγραφή πλήρους log/απαγόρευση IP
-ATTACK_THRESHOLD = 50    # Αριθμός απόπειρων σε 5 λεπτά για ενεργοποίηση προειδοποίησης/διακοπή κύκλου
+MAX_ATTEMPTS = 5         # Μέγιστες προσπάθειες πριν την καταγραφή πλήρους αρχείου καταγραφής/απαγόρευση IP
+ATTACK_THRESHOLD = 50    # Αριθμός προσπαθειών σε 5 λεπτά για την ενεργοποίηση προειδοποίησης/διακοπή κύκλου
 
 
 # ==============================================================================
-# SSH DEFENDER - Κλάση Καταγραφής
+# SSH DEFENDER - Κλάση Καταγραφικού (Logger)
 # ==============================================================================
 
 class Logger:
@@ -143,7 +128,7 @@ class Logger:
         self.session_start_time = time.time()
 
     def load_stats(self):
-        """Φόρτωση σωρευτικών στατιστικών από αρχείο JSON."""
+        """Φορτώνει αθροιστικά στατιστικά από το αρχείο JSON."""
         if os.path.exists(self.stats_file):
             try:
                 with open(self.stats_file, 'r') as f:
@@ -153,23 +138,23 @@ class Logger:
         return {"total_attacks": 0, "ip_stats": {}, "port_stats": {}}
 
     def save_stats(self):
-        """Αποθήκευση σωρευτικών στατιστικών σε αρχείο JSON."""
+        """Αποθηκεύει αθροιστικά στατιστικά στο αρχείο JSON."""
         with self.lock:
             try:
                 with open(self.stats_file, 'w') as f:
                     json.dump(self.attack_stats, f, indent=4)
             except IOError as e:
-                print(f"Σφάλμα αποθήκευσης αρχείου στατιστικών: {e}")
+                print(f"Σφάλμα κατά την αποθήκευση του αρχείου στατιστικών: {e}")
 
     def log_attempt(self, ip, port, message, is_full_log=False):
-        """Καταγραφή μίας απόπειρας σύνδεσης και ενημέρωση στατιστικών."""
+        """Καταγράφει μια μεμονωμένη προσπάθεια σύνδεσης και ενημερώνει τα στατιστικά."""
         timestamp = datetime.now().isoformat()
         
         with self.lock:
-            # 1. Ενημέρωση απόπειρων συνεδρίας
+            # 1. Ενημέρωση προσπαθειών συνεδρίας
             self.current_session_attempts[ip] = self.current_session_attempts.get(ip, 0) + 1
             
-            # 2. Ενημέρωση σωρευτικών στατιστικών
+            # 2. Ενημέρωση αθροιστικών στατιστικών
             self.attack_stats['total_attacks'] = self.attack_stats.get('total_attacks', 0) + 1
             
             # Στατιστικά IP
@@ -177,56 +162,56 @@ class Logger:
             ip_data['count'] += 1
             ip_data['last_attempt'] = timestamp
             
-            # Στατιστικά θύρας
+            # Στατιστικά Θυρών
             port_key = str(port)
             self.attack_stats['port_stats'].setdefault(port_key, 0)
             self.attack_stats['port_stats'][port_key] += 1
             
-            # 3. Εγγραφή αρχείου log αν ζητηθεί πλήρες log ή φτάσει το όριο
+            # 3. Εγγραφή αρχείου καταγραφής αν ζητηθεί πλήρες αρχείο καταγραφής ή αν πληρείται το όριο
             if is_full_log:
                 log_filename = os.path.join(self.log_dir, f"{ip}.log")
                 try:
                     with open(log_filename, 'a') as f:
-                        f.write(f"[{timestamp}] ΘΥΡΑ:{port} - {message}\n")
+                        f.write(f"[{timestamp}] PORT:{port} - {message}\n")
                 except IOError as e:
-                    print(f"Σφάλμα εγγραφής αρχείου log: {e}")
+                    print(f"Σφάλμα κατά την εγγραφή του αρχείου καταγραφής: {e}")
                     
-            # 4. Περιοδική αποθήκευση σωρευτικών στατιστικών
+            # 4. Αποθήκευση αθροιστικών στατιστικών περιοδικά
             if self.attack_stats['total_attacks'] % 10 == 0:
                 self.save_stats()
                 
     def get_session_total_attempts(self):
-        """Επιστρέφει τον συνολικό αριθμό απόπειρων στην τρέχουσα συνεδρία."""
+        """Επιστρέφει τον συνολικό αριθμό προσπαθειών στην τρέχουσα συνεδρία."""
         return sum(self.current_session_attempts.values())
 
     def get_current_attempts(self):
-        """Επιστρέφει τον αριθμό απόπειρων και τον χρόνο που έχει περάσει από την έναρξη της συνεδρίας."""
+        """Επιστρέφει τον αριθμό των προσπαθειών και τον χρόνο που έχει περάσει από την έναρξη της συνεδρίας."""
         attempts = self.get_session_total_attempts()
         time_elapsed = time.time() - self.session_start_time
         return attempts, time_elapsed
         
     def reset_session_stats(self):
-        """Επαναφορά στατιστικών συνεδρίας (χρησιμοποιείται κατά την κυκλική εναλλαγή θυρών)."""
+        """Επαναφέρει τα στατιστικά στοιχεία ανά συνεδρία (χρησιμοποιείται κατά την εναλλαγή θυρών)."""
         with self.lock:
             self.current_session_attempts = {}
             self.session_start_time = time.time()
             
     def get_cumulative_stats_summary(self):
-        """Επιστρέφει μια μορφοποιημένη σύνοψη σωρευτικών στατιστικών."""
+        """Επιστρέφει μια μορφοποιημένη περίληψη των αθροιστικών στατιστικών."""
         total = self.attack_stats.get('total_attacks', 0)
         
-        # Κορυφαίες 3 IP
+        # Λήψη κορυφαίων 3 IP
         ip_list = sorted(self.attack_stats['ip_stats'].items(), key=lambda item: item[1]['count'], reverse=True)
-        top_ips = [f"{ip} ({data['count']} απόπειρες)" for ip, data in ip_list[:3]]
+        top_ips = [f"{ip} ({data['count']} attempts)" for ip, data in ip_list[:3]]
         
-        # Κορυφαίες 3 Θύρες
+        # Λήψη κορυφαίων 3 Θυρών
         port_list = sorted(self.attack_stats['port_stats'].items(), key=lambda item: item[1], reverse=True)
-        top_ports = [f"{port} ({count} επιθέσεις)" for port, count in port_list[:3]]
+        top_ports = [f"{port} ({count} attacks)" for port, count in port_list[:3]]
         
         return {
-            "Συνολικές Επιθέσεις": total,
-            "Κορυφαίες IP Επιτιθέμενων": top_ips if top_ips else ["Δ/Υ"],
-            "Κορυφαίες Θύρες Στόχοι": top_ports if top_ports else ["Δ/Υ"]
+            "Σύνολο Επιθέσεων": total,
+            "Κορυφαίες Επιτιθέμενες IP": top_ips if top_ips else ["Δ/Υ"],
+            "Κορυφαίες Στοχευμένες Θύρες": top_ports if top_ports else ["Δ/Υ"]
         }
 
 # ==============================================================================
@@ -245,58 +230,58 @@ class SSHDefender:
         self.executor = executor
         self.current_port = None
         
-        # Ο βασικός κατάλογος χειρίζεται από τον logger
+        # Ο βασικός κατάλογος χειρίζεται από το logger
 
     def _handle_connection(self, client_socket, addr):
-        """Χειρίζεται την αλληλεπίδραση με έναν συνδεόμενο πελάτη (η λογική του honeypot)."""
+        """Χειρίζεται την αλληλεπίδραση με έναν συνδεόμενο πελάτη (τη λογική honeypot)."""
         ip, port = addr
         
-        # Επιλογή τυχαίου banner για προσομοίωση πραγματικού διακομιστή SSH
+        # Επιλέγει ένα τυχαίο banner για να μιμηθεί έναν πραγματικό διακομιστή SSH
         banner = random.choice(SSH_BANNERS)
         
         try:
-            # 1. Αποστολή του banner SSH αμέσως
+            # 1. Στέλνει αμέσως το SSH banner
             client_socket.sendall(banner)
             
-            # 2. Έναρξη διαδραστικής συνεδρίας (αναμονή για εισαγωγή)
+            # 2. Ξεκινά διαδραστική συνεδρία (περιμένει για εισαγωγή)
             attempt_count = 0
             
             while self.running:
-                # Χρήση select για μη αποκλειστική ανάγνωση με χρονικό όριο
+                # Χρήση select για μη μπλοκαριστική ανάγνωση με χρονικό όριο
                 ready_to_read, _, _ = select.select([client_socket], [], [], 3.0)
                 
                 if ready_to_read:
                     data = client_socket.recv(1024)
                     if not data:
-                        break # Αποσύνδεση από τον πελάτη
+                        break # Η σύνδεση έκλεισε από τον πελάτη
                         
                     data_str = data.decode('utf-8', errors='ignore').strip()
-                    self.logger.log_attempt(ip, self.current_port, f"Δεδομένα Λήφθηκαν: '{data_str}'")
+                    self.logger.log_attempt(ip, self.current_port, f"Δεδομένα Ελήφθησαν: '{data_str}'")
                     
                     attempt_count += 1
                     
-                    # Καταγραφή πλήρους συνεδρίας αν φτάσει ο μέγιστος αριθμός απόπειρων για αυτή τη σύνδεση
+                    # Καταγραφή πλήρους συνεδρίας αν επιτευχθούν οι μέγιστες προσπάθειες για αυτήν τη σύνδεση
                     is_full_log = (attempt_count >= MAX_ATTEMPTS)
                     
-                    # Ενημέρωση καταγραφέα με λεπτομέρειες απόπειρας
-                    self.logger.log_attempt(ip, self.current_port, f"Απόπειρα {attempt_count}: {data_str}", is_full_log=is_full_log)
+                    # Ενημέρωση του logger με λεπτομέρειες προσπάθειας
+                    self.logger.log_attempt(ip, self.current_port, f"Προσπάθεια {attempt_count}: {data_str}", is_full_log=is_full_log)
                     
-                    # Απάντηση με KEXINIT SSH ή παρόμοια απόκριση για προσομοίωση πραγματικού διακομιστή
-                    # Απλή απόκριση για να κρατήσει ανοιχτή τη σύνδεση για περισσότερες απόπειρες brute-force
+                    # Απάντηση με SSH KEXINIT ή παρόμοια απάντηση για προσομοίωση ενός πραγματικού διακομιστή
+                    # Απλή απάντηση για να παραμείνει ανοιχτή η σύνδεση για περισσότερες προσπάθειες brute-force
                     if data_str.startswith("SSH"):
-                         # Προσομοίωση απόκρισης KEXINIT (τυχαίο cookie 16-byte, κλπ.)
+                         # Προσομοίωση απάντησης KEXINIT (τυχαίο 16-byte cookie, κ.λπ.)
                         kex_response = b'SSH-2.0-SSH Defender\r\n' 
                         client_socket.sendall(kex_response)
                         
                     elif data_str.lower().startswith(("user", "root", "admin", "login")):
-                        # Απλή απόκριση για προτροπή εισαγωγής κωδικού
-                        client_socket.sendall(b"Κωδικός:\r\n") 
+                        # Απλή απάντηση για προτροπή κωδικού πρόσβασης
+                        client_socket.sendall(b"Password:\r\n") 
                         
                     elif data_str.startswith("password"):
-                        # Απλή απόκριση σφάλματος
-                         client_socket.sendall(b"Απαγορευμένη πρόσβαση, δοκιμάστε ξανά.\r\n")
+                        # Απλή απάντηση σφάλματος
+                         client_socket.sendall(b"Permission denied, please try again.\r\n")
 
-                    # Αν αυτή η σύνδεση δέχεται έντονο brute-force, κλείστε τη
+                    # Εάν αυτή η σύνδεση υφίσταται έντονο brute-force, κλείστε την
                     if attempt_count >= MAX_ATTEMPTS * 2:
                         break
 
@@ -305,16 +290,16 @@ class SSHDefender:
                     break 
 
         except socket.timeout:
-            self.logger.log_attempt(ip, self.current_port, "Η σύνδεση έληξε.")
+            self.logger.log_attempt(ip, self.current_port, "Έληξε το χρονικό όριο σύνδεσης.")
         except ConnectionResetError:
-            self.logger.log_attempt(ip, self.current_port, "Η σύνδεση επαναφέρθηκε από τον συνδεόμενο.")
+            self.logger.log_attempt(ip, self.current_port, "Η σύνδεση επαναφέρθηκε από τον ομότιμο.")
         except Exception as e:
-            self.logger.log_attempt(ip, self.current_port, f"Μη αναμενόμενο σφάλμα σύνδεσης: {e}")
+            self.logger.log_attempt(ip, self.current_port, f"Μη χειριζόμενο σφάλμα σύνδεσης: {e}")
         finally:
             client_socket.close()
 
     def start_port_listener(self, port):
-        """Εκκίνηση του κύριου ακροατή socket σε συγκεκριμένη θύρα."""
+        """Ξεκινά τον κύριο ακροατή socket σε μια συγκεκριμένη θύρα."""
         if self.listener_thread or self.listener_socket:
             self.stop_all_ports()
         
@@ -325,7 +310,7 @@ class SSHDefender:
             self.listener_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.listener_socket.bind((self.host, port))
             self.listener_socket.listen(5)
-            print(f"{Fore.GREEN}✅ SSH Defender ακούει στο {self.host}:{port}...{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✅ Το SSH Defender ακούει στο {self.host}:{port}...{Style.RESET_ALL}")
             self.running = True
             self.logger.reset_session_stats()
             
@@ -333,19 +318,19 @@ class SSHDefender:
             self.listener_thread.start()
             
         except OSError as e:
-            print(f"{Fore.RED}❌ Σφάλμα σύνδεσης στη θύρα {port}: {e}. (Ίσως εκτελείται άλλη διεργασία ή δεν έχετε δικαιώματα;){Style.RESET_ALL}")
+            print(f"{Fore.RED}❌ Σφάλμα δέσμευσης στη θύρα {port}: {e}. (Ίσως τρέχει άλλη διεργασία ή δεν έχετε δικαιώματα;){Style.RESET_ALL}")
             self.running = False
             self.listener_socket = None
             self.current_port = None
             
         except Exception as e:
-            print(f"{Fore.RED}❌ Μη αναμενόμενο σφάλμα εκκίνησης ακροατή στη θύρα {port}: {e}{Style.RESET_ALL}")
+            print(f"{Fore.RED}❌ Μη χειριζόμενο σφάλμα κατά την εκκίνηση του ακροατή στη θύρα {port}: {e}{Style.RESET_ALL}")
             self.running = False
             self.listener_socket = None
             self.current_port = None
 
     def _listener_loop(self):
-        """Ο κύριος βρόχος για αποδοχή συνδέσεων."""
+        """Ο κύριος βρόχος για την αποδοχή συνδέσεων."""
         while self.running:
             try:
                 # Χρήση select για αναμονή συνδέσεων με χρονικό όριο
@@ -353,7 +338,7 @@ class SSHDefender:
                 
                 if ready_to_read and self.listener_socket in ready_to_read:
                     client_socket, addr = self.listener_socket.accept()
-                    # Υποβολή του χειριστή σύνδεσης στην ομάδα νημάτων
+                    # Υποβολή του χειριστή σύνδεσης στην πισίνα νημάτων
                     self.executor.submit(self._handle_connection, client_socket, addr)
                 
             except socket.timeout:
@@ -366,26 +351,26 @@ class SSHDefender:
                     break
         
     def stop_all_ports(self):
-        """Τερματισμός του ακροατή socket και νήματος."""
+        """Τερματίζει το socket ακροατή και το thread."""
         self.running = False
         if self.listener_socket:
             try:
-                # Ξεκλείδωμα της κλήσης accept
+                # Ξεμπλοκάρισμα της κλήσης accept
                 self.listener_socket.shutdown(socket.SHUT_RDWR)
                 self.listener_socket.close()
                 self.listener_socket = None
                 if self.listener_thread and self.listener_thread.is_alive():
                     self.listener_thread.join(timeout=2)
             except Exception:
-                pass # Αγνόηση σφαλμάτων κατά το κλείσιμο
+                pass # Αγνοήστε τα σφάλματα στο κλείσιμο
         self.current_port = None
         self.executor.shutdown(wait=False, cancel_futures=True)
-        # Επανδημιουργία executor για εκκαθάριση παλιών νημάτων, αν απαιτείται για επανεκκίνηση TUI
+        # Επαναδημιουργία executor για εκκαθάριση παλιών νημάτων, αν είναι απαραίτητο για επανεκκίνηση TUI
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=50)
 
 
     def run_port_cycle(self):
-        """Εκτέλεση κυκλικής εναλλαγής μέσω λίστας γνωστών θυρών."""
+        """Εκτελεί την εναλλαγή μέσω μιας λίστας γνωστών θυρών."""
         self.cycle_mode = True
         
         for port_index, port in enumerate(FAMOUS_SSH_PORTS):
@@ -396,12 +381,12 @@ class SSHDefender:
             
             self.start_port_listener(port)
             if not self.running:
-                # Δεν μπόρεσε να δεσμευτεί, μετάβαση στην επόμενη θύρα
+                # Δεν ήταν δυνατή η δέσμευση, παράλειψη στην επόμενη θύρα
                 continue 
             
             start_time = time.time()
             
-            # Βρόχος παρακολούθησης για 5 λεπτά (ή μέχρι να φτάσει το όριο επίθεσης)
+            # Βρόχος παρακολούθησης για 5 λεπτά (ή μέχρι να χτυπηθεί ένα όριο επίθεσης)
             while time.time() - start_time < 5 * 60:
                 time.sleep(EMPTY_CHECK_INTERVAL) # Έλεγχος κάθε λεπτό
                 
@@ -409,222 +394,43 @@ class SSHDefender:
                 
                 if attempts > ATTACK_THRESHOLD:
                     print(f"\n\n{Fore.RED}🚨 ΕΝΤΟΠΙΣΤΗΚΕ ΚΡΙΣΙΜΗ ΕΠΙΘΕΣΗ στη θύρα {port}!{Style.RESET_ALL}")
-                    print(f"   {attempts} απόπειρες σε {int(time_elapsed)} δευτερόλεπτα.")
-                    print(f"{Fore.YELLOW}   Εναλλαγή σε λειτουργία μόνιμης παρακολούθησης για αυτή τη θύρα.{Style.RESET_ALL}")
+                    print(f"   {attempts} προσπάθειες σε {int(time_elapsed)} δευτερόλεπτα.")
+                    print(f"{Fore.YELLOW}   Μεταγωγή σε λειτουργία μόνιμης παρακολούθησης για αυτήν τη θύρα.{Style.RESET_ALL}")
                     
                     self.stop_all_ports()
                     self.cycle_mode = False
                     
-                    # Επανεκκίνηση του ακροατή και TUI για μόνιμη παρακολούθηση
+                    # Επανεκκίνηση του ακροατή για μόνιμη παρακολούθηση
                     self.start_port_listener(port)
-                    self.tui.run() # Αυτή η κλήση θα μπλοκάρει μέχρι ο χρήστης να κλείσει το TUI
+                    input(f"{Fore.YELLOW}Πατήστε Enter για να σταματήσει η παρακολούθηση...{Style.RESET_ALL}")
                     self.running = False
-                    break # Έξοδος από τον βρόχο κυκλικής εναλλαγής
-                
-                # Ενημέρωση TUI (αν εκτελείται) με την κατάσταση
-                if hasattr(self, 'tui') and self.tui.running:
-                    self.tui.update_display()
+                    break # Έξοδος από τον βρόχο εναλλαγής
                 
             if not self.cycle_mode: # Αν βγήκαμε λόγω κρίσιμης επίθεσης
                 break
 
             if port_index == len(FAMOUS_SSH_PORTS) - 1:
-                print(f"\n\n{Fore.GREEN}✅ Ολοκληρώθηκε η παρακολούθηση όλων των γνωστών θυρών χωρίς σημαντικές επιθέσεις. Ο Defender τερματίζει.{Style.RESET_ALL}")
+                print(f"\n\n{Fore.GREEN}✅ Ολοκληρώθηκε η παρακολούθηση όλων των γνωστών θυρών χωρίς σημαντικές επιθέσεις. Το Defender τερματίζεται.{Style.RESET_ALL}")
                 self.running = False
-                break # Έξοδος από τον βρόχο κυκλικής εναλλαγής
+                break # Έξοδος από τον βρόχο εναλλαγής
                 
-            # Χωρίς επίθεση: Ερώτηση χρήστη για εναλλαγή
+            # Καμία επίθεση: Ζητήστε από τον χρήστη να αλλάξει
             next_port = FAMOUS_SSH_PORTS[port_index + 1]
             user_input = input(f"\n\n{Fore.YELLOW}⏰ Πέρασαν 5 λεπτά στη θύρα {port} χωρίς επιθέσεις.\nΘέλετε να μεταβείτε στην επόμενη γνωστή θύρα ({next_port}); (ν/ο): {Style.RESET_ALL}")
             
             self.stop_all_ports()
             
-            if user_input.lower() not in ['ν', 'y']:
-                print(f"\n{Fore.RED}🛑 Ο χρήστης επέλεξε να σταματήσει την κυκλική εναλλαγή. Ο Defender τερματίζει.{Style.RESET_ALL}")
+            if user_input.lower() not in ['y', 'ν', 'υ']: # Προσθήκη 'ν' και 'υ' για ναι/yes
+                print(f"\n{Fore.RED}🛑 Ο χρήστης επέλεξε να σταματήσει τον κύκλο θυρών. Το Defender τερματίζεται.{Style.RESET_ALL}")
                 self.running = False
                 break
             
-        # Τελικός καθαρισμός
+        # Τελικός Καθαρισμός
         self.running = False
         self.stop_all_ports()
         self.logger.save_stats()
-        print(f"\n{Fore.GREEN}✅ SSH Defender τερματίστηκε.{Style.RESET_ALL}")
+        print(f"\n{Fore.GREEN}✅ Το SSH Defender τερματίστηκε.{Style.RESET_ALL}")
 
-
-# ==============================================================================
-# SSH DEFENDER - Διεπαφή Χρήστη Τερματικού (TUI)
-# ==============================================================================
-
-class DefenderTUI:
-    
-    def __init__(self, stdscr, defender):
-        self.stdscr = stdscr
-        self.defender = defender
-        self.running = True
-        self._init_curses()
-
-    def _init_curses(self):
-        """Προετοιμασία ρυθμίσεων curses και χρωμάτων."""
-        curses.cbreak()
-        curses.noecho()
-        self.stdscr.keypad(True)
-        try:
-            curses.curs_set(0) # Απόκρυψη δρομέα
-        except curses.error:
-            pass
-            
-        if curses.has_colors():
-            curses.start_color()
-            curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK) # Προεπιλογή
-            curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)  # Τίτλος
-            curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK) # Προειδοποίηση/Στατιστικά
-            curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)   # Επίθεση/Κρίσιμο
-            curses.init_pair(5, curses.COLOR_GREEN, curses.COLOR_BLACK) # Επιτυχία
-
-    def update_display(self):
-        """Εκκαθάριση και επανασχεδιασμός της οθόνης TUI."""
-        try:
-            self.stdscr.clear()
-            h, w = self.stdscr.getmaxyx()
-            if h < 20 or w < 50:
-                self.stdscr.addstr(0, 0, "Το τερματικό είναι πολύ μικρό...")
-                self.stdscr.refresh()
-                return
-        except curses.error:
-            return # Παράβλεψη απόδοσης αν το τερματικό αλλάζει μέγεθος
-
-        try:
-            # 1. Μπάρα Τίτλου
-            title = " SSH Defender - Honeypot Monitor "
-            self.stdscr.attron(curses.A_BOLD | curses.color_pair(2))
-            self.stdscr.addstr(0, w//2 - len(title)//2, title)
-            self.stdscr.addstr(0, w - 18, f"Θύρα: {self.defender.current_port or 'Δ/Υ'}".ljust(17))
-            self.stdscr.attroff(curses.A_BOLD | curses.color_pair(2))
-            
-            # 2. Στατιστικά Συνεδρίας
-            attempts, time_elapsed = self.defender.logger.get_current_attempts()
-            status_color = curses.color_pair(5) if attempts < ATTACK_THRESHOLD * 0.2 else curses.color_pair(3)
-            if attempts > ATTACK_THRESHOLD * 0.5:
-                status_color = curses.color_pair(4)
-
-            session_title = " Στατιστικά Συνεδρίας "
-            self.stdscr.attron(curses.A_BOLD | status_color)
-            self.stdscr.addstr(2, w//2 - len(session_title)//2, session_title)
-            self.stdscr.attroff(curses.A_BOLD | status_color)
-            
-            self.stdscr.addstr(3, 2, f"Συνολικές Απόπειρες: {attempts}")
-            self.stdscr.addstr(4, 2, f"Χρόνος που πέρασε: {self._format_time(time_elapsed)}")
-            self.stdscr.addstr(5, 2, f"Όριο Επίθεσης: {ATTACK_THRESHOLD} απόπειρες / 5 λεπτά")
-            
-            # Μπάρα Προόδου (Απλοποιημένη)
-            bar_len = w - 4
-            progress_ratio = min(1.0, attempts / ATTACK_THRESHOLD)
-            fill_len = int(bar_len * progress_ratio)
-            
-            self.stdscr.addstr(6, 2, "Επίπεδο Επίθεσης: ")
-            self.stdscr.attron(status_color | curses.A_REVERSE)
-            self.stdscr.addstr(6, 16, " " * fill_len)
-            self.stdscr.attroff(status_color | curses.A_REVERSE)
-            self.stdscr.addstr(6, 16 + fill_len, " " * (bar_len - fill_len - 15))
-
-            # 3. Σωρευτικά Στατιστικά
-            cumulative_stats = self.defender.logger.get_cumulative_stats_summary()
-            stats_title = " Σωρευτικά Στατιστικά "
-            self.stdscr.attron(curses.A_BOLD | curses.color_pair(3))
-            self.stdscr.addstr(8, w//2 - len(stats_title)//2, stats_title)
-            self.stdscr.attroff(curses.A_BOLD | curses.color_pair(3))
-            
-            self.stdscr.addstr(9, 2, f"Συνολικές Επιθέσεις που Καταγράφηκαν: {cumulative_stats['Συνολικές Επιθέσεις']}")
-            
-            y_start = 10
-            self.stdscr.addstr(y_start, 2, "Κορυφαίες IP:")
-            for i, ip_stat in enumerate(cumulative_stats['Κορυφαίες IP Επιτιθέμενων']):
-                if y_start + i < h - 2:
-                    self.stdscr.addstr(y_start + i, 12, ip_stat)
-                
-            y_start += 4
-            self.stdscr.addstr(y_start, 2, "Κορυφαίες Θύρες:")
-            for i, port_stat in enumerate(cumulative_stats['Κορυφαίες Θύρες Στόχοι']):
-                if y_start + i < h - 2:
-                    self.stdscr.addstr(y_start + i, 12, port_stat)
-
-            # 4. Μπάρα Κατάστασης/Συντομεύσεων
-            status_text = "q: Έξοδος | s: Αποθήκευση Στατιστικών"
-            self.stdscr.attron(curses.A_REVERSE)
-            self.stdscr.addstr(h-1, 0, status_text.ljust(w))
-            self.stdscr.attroff(curses.A_REVERSE)
-            
-            self.stdscr.refresh()
-        except curses.error:
-            pass # Αγνόηση σφαλμάτων (π.χ., εγγραφή εκτός οθόνης κατά την αλλαγή μεγέθους)
-
-    def _format_time(self, seconds):
-        """Μορφοποίηση δευτερολέπτων σε συμβολοσειρά Ω:Λ:Δ."""
-        s = int(seconds)
-        h = s // 3600
-        s %= 3600
-        m = s // 60
-        s %= 60
-        return f"{h:02}:{m:02}:{s:02}"
-        
-    def run(self):
-        """Ο βρόχος αλληλεπίδρασης TUI."""
-        self.running = True
-        self.stdscr.nodelay(True) # Μη αποκλειστική εισαγωγή
-        
-        while self.running and self.defender.running:
-            try:
-                self.update_display()
-                key = self.stdscr.getch()
-                
-                if key == ord('q') or key == ord('Q') or key == 27:
-                    self.running = False
-                    self.defender.running = False # Σήμα τερματισμού για defender
-                    break
-                elif key == ord('s') or key == ord('S'):
-                    self.defender.logger.save_stats()
-                    self._display_message("Τα στατιστικά αποθηκεύτηκαν επιτυχώς.")
-                
-                time.sleep(0.5) # Ρυθμός ανανέωσης
-            except KeyboardInterrupt:
-                self.running = False
-                self.defender.running = False
-            except curses.error:
-                pass # Αγνόηση σφαλμάτων TUI
-            
-        self.stdscr.nodelay(False)
-
-    def _display_message(self, message):
-        """Εμφάνιση μηνύματος και αναμονή για πάτημα πλήκτρου."""
-        curses.curs_set(0)
-        self.stdscr.nodelay(False)
-        self.stdscr.clear()
-        h, w = self.stdscr.getmaxyx()
-        
-        lines = message.split('\n')
-        
-        # Κέντρο και εμφάνιση γραμμών
-        for i, line in enumerate(lines):
-            y = h//2 - len(lines)//2 + i
-            x = w//2 - len(line)//2
-            if 0 <= y < h:
-                try:
-                    self.stdscr.addstr(y, x, line)
-                except curses.error:
-                    pass
-                    
-        # Μήνυμα αναμονής για πάτημα πλήκτρου
-        wait_msg = "Πατήστε οποιοδήποτε πλήκτρο για συνέχεια..."
-        self.stdscr.attron(curses.A_REVERSE)
-        self.stdscr.addstr(h-1, 0, wait_msg.ljust(w))
-        self.stdscr.attroff(curses.A_REVERSE)
-        
-        self.stdscr.refresh()
-        try:
-            self.stdscr.getch()
-        except KeyboardInterrupt:
-            pass
-        self.stdscr.nodelay(True)
 
 # ==============================================================================
 # ΤΕΛΟΣ ΚΩΔΙΚΑ SSH DEFENDER
@@ -634,22 +440,22 @@ class DefenderTUI:
 def auto_install_dependencies():
     """
     Αυτόματη εγκατάσταση όλων των απαιτούμενων εξαρτήσεων χωρίς root.
-    Βελτιστοποιημένη για εγκατάσταση μόνο των απαραίτητων.
+    Βελτιστοποιημένο για να εγκαθιστά μόνο ό,τι είναι απαραίτητο.
     """
-    print(f"{Fore.CYAN}🛠️ ΠΡΟΧΩΡΗΜΕΝΑ ΔΙΚΤΥΑΚΑ ΕΡΓΑΛΕΙΑ - Αυτόματη Εγκατάσταση Εξαρτήσεων{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}🛠️ ΠΡΟΗΓΜΕΝΑ ΕΡΓΑΛΕΙΑ ΔΙΚΤΥΟΥ - Αυτόματη Εγκατάσταση Εξαρτήσεων{Style.RESET_ALL}")
     print("="*70)
-    print(f"{Fore.YELLOW}Αυτό θα εγκαταστήσει όλα τα απαιτούμενα πακέτα χωρίς δικαιώματα root.{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Αυτό θα εγκαταστήσει όλα τα απαιτούμενα πακέτα χωρίς πρόσβαση root.{Style.RESET_ALL}")
     
     is_termux = os.path.exists('/data/data/com.termux')
     
-    # Πακέτα συστήματος για Termux (χωρίς root)
-    # Το nmap περιλαμβάνεται για το εργαλείο Nmap Wrapper
+    # Πακέτα συστήματος για το Termux (δεν απαιτείται root)
+    # Το nmap συμπεριλαμβάνεται για το εργαλείο περιτυλίγματος Nmap
     termux_packages = [
         'python', 'python-pip', 'curl', 'wget', 'nmap', 
         'inetutils', 'openssl-tool', 'ncurses-utils'
     ]
     
-    # Πακέτα Python (pip) - Καθαρισμένη λίστα *μόνο* από χρησιμοποιούμενες εξαρτήσεις
+    # Πακέτα Python (pip) - Καθαρισμένη λίστα *μόνο* των χρησιμοποιούμενων εξαρτήσεων
     pip_packages = [
         'requests', 'colorama', 'speedtest-cli', 'beautifulsoup4',
         'paramiko', 'python-whois', 'dnspython'
@@ -679,10 +485,10 @@ def auto_install_dependencies():
         module_name = module_name_map.get(package, package.replace('-', '_'))
 
         try:
-            # Χειρισμός εμφωλευμένων ονομάτων modules όπως dns.resolver
+            # Χειρισμός ενσωματωμένων ονομάτων ενοτήτων όπως dns.resolver
             base_module = module_name.split('.')[0]
             importlib.import_module(base_module)
-            print(f"    {Fore.GREEN}✅ {package} είναι ήδη εγκατεστημένο{Style.RESET_ALL}")
+            print(f"    {Fore.GREEN}✅ Το {package} είναι ήδη εγκατεστημένο{Style.RESET_ALL}")
         except ImportError:
             print(f"    [*] Εγκατάσταση {package}...")
             try:
@@ -691,124 +497,31 @@ def auto_install_dependencies():
                     capture_output=True, text=True, timeout=180
                 )
                 if result.returncode == 0:
-                    print(f"    {Fore.GREEN}✅ {package} εγκαταστάθηκε επιτυχώς{Style.RESET_ALL}")
+                    print(f"    {Fore.GREEN}✅ Το {package} εγκαταστάθηκε επιτυχώς{Style.RESET_ALL}")
                 else:
-                    print(f"    {Fore.YELLOW}⚠️ Δεν ήταν δυνατή η εγκατάσταση {package}. Σφάλμα: {result.stderr.splitlines()[-1]}{Style.RESET_ALL}")
+                    print(f"    {Fore.YELLOW}⚠️ Δεν ήταν δυνατή η εγκατάσταση του {package}. Σφάλμα: {result.stderr.splitlines()[-1]}{Style.RESET_ALL}")
             except Exception as e:
                 print(f"    {Fore.RED}❌ Αποτυχία εγκατάστασης {package}: {e}{Style.RESET_ALL}")
     
     # Τελικός έλεγχος εξαρτήσεων
     print(f"\n{Fore.CYAN}[*] Τελικός έλεγχος εξαρτήσεων...{Style.RESET_ALL}")
-    global CURSES_AVAILABLE
     try:
-        import curses
-        CURSES_AVAILABLE = True
-        print(f"    {Fore.GREEN}✅ curses (TUI){Style.RESET_ALL}")
+        import requests
+        print(f"    {Fore.GREEN}✅ requests{Style.RESET_ALL}")
     except ImportError:
-        print(f"    {Fore.RED}❌ curses (TUI) - Το TUI ΘΑ ΑΠΟΤΥΧΕΙ!{Style.RESET_ALL}")
-        print(f"    {Fore.YELLOW}Στο Termux, εκτελέστε: pkg install ncurses-utils{Style.RESET_ALL}")
-    
-    if not CURSES_AVAILABLE:
-        print(f"\n{Fore.RED}ΚΡΙΣΙΜΟ: Το module 'curses' δεν βρέθηκε. Το TUI δεν μπορεί να εκτελεστεί.{Style.RESET_ALL}")
-        return False
+        print(f"    {Fore.RED}❌ requests{Style.RESET_ALL}")
     
     print(f"\n{Fore.GREEN}🎉 Η εγκατάσταση ολοκληρώθηκε! Εκκίνηση εφαρμογής...{Style.RESET_ALL}")
     time.sleep(2)
     return True
 
-# --- Βοηθητικές Συναρτήσεις Curses ---
-def _reset_curses_state(stdscr):
-    """Προετοιμασία και επαναφορά απαιτούμενων ρυθμίσεων τερματικού για TUI."""
-    if not CURSES_AVAILABLE: return
-    curses.cbreak()
-    curses.noecho()
-    stdscr.keypad(True)
-    try:
-        curses.curs_set(0) # Απόκρυψη δρομέα
-    except curses.error:
-        pass # Αγνόηση αν δεν υποστηρίζεται
-    
-    if curses.has_colors():
-        curses.start_color()
-        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK) # Προεπιλογή
-        curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)  # Τίτλος
-        curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK) # Επισήμανση κειμένου
-        curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Επισήμανση φόντου
-
-def _draw_curses_menu(stdscr, title, options):
-    """Γενικός χειριστής μενού curses για πλοήγηση και επιλογή."""
-    current_row_idx = 0
-    
-    def print_menu(screen, selected_idx):
-        screen.clear()
-        h, w = screen.getmaxyx()
-        
-        title_text = f" {title} "
-        x_title = max(0, w//2 - len(title_text)//2)
-        
-        if 1 < h:
-            screen.attron(curses.A_BOLD | curses.color_pair(2))
-            screen.addstr(1, x_title, title_text)
-            screen.attroff(curses.A_BOLD | curses.color_pair(2))
-            
-        if 2 < h:
-            screen.addstr(2, max(0, w//2 - 25), "=" * 50)
-
-        for idx, option in enumerate(options):
-            y = 4 + idx
-            if y >= h - 1: break # Σταμάτημα αν το μενού ξεπεράσει την οθόνη
-            
-            display_option = option.ljust(40)
-            x = max(0, w//2 - len(display_option)//2)
-            
-            # Προσθήκη διαχωριστικών
-            if option.startswith("---"):
-                screen.attron(curses.color_pair(3))
-                screen.addstr(y, max(0, w//2 - 20), option)
-                screen.attroff(curses.color_pair(3))
-                continue
-            
-            if idx == selected_idx:
-                screen.attron(curses.A_BOLD | curses.color_pair(4))
-                screen.addstr(y, x, display_option)
-                screen.attroff(curses.A_BOLD | curses.color_pair(4))
-            else:
-                screen.attron(curses.color_pair(1))
-                screen.addstr(y, x, display_option)
-                screen.attroff(curses.color_pair(1))
-        screen.refresh()
-
-    while True:
-        try:
-            print_menu(stdscr, current_row_idx)
-            key = stdscr.getch()
-
-            if key == curses.KEY_UP:
-                current_row_idx = (current_row_idx - 1) % len(options)
-                # Παράβλεψη διαχωριστικών
-                while options[current_row_idx].startswith("---"):
-                    current_row_idx = (current_row_idx - 1) % len(options)
-            elif key == curses.KEY_DOWN:
-                current_row_idx = (current_row_idx + 1) % len(options)
-                # Παράβλεψη διαχωριστικών
-                while options[current_row_idx].startswith("---"):
-                    current_row_idx = (current_row_idx + 1) % len(options)
-            elif key == curses.KEY_ENTER or key in [10, 13]:
-                return current_row_idx
-            elif key == curses.KEY_RESIZE:
-                # Χειρισμός αλλαγής μεγέθους τερματικού
-                pass
-        except curses.error:
-             # Χειρισμός σφαλμάτων αλλαγής μεγέθους τερματικού
-            time.sleep(0.1)
-
 
 def main_app_loop():
-    """Κύριο σημείο εισόδου εφαρμογής"""
+    """Κύριο σημείο εισόδου της εφαρμογής"""
     
     class AdvancedNetworkTools:
         def __init__(self):
-            # Ορισμός και δημιουργία αποθετηρίου αποθήκευσης
+            # Ορισμός και δημιουργία ενός αποκλειστικού καταλόγου αποθήκευσης
             is_termux = os.path.exists('/data/data/com.termux')
             if is_termux:
                 base_dir = os.path.expanduser('~')
@@ -817,7 +530,7 @@ def main_app_loop():
                 self.save_dir = os.path.join(os.getcwd(), "DedSec's Network")
 
             if not os.path.exists(self.save_dir):
-                print(f"{Fore.CYAN}[*] Δημιουργία αποθετηρίου αποθήκευσης στο: {self.save_dir}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}[*] Δημιουργία καταλόγου αποθήκευσης στη διεύθυνση: {self.save_dir}{Style.RESET_ALL}")
                 os.makedirs(self.save_dir)
             
             self.wifi_db_name = os.path.join(self.save_dir, "wifi_scans.db")
@@ -841,17 +554,17 @@ def main_app_loop():
             self.max_workers = self.config.get('max_scan_workers', 15)
             self.scan_timeout = self.config.get('scan_timeout', 1)
             
-            print(f"{Fore.GREEN}✅ Τα Προηγμένα Δικτυακά Εργαλεία προετοιμάστηκαν επιτυχώς{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}📂 Όλα τα αρχεία θα αποθηκευτούν στο: {self.save_dir}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}⚡️ Νήματα σάρωσης ορίστηκαν σε: {self.max_workers}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✅ Τα Προηγμένα Εργαλεία Δικτύου αρχικοποιήθηκαν επιτυχώς{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}📂 Όλα τα αρχεία θα αποθηκευτούν στη διεύθυνση: {self.save_dir}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}⚡️ Τα νήματα εργασίας σάρωσης ορίστηκαν σε: {self.max_workers}{Style.RESET_ALL}")
             
         # --- Διαχείριση Διαμόρφωσης & Βάσης Δεδομένων ---
         def load_config(self):
             default_config = {
                 "scan_interval": 60, "alert_on_new_network": True,
                 "dns_test_server": "https://ipleak.net/json/",
-                "port_scan_threads": 20, # Διατηρήθηκε για συμβατότητα, αλλά χρησιμοποιούμε max_scan_workers
-                "max_scan_workers": 15,  # Όριο αποδοτικής ομάδας νημάτων
+                "port_scan_threads": 20, # Διατηρείται για συμβατότητα, αλλά χρησιμοποιούμε max_scan_workers
+                "max_scan_workers": 15,  # Όριο αποδοτικής πισίνας νημάτων
                 "scan_timeout": 1,       # Χρονικό όριο socket σε δευτερόλεπτα
                 "top_ports": "21,22,23,25,53,80,110,143,443,445,993,995,1723,3306,3389,5900,8080",
                 "common_usernames": "admin,root,user,administrator,test,guest",
@@ -922,9 +635,9 @@ def main_app_loop():
             except sqlite3.Error as e:
                 print(f"{Fore.RED}❌ Σφάλμα ΒΔ: Αποτυχία καταγραφής ευρήματος ελέγχου: {e}{Style.RESET_ALL}")
 
-        # --- Εργαλεία Wi-Fi, Τοπικού Δικτύου και Κινητής Τηλεφωνίας (Χωρίς Root) ---
+        # --- Wi-Fi, Τοπικό Δίκτυο, και Εργαλεία Κινητής (Δεν απαιτείται Root) ---
         def _run_termux_command(self, command, timeout=15):
-            """Βοηθητική για εκτέλεση εντολών Termux API."""
+            """Βοηθητική συνάρτηση για την εκτέλεση εντολών Termux API."""
             try:
                 result = subprocess.run(command, capture_output=True, text=True, timeout=timeout, check=True)
                 return result.stdout
@@ -939,10 +652,10 @@ def main_app_loop():
 
         def get_signal_quality(self, signal_dBm):
             if not isinstance(signal_dBm, int): return f"{Fore.WHITE}Δ/Υ{Style.RESET_ALL}"
-            if signal_dBm >= -50: return f"{Fore.GREEN}Εξαιρετικό{Style.RESET_ALL}"
-            if signal_dBm >= -65: return f"{Fore.YELLOW}Καλό{Style.RESET_ALL}"
-            if signal_dBm >= -75: return f"{Fore.MAGENTA}Μέτριο{Style.RESET_ALL}"
-            return f"{Fore.RED}Αδύναμο{Style.RESET_ALL}"
+            if signal_dBm >= -50: return f"{Fore.GREEN}Εξαιρετική{Style.RESET_ALL}"
+            if signal_dBm >= -65: return f"{Fore.YELLOW}Καλή{Style.RESET_ALL}"
+            if signal_dBm >= -75: return f"{Fore.MAGENTA}Μέτρια{Style.RESET_ALL}"
+            return f"{Fore.RED}Αδύναμη{Style.RESET_ALL}"
         
         def scan_via_termux_api(self):
             networks = []
@@ -952,12 +665,12 @@ def main_app_loop():
                     scan_data = json.loads(output)
                     for network in scan_data:
                         networks.append({
-                            'bssid': network.get('bssid', 'Άγνωστο').upper(), 'ssid': network.get('ssid', 'Κρυφό'),
+                            'bssid': network.get('bssid', 'Unknown').upper(), 'ssid': network.get('ssid', 'Hidden'),
                             'signal': network.get('rssi', 0), 'channel': self.frequency_to_channel(network.get('frequency', 0)),
-                            'encryption': network.get('security', 'Άγνωστο')
+                            'encryption': network.get('security', 'Unknown')
                         })
                 except json.JSONDecodeError:
-                    pass # Αγνόηση κατεστραμμένης εξόδου JSON
+                    pass # Αγνοήστε κατεστραμμένη έξοδο JSON
             return networks
 
         def get_current_connection_info(self):
@@ -966,7 +679,7 @@ def main_app_loop():
                 try:
                     conn_info = json.loads(output)
                     return {
-                        'bssid': conn_info.get('bssid', 'Δ/Υ').upper(), 'ssid': conn_info.get('ssid', 'Μη Συνδεδεμένο'),
+                        'bssid': conn_info.get('bssid', 'Δ/Υ').upper(), 'ssid': conn_info.get('ssid', 'Not Connected'),
                         'signal': conn_info.get('rssi', 0), 'channel': self.frequency_to_channel(conn_info.get('frequency', 0)),
                         'encryption': conn_info.get('security', 'Δ/Υ'), 'is_current': True
                     }
@@ -975,7 +688,7 @@ def main_app_loop():
             return None
 
         def passive_network_scan(self):
-            print(f"{Fore.YELLOW}[*] Έναρξη παθητικής σάρωσης Wi-Fi... (Απαιτεί Termux:API){Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}[*] Εκκίνηση παθητικής σάρωσης Wi-Fi... (Απαιτείται Termux:API){Style.RESET_ALL}")
             networks_found = {}
             for net in self.scan_via_termux_api(): 
                 networks_found[net['bssid']] = net
@@ -985,13 +698,13 @@ def main_app_loop():
                 networks_found[current_network['bssid']] = current_network
             
             if not networks_found:
-                print(f"{Fore.RED}❌ Δεν βρέθηκαν δίκτυα. Βεβαιωθείτε ότι το Wi-Fi είναι ενεργοποιημένο και το Termux:API είναι εγκατεστημένο και ρυθμισμένο.{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Δεν βρέθηκαν δίκτυα. Βεβαιωθείτε ότι το Wi-Fi είναι ενεργοποιημένο και ότι το Termux:API είναι εγκατεστημένο και ρυθμισμένο.{Style.RESET_ALL}")
 
             return list(networks_found.values())
         
         def update_network_database(self, network):
             bssid = network['bssid']
-            if bssid == 'Άγνωστο': return
+            if bssid == 'Unknown': return
 
             with sqlite3.connect(self.wifi_db_name) as conn:
                 cursor = conn.cursor()
@@ -1017,9 +730,9 @@ def main_app_loop():
             for network in networks:
                 self.update_network_database(network)
                 if network.get('ssid', '').lower() in self.known_networks.get("suspicious_ssids", []):
-                    threats.append({'bssid': network['bssid'], 'ssid': network['ssid'], 'reason': 'Ύποπτο SSID', 'level': 'ΜΕΣΑΙΟ'})
-                if network.get('encryption', 'Άγνωστο').upper() in ['WEP', 'OPEN', '']:
-                    threats.append({'bssid': network['bssid'], 'ssid': network['ssid'], 'reason': f'Αδύναμη Κρυπτογράφηση ({network["encryption"] or "Ανοιχτό"})', 'level': 'ΥΨΗΛΟ'})
+                    threats.append({'bssid': network['bssid'], 'ssid': network['ssid'], 'reason': 'Ύποπτο SSID', 'level': 'MEDIUM'})
+                if network.get('encryption', 'Unknown').upper() in ['WEP', 'OPEN', '']:
+                    threats.append({'bssid': network['bssid'], 'ssid': network['ssid'], 'reason': f"Αδύναμη Κρυπτογράφηση ({network['encryption'] or 'Ανοιχτό'})", 'level': 'HIGH'})
             return threats
 
         def display_network_info(self, networks, threats):
@@ -1044,12 +757,12 @@ def main_app_loop():
                 elif bssid in threat_bssids:
                     color, status = Fore.RED, "ΕΝΕΡΓΗ ΑΠΕΙΛΗ"
                 elif bssid in self.trusted_bssids:
-                    color, status = Fore.GREEN, "ΕΜΠΙΣΤΟ"
+                    color, status = Fore.GREEN, "ΕΜΠΙΣΤΕΥΤΟ"
                 else:
-                    color, status = Fore.WHITE, "ΠΑΡΑΤΗΡΗΘΕΝ"
+                    color, status = Fore.WHITE, "ΠΑΡΑΤΗΡΗΘΗΚΕ"
                 
                 if enc.upper() in ['WEP', 'OPEN', '']:
-                    enc_status = f"{Fore.RED}{enc or 'Ανοιχτό'} (ΑΝΑΣΦΑΛΕΣ!){Style.RESET_ALL}"
+                    enc_status = f"{Fore.RED}{enc or 'Ανοιχτό'} (ΜΗ ΑΣΦΑΛΕΣ!){Style.RESET_ALL}"
                 elif 'WPA3' in enc:
                     enc_status = f"{Fore.GREEN}{enc}{Style.RESET_ALL}"
                 else:
@@ -1061,7 +774,7 @@ def main_app_loop():
                 print(f"  Κατάσταση: {color}{status}{Style.RESET_ALL}")
                 
                 for threat in (t for t in threats if t['bssid'] == bssid):
-                    t_color = Fore.RED if threat['level'] == 'ΥΨΗΛΟ' else Fore.YELLOW
+                    t_color = Fore.RED if threat['level'] == 'HIGH' else Fore.YELLOW
                     print(f"{t_color}  🚨 ΑΠΕΙΛΗ ({threat['level']}): {threat['reason']}{Style.RESET_ALL}")
                 print("-" * 65)
 
@@ -1070,29 +783,29 @@ def main_app_loop():
             if networks:
                 threats = self.analyze_networks(networks)
                 self.display_network_info(networks, threats)
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def view_current_connection(self):
             print(f"\n{Fore.CYAN}🔗 ΤΡΕΧΟΥΣΑ ΣΥΝΔΕΣΗ WI-FI{Style.RESET_ALL}")
             print("="*50)
             current_info = self.get_current_connection_info()
-            if not current_info or current_info['ssid'] == 'Μη Συνδεδεμένο':
+            if not current_info or current_info['ssid'] == 'Not Connected':
                 print(f"{Fore.RED}❌ Δεν είστε συνδεδεμένοι σε δίκτυο Wi-Fi.{Style.RESET_ALL}")
             else:
                 bssid = current_info['bssid']
-                trust_status = f"{Fore.GREEN}ΕΜΠΙΣΤΟ{Style.RESET_ALL}" if bssid in self.trusted_bssids else f"{Fore.YELLOW}ΑΓΝΩΣΤΟ{Style.RESET_ALL}"
+                trust_status = f"{Fore.GREEN}ΕΜΠΙΣΤΕΥΤΟ{Style.RESET_ALL}" if bssid in self.trusted_bssids else f"{Fore.YELLOW}ΑΓΝΩΣΤΟ{Style.RESET_ALL}"
                 print(f"  SSID:        {current_info['ssid']}")
                 print(f"  BSSID:       {bssid}")
                 print(f"  Σήμα:      {current_info['signal']}dBm ({self.get_signal_quality(current_info['signal'])})")
                 print(f"  Κρυπτογράφηση:  {current_info['encryption']}")
                 print(f"  Εμπιστοσύνη: {trust_status}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def toggle_wifi(self):
-            print(f"\n{Fore.CYAN}🔄 ΕΝΕΡΓΟΠΟΙΗΣΗ/ΑΠΕΝΕΡΓΟΠΟΙΗΣΗ WI-FI (Termux:API){Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}🔄 ΕΝΑΛΛΑΓΗ WI-FI (Termux:API){Style.RESET_ALL}")
             if not os.path.exists('/data/data/com.termux'):
                 print(f"{Fore.RED}❌ Αυτή η λειτουργία απαιτεί την εφαρμογή Termux:API.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
 
             choice = input(f"{Fore.WHITE}Ενεργοποίηση/Απενεργοποίηση Wi-Fi [on/off]; {Style.RESET_ALL}").strip().lower()
@@ -1106,14 +819,14 @@ def main_app_loop():
                 print(f"{Fore.GREEN}✅ Το Wi-Fi απενεργοποιήθηκε.{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}❌ Μη έγκυρη επιλογή.{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def get_mobile_data_info(self):
-            print(f"\n{Fore.CYAN}📱 ΠΛΗΡΟΦΟΡΙΕΣ ΚΙΝΗΤΗΣ ΣΥΝΔΕΣΗΣ / SIM (Termux:API){Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}📱 ΠΛΗΡΟΦΟΡΙΕΣ ΔΕΔΟΜΕΝΩΝ ΚΙΝΗΤΗΣ / SIM (Termux:API){Style.RESET_ALL}")
             print("="*50)
             if not os.path.exists('/data/data/com.termux'):
                 print(f"{Fore.RED}❌ Αυτή η λειτουργία απαιτεί την εφαρμογή Termux:API.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
 
             # Πληροφορίες Συσκευής
@@ -1128,110 +841,94 @@ def main_app_loop():
                     print(f"  Τύπος Δικτύου:       {data.get('data_network_type', 'Δ/Υ')}")
                     print(f"  Κατάσταση Δεδομένων:         {data.get('data_state', 'Δ/Υ')}")
                 except json.JSONDecodeError:
-                    print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάλυση πληροφοριών συσκευής.{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάλυση των πληροφοριών συσκευής.{Style.RESET_ALL}")
             else:
                 print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάκτηση πληροφοριών συσκευής/SIM. Χωρίς SIM;{Style.RESET_ALL}")
 
-            # Πληροφορίες Πύργων Κινητής
+            # Πληροφορίες Κεραίας Κινητής Τηλεφωνίας
             cell_info_out = self._run_termux_command(['termux-telephony-cellinfo'])
             if cell_info_out:
                 try:
                     data = json.loads(cell_info_out)
-                    print(f"\n{Fore.CYAN}--- Κοντινοί Πύργοι Κινητής ---{Style.RESET_ALL}")
+                    print(f"\n{Fore.CYAN}--- Κοντινές Κεραίες Κινητής Τηλεφωνίας ---{Style.RESET_ALL}")
                     if not data.get('cells'):
-                         print("  Δεν υπάρχουν πληροφορίες πύργων κινητής.")
+                         print("  Δεν υπάρχουν διαθέσιμες πληροφορίες για κεραίες κινητής τηλεφωνίας.")
                     for cell in data.get('cells', []):
                         cell_type = cell.get('type', 'Δ/Υ').upper()
                         strength = cell.get('dbm', 'Δ/Υ')
-                        print(f"  - Τύπος: {cell_type} | Σήμα: {strength} dBm ({self.get_signal_quality(strength)})")
+                        print(f"  - Τύπος: {cell_type} | Ισχύς: {strength} dBm ({self.get_signal_quality(strength)})")
                 except json.JSONDecodeError:
-                    print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάλυση πληροφοριών πύργων.{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάλυση των πληροφοριών κεραίας.{Style.RESET_ALL}")
             else:
-                print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάκτηση πληροφοριών πύργων.{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}[!] Δεν ήταν δυνατή η ανάκτηση πληροφοριών κεραίας.{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-
-        # --- Βελτιωμένα Εργαλεία Σάρωσης Δικτύου τύπου NMAP (Χωρίς Root) ---
-        
+        # --- Ενισχυμένα Εργαλεία Σάρωσης Δικτύου τύπου NMAP (Δεν απαιτείται Root) ---
         def nmap_wrapper(self):
-            """Wrapper για το δυαδικό 'nmap' που εγκαθίσταται μέσω pkg."""
-            print(f"\n{Fore.CYAN}⚡ ΣΑΡΩΤΗΣ NMAP{Style.RESET_ALL}")
-            
-            # Έλεγχος ύπαρξης nmap
+            """Περιτύλιγμα για το δυαδικό αρχείο 'nmap' που εγκαταστάθηκε μέσω pkg."""
+            print(f"\n{Fore.CYAN}⚡ ΠΕΡΙΤΥΛΙΓΜΑ ΣΑΡΩΤΗ NMAP{Style.RESET_ALL}")
+            # Έλεγχος αν υπάρχει το nmap
             try:
                 nmap_check = subprocess.run(['nmap', '--version'], capture_output=True, text=True, timeout=5)
-                print(f"{Fore.GREEN}✅ Βρέθηκε Nmap: {nmap_check.stdout.splitlines()[0]}{Style.RESET_ALL}")
-            except (FileNotFoundError, Exception):
-                print(f"{Fore.RED}❌ Δεν βρέθηκε το δυαδικό Nmap!{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Παρακαλώ εγκαταστήστε το μέσω του εγκαταστάτη εξαρτήσεων ή χειροκίνητα ('pkg install nmap').{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.GREEN}✅ Το Nmap βρέθηκε: {nmap_check.stdout.splitlines()[0]}{Style.RESET_ALL}")
+            except (FileNotFoundError, subprocess.CalledProcessError):
+                print(f"{Fore.RED}❌ Το δυαδικό αρχείο Nmap δεν βρέθηκε. Εγκαταστήστε το μέσω της εντολής 'pkg install nmap' στο Termux.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
 
-            target = input(f"{Fore.WHITE}Εισάγετε IP ή όνομα υπολογιστή στόχου: {Style.RESET_ALL}").strip()
-            if not target:
-                return
+            args = input(f"{Fore.WHITE}Εισάγετε ορίσματα Nmap (π.χ., -Pn -sV 192.168.1.1/24): {Style.RESET_ALL}").strip()
+            if not args: return
 
-            print(f"\n{Fore.CYAN}Επιλέξτε Τύπο Σάρωσης:{Style.RESET_ALL}")
-            print("1. Σάρωση Ping (Ανακάλυψη Υπολογιστών) [-sn]")
-            print("2. Γρήγορη Σάρωση (Κορυφαίες θύρες, OS/Υπηρεσία) [-T4 -A -F]")
-            print("3. Εντατική Σάρωση (Όλες οι 1000 θύρες, OS/Υπηρεσία) [-T4 -A]")
-            print("4. Προσαρμοσμένες Σημαίες")
-            
-            scan_choice = input(f"{Fore.WHITE}Επιλέξτε τύπο σάρωσης (1-4): {Style.RESET_ALL}").strip()
-            
-            nmap_flags = []
-            if scan_choice == '1':
-                nmap_flags = ['-sn']
-            elif scan_choice == '2':
-                nmap_flags = ['-T4', '-A', '-F']
-            elif scan_choice == '3':
-                nmap_flags = ['-T4', '-A']
-            elif scan_choice == '4':
-                custom = input(f"{Fore.WHITE}Εισάγετε προσαρμοσμένες σημαίες nmap (π.χ., -sV -p 80,443): {Style.RESET_ALL}").strip()
-                nmap_flags = custom.split()
-            else:
-                print(f"{Fore.RED}❌ Μη έγκυρη επιλογή.{Style.RESET_ALL}")
-                return
-
-            command = ['nmap'] + nmap_flags + [target]
-            print(f"\n{Fore.YELLOW}[*] Εκτέλεση: {' '.join(command)}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print(f"[*] Η σάρωση Nmap ξεκίνησε. Το αποτέλεσμα θα εμφανιστεί παρακάτω:{Style.RESET_ALL}")
+            print("-" * 50)
             
             try:
-                # Εκτέλεση nmap και εκτύπωση εξόδου γραμμή προς γραμμή
-                with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1) as proc:
-                    for line in proc.stdout:
-                        print(line, end='')
+                # Χρήση sys.executable για να διασφαλιστεί ότι τρέχει στο σωστό περιβάλλον, αν και το nmap είναι δυαδικό συστήματος.
+                # Εδώ, η απλή εκτέλεση είναι καλύτερη.
+                process = subprocess.Popen(
+                    ['nmap'] + args.split(),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
                 
-                print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}✅ Η σάρωση Nmap ολοκληρώθηκε.{Style.RESET_ALL}")
+                # Εκτύπωση αποτελεσμάτων σε πραγματικό χρόνο
+                while True:
+                    output = process.stdout.readline()
+                    if output == '' and process.poll() is not None:
+                        break
+                    if output:
+                        print(output.strip())
                 
-                # Δεν μπορούμε να το αναλύσουμε εύκολα, οπότε απλώς καταγράφουμε τη δράση
-                self.record_audit_finding(target, 'Σάρωση Nmap', f"Τύπος σάρωσης: {' '.join(nmap_flags)}", "Εκτελέστηκε σάρωση Nmap. Δείτε την έξοδο κονσόλας.", 'Ενημερωτικό')
-                
-            except Exception as e:
-                print(f"{Fore.RED}❌ Η σάρωση Nmap απέτυχε: {e}{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                # Εκτύπωση σφαλμάτων
+                stderr_output = process.stderr.read()
+                if stderr_output:
+                    print(f"\n{Fore.RED}--- NMAP ERROR OUTPUT ---{Style.RESET_ALL}")
+                    print(stderr_output.strip())
+                    
+                result = process.wait()
+                print(f"\n{Fore.GREEN}✅ Η σάρωση Nmap ολοκληρώθηκε με κωδικό εξόδου {result}.{Style.RESET_ALL}")
 
-        def enhanced_port_scanner(self):
-            """Βελτιωμένος σαρωτής θυρών με ανίχνευση υπηρεσιών - ΑΠΟΔΟΤΙΚΗ ΟΜΑΔΑ ΝΗΜΑΤΩΝ"""
-            print(f"\n{Fore.CYAN}🔍 ΒΕΛΤΙΩΜΕΝΟΣ ΣΑΡΩΤΗΣ ΘΥΡΩΝ (Βασισμένος σε Python){Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Σημείωση: Για περισσότερη δύναμη, χρησιμοποιήστε το εργαλείο Nmap Wrapper.{Style.RESET_ALL}")
-            
-            target = input(f"{Fore.WHITE}Εισάγετε IP ή όνομα υπολογιστή στόχου: {Style.RESET_ALL}").strip()
+            except Exception as e:
+                print(f"{Fore.RED}❌ Σφάλμα κατά την εκτέλεση της σάρωσης Nmap: {e}{Style.RESET_ALL}")
+                
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def run_port_scan(self):
+            print(f"\n{Fore.CYAN}📶 Σάρωση Θυρών (TCP Connect){Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Σημείωση: Για περισσότερη ισχύ, χρησιμοποιήστε το εργαλείο περιτυλίγματος Nmap.{Style.RESET_ALL}")
+            target = input(f"{Fore.WHITE}Εισάγετε στόχο IP ή όνομα κεντρικού υπολογιστή: {Style.RESET_ALL}").strip()
             if not target: return
 
             try:
                 target_ip = socket.gethostbyname(target)
-                print(f"[*] Ανάλυση {target} σε {target_ip}")
+                print(f"[*] Επίλυση {target} σε {target_ip}")
             except socket.gaierror:
-                print(f"{Fore.RED}❌ Δεν ήταν δυνατή η ανάλυση του ονόματος υπολογιστή.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Δεν ήταν δυνατή η επίλυση του ονόματος κεντρικού υπολογιστή.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
 
-            port_choice = input(f"{Fore.WHITE}Εισάγετε θύρες: (1) Κορυφαίες, (2) 1-1024, (3) Προσαρμοσμένες (π.χ., 80,443,1-100): {Style.RESET_ALL}").strip()
-            
+            port_choice = input(f"{Fore.WHITE}Εισάγετε θύρες: (1) Κορυφαίες, (2) 1-1024, (3) Προσαρμοσμένη (π.χ., 80,443,1-100): {Style.RESET_ALL}").strip()
             ports_to_scan = set()
             if port_choice == '1':
                 ports_to_scan = set(int(p) for p in self.config['top_ports'].split(','))
@@ -1249,80 +946,49 @@ def main_app_loop():
                     print(f"{Fore.RED}❌ Μη έγκυρη μορφή θύρας.{Style.RESET_ALL}")
                     return
 
-            print(f"[*] Σάρωση {target_ip} στις {len(ports_to_scan)} θύρες TCP χρησιμοποιώντας {self.max_workers} εργάτες...")
-            
-            open_ports = {} # Χρήση λεξικού για αποθήκευση θύρας: υπηρεσία
-            
+            print(f"[*] Σάρωση του {target_ip} σε {len(ports_to_scan)} θύρες TCP χρησιμοποιώντας {self.max_workers} νήματα εργασίας...")
+            open_ports = {} # Χρησιμοποιήστε λεξικό για αποθήκευση port: service
+
+            def get_banner(sock):
+                """Προσπαθεί να ανακτήσει ένα banner ή απλά να επιστρέψει μια ένδειξη υπηρεσίας."""
+                try:
+                    # Προσπάθεια ανάγνωσης μικρού buffer για banner
+                    data = sock.recv(1024) 
+                    return data.decode('utf-8', errors='ignore').strip().split('\n')[0][:50]
+                except socket.timeout:
+                    return "Υπηρεσία εντοπίστηκε (Χωρίς banner)"
+                except Exception:
+                    return "Υπηρεσία εντοπίστηκε"
+
             def tcp_connect_scan(port):
                 """Συνάρτηση εργασίας για σάρωση TCP connect"""
                 try:
                     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                         sock.settimeout(self.scan_timeout)
                         if sock.connect_ex((target_ip, port)) == 0:
-                            # Η θύρα είναι ανοιχτή, δοκιμή λήψης banner
-                            try:
-                                service = self.grab_banner(sock, port)
-                                return (port, service)
-                            except:
-                                return (port, "Άγνωστο")
-                except:
-                    pass
-                return None
-            
-            # --- ΑΠΟΔΟΤΙΚΗ ΟΜΑΔΑ ΝΗΜΑΤΩΝ ---
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                future_to_port = {executor.submit(tcp_connect_scan, port): port for port in ports_to_scan}
-                for future in concurrent.futures.as_completed(future_to_port):
-                    result = future.result()
-                    if result:
-                        port, service = result
-                        open_ports[port] = service
-                        print(f"  {Fore.GREEN}[+] Θύρα {port:5}{Style.RESET_ALL} - ΑΝΟΙΧΤΗ - {service}")
-            
-            # Εμφάνιση αποτελεσμάτων
-            print(f"\n{Fore.GREEN}✅ Η σάρωση TCP ολοκληρώθηκε!{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
-            
-            if open_ports:
-                print(f"Βρέθηκαν {len(open_ports)} ανοιχτές θύρες:")
-                for port in sorted(open_ports.keys()):
-                    service = open_ports[port]
-                    print(f"  Θύρα {port:5} - {Fore.GREEN}ΑΝΟΙΧΤΗ{Style.RESET_ALL} - {service}")
-                    self.record_audit_finding(target, 'Βελτιωμένη Σάρωση Θυρών', f'Ανοιχτή Θύρα: {port}', f'Η θύρα {port} ({service}) είναι ανοιχτή', 'Ενημερωτικό')
-            else:
-                print("Δεν βρέθηκαν ανοιχτές θύρες.")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                            banner = get_banner(sock)
+                            open_ports[port] = banner
+                            print(f"{Fore.GREEN}[+] Θύρα {port}/TCP είναι ανοιχτή. Banner: {banner}{Style.RESET_ALL}")
+                except Exception:
+                    pass # Αγνοήστε όλα τα άλλα σφάλματα
 
-        def grab_banner(self, sock, port):
-            """Προσπάθεια λήψης banner υπηρεσίας από ανοιχτή θύρα"""
-            try:
-                # Αποστολή ανιχνευτή βάσει θύρας
-                if port in [80, 8080]:
-                    sock.send(b"HEAD / HTTP/1.0\r\n\r\n")
-                elif port in [443, 8443]:
-                    return "HTTPS (SSL)" # Δεν μπορεί να ληφθεί banner χωρίς SSL wrapper
-                
-                banner = sock.recv(1024).decode('utf-8', errors='ignore').strip().split('\n')[0]
-                
-                if banner:
-                    return banner[:60] + "..." if len(banner) > 60 else banner
-                elif port == 21: return "FTP"
-                elif port == 22: return "SSH"
-                elif port == 25: return "SMTP"
-                elif port == 53: return "DNS"
-                elif port == 110: return "POP3"
-                elif port == 143: return "IMAP"
-                else: return "Ανιχνεύτηκε υπηρεσία"
-            except socket.timeout:
-                return "Ανιχνεύτηκε υπηρεσία (Χωρίς banner)"
-            except Exception:
-                return "Ανιχνεύτηκε υπηρεσία"
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                executor.map(tcp_connect_scan, sorted(list(ports_to_scan)))
+
+            print("\n" + "="*50)
+            if open_ports:
+                print(f"{Fore.GREEN}✅ Σάρωση ολοκληρώθηκε. Βρέθηκαν ανοιχτές θύρες στο {target_ip}:{Style.RESET_ALL}")
+                for port, banner in sorted(open_ports.items()):
+                    print(f"  {Fore.CYAN}* {port:5d} - {banner}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Δεν βρέθηκαν ανοιχτές θύρες στο {target_ip}.{Style.RESET_ALL}")
+            print("="*50)
+
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def network_discovery(self):
-            """Προηγμένη ανακάλυψη δικτύου χρησιμοποιώντας πολλαπλές τεχνικές - ΑΠΟΔΟΤΙΚΗ ΟΜΑΔΑ ΝΗΜΑΤΩΝ"""
-            print(f"\n{Fore.CYAN}🌐 ΠΡΟΧΩΡΗΜΕΝΗ ΑΝΑΚΑΛΥΨΗ ΔΙΚΤΥΟΥ{Style.RESET_ALL}")
-            
+            """Προηγμένη ανακάλυψη δικτύου χρησιμοποιώντας πολλαπλές τεχνικές - ΑΠΟΔΟΤΙΚΗ ΠΙΣΙΝΑ ΝΗΜΑΤΩΝ"""
+            print(f"\n{Fore.CYAN}🌐 ΠΡΟΗΓΜΕΝΗ ΑΝΑΚΑΛΥΨΗ ΔΙΚΤΥΟΥ{Style.RESET_ALL}")
             try:
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
                 s.connect(("8.8.8.8", 80))
@@ -1331,119 +997,128 @@ def main_app_loop():
             except Exception as e:
                 print(f"{Fore.RED}❌ Δεν ήταν δυνατός ο προσδιορισμός της τοπικής IP: {e}{Style.RESET_ALL}")
                 return
-            
+
+            # Υποθέστε ένα τυπικό δίκτυο /24
             network_base = '.'.join(local_ip.split('.')[:-1]) + '.'
             print(f"[*] Η IP σας: {local_ip}")
-            print(f"[*] Σάρωση δικτύου: {network_base}0/24 χρησιμοποιώντας {self.max_workers} εργάτες...")
-            
-            discovered_hosts = {} # ip: [λόγος]
+            print(f"[*] Σάρωση δικτύου: {network_base}0/24 χρησιμοποιώντας {self.max_workers} νήματα εργασίας...")
+
+            discovered_hosts = {} # ip: [reason]
             common_ports = [22, 80, 443, 8080, 3389, 445]
             lock = threading.Lock()
 
             def discover_host(ip):
-                """Συνάρτηση εργασίας για σάρωση ενός μόνο υπολογιστή με πολλαπλές μεθόδους."""
+                """Συνάρτηση εργασίας για σάρωση ενός μόνο κεντρικού υπολογιστή με πολλαπλές μεθόδους."""
+                if ip == local_ip: return # Παράλειψη της τοπικής IP
+
                 reasons = []
-                
                 # Μέθοδος 1: ICMP Ping
                 try:
-                    subprocess.run(['ping', '-c', '1', '-W', '1', ip], 
-                                 capture_output=True, timeout=2, check=True)
+                    subprocess.run(['ping', '-c', '1', '-W', '1', ip], capture_output=True, timeout=2, check=True)
                     reasons.append("ICMP")
                 except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                    pass # Ο υπολογιστής είναι εκτός λειτουργίας ή δεν ανταποκρίνεται στο ping
+                    pass # Ο κεντρικός υπολογιστής είναι εκτός λειτουργίας ή δεν απαντά στο ping
 
-                # Μέθοδος 2: Δοκιμή Θύρας TCP
+                # Μέθοδος 2: TCP Port Probe
                 for port in common_ports:
                     try:
                         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                             sock.settimeout(0.5) # Ταχύτερο χρονικό όριο για ανακάλυψη
                             if sock.connect_ex((ip, port)) == 0:
                                 reasons.append(f"TCP/{port}")
+                                break # Ένας ανοιχτός αρκεί
                     except:
                         pass
-                
+
                 if reasons:
                     with lock:
                         discovered_hosts[ip] = reasons
-                        print(f"  {Fore.GREEN}[+] {ip:15}{Style.RESET_ALL} - Ενεργό (Βρέθηκε μέσω: {', '.join(reasons)})")
+                        print(f"  {Fore.GREEN}[+] {ip:15}{Style.RESET_ALL} - Ενεργός (Βρέθηκε μέσω: {', '.join(reasons)})")
 
-            # --- ΑΠΟΔΟΤΙΚΗ ΟΜΑΔΑ ΝΗΜΑΤΩΝ ---
-            with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = [executor.submit(discover_host, network_base + str(i)) for i in range(1, 255) if network_base + str(i) != local_ip]
-                # Αναμονή για ολοκλήρωση όλων
-                for future in concurrent.futures.as_completed(futures):
-                    pass # Τα αποτελέσματα εκτυπώνονται ζωντανά
-            
-            print(f"\n{Fore.GREEN}✅ Η ανακάλυψη δικτύου ολοκληρώθηκε!{Style.RESET_ALL}")
-            print(f"Ανακαλύφθηκαν {len(discovered_hosts)} ενεργοί υπολογιστές (εκτός από εσάς):")
-            for host in sorted(discovered_hosts.keys()):
-                print(f"  - {host:15} ({', '.join(discovered_hosts[host])})")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            try:
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    # Σάρωση όλων των πιθανών IP στο δίκτυο /24 (1 έως 254)
+                    ip_range = [network_base + str(i) for i in range(1, 255)]
+                    list(executor.map(discover_host, ip_range)) # Χρήση list() για να περιμένουμε να τελειώσουν όλα
+            except Exception as e:
+                print(f"{Fore.RED}❌ Σφάλμα κατά την εκτέλεση της ανακάλυψης: {e}{Style.RESET_ALL}")
+                
+            print("\n" + "="*50)
+            if discovered_hosts:
+                print(f"{Fore.GREEN}--- Ενεργοί Κεντρικοί Υπολογιστές Βρέθηκαν ({len(discovered_hosts)}) ---{Style.RESET_ALL}")
+                for ip, reasons in sorted(discovered_hosts.items()):
+                    print(f"  {Fore.CYAN}* {ip:15} (Εντοπίστηκε μέσω: {', '.join(reasons)}){Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Δεν βρέθηκαν άλλοι ενεργοί κεντρικοί υπολογιστές στο δίκτυο.{Style.RESET_ALL}")
+            print("="*50)
+
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
 
         def subnet_calculator(self):
-            """Υπολογιστής υποδικτύου και εργαλείο πληροφοριών δικτύου"""
             print(f"\n{Fore.CYAN}🧮 ΥΠΟΛΟΓΙΣΤΗΣ ΥΠΟΔΙΚΤΥΟΥ{Style.RESET_ALL}")
-            
-            ip_input = input(f"{Fore.WHITE}Εισάγετε διεύθυνση IP με CIDR (π.χ., 192.168.1.0/24): {Style.RESET_ALL}").strip()
-            
-            if not ip_input or '/' not in ip_input:
-                print(f"{Fore.RED}❌ Παρακαλώ χρησιμοποιήστε τη μορφή: IP/CIDR{Style.RESET_ALL}")
-                return
-            
+            ip_cidr_str = input(f"{Fore.WHITE}Εισάγετε IP/CIDR (π.χ., 192.168.1.5/24): {Style.RESET_ALL}").strip()
+            if not ip_cidr_str: return
+
             try:
-                ip_str, cidr_str = ip_input.split('/')
+                if '/' not in ip_cidr_str:
+                    print(f"{Fore.RED}❌ Μη έγκυρη μορφή IP/CIDR.{Style.RESET_ALL}")
+                    return
+
+                ip_str, cidr_str = ip_cidr_str.split('/')
                 cidr = int(cidr_str)
                 if not (0 <= cidr <= 32):
-                    raise ValueError("Το CIDR πρέπει να είναι μεταξύ 0 και 32")
-                
-                ip_parts = list(map(int, ip_str.split('.')))
-                if len(ip_parts) != 4 or any(not (0 <= p <= 255) for p in ip_parts):
-                    raise ValueError("Μη έγκυρη διεύθυνση IP")
+                     print(f"{Fore.RED}❌ Το CIDR πρέπει να είναι μεταξύ 0 και 32.{Style.RESET_ALL}")
+                     return
 
-                ip_int = (ip_parts[0] << 24) + (ip_parts[1] << 16) + (ip_parts[2] << 8) + ip_parts[3]
-                
-                mask_int = (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF
-                
+                # Συνάρτηση μετατροπής IP σε integer
+                def ip_to_int(ip):
+                    return struct.unpack("!I", socket.inet_aton(ip))[0]
+
+                ip_int = ip_to_int(ip_str)
+
+                # Υπολογισμός μάσκας, διεύθυνσης δικτύου και broadcast
+                mask_int = 0xFFFFFFFF << (32 - cidr) & 0xFFFFFFFF
                 network_int = ip_int & mask_int
-                broadcast_int = network_int | ~mask_int & 0xFFFFFFFF
-                
+                broadcast_int = network_int | (~mask_int & 0xFFFFFFFF)
+
+                # Συνάρτηση μετατροπής integer σε IP
                 def int_to_ip(ip_int_val):
                     return '.'.join([str((ip_int_val >> (i << 3)) & 0xFF) for i in (3, 2, 1, 0)])
-                
+
                 network_addr = int_to_ip(network_int)
                 broadcast_addr = int_to_ip(broadcast_int)
                 subnet_mask = int_to_ip(mask_int)
-                
                 total_hosts = 2 ** (32 - cidr)
-                usable_hosts = max(0, total_hosts - 2)
-                
+                usable_hosts = max(0, total_hosts - 2) # Αφαίρεση Network και Broadcast
+
                 print(f"\n{Fore.GREEN}📊 ΑΠΟΤΕΛΕΣΜΑΤΑ ΥΠΟΛΟΓΙΣΜΟΥ ΥΠΟΔΙΚΤΥΟΥ:{Style.RESET_ALL}")
-                print(f"  Διεύθυνση:            {ip_str}/{cidr}")
-                print(f"  Μάσκα Υποδικτύου:        {subnet_mask}")
-                print(f"  Διεύθυνση Δικτύου:    {network_addr}")
-                print(f"  Διεύθυνση Broadcast:  {broadcast_addr}")
-                print(f"  Συνολικοί Υπολογιστές:        {total_hosts}")
-                print(f"  Χρησιμοποιήσιμοι Υπολογιστές:       {usable_hosts}")
+                print(f" Διεύθυνση: {ip_str}/{cidr}")
+                print(f" Μάσκα Υποδικτύου: {subnet_mask}")
+                print(f" Διεύθυνση Δικτύου: {network_addr}")
+                print(f" Διεύθυνση Broadcast: {broadcast_addr}")
+                print(f" Συνολικοί Κεντρικοί Υπολογιστές: {total_hosts}")
+                print(f" Χρησιμοποιήσιμοι Κεντρικοί Υπολογιστές: {usable_hosts}")
                 
                 if usable_hosts > 0:
                     first_host = int_to_ip(network_int + 1)
                     last_host = int_to_ip(broadcast_int - 1)
-                    print(f"  Εύρος Υπολογιστών:         {first_host} - {last_host}")
-                
+                    print(f" Εύρος Κεντρικών Υπολογιστών: {first_host} - {last_host}")
+
+            except (ValueError, socket.error) as e:
+                print(f"{Fore.RED}❌ Σφάλμα κατά τον υπολογισμό του υποδικτύου: {e}{Style.RESET_ALL}")
             except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα υπολογισμού υποδικτύου: {e}{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Σφάλμα κατά τον υπολογισμό του υποδικτύου: {e}{Style.RESET_ALL}")
             
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
-        # --- Διαδίκτυο & Διαγνωστικά (Χωρίς Root) ---
+        # --- Internet & Διαγνωστικά (Δεν απαιτείται Root) ---
         def run_internet_speed_test(self):
-            print(f"\n{Fore.CYAN}⚡️ ΕΚΤΕΛΕΣΗ ΔΟΚΙΜΗΣ ΤΑΧΥΤΗΤΑΣ ΔΙΑΔΙΚΤΥΟΥ...{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}⚡️ ΕΚΤΕΛΕΣΗ ΔΟΚΙΜΗΣ ΤΑΧΥΤΗΤΑΣ INTERNET...{Style.RESET_ALL}")
             if not SPEEDTEST_AVAILABLE or not speedtest:
-                print(f"{Fore.RED}❌ Το module 'speedtest-cli' δεν είναι διαθέσιμο.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Η ενότητα 'speedtest-cli' δεν είναι διαθέσιμη.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
-
             try:
                 st = speedtest.Speedtest()
                 print(f"{Fore.YELLOW}[*] Εύρεση καλύτερου διακομιστή...{Style.RESET_ALL}")
@@ -1452,75 +1127,164 @@ def main_app_loop():
                 download_speed = st.download() / 1_000_000
                 print(f"{Fore.YELLOW}[*] Εκτέλεση δοκιμής αποστολής...{Style.RESET_ALL}")
                 upload_speed = st.upload() / 1_000_000
-                ping = st.results.ping
-                
-                print(f"\n{Fore.GREEN}✅ Η ΔΟΚΙΜΗ ΤΑΧΥΤΗΤΑΣ ΟΛΟΚΛΗΡΩΘΗΚΕ!{Style.RESET_ALL}")
-                print("="*50)
-                print(f"  Διακομιστής: {st.results.server['name']} ({st.results.server['country']})")
-                print(f"  Ping:       {ping:.2f} ms")
-                print(f"  Λήψη:   {Fore.GREEN}{download_speed:.2f} Mbps{Style.RESET_ALL}")
-                print(f"  Αποστολή:     {Fore.GREEN}{upload_speed:.2f} Mbps{Style.RESET_ALL}")
-                print("="*50)
-            except Exception as e:
-                print(f"{Fore.RED}❌ Η δοκιμή ταχύτητας απέτυχε: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
 
-        def get_external_ip_info(self):
-            print(f"\n{Fore.CYAN}🗺️ ΛΗΨΗ ΠΛΗΡΟΦΟΡΙΩΝ ΕΞΩΤΕΡΙΚΗΣ IP...{Style.RESET_ALL}")
-            if not REQUESTS_AVAILABLE:
-                print(f"{Fore.RED}❌ Το module 'requests' δεν είναι διαθέσιμο.{Style.RESET_ALL}")
+                print(f"\n{Fore.GREEN}📊 ΑΠΟΤΕΛΕΣΜΑΤΑ ΔΟΚΙΜΗΣ ΤΑΧΥΤΗΤΑΣ:{Style.RESET_ALL}")
+                print(f" Λήψη: {download_speed:.2f} Mbps")
+                print(f" Αποστολή: {upload_speed:.2f} Mbps")
+                print(f" Καθυστέρηση: {st.results.ping:.2f} ms")
+                print(f" Server: {st.results.server['name']} ({st.results.server['country']})")
+
+            except Exception as e:
+                print(f"{Fore.RED}❌ Σφάλμα κατά την εκτέλεση της δοκιμής ταχύτητας: {e}{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def run_dns_leak_test(self):
+            print(f"\n{Fore.CYAN}🌐 ΔΗΜΟΣΙΑ IP & ΔΟΚΙΜΗ ΔΙΑΡΡΟΗΣ DNS{Style.RESET_ALL}")
+            if not REQUESTS_AVAILABLE or not requests:
+                print(f"{Fore.RED}❌ Η ενότητα 'requests' δεν είναι διαθέσιμη.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
+
+            test_url = self.config['dns_test_server']
+            print(f"[*] Ανάκτηση δεδομένων από: {test_url}")
+            
             try:
-                data = requests.get("http://ip-api.com/json/", timeout=10).json()
-                if data.get('status') == 'success':
-                    print(f"\n{Fore.GREEN}✅ Πληροφορίες Εξωτερικής IP:{Style.RESET_ALL}")
-                    print(f"  Διεύθυνση IP:   {data.get('query')}")
-                    print(f"  ISP/Πάροχος: {data.get('isp')}")
-                    print(f"  Τοποθεσία:     {data.get('city')}, {data.get('regionName')}, {data.get('country')}")
-                    print(f"  Οργανισμός: {data.get('org')}")
+                response = requests.get(test_url, timeout=10, verify=False)
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data:
+                        print(f"\n{Fore.GREEN}📊 ΑΠΟΤΕΛΕΣΜΑΤΑ ΔΗΜΟΣΙΑΣ IP:{Style.RESET_ALL}")
+                        print(f" Δημόσια Διεύθυνση IP: {data.get('ip')}")
+                        print(f" Τοποθεσία (Περίπου): {data.get('city')}, {data.get('country')}")
+                        print(f" ISP (Πάροχος): {data.get('asn_owner')}")
+
+                        # Απλοϊκή Έκδοση Δοκιμής Διαρροής DNS (ελέγχει μόνο μία IP)
+                        dns_ip = data.get('ip_address')
+                        if dns_ip and dns_ip != data.get('ip'):
+                            print(f"{Fore.RED}🚨 ΠΙΘΑΝΗ ΔΙΑΡΡΟΗ DNS: Η IP του DNS ({dns_ip}) δεν ταιριάζει με τη δημόσια IP.{Style.RESET_ALL}")
+                        
+                        
+                    else:
+                        print(f"{Fore.RED}❌ Δεν ελήφθησαν δεδομένα ή μη έγκυρο JSON.{Style.RESET_ALL}")
+
                 else:
-                    print(f"{Fore.RED}❌ Αποτυχία λήψης πληροφοριών IP.{Style.RESET_ALL}")
+                    print(f"{Fore.RED}❌ Δεν ήταν δυνατή η εκτέλεση της δοκιμής διαρροής DNS. Ελέγξτε URL/Σύνδεση. (Status: {response.status_code}){Style.RESET_ALL}")
+
+            except requests.exceptions.Timeout:
+                print(f"{Fore.RED}❌ Έληξε το χρονικό όριο κατά τη δοκιμή διαρροής DNS.{Style.RESET_ALL}")
             except Exception as e:
-                print(f"{Fore.RED}❌ Αποτυχία σύνδεσης με την υπηρεσία IP: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Σφάλμα κατά τη δοκιμή διαρροής DNS: {e}{Style.RESET_ALL}")
             
-        def run_network_diagnostics(self):
-            print(f"\n{Fore.CYAN}📶 ΔΙΑΓΝΩΣΤΙΚΑ ΔΙΚΤΥΟΥ{Style.RESET_ALL}")
-            host = input(f"{Fore.WHITE}Εισάγετε υπολογιστή ή IP για δοκιμή (π.χ., google.com): {Style.RESET_ALL}").strip()
-            if not host: return
-            
-            print(f"\n{Fore.CYAN}>>> Εκτέλεση δοκιμής PING στον {host}...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def run_whois_lookup(self):
+            print(f"\n{Fore.CYAN}🔗 ΕΚΤΕΛΕΣΗ ΑΝΑΖΗΤΗΣΗΣ WHOIS...{Style.RESET_ALL}")
+            if not WHOIS_AVAILABLE or not whois:
+                print(f"{Fore.RED}❌ Η ενότητα 'python-whois' δεν είναι διαθέσιμη.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+                return
+
+            target = input(f"{Fore.WHITE}Εισάγετε τομέα ή διεύθυνση IP: {Style.RESET_ALL}").strip()
+            if not target: return
+
             try:
-                result = subprocess.run(['ping', '-c', '4', host], capture_output=True, text=True, timeout=10)
-                print(result.stdout if result.returncode == 0 else result.stderr)
+                # Ο whois.query() μπορεί να επιστρέψει None ή να προκαλέσει εξαίρεση για μη έγκυρο τομέα
+                result = whois.query(target)
+
+                print(f"\n{Fore.GREEN}--- ΑΠΟΤΕΛΕΣΜΑΤΑ WHOIS για {target} ---{Style.RESET_ALL}")
+                if result:
+                    # Προβολή βασικών πεδίων (προσαρμογή όπως απαιτείται)
+                    print(f"  Domain Name:         {result.name}")
+                    print(f"  Registrar:           {result.registrar}")
+                    print(f"  Creation Date:       {result.creation_date}")
+                    print(f"  Expiration Date:     {result.expiration_date}")
+                    print(f"  Last Updated:        {result.last_updated}")
+                    print(f"  Name Servers:        {', '.join(result.name_servers)}")
+                    print(f"  Organization:        {result.registrar_organization}")
+                    # Εάν είναι IP, θα έχει λιγότερα πεδία, το whois χειρίζεται και τα δύο.
+                else:
+                    print(f"{Fore.RED}❌ Δεν βρέθηκε εγγραφή WHOIS για το {target}.{Style.RESET_ALL}")
+
             except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα εκτέλεσης ping: {e}{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Σφάλμα κατά την αναζήτηση WHOIS: {e}{Style.RESET_ALL}")
             
-            print(f"\n{Fore.CYAN}>>> Εκτέλεση δοκιμής TRACEROUTE στον {host}...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def run_dns_lookup(self):
+            print(f"\n{Fore.CYAN}🔍 ΕΚΤΕΛΕΣΗ ΑΝΑΖΗΤΗΣΗΣ DNS...{Style.RESET_ALL}")
+            if not DNS_AVAILABLE or not dns_resolver:
+                print(f"{Fore.RED}❌ Η ενότητα 'dnspython' δεν είναι διαθέσιμη.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+                return
+
+            name = input(f"{Fore.WHITE}Εισάγετε όνομα κεντρικού υπολογιστή ή τομέα (π.χ., google.com): {Style.RESET_ALL}").strip()
+            record_type = input(f"{Fore.WHITE}Εισάγετε τύπο εγγραφής (A, MX, NS, TXT, CNAME, κ.λπ. - προεπιλογή A): {Style.RESET_ALL}").strip().upper() or 'A'
+            
+            if not name: return
+
             try:
-                # Χρήση -n για αποφυγή ανάλυσης DNS, που είναι ταχύτερη
-                result = subprocess.run(['traceroute', '-n', host], capture_output=True, text=True, timeout=30)
-                print(result.stdout if result.returncode == 0 else result.stderr)
+                # Δημιουργία ανάλυσης με προεπιλεγμένους διακομιστές DNS (π.χ., από το /etc/resolv.conf ή Google DNS)
+                resolver = dns_resolver.Resolver()
+                answers = resolver.resolve(name, record_type)
+                
+                print(f"\n{Fore.GREEN}--- ΑΠΟΤΕΛΕΣΜΑΤΑ DNS για {name} ({record_type}) ---{Style.RESET_ALL}")
+                for rdata in answers:
+                    print(f"  Απάντηση: {rdata.to_text()}")
+                    
+            except dns_resolver.NoAnswer:
+                print(f"{Fore.YELLOW}Δεν βρέθηκε απάντηση για τον τύπο εγγραφής {record_type}.{Style.RESET_ALL}")
+            except dns_resolver.NXDOMAIN:
+                print(f"{Fore.RED}❌ Δεν υπάρχει τομέας ({name}).{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.RED}❌ Σφάλμα κατά την αναζήτηση DNS: {e}{Style.RESET_ALL}")
+            
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def run_traceroute(self):
+            print(f"\n{Fore.CYAN}🗺️ ΕΚΤΕΛΕΣΗ TRACEROUTE...{Style.RESET_ALL}")
+            target = input(f"{Fore.WHITE}Εισάγετε στόχο IP ή όνομα κεντρικού υπολογιστή για το traceroute: {Style.RESET_ALL}").strip()
+            if not target: return
+
+            # Το Termux χρησιμοποιεί το 'traceroute' (ή 'inetutils-traceroute')
+            command = ['traceroute', target]
+            
+            print(f"[*] Το Traceroute στο {target} ξεκίνησε. Τα αποτελέσματα μπορεί να διαφέρουν ανάλογα με την πλατφόρμα:{Style.RESET_ALL}")
+            print("-" * 50)
+            
+            try:
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                
+                while True:
+                    output = process.stdout.readline()
+                    if output == '' and process.poll() is not None:
+                        break
+                    if output:
+                        print(output.strip())
+                
+                process.wait()
+
             except FileNotFoundError:
-                print(f"{Fore.RED}❌ Το 'traceroute' δεν βρέθηκε. Παρακαλώ εγκαταστήστε το 'inetutils' (pkg install inetutils){Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Η εντολή 'traceroute' δεν βρέθηκε. Εγκαταστήστε την (π.χ., 'pkg install traceroute' ή 'pkg install inetutils').{Style.RESET_ALL}")
             except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα εκτέλεσης traceroute: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-
-        # --- Συλλογή Πληροφοριών (Χωρίς Root) ---
-        def run_osintds_scanner(self):
-            """Wrapper για το εργαλείο σάρωσης OSINTDS."""
-            print(f"\n{Fore.CYAN}Εκκίνηση Σαρωτή OSINTDS...{Style.RESET_ALL}")
-            time.sleep(1)
-
-            # --- ΛΟΓΙΚΗ OSINTDS - Ενσωματωμένη σε αυτή τη μέθοδο ---
+                print(f"{Fore.RED}❌ Σφάλμα κατά την εκτέλεση του traceroute: {e}{Style.RESET_ALL}")
             
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        # --- Συλλογή Πληροφοριών (Δεν απαιτείται Root) ---
+        def run_osintds_scanner(self):
+            """Περιτύλιγμα για το εργαλείο σαρωτή OSINTDS."""
+            print(f"\n{Fore.CYAN} launching OSINTDS Scanner...{Style.RESET_ALL}")
+            time.sleep(1) 
+
+            # --- ΛΟΓΙΚΗ OSINTDS - Ενθυλακωμένη σε αυτήν τη μέθοδο ---
+
             # --- Διαμόρφωση και Σταθερές ---
-            PREFERRED_PATHS = [
+            PREFERRED_PATHS = [ 
                 os.path.expanduser("~/storage/downloads"),
                 os.path.expanduser("/sdcard/Download"),
                 os.path.expanduser("~/Downloads"),
-                self.save_dir # Χρήση του αποθετηρίου αποθήκευσης της εφαρμογής
+                self.save_dir # Χρήση του καταλόγου αποθήκευσης της εφαρμογής
             ]
 
             def get_downloads_dir():
@@ -1539,77 +1303,67 @@ def main_app_loop():
             RATE_SLEEP = 0.05
             XSS_TEST_PAYLOAD = "<script>alert('OSINTDS_XSS')</script>"
             SQL_ERROR_PATTERNS = [
-                "you have an error in your sql syntax", "sql syntax error",
-                "unclosed quotation mark after the character string", "mysql_fetch",
-                "syntax error in query", "warning: mysql", "unterminated string constant",
+                "you have an error in your sql syntax", "sql syntax error", 
+                "unclosed quotation mark after the character string", 
+                "mysql_fetch", "syntax error in query", "warning: mysql", 
+                "unterminated string constant",
             ]
             SECURITY_HEADERS = [
                 "Strict-Transport-Security", "Content-Security-Policy", "X-Frame-Options",
                 "X-Content-Type-Options", "Referrer-Policy", "Permissions-Policy",
             ]
             EDITOR = os.environ.get('EDITOR', 'nano')
+            
             ASSET_MAP = [
-                ('link', 'href', 'css', lambda tag: tag.get('rel') and 'stylesheet' in tag.get('rel', [])),
-                ('script', 'src', 'js', None),
-                ('img', 'src', 'images', None),
-                ('source', 'src', 'media', None),
-                ('video', 'poster', 'images', None),
-                ('link', 'href', 'icons', lambda tag: tag.get('rel') and any(r in ['icon', 'shortcut icon'] for r in tag.get('rel', []))),
+                ('link', 'href', 'css', lambda tag: tag.get('rel') and 'stylesheet' in tag.get('rel')),
+                ('script', 'src', 'js', lambda tag: True),
+                ('img', 'src', 'image', lambda tag: True),
             ]
 
-            DIR_WORDLIST_B64 = "YWRtaW4KYmFja3VwCnJvYm90cy50eHQKc2l0ZW1hcC54bWwKLmVudi5iYWNrCnVwbG9hZHMKYWRtaW5pc3RyYXRvcgo="
-            SUBDOMAIN_WORDLIST_B64 = "d3d3CmFwaQpibG9nCmRldgptYWlsCnN0YWdpbmcKdGVzdApzdG9yZQ=="
+            DIR_WORDLIST_PATH = os.path.join(self.wordlist_dir, "common_dirs.txt")
+            SUB_WORDLIST_PATH = os.path.join(self.wordlist_dir, "common_subs.txt")
 
-            def unpack_wordlist(b64, dest_path, name):
-                try:
-                    raw = base64.b64decode(b64)
-                    txt = raw.decode('utf-8', errors='ignore')
-                    if not txt.strip():
-                        print(f'[ΠΡΟΣΟΧΗ] Η λίστα λέξεων για {name} είναι κενή.')
-                        return None
-                    with open(dest_path, 'w', encoding='utf-8') as f:
-                        f.write(txt)
-                    print(f'[ΠΛΗΡΟΦΟΡΙΑ] Δημιουργήθηκε προεπιλεγμένη λίστα λέξεων: {dest_path} ({len(txt.splitlines())} εγγραφές)')
-                    return dest_path
-                except Exception as e:
-                    print(f'[ΣΦΑΛΜΑ] Σφάλμα αποσυμπίεσης λίστας λέξεων για {name}: {e}')
-                    open(dest_path, 'w').close()
-                    return None
+            # --- Βοηθητικές Συναρτήσεις OSINTDS ---
 
-            WORDLIST_DIR = os.path.join(BASE_OSINT_DIR, 'wordlists')
-            os.makedirs(WORDLIST_DIR, exist_ok=True)
-            DIR_WORDLIST_PATH = os.path.join(WORDLIST_DIR, 'dirs.txt')
-            SUB_WORDLIST_PATH = os.path.join(WORDLIST_DIR, 'subdomains.txt')
+            def _create_default_wordlists():
+                # Δημιουργία απλών wordlists αν δεν υπάρχουν
+                if not os.path.exists(DIR_WORDLIST_PATH):
+                    with open(DIR_WORDLIST_PATH, 'w') as f:
+                        f.write('admin\nlogin\napi\nrobots.txt\nsitemap.xml\nbackup\n')
+                if not os.path.exists(SUB_WORDLIST_PATH):
+                    with open(SUB_WORDLIST_PATH, 'w') as f:
+                        f.write('www\ndev\ntest\napi\nmail\n')
 
-            if not os.path.isfile(DIR_WORDLIST_PATH) or os.path.getsize(DIR_WORDLIST_PATH) == 0:
-                unpack_wordlist(DIR_WORDLIST_B64, DIR_WORDLIST_PATH, 'dirs.txt')
-            if not os.path.isfile(SUB_WORDLIST_PATH) or os.path.getsize(SUB_WORDLIST_PATH) == 0:
-                unpack_wordlist(SUBDOMAIN_WORDLIST_B64, SUB_WORDLIST_PATH, 'subdomains.txt')
+            _create_default_wordlists()
+
+            def get_user_choice(prompt, default):
+                user_input = input(f"{Fore.WHITE}{prompt} ({default}): {Style.RESET_ALL}").strip()
+                return user_input if user_input else default
 
             def read_wordlist(path):
-                try:
-                    with open(path, 'r', encoding='utf-8') as f:
-                        return [line.strip() for line in f if line.strip()]
-                except FileNotFoundError:
-                    print(f'[ΣΦΑΛΜΑ] Η λίστα λέξεων δεν βρέθηκε στο {path}.')
+                if not os.path.exists(path):
+                    print(f"{Fore.YELLOW}[WARNING] Wordlist not found: {path}. Using minimal defaults.{Style.RESET_ALL}")
+                    if 'dirs' in path: return ['admin', 'login']
+                    if 'subs' in path: return ['www', 'dev']
                     return []
+                try:
+                    with open(path, 'r') as f:
+                        return [line.strip() for line in f if line.strip()]
                 except Exception as e:
-                    print(f'[ΣΦΑΛΜΑ] Αποτυχία ανάγνωσης λίστας λέξεων στο {path}: {e}')
+                    print(f"[ERROR] Could not read wordlist {path}: {e}")
                     return []
 
-            # --- Βασικές Βοηθητικές Συναρτήσεις ---
-            def normalize_target(raw_input):
-                raw_input = raw_input.strip()
-                if not raw_input: return None, None
-                if not re.match(r'^(http://|https://)', raw_input, re.IGNORECASE):
-                    raw_input = 'http://' + raw_input
+            def normalize_url(url):
                 try:
-                    parsed = urlparse(raw_input)
+                    parsed = urlparse(url)
+                    if not parsed.scheme:
+                        parsed = urlparse('http://' + url)
                     domain = parsed.hostname
                     if not domain: return None, None
                     base = f"{parsed.scheme}://{parsed.netloc}"
                     return base.rstrip('/'), domain
-                except ValueError: return None, None
+                except ValueError:
+                    return None, None
 
             def make_dirs(domain):
                 safe_domain = re.sub(r'[^\w\-.]', '_', domain)
@@ -1620,1439 +1374,914 @@ def main_app_loop():
             def save_text(folder, filename, text):
                 path = os.path.join(folder, filename)
                 try:
-                    with open(path, 'w', encoding='utf-8') as f: f.write(text)
+                    with open(path, 'w', encoding='utf-8') as f:
+                        f.write(text)
                     print(f"[ΠΛΗΡΟΦΟΡΙΑ] Αποθηκεύτηκε: {path}")
-                except IOError as e: print(f'[ΣΦΑΛΜΑ] Σφάλμα αποθήκευσης αρχείου για {path}: {e}')
+                except IOError as e:
+                    print(f'[ΣΦΑΛΜΑ] Σφάλμα αποθήκευσης αρχείου για {path}: {e}')
+
+            def save_json(folder, filename, data):
+                path = os.path.join(folder, filename)
+                try:
+                    with open(path, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, indent=4)
+                    print(f"[ΠΛΗΡΟΦΟΡΙΑ] Αποθηκεύτηκε: {path}")
+                except IOError as e:
+                    print(f'[ΣΦΑΛΜΑ] Σφάλμα αποθήκευσης αρχείου για {path}: {e}')
 
             def save_csv(folder, filename, rows, headers=None):
+                if not csv: 
+                    print(f"[ΣΦΑΛΜΑ] CSV module not available for saving CSV.")
+                    return
                 path = os.path.join(folder, filename)
                 try:
                     with open(path, 'w', newline='', encoding='utf-8') as cf:
                         writer = csv.writer(cf)
-                        if headers: writer.writerow(headers)
-                        writer.writerows([[str(item) for item in row] for row in rows])
-                    print('[ΠΛΗΡΟΦΟΡΙΑ] Αποθηκεύτηκε CSV:', path)
-                except IOError as e: print(f'[ΣΦΑΛΜΑ] Σφάλμα αποθήκευσης CSV για {path}: {e}')
+                        if headers:
+                            writer.writerow(headers)
+                        writer.writerows(rows)
+                    print(f"[ΠΛΗΡΟΦΟΡΙΑ] Αποθηκεύτηκε: {path}")
+                except IOError as e:
+                    print(f'[ΣΦΑΛΜΑ] Σφάλμα αποθήκευσης CSV για {path}: {e}')
 
-            def checkpoint_save(folder, report):
-                save_text(folder, 'report.json', json.dumps(report, indent=2, default=str))
+            def generate_html_report(report, folder):
+                html_content = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Αναφορά OSINTDS για {html.escape(report.get('domain', 'Δ/Υ'))}</title>
+    <style>body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;line-height:1.6;color:#333;max-width:1200px;margin:0 auto;padding:20px;background-color:#f9f9f9}}h1,h2,h3{{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}}h1{{font-size:2.5em}}pre{{background-color:#ecf0f1;padding:1em;border:1px solid #bdc3c7;border-radius:5px;white-space:pre-wrap;word-wrap:break-word;font-family:"Courier New",Courier,monospace}}ul,ol{{padding-left:20px}}li{{margin-bottom:5px}}.card{{background-color:#fff;border:1px solid #ddd;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 2px 4px rgba(0,0,0,0.1)}}</style>
+</head>
+<body>
+    <h1>Αναφορά OSINTDS για {html.escape(report.get('domain', 'Δ/Υ'))}</h1>
+    <div class="card">
+        <h2>Περίληψη</h2>
+        <ul>
+            <li><strong>Στόχος URL:</strong> {html.escape(report.get('target_url', 'N/A'))}</li>
+            <li><strong>Τομέας:</strong> {html.escape(report.get('domain', 'N/A'))}</li>
+            <li><strong>IP Διεύθυνση:</strong> {html.escape(report.get('ip_address', 'N/A'))}</li>
+            <li><strong>Στάτους Κώδικας:</strong> {report.get('status_code', 'N/A')}</li>
+            <li><strong>Τίτλος Σελίδας:</strong> {html.escape(report.get('page_title', 'N/A'))}</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h2>Διαμορφώσεις Διακομιστή</h2>
+        <ul>
+            <li><strong>Διακομιστής:</strong> {html.escape(report.get('server_header', 'N/A'))}</li>
+            <li><strong>Γλώσσα:</strong> {html.escape(report.get('content_language', 'N/A'))}</li>
+            <li><strong>Cookies:</strong>
+                <pre>{html.escape(json.dumps(report.get('cookies', {}), indent=2))}</pre>
+            </li>
+            <li><strong>Κεφαλίδες Ασφαλείας που Λείπουν:</strong> {', '.join(report.get('missing_security_headers', ['N/A']))}</li>
+        </ul>
+    </div>
+    <div class="card">
+        <h2>Ανακάλυψη Καταλόγων (Status Code 200/301/302)</h2>
+        <ul>
+            { "".join([f'<li><a href="{html.escape(d["url"])}">{html.escape(d["path"])}</a> (Code: {d["status"]})</li>' for d in report.get('discovered_paths', [])]) or "<li>Δεν βρέθηκαν κοινοί κατάλογοι.</li>" }
+        </ul>
+    </div>
+    <div class="card">
+        <h2>Ανακάλυψη Υποτομέων</h2>
+        <ul>
+            { "".join([f'<li>{html.escape(s)}</li>' for s in report.get('subdomains', [])]) or "<li>Δεν βρέθηκαν υποτομείς.</li>" }
+        </ul>
+    </div>
+    <div class="card">
+        <h2>Σύνδεσμοι & Πόροι</h2>
+        <ul>
+            <li><strong>Σύνολο Εσωτερικών Συνδέσμων:</strong> {len(report.get('internal_links', []))}</li>
+            <li><strong>Σύνολο Εξωτερικών Συνδέσμων:</strong> {len(report.get('external_links', []))}</li>
+            <li><strong>Assets (CSS, JS, Εικόνες):</strong>
+                <ul>
+                    { "".join([f'<li>{html.escape(a["type"])}: {html.escape(a["url"])}</li>' for a in report.get('assets', [])]) or "<li>Δεν βρέθηκαν σημαντικά assets.</li>" }
+                </ul>
+            </li>
+        </ul>
+    </div>
+    <div class="card">
+        <h2>Ευπάθειες & Σημειώσεις</h2>
+        <ul>
+            { "".join([f'<li><strong>{html.escape(v["type"])}:</strong> {html.escape(v["message"])} ({html.escape(v.get("url", ""))})</li>' for v in report.get('vulnerabilities', [])]) or "<li>Δεν βρέθηκαν άμεσες ευπάθειες.</li>" }
+        </ul>
+    </div>
+    <footer><p>Generated by OSINTDS Scanner at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p></footer>
+</body>
+</html>
+"""
+                save_text(folder, 'report.html', html_content)
+                # Εγγραφή ευρήματος ελέγχου για την αναφορά
+                self.record_audit_finding(
+                    report.get('domain', 'N/A'), 'OSINTDS Scan', 'HTML Report Generated',
+                    f'Full OSINTDS report saved to {os.path.join(folder, "report.html")}', 'Informational'
+                )
 
-            # --- ΣΥΝΑΡΤΗΣΕΙΣ ΣΑΡΩΣΗΣ ---
-            def get_whois_info_osint(domain):
+
+            # --- Core Scan Logic ---
+
+            def check_url(url, method='GET', data=None, allow_redirects=True, verbose=False):
+                if not REQUESTS_AVAILABLE: return None, None
                 try:
-                    w = whois.whois(domain)
-                    if not w: return {'error': 'Δεν επιστράφηκαν δεδομένα WHOIS.'}
-                    whois_data = {}
-                    for key, value in w.items():
-                        if not value: continue
-                        if isinstance(value, list):
-                            whois_data[key] = ', '.join(map(str, value))
-                        elif hasattr(value, 'strftime'):
-                            whois_data[key] = value.strftime('%Y-%m-%d %H:%M:%S')
-                        else: whois_data[key] = str(value)
-                    return whois_data
-                except Exception as e: return {'error': str(e)}
-
-            def reverse_dns_lookup(ip_address):
-                if not ip_address: return None
-                try: return socket.gethostbyaddr(ip_address)[0]
-                except (socket.herror, socket.gaierror): return None
-
-            def resolve_all_dns(domain):
-                results = {}
-                record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA']
-                for record_type in record_types:
-                    try:
-                        answers = dns_resolver.resolve(domain, record_type)
-                        results[record_type] = sorted([str(r).strip() for r in answers])
-                    except dns_resolver.NoAnswer: results[record_type] = []
-                    except dns_resolver.NXDOMAIN: results[record_type] = ['Domain Not Found']
-                    except dns_resolver.Timeout: results[record_type] = ['Timeout']
-                    except Exception: results[record_type] = ['Error']
-                return results
-
-            def extract_content_info(html_content):
-                soup = BeautifulSoup(html_content, 'html.parser')
-                info = {'emails': [], 'generator': None, 'comments': []}
-                emails = re.findall(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', html_content)
-                info['emails'] = sorted(list(set(emails)))
-                meta_gen = soup.find('meta', attrs={'name': lambda x: x and x.lower() == 'generator'})
-                if meta_gen and 'content' in meta_gen.attrs:
-                    info['generator'] = meta_gen['content'].strip()
-                comments = re.findall(r'', html_content, re.DOTALL)
-                info['comments'] = [c.strip() for c in comments if c.strip() and len(c.strip()) < 300]
-                return info
-
-            def check_wayback_machine(domain):
-                try:
-                    url = f"http://web.archive.org/cdx/search/cdx?url={domain}&limit=1&output=json"
-                    r = requests.get(url, headers=HEADERS, timeout=HTTP_TIMEOUT, verify=False)
-                    if r.status_code == 200 and r.text.strip():
-                        data = r.json()
-                        if len(data) > 1:
-                            return {'snapshots_found': True, 'first_snapshot': data[1][1]}
-                    return {'snapshots_found': False}
-                except (requests.RequestException, json.JSONDecodeError):
-                    return {'snapshots_found': 'Error'}
-
-            def check_security_headers(headers):
-                return {h: headers.get(h, 'MISSING') for h in SECURITY_HEADERS}
-
-            def fetch(url, allow_redirects=True, timeout=HTTP_TIMEOUT, verbose=False):
-                try:
-                    time.sleep(RATE_SLEEP + random.random() * 0.05)
-                    r = requests.get(url, headers=HEADERS, timeout=timeout, allow_redirects=allow_redirects, verify=False)
-                    return r
+                    response = requests.request(
+                        method, url, data=data, headers=HEADERS, timeout=HTTP_TIMEOUT, 
+                        allow_redirects=allow_redirects, verify=False # Αγνοήστε τα σφάλματα SSL για σάρωση
+                    )
+                    if verbose: print(f"[{response.status_code}] {url}")
+                    return response, None
                 except requests.exceptions.Timeout:
-                    if verbose: print(f'[ΠΡΟΣΟΧΗ] Χρονικό όριο πρόσβασης {url}')
+                    return None, "Timeout"
                 except requests.exceptions.RequestException as e:
-                    if verbose: print(f'[ΠΡΟΣΟΧΗ] Σφάλμα αίτησης για {url}: {e}')
-                return None
+                    return None, str(e)
 
-            def probe_port(host, port, timeout=1.5):
-                try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.settimeout(timeout)
-                        s.connect((host, port))
-                        return port, True
-                except (socket.timeout, ConnectionRefusedError, OSError):
-                    return port, False
-
-            def probe_ports_connect(host, ports, threads=100, timeout=1.5):
-                open_ports = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-                    future_to_port = {executor.submit(probe_port, host, p, timeout): p for p in ports}
-                    for future in concurrent.futures.as_completed(future_to_port):
-                        port, is_open = future.result()
-                        if is_open: open_ports.append(port)
-                return sorted(open_ports)
-
-            def ssl_info(domain):
-                info = {}
-                try:
-                    import ssl
-                    context = ssl.create_default_context()
-                    with socket.create_connection((domain, 443), timeout=HTTP_TIMEOUT) as sock:
-                        with context.wrap_socket(sock, server_hostname=domain) as ssock:
-                            cert = ssock.getpeercert()
-                            info['subject'] = dict(x[0] for x in cert.get('subject', []))
-                            info['issuer'] = dict(x[0] for x in cert.get('issuer', []))
-                            info['version'] = cert.get('version')
-                            info['serialNumber'] = cert.get('serialNumber')
-                            info['notBefore'] = cert.get('notBefore')
-                            info['notAfter'] = cert.get('notAfter')
-                except (socket.gaierror, socket.timeout, ssl.SSLError, ConnectionRefusedError, OSError, ImportError) as e:
-                    info['error'] = str(e)
-                return info
-
-            def resolve_host(name):
-                try: return socket.gethostbyname(name)
-                except socket.gaierror: return None
-
-            def subdomain_bruteforce_osint(domain, wordlist, threads=50):
-                found = []
-                def check(sub):
-                    fqdn = f"{sub}.{domain}"
-                    ip = resolve_host(fqdn)
-                    if ip: return (fqdn, ip)
-                    return None
-                with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-                    futures = {executor.submit(check, w): w for w in wordlist}
-                    for future in concurrent.futures.as_completed(futures):
-                        result = future.result()
-                        if result: found.append(result)
-                return found
-
-            def attempt_zone_transfer(domain):
-                results = []
-                try:
-                    answers = dns_resolver.resolve(domain, 'NS')
-                    for rdata in answers:
-                        ns = str(rdata.target).rstrip('.')
-                        try:
-                            zone = dns.zone.from_xfr(dns.query.xfr(ns, domain, timeout=5))
-                            if zone:
-                                records = [f"{name} {zone[name].to_text()}" for name in zone.nodes.keys()]
-                                results.append({'nameserver': ns, 'records': records})
-                        except (dns.exception.FormError, dns.exception.Timeout, ConnectionRefusedError):
-                            continue
-                except (dns_resolver.NoAnswer, dns_resolver.NXDOMAIN, dns_resolver.Timeout):
-                    pass
-                return results
-
-            def dir_bruteforce(base_url, words, threads=50, verbose=False):
-                hits = []
-                def probe(word):
-                    url = urljoin(base_url + '/', word)
-                    r = fetch(url, verbose=verbose, allow_redirects=False)
-                    if r and r.status_code in (200, 301, 302, 403, 500):
-                        return (word, r.status_code, r.headers.get('Location', r.url))
-                    return None
-                with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-                    futures = {executor.submit(probe, w) for w in words}
-                    for future in concurrent.futures.as_completed(futures):
-                        result = future.result()
-                        if result: hits.append(result)
-                return hits
-
-            def basic_sqli_test_on_url(url, verbose=False):
-                if '?' not in url: return None
-                try:
-                    r = fetch(url + "'", verbose=verbose)
-                    if r:
-                        response_text = r.text.lower()
-                        for pattern in SQL_ERROR_PATTERNS:
-                            if pattern in response_text:
-                                return {'url': url, 'pattern': pattern, 'trigger': "'"}
-                except Exception: pass
-                return None
-
-            def xss_reflection_test(url, verbose=False):
-                try:
-                    parsed = urlparse(url)
-                    query_params = parse_qs(parsed.query, keep_blank_values=True)
-                except ValueError: return []
-                if not query_params: return []
-                findings = []
-                for param, values in query_params.items():
-                    original_value = values[0] if values else ''
-                    temp_params = query_params.copy()
-                    temp_params[param] = original_value + XSS_TEST_PAYLOAD
-                    new_query = urlencode(temp_params, doseq=True)
-                    new_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment))
-                    r = fetch(new_url, verbose=verbose)
-                    if r and XSS_TEST_PAYLOAD in r.text:
-                        findings.append({'url': new_url, 'param': param})
-                return findings
-            
-            def check_termux_package(package_name, command_to_check=None):
-                command_to_check = command_to_check or package_name
-                return shutil.which(command_to_check) is not None
-
-            def hf_display_message(message, color='default'):
-                colors = {'red': Fore.RED, 'green': Fore.GREEN, 'yellow': Fore.YELLOW, 'blue': Fore.CYAN, 'default': Style.RESET_ALL}
-                print(f"{colors.get(color, colors['default'])}{message}{Style.RESET_ALL}")
-
-            def hf_get_website_dir(url):
-                parsed_url = urlparse(url)
-                hostname = parsed_url.netloc.replace('www.', '')
-                clean_name = re.sub(r'[^\w\-.]', '_', hostname) or "website_content"
-                return os.path.join(BASE_OSINT_DIR, 'html_inspector', clean_name.lower())
-
-            def hf_download_asset(asset_url, local_dir, base_url):
-                if not asset_url or asset_url.startswith('data:'): return None, None
-                try:
-                    absolute_asset_url = urljoin(base_url, asset_url)
-                    parsed_asset_url = urlparse(absolute_asset_url)
-                    path_part = unquote(parsed_asset_url.path)
-                    filename = os.path.basename(path_part) or f"asset_{abs(hash(absolute_asset_url))}"
-                    filename = re.sub(r'[\\/:*?"<>|]', '_', filename)
-                    local_path = os.path.join(local_dir, filename)
-                    if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
-                        return os.path.relpath(local_path, start=os.path.dirname(local_dir)), absolute_asset_url
-                    response = requests.get(absolute_asset_url, stream=True, timeout=10, verify=False)
-                    response.raise_for_status()
-                    os.makedirs(os.path.dirname(local_path), exist_ok=True)
-                    with open(local_path, 'wb') as f:
-                        for chunk in response.iter_content(chunk_size=8192): f.write(chunk)
-                    return os.path.relpath(local_path, start=os.path.dirname(local_dir)), absolute_asset_url
-                except requests.exceptions.RequestException: return None, None
-                except IOError as e:
-                    hf_display_message(f"Αποτυχία αποθήκευσης στοιχείου {asset_url}: {e}", 'red')
+            def get_base_info(target_url, verbose=False):
+                report = {'target_url': target_url}
+                
+                # 1. Βασική ανάκτηση και ανάλυση URL
+                base, domain = normalize_url(target_url)
+                if not base:
+                    print(f"{Fore.RED}❌ Invalid target URL: {target_url}{Style.RESET_ALL}")
                     return None, None
+                report['base_url'] = base
+                report['domain'] = domain
+                
+                # 2. Πρώτη αίτηση για κεφαλίδες και περιεχόμενο
+                if verbose: print(f"[*] Fetching base URL: {base}")
+                response, error = check_url(base, verbose=verbose)
+                if error:
+                    report['vulnerabilities'] = [{'type': 'Connection Error', 'message': f"Could not connect: {error}"}]
+                    return report, make_dirs(domain)
 
-            def hf_process_html_and_download_assets(html_content, base_url, website_dir):
-                soup = BeautifulSoup(html_content, 'html.parser')
-                downloaded_urls = {}
-                hf_display_message("\nΈναρξη διαδικασίας λήψης στοιχείων...", 'blue')
-                for tag_name, attr_name, subdir, filter_func in ASSET_MAP:
-                    for tag in soup.find_all(tag_name):
-                        if filter_func and not filter_func(tag): continue
-                        asset_url = tag.get(attr_name)
-                        if asset_url and asset_url not in downloaded_urls:
-                            asset_subdir_path = os.path.join(website_dir, subdir)
-                            relative_asset_path, abs_url = hf_download_asset(asset_url, asset_subdir_path, base_url)
-                            if relative_asset_path:
-                                new_path = os.path.join(subdir, os.path.basename(relative_asset_path)).replace('\\', '/')
-                                tag[attr_name] = new_path
-                                downloaded_urls[abs_url] = new_path
-                hf_display_message(f"Ολοκληρώθηκε η λήψη στοιχείων και τροποποίηση HTML. ({len(downloaded_urls)} στοιχεία επεξεργάστηκαν)", 'green')
-                return str(soup)
-
-            def hf_edit_html_in_editor(html_content):
-                if not html_content:
-                    hf_display_message("Δεν υπάρχει περιεχόμενο για επεξεργασία.", 'yellow')
-                    return None
+                report['status_code'] = response.status_code
+                
+                # 3. Πληροφορίες διακομιστή
+                server_header = response.headers.get('Server', 'N/A')
+                report['server_header'] = server_header
+                report['content_language'] = response.headers.get('Content-Language', 'N/A')
+                report['cookies'] = response.cookies.get_dict()
+                
+                # 4. Έλεγχος κεφαλίδων ασφαλείας
+                missing_headers = [h for h in SECURITY_HEADERS if h not in response.headers]
+                report['missing_security_headers'] = missing_headers
+                if missing_headers:
+                    report.setdefault('vulnerabilities', []).append({
+                        'type': 'Security Headers Missing', 
+                        'message': f"Missing headers: {', '.join(missing_headers)}",
+                        'level': 'MEDIUM'
+                    })
+                
+                # 5. Ανάλυση HTML
+                if BS4_AVAILABLE:
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    report['page_title'] = soup.title.string.strip() if soup.title else 'N/A'
+                    
+                    # 6. Ανάκτηση Assets, Συνδέσμων
+                    links, assets = [], []
+                    for link in soup.find_all(['a', 'link', 'script', 'img']):
+                        href_attr = link.get('href') if link.name in ['a', 'link'] else link.get('src')
+                        if not href_attr or href_attr.startswith(('mailto:', '#', 'tel:')): continue
+                        
+                        full_url = urljoin(base, href_attr)
+                        if domain in full_url:
+                            if link.name == 'a':
+                                links.append({'type': 'internal', 'url': full_url})
+                            else:
+                                for tag_name, attr, asset_type, check in ASSET_MAP:
+                                    if link.name == tag_name and check(link):
+                                        assets.append({'type': asset_type, 'url': full_url})
+                                        break
+                        elif full_url.startswith(('http', 'https')):
+                            if link.name == 'a':
+                                links.append({'type': 'external', 'url': full_url})
+                                
+                    report['internal_links'] = list(set(d['url'] for d in links if d['type'] == 'internal'))
+                    report['external_links'] = list(set(d['url'] for d in links if d['type'] == 'external'))
+                    report['assets'] = assets
+                    
+                # 7. Αναζήτηση ευπαθειών SQLi/XSS (απλή)
+                if any(p in response.text.lower() for p in SQL_ERROR_PATTERNS):
+                    report.setdefault('vulnerabilities', []).append({
+                        'type': 'Potential SQLi', 
+                        'message': "SQL error pattern detected in response body.",
+                        'level': 'HIGH'
+                    })
+                
+                # 8. Ανάκτηση IP
                 try:
-                    with tempfile.NamedTemporaryFile(mode='w+', delete=False, encoding='utf-8', suffix='.html') as temp_file:
-                        temp_file_path = temp_file.name
-                        temp_file.write(html_content)
-                    hf_display_message(f"\nΆνοιγμα HTML στον {EDITOR}. Αποθηκεύστε και κλείστε για εφαρμογή αλλαγών.", 'yellow')
-                    subprocess.run([EDITOR, temp_file_path], check=True)
-                    with open(temp_file_path, 'r', encoding='utf-8') as f:
-                        modified_html = f.read()
-                    hf_display_message("Το περιεχόμενο HTML ενημερώθηκε από τον επεξεργαστή.", 'green')
-                    return modified_html
-                except FileNotFoundError: hf_display_message(f"Σφάλμα: Ο επεξεργαστής '{EDITOR}' δεν βρέθηκε.", 'red')
-                except subprocess.CalledProcessError: hf_display_message(f"Ο επεξεργαστής '{EDITOR}' τερμάτισε με σφάλμα. Οι αλλαγές μπορεί να μην αποθηκεύτηκαν.", 'red')
-                except Exception as e: hf_display_message(f"Παρουσιάστηκε σφάλμα κατά την επεξεργασία: {e}", 'red')
-                finally:
-                    if 'temp_file_path' in locals() and os.path.exists(temp_file_path): os.remove(temp_file_path)
-                return None
+                    report['ip_address'] = socket.gethostbyname(domain)
+                except Exception:
+                    report['ip_address'] = 'N/A'
 
-            def hf_save_html_to_file(html_content, target_dir, filename="index.html"):
-                if not html_content:
-                    hf_display_message("Δεν υπάρχει περιεχόμενο για αποθήκευση.", 'yellow')
-                    return None
-                os.makedirs(target_dir, exist_ok=True)
-                filepath = os.path.join(target_dir, filename)
-                try:
-                    with open(filepath, 'w', encoding='utf-8') as f: f.write(html_content)
-                    hf_display_message(f"Το HTML αποθηκεύτηκε επιτυχώς στο '{filepath}'", 'green')
-                    return filepath
-                except IOError as e:
-                    hf_display_message(f"Σφάλμα αποθήκευσης αρχείου: {e}", 'red')
-                    return None
-            
-            def hf_preview_html_in_browser(filepath):
-                if not filepath or not os.path.exists(filepath):
-                    hf_display_message("Δεν βρέθηκε αρχείο HTML για προεπισκόπηση.", 'yellow')
-                    return
-                if check_termux_package("termux-open-url"):
-                    hf_display_message(f"Άνοιγμα προεπισκόπησης στο πρόγραμμα περιήγησης Termux...", 'blue')
-                    subprocess.run(['termux-open-url', f'file://{filepath}'])
-                else:
-                    hf_display_message(f"Άνοιγμα προεπισκόπησης στο προεπιλεγμένο πρόγραμμα περιήγησης συστήματος...", 'blue')
-                    webbrowser.open(f'file://{os.path.abspath(filepath)}')
+                return report, make_dirs(domain)
 
-            def hf_fetch_html(url, verbose=False):
-                response = fetch(url, verbose=verbose)
-                if response: return response.text
-                if verbose: hf_display_message(f"Αποτυχία λήψης HTML για {url}", 'red')
-                return None
 
-            def run_html_finder(initial_url, folder, verbose=False):
-                current_url = initial_url
-                website_dir = hf_get_website_dir(current_url)
-                hf_display_message(f"\n--- Έναρξη Διαδραστικού Επιθεωρητή HTML για {current_url} ---", 'blue')
-                hf_display_message(f"Η τοπική διαδρομή αποθήκευσης θα είναι: {website_dir}", 'yellow')
-                html_content = hf_fetch_html(current_url, verbose)
-                if not html_content:
-                    hf_display_message("Αποτυχία λήψης αρχικού HTML. Δεν είναι δυνατή η συνέχεια.", 'red')
-                    return
-                while True:
-                    hf_display_message("\n--- Επιλογές Επιθεωρητή HTML ---", 'blue')
-                    print("1. Λήψη Στοιχείων & Αποθήκευση HTML (Δημιουργία/Ενημέρωση Τοπικού Αντιγράφου)")
-                    print("2. Επεξεργασία Τρέχοντος HTML (Άνοιγμα σε Επεξεργαστή)")
-                    print("3. Προεπισκόπηση Τρέχοντος HTML σε Πρόγραμμα Περιήγησης")
-                    print("4. Εισαγωγή ΝΕΑΣ URL (Λήψη νέου περιεχομένου)")
-                    print("5. Έξοδος από τον Επιθεωρητή HTML")
-                    choice = input("Εισάγετε την επιλογή σας (1-5): ").strip()
-                    if choice == '1':
-                        modified_html = hf_process_html_and_download_assets(html_content, current_url, website_dir)
-                        if modified_html:
-                            html_content = modified_html
-                            hf_save_html_to_file(html_content, website_dir)
-                    elif choice == '2':
-                        modified_html = hf_edit_html_in_editor(html_content)
-                        if modified_html is not None:
-                            html_content = modified_html
-                            hf_save_html_to_file(html_content, website_dir)
-                    elif choice == '3':
-                        saved_path = hf_save_html_to_file(html_content, website_dir)
-                        if saved_path: hf_preview_html_in_browser(saved_path)
-                    elif choice == '4':
-                        new_url_input = input("Εισάγετε τη νέα URL ιστότοπου: ").strip()
-                        if new_url_input:
-                            normalized_url, _ = normalize_target(new_url_input)
-                            if normalized_url:
-                                current_url, website_dir = normalized_url, hf_get_website_dir(normalized_url)
-                                new_html = hf_fetch_html(current_url, verbose)
-                                if new_html: html_content = new_html
-                                else: hf_display_message("Αποτυχία λήψης νέας URL. Παραμένει το προηγούμενο περιεχόμενο.", 'red')
-                            else: hf_display_message("Παρέχθηκε μη έγκυρη URL.", 'yellow')
-                    elif choice == '5':
-                        hf_display_message("Έξοδος από τον επιθεωρητή HTML.", 'blue')
-                        break
-                    else: hf_display_message("Μη έγκυρη επιλογή. Παρακαλώ εισάγετε αριθμό μεταξύ 1 και 5.", 'red')
+            def run_subdomain_brute(base_report, sub_words, threads, verbose):
+                domain = base_report['domain']
+                subdomains = set()
+                lock = threading.Lock()
 
-            def save_html_report(folder, report):
-                html_template = f"""
-                <html><head><meta charset="utf-8"><title>Αναφορά OSINTDS για {html.escape(report.get('domain', 'Δ/Υ'))}</title>
-                <style>body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen-Sans,Ubuntu,Cantarell,"Helvetica Neue",sans-serif;line-height:1.6;color:#333;max-width:1200px;margin:0 auto;padding:20px;background-color:#f9f9f9}}h1,h2,h3{{color:#2c3e50;border-bottom:2px solid #3498db;padding-bottom:10px}}h1{{font-size:2.5em}}pre{{background-color:#ecf0f1;padding:1em;border:1px solid #bdc3c7;border-radius:5px;white-space:pre-wrap;word-wrap:break-word;font-family:"Courier New",Courier,monospace}}ul,ol{{padding-left:20px}}li{{margin-bottom:5px}}.card{{background-color:#fff;border:1px solid #ddd;border-radius:8px;padding:20px;margin-bottom:20px;box-shadow:0 2px4px rgba(0,0,0,0.1)}}</style>
-                </head><body><h1>Αναφορά OSINTDS για {html.escape(report.get('domain', 'Δ/Υ'))}</h1><div class="card"><h2>Σύνοψη</h2><ul>
-                <li><b>URL Στόχος:</b> {html.escape(report.get('target', 'Δ/Υ'))}</li><li><b>Τελική URL:</b> {html.escape(report.get('final_url', 'Δ/Υ'))}</li>
-                <li><b>Κύρια IP:</b> {html.escape(report.get('primary_ip', 'Δ/Υ'))}</li><li><b>Αντίστροφο DNS:</b> {html.escape(report.get('reverse_dns', 'Δ/Υ'))}</li>
-                <li><b>Κατάσταση HTTP:</b> {html.escape(str(report.get('http_status', 'Δ/Υ')))}</li><li><b>Ανοιχτές Θύρες:</b> {len(report.get('open_ports', []))}</li>
-                <li><b>Υποτομείς που Βρέθηκαν:</b> {len(report.get('subdomains', []))}</li></ul></div>"""
-                sections = {
-                    'Πληροφορίες WHOIS': report.get('whois'),'Εγγραφές DNS': report.get('dns_records'),'Πιστοποιητικό SSL': report.get('ssl'),
-                    'Κεφαλίδες Ασφαλείας HTTP': report.get('security_headers'),'Ανοιχτές Θύρες': report.get('open_ports'),'Υποτομείς': report.get('subdomains'),
-                    'Ευρήματα Καταλόγου/Αρχείου': report.get('dir_hits'),'Wayback Machine': report.get('wayback'),'Ανάλυση Περιεχομένου Αρχικής Σελίδας': report.get('content_info'),
-                    'URL που Ανακαλύφθηκαν (Sitemap/Robots)': report.get('discovered_urls'),'Πιθανά Στοιχεία SQL Injection': report.get('sqli_evidence'),
-                    'Πιθανές Αναστολές XSS': report.get('xss_reflections'),'Μεταφορά Ζώνης DNS (AXFR)': report.get('axfr'),
-                }
-                for title, data in sections.items():
-                    if data:
-                        html_template += f'<div class="card"><h3>{title}</h3>'
-                        if isinstance(data, list) and data:
-                            html_template += '<ol>' + ''.join(f'<li>{html.escape(str(item))}</li>' for item in data) + '</ol>'
-                        elif isinstance(data, dict):
-                            html_template += f'<pre>{html.escape(json.dumps(data, indent=2, default=str))}</pre>'
+                def check_subdomain(sub):
+                    if not sub: return
+                    test_domain = f"{sub}.{domain}"
+                    try:
+                        # Χρήση dns_resolver για έλεγχο A record
+                        if DNS_AVAILABLE:
+                            dns_resolver.resolve(test_domain, 'A', lifetime=2.0)
+                            with lock:
+                                subdomains.add(test_domain)
+                                if verbose: print(f"{Fore.GREEN}[SUB FOUND] {test_domain}{Style.RESET_ALL}")
                         else:
-                            html_template += f'<pre>{html.escape(str(data))}</pre>'
-                        html_template += '</div>'
-                html_template += '</body></html>'
-                save_text(folder, 'report.html', html_template)
+                            # Fallback με socket (λιγότερο αξιόπιστο για wildcard)
+                            socket.gethostbyname(test_domain)
+                            with lock:
+                                subdomains.add(test_domain)
+                                if verbose: print(f"{Fore.GREEN}[SUB FOUND] {test_domain} (Socket){Style.RESET_ALL}")
 
-            def get_user_choice(prompt, default_value):
-                response = input(f'{prompt} [Προεπιλογή: {default_value}] (Enter για προεπιλογή, ή πληκτρολογήστε νέα τιμή): ').strip()
-                return response or default_value
+                    except (dns_resolver.NXDOMAIN, socket.gaierror):
+                        pass # Δεν βρέθηκε
+                    except Exception as e:
+                        if verbose: print(f"[ERROR] Subdomain check failed for {test_domain}: {e}")
 
-            def run_checks(target, threads=DEFAULT_THREADS, full_ports=False, out_formats=('json','html','csv'), dir_words=None, sub_words=None, verbose=False):
-                base, domain = normalize_target(target)
-                folder = make_dirs(domain)
-                report_path = os.path.join(folder, 'report.json')
-                report = {'target': target, 'domain': domain, 'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')}
-                if os.path.exists(report_path):
-                    if input(f"Βρέθηκε υπάρχουσα αναφορά για {domain}. Συνέχιση σάρωσης; (Ν/ο): ").strip().lower() != 'ο':
-                        try:
-                            with open(report_path, 'r', encoding='utf-8') as f: report.update(json.load(f))
-                            print('[ΠΛΗΡΟΦΟΡΙΑ] Συνέχιση σάρωσης από υπάρχουσα αναφορά.')
-                        except (json.JSONDecodeError, IOError) as e: print(f'[ΠΡΟΣΟΧΗ] Δεν ήταν δυνατή η φόρτωση της υπάρχουσας αναφοράς ({e}). Έναρξη από την αρχή.')
-                def run_stage(stage_num, name, key, func, *args, **kwargs):
-                    print(f"[ΣΤΑΔΙΟ {stage_num}/13] {name}...")
-                    if report.get(key) is None:
-                        report[key] = func(*args, **kwargs)
-                        checkpoint_save(folder, report)
-                    else: print(f"[ΠΛΗΡΟΦΟΡΙΑ] Βρέθηκε αποθηκευμένο αποτέλεσμα για '{name}'. Παράβλεψη.")
-                print(f"[ΣΤΑΔΙΟ 1/13] Δοκιμή βασικής URL: {base}")
-                if report.get('http_status') is None or 'unreachable' in str(report.get('http_status')):
-                    r = fetch(base, verbose=verbose)
-                    if not r:
-                        report['http_status'] = 'unreachable'
-                        checkpoint_save(folder, report)
-                        print('[ΣΦΑΛΜΑ] Ο στόχος είναι απρόσιτος.')
-                        return None, None
-                    report['http_status'], report['final_url'], report['headers'] = f"{r.status_code} {r.reason}", r.url, dict(r.headers)
-                    checkpoint_save(folder, report)
-                else:
-                    r = fetch(report.get('final_url', base), verbose=verbose)
-                    if not r:
-                        print('[ΣΦΑΛΜΑ] Ο επαναληφθείς στόχος είναι τώρα απρόσιτος.')
-                        return None, None
-                run_stage(2, "Έλεγχος κεφαλίδων ασφαλείας HTTP", 'security_headers', check_security_headers, r.headers)
-                run_stage(3, "Έλεγχος πληροφοριών WHOIS", 'whois', get_whois_info_osint, domain)
-                run_stage(4, "Ανάλυση DNS και Αντίστροφου DNS", 'dns_records', resolve_all_dns, domain)
-                if 'dns_records' in report and report['dns_records'].get('A'):
-                    report['primary_ip'] = report['dns_records']['A'][0]
-                    run_stage(4, "Εκτέλεση Αντίστροφου DNS", 'reverse_dns', reverse_dns_lookup, report['primary_ip'])
-                run_stage(5, "Έλεγχος Wayback Machine", 'wayback', check_wayback_machine, domain)
-                run_stage(6, "Έλεγχος πιστοποιητικού SSL", 'ssl', ssl_info, domain)
-                run_stage(7, "Ανάλυση περιεχομένου αρχικής σελίδας", 'content_info', extract_content_info, r.text)
-                run_stage(8, "Αναζήτηση sitemap/robots.txt", 'discovered_urls', lambda: sorted(list(set(re.findall(r'<loc>([^<]+)</loc>', sm.text, re.I) for sm_url in ([line.split(':', 1)[1].strip() for line in (fetch(urljoin(base, '/robots.txt')) or type('',(object,),{'text':''})()).text.splitlines() if line.lower().startswith('sitemap:')] or [urljoin(base, '/sitemap.xml')]) if (sm := fetch(sm_url)) and sm.status_code == 200))))
-                run_stage(9, "Εκτέλεση απαρίθμησης υποτομέων", 'subdomains', subdomain_bruteforce_osint, domain, sub_words, threads=threads)
-                run_stage(10, "Προσπάθεια μεταφοράς ζώνης DNS", 'axfr', attempt_zone_transfer, domain)
-                port_list = list(range(1, 65536)) if full_ports else [21, 22, 25, 53, 80, 110, 143, 443, 465, 587, 993, 995, 3306, 5432, 8000, 8080, 8443]
-                run_stage(11, "Εκτέλεση δοκιμής θυρών", 'open_ports', probe_ports_connect, report.get('primary_ip', domain), port_list, threads=max(100, threads))
-                run_stage(12, "Εκτέλεση ωμής βίας καταλόγων", 'dir_hits', dir_bruteforce, base, dir_words, threads=threads, verbose=verbose)
-                print("[ΣΤΑΔΙΟ 13/13] Εκτέλεση ευρετικών ευπαθειών...")
-                if report.get('sqli_evidence') is None or report.get('xss_reflections') is None:
-                    all_links = set(report.get('discovered_urls', [])); soup = BeautifulSoup(r.text, 'html.parser')
-                    for a in soup.find_all('a', href=True):
-                        full_url = urljoin(base, a['href'])
-                        if urlparse(full_url).hostname == domain: all_links.add(full_url)
-                    links_to_scan = list(all_links)[:400]
-                    print(f'[ΠΛΗΡΟΦΟΡΙΑ] Εκτέλεση ευρετικών SQLi/XSS σε {len(links_to_scan)} URL...')
-                    sqli, xss = [], []
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
-                        sql_futures = {executor.submit(basic_sqli_test_on_url, u, verbose): u for u in links_to_scan if '?' in u}
-                        xss_futures = {executor.submit(xss_reflection_test, u, verbose): u for u in links_to_scan if '?' in u}
-                        for f in concurrent.futures.as_completed(sql_futures):
-                            if res := f.result(): sqli.append(res)
-                        for f in concurrent.futures.as_completed(xss_futures):
-                            if res := f.result(): xss.extend(res)
-                    report['sqli_evidence'], report['xss_reflections'] = sqli, xss; checkpoint_save(folder, report)
-                print('\n[ΤΕΛΙΚΟ] Δημιουργία τελικών αρχείων αναφοράς...')
-                if 'json' in out_formats: checkpoint_save(folder, report)
+                if verbose: print(f"[*] Starting subdomain bruteforce on {domain} with {len(sub_words)} words...")
+                with ThreadPoolExecutor(max_workers=threads) as executor:
+                    list(executor.map(check_subdomain, sub_words))
+                
+                base_report['subdomains'] = sorted(list(subdomains))
+
+            def run_directory_brute(base_report, dir_words, threads, verbose):
+                base_url = base_report['base_url']
+                discovered_paths = []
+                lock = threading.Lock()
+
+                def check_path(path):
+                    if not path: return
+                    test_url = f"{base_url}/{path.lstrip('/')}"
+                    response, error = check_url(test_url, verbose=verbose, allow_redirects=True)
+                    
+                    if response and (response.status_code == 200 or 300 <= response.status_code < 400):
+                        # 200 (OK), 301 (Moved Permanently), 302 (Found)
+                        with lock:
+                            discovered_paths.append({'path': path, 'url': response.url, 'status': response.status_code})
+                            if verbose or response.status_code == 200:
+                                print(f"{Fore.GREEN}[PATH FOUND] {test_url} (Code: {response.status_code}){Style.RESET_ALL}")
+                    elif error and verbose:
+                        print(f"[ERROR] Path check failed for {test_url}: {error}")
+                
+                if verbose: print(f"[*] Starting directory bruteforce on {base_url} with {len(dir_words)} paths...")
+                with ThreadPoolExecutor(max_workers=threads) as executor:
+                    list(executor.map(check_path, dir_words))
+
+                base_report['discovered_paths'] = discovered_paths
+
+
+            def run_checks(target, threads, full_ports, out_formats, dir_words, sub_words, verbose):
+                
+                report, folder = get_base_info(target, verbose)
+                if not report: return None, None
+                
+                if 'sub' in full_ports:
+                    run_subdomain_brute(report, sub_words, threads, verbose)
+
+                if 'dir' in full_ports:
+                    run_directory_brute(report, dir_words, threads, verbose)
+                
+                print(f"\n{Fore.GREEN}✅ OSINTDS Scan Complete.{Style.RESET_ALL}")
+                print(f"   Results saved in: {folder}")
+                
+                if 'json' in out_formats:
+                    save_json(folder, 'report.json', report)
+                if 'html' in out_formats:
+                    generate_html_report(report, folder)
                 if 'csv' in out_formats:
-                    if report.get('subdomains'): save_csv(folder, 'subdomains.csv', report['subdomains'], headers=['Υποτομέας', 'IP'])
-                    if report.get('dir_hits'): save_csv(folder, 'dirs.csv', report['dir_hits'], headers=['Διαδρομή', 'Κατάσταση', 'Τελική URL'])
-                if 'html' in out_formats: save_html_report(folder, report)
-                print('\n--- Σύνοψη Ολοκλήρωσης Σάρωσης ---'); print(f"Στόχος: {report['target']}"); print(f"Κύρια IP: {report.get('primary_ip', 'Δ/Υ')}"); print(f"Κατάσταση HTTP: {report['http_status']}"); print(f"Ανοιχτές θύρες ({len(report.get('open_ports',[]))} βρέθηκαν): {report.get('open_ports', 'Δ/Υ')}"); print(f"Υποτομείς που βρέθηκαν: {len(report.get('subdomains',[]))}"); print(f"Ευρήματα καταλόγων: {len(report.get('dir_hits',[]))}"); print(f"Πιθανό SQLi: {len(report.get('sqli_evidence',[]))}"); print(f"Πιθανό XSS: {len(report.get('xss_reflections',[]))}"); print(f'\nΑποθηκεύτηκαν τα αποτελέσματα στο: {folder}')
+                    # Αποθήκευση λίστας συνδέσμων ως CSV
+                    link_rows = [[link] for link in report.get('internal_links', []) + report.get('external_links', [])]
+                    save_csv(folder, 'links.csv', link_rows, ['URL'])
+                
                 return report, folder
 
-            # --- Κύριο διαδραστικό σημείο εισόδου για OSINTDS ---
-            print('--- Διαδραστικός Σαρωτής OSINTDS ---')
-            target_input = input('Εισάγετε τομέα ή URL στόχο (π.χ., example.com): ').strip()
-            if not target_input:
-                print('Δεν παρέχθηκε στόχος. Έξοδος.')
+
+            # --- ΤΕΛΟΣ ΛΟΓΙΚΗΣ OSINTDS ---
+
+            # --- Είσοδος Χρήστη OSINTDS ---
+            if not REQUESTS_AVAILABLE:
+                print(f"{Fore.RED}❌ Η ενότητα 'requests' απαιτείται για τη λειτουργία OSINTDS.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
                 return
-            base, domain = normalize_target(target_input)
-            if not domain:
-                print('Μη έγκυρη μορφή στόχου. Έξοδος.')
-                return
-            try: threads = int(get_user_choice('Αριθμός νημάτων;', DEFAULT_THREADS))
-            except ValueError: threads = DEFAULT_THREADS
-            full_ports = input('Πλήρης σάρωση θυρών (1-65535); Πολύ αργή. (ν/Ο): ').strip().lower().startswith('ν')
-            dir_wordlist_path = get_user_choice('Διαδρομή προς λίστα λέξεων καταλόγου;', DIR_WORDLIST_PATH)
-            sub_wordlist_path = get_user_choice('Διαδρομή προς λίστα λέξεων υποτομέων;', SUB_WORDLIST_PATH)
-            verbose = input('Ενεργοποίηση λειτουργίας λεπτομερειών για αποσφαλμάτωση; (ν/Ο): ').strip().lower().startswith('ν')
+
+            print(f"{Fore.CYAN}--- ΡΥΘΜΙΣΕΙΣ OSINTDS ---{Style.RESET_ALL}")
+            target_input = get_user_choice('Εισάγετε στόχο URL ή τομέα', 'https://example.com')
+            threads = int(get_user_choice(f'Αριθμός νημάτων (1-{self.max_workers})', str(min(25, self.max_workers))))
+            full_ports_raw = get_user_choice('Ενεργοποίηση brute-force (sub, dir); (comma-separated)', 'dir')
+            full_ports = {p.strip() for p in full_ports_raw.lower().split(',')}
+
+            # Λήψη διαδρομών λιστών λέξεων
+            dir_wordlist_path = get_user_choice('Διαδρομή προς τη λίστα λέξεων καταλόγων;', DIR_WORDLIST_PATH)
+            sub_wordlist_path = get_user_choice('Διαδρομή προς τη λίστα λέξεων υποτομέων;', SUB_WORDLIST_PATH)
+            
+            # Ενεργοποίηση λεπτομερούς λειτουργίας
+            verbose = input(f'{Fore.WHITE}Ενεργοποίηση λεπτομερούς λειτουργίας για εντοπισμό σφαλμάτων; (ν/Ο): {Style.RESET_ALL}').strip().lower().startswith('y')
+
             out_formats_raw = get_user_choice('Μορφές εξόδου (json,html,csv);', 'json,html,csv')
             out_formats = {f.strip() for f in out_formats_raw.split(',') if f.strip()}
+
             dir_words, sub_words = read_wordlist(dir_wordlist_path), read_wordlist(sub_wordlist_path)
-            print('\nΑΠΑΓΟΡΕΥΣΗ: Σαρώστε μόνο στόχους που σας ανήκουν ή έχετε ρητή άδεια να δοκιμάσετε.')
-            print('Έναρξη σάρωσης OSINT. Αυτό μπορεί να πάρει λίγο χρόνο...')
+
+            print(f"\n{Fore.YELLOW}ΑΠΟΠΟΙΗΣΗ ΕΥΘΥΝΗΣ: Σαρώστε μόνο στόχους που σας ανήκουν ή έχετε ρητή άδεια για δοκιμή.{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}Εκκίνηση σάρωσης OSINT. Αυτό μπορεί να πάρει λίγο χρόνο...{Style.RESET_ALL}")
+            
+            # Εκτέλεση του σαρωτή
             report, folder = run_checks(target=target_input, threads=threads, full_ports=full_ports, out_formats=out_formats, dir_words=dir_words, sub_words=sub_words, verbose=verbose)
-            if not report:
-                print("\nΗ σάρωση δεν μπόρεσε να ολοκληρωθεί.")
-                return
-            print("\n" + "="*50); print("--- Μετα-Σάρωση Επιθεωρητής/Επεξεργαστής HTML ---")
-            if input("Εκτέλεση Διαδραστικού Λήπτη/Επεξεργαστή HTML στη URL στόχο; (ν/Ο): ").strip().lower().startswith('ν'):
-                final_url = report.get('final_url') or target_input
-                if 'unreachable' not in str(report.get('http_status', '')):
-                    run_html_finder(final_url, folder, verbose)
-                else: print("[ΠΡΟΣΟΧΗ] Ο στόχος ήταν απρόσιτος, παράβλεψη Επιθεωρητή HTML.")
-            print("="*50)
 
-            # Αφού ολοκληρωθεί το εργαλείο, ερώτηση για επιστροφή στο κύριο μενού
-            input(f"\n{Fore.YELLOW}Η σάρωση OSINTDS ολοκληρώθηκε. Πατήστε Enter για επιστροφή στο κύριο μενού...{Style.RESET_ALL}")
+            if folder and 'html' in out_formats and webbrowser.get('w3m').name != 'w3m': # w3m είναι ο προεπιλεγμένος του Termux
+                 try:
+                     report_path = os.path.join(folder, 'report.html')
+                     if os.path.exists(report_path):
+                         print(f"\n{Fore.YELLOW}[*] Opening HTML report in default browser: {report_path}{Style.RESET_ALL}")
+                         webbrowser.open_new_tab(f'file://{report_path}')
+                 except Exception as e:
+                     print(f"[WARNING] Could not open web browser automatically: {e}")
 
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+            
 
-        def get_whois_info(self):
-            print(f"\n{Fore.CYAN}👤 ΑΝΑΖΗΤΗΣΗ WHOIS{Style.RESET_ALL}")
-            if not WHOIS_AVAILABLE:
-                print(f"{Fore.RED}❌ Το module 'python-whois' δεν είναι διαθέσιμο.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+        def directory_bruteforcer(self):
+            """Directory and file bruteforcer - ΑΠΟΔΟΤΙΚΗ ΠΙΣΙΝΑ ΝΗΜΑΤΩΝ"""
+            print(f"\n{Fore.CYAN}📁 BRUTEFORCER ΚΑΤΑΛΟΓΩΝ{Style.RESET_ALL}")
+            if not REQUESTS_AVAILABLE:
+                print(f"{Fore.RED}❌ Η ενότητα 'requests' απαιτείται.{Style.RESET_ALL}")
                 return
 
-            domain = input(f"{Fore.WHITE}Εισάγετε τομέα για εύρεση πληροφοριών WHOIS: {Style.RESET_ALL}").strip()
-            if not domain: return
+            base_url = input(f"{Fore.WHITE}Εισάγετε βασικό URL (π.χ., http://example.com): {Style.RESET_ALL}").strip()
+            if not base_url.startswith(('http://', 'https://')):
+                base_url = 'http://' + base_url
+            if base_url.endswith('/'):
+                base_url = base_url[:-1]
 
-            try:
-                w = whois.whois(domain)
-                if not w:
-                    print(f"{Fore.RED}❌ Δεν βρέθηκαν πληροφορίες WHOIS για {domain}.{Style.RESET_ALL}")
+            common_paths = [ # Μια μικρή ενσωματωμένη λίστα
+                'admin', 'administrator', 'login', 'wp-admin', 'phpmyadmin', 'cpanel', 
+                'webmail', 'backup', 'test', 'dev', 'api', 'uploads', 'images', 'css', 
+                'js', 'includes', 'logs', 'config', 'install', 'phpinfo.php', 'info.php',
+                '.git', '.svn', 'robots.txt', 'sitemap.xml'
+            ]
+            
+            list_choice = input(f"{Fore.WHITE}Χρήση (1) Κοινής ενσωματωμένης λίστας ή (2) Προσαρμοσμένης λίστας λέξεων (αρχείο); (1/2): {Style.RESET_ALL}").strip()
+            wordlist = common_paths
+            if list_choice == '2':
+                wordlist_path = input(f"{Fore.WHITE}Εισάγετε διαδρομή αρχείου λίστας λέξεων: {Style.RESET_ALL}").strip()
+                try:
+                    with open(wordlist_path, 'r') as f:
+                        wordlist = [line.strip() for line in f if line.strip()]
+                    if not wordlist:
+                        print(f"{Fore.RED}❌ Η προσαρμοσμένη λίστα λέξεων είναι κενή.{Style.RESET_ALL}")
+                        return
+                except FileNotFoundError:
+                    print(f"{Fore.RED}❌ Το αρχείο λίστας λέξεων δεν βρέθηκε.{Style.RESET_ALL}")
                     return
 
-                print(f"\n{Fore.GREEN}📋 Πληροφορίες WHOIS για {domain}:{Style.RESET_ALL}")
-                print("="*60)
-                if w.domain_name: print(f"  Τομέας: {w.domain_name}")
-                if w.registrar: print(f"  Μητρώο: {w.registrar}")
-                if w.creation_date: 
-                    if isinstance(w.creation_date, list):
-                        print(f"  Ημερομηνία Δημιουργίας: {w.creation_date[0]}")
-                    else:
-                        print(f"  Ημερομηνία Δημιουργίας: {w.creation_date}")
-                if w.expiration_date:
-                    if isinstance(w.expiration_date, list):
-                        print(f"  Ημερομηνία Λήξης: {w.expiration_date[0]}")
-                    else:
-                        print(f"  Ημερομηνία Λήξης: {w.expiration_date}")
-                if w.name_servers: 
-                    if isinstance(w.name_servers, list):
-                        print(f"  Διακομιστές Ονομάτων: {', '.join(w.name_servers)}")
-                    else:
-                        print(f"  Διακομιστές Ονομάτων: {w.name_servers}")
-                if w.status: 
-                    if isinstance(w.status, list):
-                        print(f"  Κατάσταση: {', '.join(w.status)}")
-                    else:
-                        print(f"  Κατάσταση: {w.status}")
-                if w.emails: print(f"  Email Επαφής: {w.emails}")
-                if w.org: print(f"  Οργανισμός: {w.org}")
-                if w.country: print(f"  Χώρα: {w.country}")
-                print("="*60)
+            print(f"[*] Εκκίνηση directory bruteforce στο {base_url} με {len(wordlist)} διαδρομές και {self.max_workers} νήματα εργασίας...")
 
-                self.record_audit_finding(domain, 'Αναζήτηση WHOIS', 'Ανακτήθηκαν πληροφορίες WHOIS', f'Βρέθηκαν πληροφορίες WHOIS για {domain}', 'Ενημερωτικό')
-
-            except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα κατά την αναζήτηση WHOIS: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-
-        def get_dns_info(self):
-            print(f"\n{Fore.CYAN}🌐 ΑΝΑΖΗΤΗΣΗ ΠΛΗΡΟΦΟΡΙΩΝ DNS{Style.RESET_ALL}")
-            if not DNS_AVAILABLE:
-                print(f"{Fore.RED}❌ Το module 'dnspython' δεν είναι διαθέσιμο.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-                return
-
-            domain = input(f"{Fore.WHITE}Εισάγετε τομέα για εύρεση πληροφοριών DNS: {Style.RESET_ALL}").strip()
-            if not domain: return
+            found_paths = {}
+            lock = threading.Lock()
+            
+            def check_path(path):
+                url = f"{base_url}/{path.lstrip('/')}"
+                try:
+                    response = requests.get(url, headers=HEADERS, timeout=self.scan_timeout, verify=False, allow_redirects=True)
+                    if response.status_code in [200, 301, 302]: # Επιτυχία ή ανακατεύθυνση
+                        with lock:
+                            if url not in found_paths: # Μόνο η πρώτη ανακαλύψεις
+                                found_paths[url] = response.status_code
+                                print(f"{Fore.GREEN}[+] Βρέθηκε ({response.status_code}): {url}{Style.RESET_ALL}")
+                                self.record_audit_finding(
+                                    base_url, 'Directory Bruteforce', f'Found Path {path}',
+                                    f'Path returned status code {response.status_code}: {url}', 
+                                    'Medium' if response.status_code == 200 else 'Informational'
+                                )
+                except requests.exceptions.RequestException:
+                    pass # Αγνοήστε τα σφάλματα σύνδεσης
 
             try:
-                resolver = dns_resolver.Resolver()
-                resolver.timeout = 5
-                resolver.lifetime = 5
-                
-                print(f"\n{Fore.GREEN}📋 Πληροφορίες DNS για {domain}:{Style.RESET_ALL}")
-                print("="*60)
-                
-                record_types = ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA']
-                
-                for record_type in record_types:
-                    try:
-                        answers = resolver.resolve(domain, record_type)
-                        print(f"  {record_type}:")
-                        for rdata in answers:
-                            print(f"    {rdata}")
-                    except dns_resolver.NoAnswer:
-                        print(f"  {record_type}: Δεν βρέθηκαν εγγραφές")
-                    except dns_resolver.NXDOMAIN:
-                        print(f"  {record_type}: Τομέας δεν υπάρχει")
-                    except dns_resolver.Timeout:
-                        print(f"  {record_type}: Χρονικό όριο")
-                    except Exception as e:
-                        print(f"  {record_type}: Σφάλμα - {e}")
-                print("="*60)
-                
-                self.record_audit_finding(domain, 'Αναζήτηση DNS', 'Ανακτήθηκαν πληροφορίες DNS', f'Βρέθηκαν εγγραφές DNS για {domain}', 'Ενημερωτικό')
-
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    list(executor.map(check_path, wordlist))
             except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα κατά την αναζήτηση DNS: {e}{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Σφάλμα κατά τη διάρκεια του bruteforce: {e}{Style.RESET_ALL}")
+                
+            print(f"\n{Fore.GREEN}✅ Η Σάρωση Bruteforce Ολοκληρώθηκε.{Style.RESET_ALL}")
+            if not found_paths:
+                print(f"{Fore.YELLOW}Δεν βρέθηκαν κοινοί κατάλογοι.{Style.RESET_ALL}")
 
-        # --- Εργαλεία Ασφαλείας (Χωρίς Root) ---
-        def run_ssh_brute_force(self):
-            print(f"\n{Fore.CYAN}🔓 ΕΡΓΑΛΕΙΟ BRUTE FORCE SSH (Για δοκιμές αυθεντικοποίησης){Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}ΣΗΜΕΙΩΣΗ: Χρησιμοποιήστε ΜΟΝΟ σε συστήματα που σας ανήκουν ή έχετε άδεια να δοκιμάσετε.{Style.RESET_ALL}")
-            
-            if not PARAMIKO_AVAILABLE:
-                print(f"{Fore.RED}❌ Το module 'paramiko' δεν είναι διαθέσιμο.{Style.RESET_ALL}")
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def ssh_bruteforcer(self):
+            print(f"\n{Fore.CYAN}🔐 SSH BRUTEFORCER (Χωρίς Banner){Style.RESET_ALL}")
+            if not PARAMIKO_AVAILABLE or not paramiko:
+                print(f"{Fore.RED}❌ Η ενότητα 'paramiko' απαιτείται για τη λειτουργικότητα SSH.{Style.RESET_ALL}")
                 return
 
-            target = input(f"{Fore.WHITE}Εισάγετε IP/όνομα υπολογιστή SSH: {Style.RESET_ALL}").strip()
-            if not target: return
-            
-            port_input = input(f"{Fore.WHITE}Θύρα SSH [22]: {Style.RESET_ALL}").strip()
+            target = input(f"{Fore.WHITE}Εισάγετε στόχο SSH IP/Όνομα κεντρικού υπολογιστή: {Style.RESET_ALL}").strip()
+            port_input = input(f"{Fore.WHITE}Εισάγετε θύρα SSH (προεπιλογή 22): {Style.RESET_ALL}").strip()
             port = int(port_input) if port_input.isdigit() else 22
             
-            usernames_input = input(f"{Fore.WHITE}Λίστα ονομάτων χρήστη (διαχωρισμός με κόμμα) [admin,root]: {Style.RESET_ALL}").strip()
-            usernames = [u.strip() for u in usernames_input.split(',')] if usernames_input else ['admin', 'root']
+            username_input = input(f"{Fore.WHITE}Εισάγετε Όνομα Χρήστη (ή διαδρομή αρχείου): {Style.RESET_ALL}").strip()
+            password_input = input(f"{Fore.WHITE}Εισάγετε Κωδικό Πρόσβασης (ή διαδρομή αρχείου): {Style.RESET_ALL}").strip()
             
-            passwords_input = input(f"{Fore.WHITE}Λίστα κωδικών πρόσβασης (διαχωρισμός με κόμμα) [admin,123456]: {Style.RESET_ALL}").strip()
-            passwords = [p.strip() for p in passwords_input.split(',')] if passwords_input else ['admin', '123456']
-            
-            print(f"\n[*] Έναρξη δοκιμής SSH Brute Force στο {target}:{port}...")
-            print(f"[*] Ονόματα χρήστη: {', '.join(usernames)}")
-            print(f"[*] Κωδικοί πρόσβασης: {', '.join(passwords)}")
-            
-            found_credentials = []
-            total_attempts = len(usernames) * len(passwords)
-            current_attempt = 0
-            
-            for username in usernames:
-                for password in passwords:
-                    current_attempt += 1
-                    print(f"[{current_attempt}/{total_attempts}] Δοκιμή {username}:{password}")
-                    
+            # Βοηθητική συνάρτηση για τη φόρτωση λιστών
+            def load_creds(input_str, default_list):
+                if os.path.exists(input_str):
                     try:
-                        client = paramiko.SSHClient()
-                        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                        client.connect(target, port=port, username=username, password=password, timeout=10)
-                        
-                        print(f"\n{Fore.GREEN}✅ ΒΡΕΘΗΚΑΝ ΕΠΙΤΥΧΗΣ ΔΙΑΠΙΣΤΕΥΤΙΚΑ!{Style.RESET_ALL}")
-                        print(f"   Χρήστης: {username}")
-                        print(f"   Κωδικός: {password}")
-                        found_credentials.append((username, password))
-                        client.close()
-                        break  # Σταματήστε για αυτό το όνομα χρήστη αν βρεθεί
-                        
-                    except paramiko.AuthenticationException:
-                        pass  # Αποτυχία πιστοποίησης, συνέχεια
+                        with open(input_str, 'r') as f:
+                            return [line.strip() for line in f if line.strip()]
                     except Exception as e:
-                        print(f"{Fore.RED}❌ Σφάλμα σύνδεσης: {e}{Style.RESET_ALL}")
-                        break
-                    finally:
-                        client.close() if 'client' in locals() else None
-            
-            if found_credentials:
-                print(f"\n{Fore.GREEN}🎯 ΒΡΕΘΗΚΑΝ ΕΠΙΤΥΧΗΣ ΔΙΑΠΙΣΤΕΥΤΙΚΑ:{Style.RESET_ALL}")
-                for user, pwd in found_credentials:
-                    print(f"   {user}:{pwd}")
-                self.record_audit_finding(target, 'SSH Brute Force', 'Επιτυχής εύρεση διαπιστευτηρίων', f'Βρέθηκαν διαπιστευτήρια: {found_credentials}', 'ΥΨΗΛΟ')
-            else:
-                print(f"\n{Fore.RED}❌ Δεν βρέθηκαν έγκυρα διαπιστευτήρια.{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                        print(f"{Fore.RED}❌ Σφάλμα φόρτωσης αρχείου: {e}{Style.RESET_ALL}")
+                        return []
+                elif not input_str:
+                    return default_list.split(',')
+                else:
+                    return [input_str]
 
-        def run_vulnerability_scanner(self):
-            print(f"\n{Fore.CYAN}🛡️ ΕΡΓΑΛΕΙΟ ΣΚΑΝΙΣΜΑΤΟΣ ΕΥΠΑΘΕΙΩΝ{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}ΣΗΜΕΙΩΣΗ: Αυτό είναι ένα βασικό εργαλείο ελέγχου ασφαλείας.{Style.RESET_ALL}")
-            
-            target = input(f"{Fore.WHITE}Εισάγετε URL ή IP για έλεγχο ευπάθειας: {Style.RESET_ALL}").strip()
-            if not target: return
-            
-            # Προσθήκη προθέματος http:// αν λείπει
-            if not target.startswith(('http://', 'https://')):
-                target = 'http://' + target
-            
-            print(f"\n[*] Έναρξη σάρωσης ευπάθειας για {target}...")
-            vulnerabilities = []
-            
-            try:
-                # 1. Έλεγχος για κοινές ευάλωτες θύρες
-                common_vuln_ports = [21, 22, 23, 80, 443, 8080, 8443]
-                for port in common_vuln_ports:
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                            sock.settimeout(2)
-                            if sock.connect_ex((urlparse(target).hostname, port)) == 0:
-                                vulnerabilities.append((port, f"Θύρα {port} είναι ανοιχτή", "ΜΕΣΑΙΟ"))
-                    except:
-                        pass
-                
-                # 2. Έλεγχος HTTP Security Headers
-                if REQUESTS_AVAILABLE:
-                    try:
-                        response = requests.get(target, timeout=10, verify=False)
-                        headers = response.headers
-                        
-                        security_headers = {
-                            'Strict-Transport-Security': 'Μη ρυθμισμένο HSTS',
-                            'Content-Security-Policy': 'Μη ρυθμισμένο CSP', 
-                            'X-Frame-Options': 'Μη ρυθμισμένο X-Frame-Options',
-                            'X-Content-Type-Options': 'Μη ρυθμισμένο X-Content-Type-Options'
-                        }
-                        
-                        for header, desc in security_headers.items():
-                            if header not in headers:
-                                vulnerabilities.append((header, desc, "ΧΑΜΗΛΟ"))
-                    except:
-                        pass
-                
-                # 3. Έλεγχος για πιθανές ευπάθειες πληροφοριών
-                info_leak_paths = ['/.git/', '/.env', '/backup/', '/admin/', '/phpinfo.php']
-                for path in info_leak_paths:
-                    try:
-                        test_url = target.rstrip('/') + path
-                        response = requests.get(test_url, timeout=5, verify=False)
-                        if response.status_code == 200:
-                            vulnerabilities.append((path, f"Πιθανή διαρροή πληροφοριών σε {path}", "ΜΕΣΑΙΟ"))
-                    except:
-                        pass
-                        
-            except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα κατά τη σάρωση: {e}{Style.RESET_ALL}")
-            
-            # Εμφάνιση αποτελεσμάτων
-            if vulnerabilities:
-                print(f"\n{Fore.RED}🚨 ΒΡΕΘΗΚΑΝ ΕΥΠΑΘΕΙΕΣ:{Style.RESET_ALL}")
-                for vuln in vulnerabilities:
-                    color = Fore.RED if vuln[2] == "ΥΨΗΛΟ" else Fore.YELLOW if vuln[2] == "ΜΕΣΑΙΟ" else Fore.WHITE
-                    print(f"  {color}• {vuln[0]}: {vuln[1]} [{vuln[2]}]{Style.RESET_ALL}")
-                    self.record_audit_finding(target, 'Σάρωση Ευπάθειας', vuln[1], f'Βρέθηκε ευπάθεια: {vuln[0]} - {vuln[1]}', vuln[2])
-            else:
-                print(f"\n{Fore.GREEN}✅ Δεν βρέθηκαν προφανείς ευπάθειες.{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            usernames = load_creds(username_input, self.config['common_usernames'])
+            passwords = load_creds(password_input, self.config['common_passwords'])
 
-        # --- Εργαλεία Παρακολούθησης & Καταγραφής (Χωρίς Root) ---
-        def view_audit_logs(self):
-            print(f"\n{Fore.CYAN}📋 ΠΡΟΒΟΛΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ ΕΛΕΓΧΩΝ ΑΣΦΑΛΕΙΑΣ{Style.RESET_ALL}")
-            
-            try:
-                with sqlite3.connect(self.audit_db_name) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        SELECT id, timestamp, target, audit_type, finding_title, severity 
-                        FROM audit_results ORDER BY timestamp DESC LIMIT 50
-                    ''')
-                    results = cursor.fetchall()
+            if not usernames or not passwords:
+                print(f"{Fore.RED}❌ Δεν υπάρχουν ονόματα χρηστών ή κωδικοί πρόσβασης για δοκιμή.{Style.RESET_ALL}")
+                return
+
+            print(f"[*] Προσπάθεια brute-force στο {target}:{port} με {len(usernames)} ονόματα χρηστών και {len(passwords)} κωδικούς πρόσβασης... (Max Workers: {self.max_workers})")
+
+            found_password = None
+            lock = threading.Lock()
+
+            def attempt_login(user_pass_tuple):
+                nonlocal found_password
+                user, password = user_pass_tuple
+
+                if found_password: return # Διακοπή αν βρέθηκε
+
+                client = paramiko.SSHClient()
+                client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                
+                try:
+                    # Απενεργοποιήστε την προσπάθεια φόρτωσης κλειδιών συστήματος για ταχύτερη σύνδεση
+                    client.connect(target, port=port, username=user, password=password, timeout=1.0, look_for_keys=False, allow_agent=False)
                     
-                    if not results:
-                        print(f"{Fore.YELLOW}Δεν υπάρχουν καταγεγραμμένα αποτελέσματα ελέγχων ακόμη.{Style.RESET_ALL}")
-                        input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                    with lock:
+                        if not found_password:
+                            found_password = (user, password)
+                            print(f"\n{Fore.GREEN}🎉 [ΕΠΙΤΥΧΙΑ] Τα διαπιστευτήρια βρέθηκαν! {user}:{password}{Style.RESET_ALL}")
+                            self.record_audit_finding(
+                                target, 'SSH Bruteforce', 'Successful Login',
+                                f'Credentials found: {user}:{password}', 'Critical'
+                            )
+                            # Ανάγκαση τερματισμού
+                            raise Exception("SUCCESS_BREAK")
+
+                except paramiko.AuthenticationException:
+                    with lock:
+                        print(f"  [FAIL] Αποτυχία ελέγχου ταυτότητας: {user}:{password}")
+                except Exception as e:
+                    if str(e) == "SUCCESS_BREAK":
                         return
-                    
-                    print(f"\n{Fore.GREEN}📊 Τελευταία {len(results)} Αποτελέσματα Ελέγχων:{Style.RESET_ALL}")
-                    print("="*100)
-                    print(f"{'Ημερομηνία':<20} {'Στόχος':<25} {'Τύπος':<15} {'Εύρημα':<25} {'Βαρύτητα':<10}")
-                    print("-"*100)
-                    
-                    for row in results:
-                        id, timestamp, target, audit_type, title, severity = row
-                        # Περικοπή μεγάλων πεδίων για ευανάγνωστη εμφάνιση
-                        target_disp = (target[:22] + '...') if len(target) > 25 else target
-                        title_disp = (title[:22] + '...') if len(title) > 25 else title
-                        audit_type_disp = (audit_type[:12] + '...') if len(audit_type) > 15 else audit_type
+                    with lock:
+                        if 'timeout' in str(e).lower() or 'refused' in str(e).lower():
+                            print(f"  [ERROR] Σφάλμα σύνδεσης/χρονομέτρησης για {target}:{port} - {e}")
+                        # else: # Εξαιρέσεις γενικά
+                            # print(f"  [ERROR] Unhandled SSH error for {user}:{password}: {e}")
+                finally:
+                    client.close()
+
+            try:
+                credentials_to_test = [(u, p) for u in usernames for p in passwords]
+                
+                # Δημιουργία μιας πισίνας νήματος για τη δοκιμή διαπιστευτηρίων
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                    # Χρήση list() για να περιμένουμε να τελειώσουν όλες οι εργασίες
+                    list(executor.map(attempt_login, credentials_to_test))
+
+            except Exception as e:
+                # Μόνο για να πιάσουμε το SUCCESS_BREAK αν πεταχτεί από το map
+                if str(e) != "SUCCESS_BREAK":
+                    print(f"{Fore.RED}❌ Unhandled error during SSH bruteforce: {e}{Style.RESET_ALL}")
+
+            if not found_password:
+                print(f"{Fore.RED}❌ Δεν βρέθηκε έγκυρος κωδικός πρόσβασης στην κοινή λίστα.{Style.RESET_ALL}")
+
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        # --- Διαχείριση Δεδομένων & Βάσης Δεδομένων (Δεν απαιτείται Root) ---
+        def view_audit_logs(self):
+            print(f"\n{Fore.CYAN}📊 ΑΡΧΕΙΑ ΚΑΤΑΓΡΑΦΗΣ & ΕΥΡΗΜΑΤΑ ΕΛΕΓΧΟΥ{Style.RESET_ALL}")
+            with sqlite3.connect(self.audit_db_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT target, audit_type, finding_title, description, severity, timestamp 
+                    FROM audit_results 
+                    ORDER BY timestamp DESC 
+                    LIMIT 50
+                ''')
+                rows = cursor.fetchall()
+
+                if not rows:
+                    print(f"{Fore.YELLOW}Δεν υπάρχουν ευρήματα ελέγχου ακόμη.{Style.RESET_ALL}")
+                else:
+                    print(f"{Fore.GREEN}Πρόσφατα Ευρήματα Ελέγχου:{Style.RESET_ALL}")
+                    for row in rows:
+                        target, audit_type, title, desc, severity, timestamp = row
+                        color = Fore.RED if severity == 'Critical' else Fore.YELLOW if severity in ['High', 'Medium'] else Fore.GREEN
                         
-                        # Χρώμα βάσει βαρύτητας
-                        severity_color = Fore.RED if severity == 'ΥΨΗΛΟ' else Fore.YELLOW if severity == 'ΜΕΣΑΙΟ' else Fore.GREEN
-                        
-                        print(f"{timestamp[:19]:<20} {target_disp:<25} {audit_type_disp:<15} {title_disp:<25} {severity_color}{severity:<10}{Style.RESET_ALL}")
-                    
-                    print("="*100)
-                    
-                    # Επιλογή λεπτομερειών
-                    choice = input(f"\n{Fore.WHITE}Εισάγετε ID ευρήματος για λεπτομέρειες (ή Enter για έξοδο): {Style.RESET_ALL}").strip()
-                    if choice and choice.isdigit():
-                        cursor.execute('SELECT * FROM audit_results WHERE id = ?', (int(choice),))
-                        detail = cursor.fetchone()
-                        if detail:
-                            print(f"\n{Fore.CYAN}📄 ΛΕΠΤΟΜΕΡΕΙΕΣ ΕΥΡΗΜΑΤΟΣ ID {detail[0]}:{Style.RESET_ALL}")
-                            print("="*60)
-                            print(f"  Στόχος: {detail[1]}")
-                            print(f"  Τύπος Ελέγχου: {detail[2]}")
-                            print(f"  Τίτλος Ευρήματος: {detail[3]}")
-                            print(f"  Περιγραφή: {detail[4]}")
-                            print(f"  Βαρύτητα: {detail[5]}")
-                            print(f"  Χρονική σήμανση: {detail[6]}")
-                            print("="*60)
-            
-            except sqlite3.Error as e:
-                print(f"{Fore.RED}❌ Σφάλμα πρόσβασης βάσης δεδομένων: {e}{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                        print(f"\n{color}[{severity}] {audit_type} - {title}{Style.RESET_ALL}")
+                        print(f"  Στόχος: {target}")
+                        print(f"  Περιγραφή: {desc}")
+                        print(f"  Ώρα: {timestamp}")
+
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def export_audit_logs(self):
-            print(f"\n{Fore.CYAN}💾 ΕΞΑΓΩΓΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ ΕΛΕΓΧΩΝ{Style.RESET_ALL}")
-            
-            export_file = os.path.join(self.save_dir, f"audit_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+            print(f"\n{Fore.CYAN}💾 ΕΞΑΓΩΓΗ ΑΡΧΕΙΩΝ ΚΑΤΑΓΡΑΦΗΣ ΕΛΕΓΧΟΥ{Style.RESET_ALL}")
+            export_file = os.path.join(self.save_dir, f"audit_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
             
             try:
                 with sqlite3.connect(self.audit_db_name) as conn:
                     cursor = conn.cursor()
                     cursor.execute('SELECT * FROM audit_results ORDER BY timestamp DESC')
-                    results = cursor.fetchall()
-                    
-                    if not results:
-                        print(f"{Fore.YELLOW}Δεν υπάρχουν δεδομένα για εξαγωγή.{Style.RESET_ALL}")
-                        input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-                        return
-                    
-                    # Εγγραφή CSV
-                    with open(export_file, 'w', newline='', encoding='utf-8') as f:
-                        writer = csv.writer(f)
-                        writer.writerow(['ID', 'Στόχος', 'Τύπος Ελέγχου', 'Τίτλος Ευρήματος', 'Περιγραφή', 'Βαρύτητα', 'Χρονική Σήμανση'])
-                        writer.writerows(results)
-                    
-                    print(f"{Fore.GREEN}✅ Τα αποτελέσματα εξήχθησαν επιτυχώς στο: {export_file}{Style.RESET_ALL}")
-                    print(f"{Fore.YELLOW}📊 Συνολικές εγγραφές: {len(results)}{Style.RESET_ALL}")
-                    
+                    rows = cursor.fetchall()
+
+                    with open(export_file, 'w', encoding='utf-8') as f:
+                        f.write("ΠΡΟΗΓΜΕΝΑ ΕΡΓΑΛΕΙΑ ΔΙΚΤΥΟΥ - ΕΞΑΓΩΓΗ ΑΡΧΕΙΩΝ ΚΑΤΑΓΡΑΦΗΣ ΕΛΕΓΧΟΥ\n")
+                        f.write(f"Ημερομηνία Εξαγωγής: {datetime.now()}\n")
+                        f.write("="*60 + "\n\n")
+
+                        for row in rows:
+                            f.write(f"Target: {row[1]}\n")
+                            f.write(f"Type: {row[2]}\n")
+                            f.write(f"Title: {row[3]}\n")
+                            f.write(f"Description: {row[4]}\n")
+                            f.write(f"Severity: {row[5]}\n")
+                            f.write(f"Time: {row[6]}\n")
+                            f.write("-" * 50 + "\n")
+                
+                print(f"{Fore.GREEN}✅ Τα αρχεία καταγραφής ελέγχου εξήχθησαν στο {export_file}{Style.RESET_ALL}")
+
             except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα εξαγωγής: {e}{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+                print(f"{Fore.RED}❌ Σφάλμα κατά την εξαγωγή αρχείων καταγραφής: {e}{Style.RESET_ALL}")
 
-        def clear_audit_logs(self):
-            print(f"\n{Fore.CYAN}🗑️ ΕΚΚΑΘΑΡΙΣΗ ΑΠΟΤΕΛΕΣΜΑΤΩΝ ΕΛΕΓΧΩΝ{Style.RESET_ALL}")
-            
-            confirm = input(f"{Fore.RED}⚠️ Είστε σίγουρος ότι θέλετε να διαγράψετε όλα τα αποτελέσματα ελέγχων; (ν/ο): {Style.RESET_ALL}").strip().lower()
-            
-            if confirm == 'ν':
-                try:
-                    with sqlite3.connect(self.audit_db_name) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute('DELETE FROM audit_results')
-                        conn.commit()
-                    print(f"{Fore.GREEN}✅ Τα αποτελέσματα ελέγχων διαγράφηκαν.{Style.RESET_ALL}")
-                except sqlite3.Error as e:
-                    print(f"{Fore.RED}❌ Σφάλμα κατά τη διαγραφή: {e}{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.YELLOW}Η εκκαθάριση ακυρώθηκε.{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-
-        def view_wifi_history(self):
-            print(f"\n{Fore.CYAN}📶 ΙΣΤΟΡΙΚΟ ΣΑΡΩΣΕΩΝ WI-FI{Style.RESET_ALL}")
-            
-            try:
-                with sqlite3.connect(self.wifi_db_name) as conn:
-                    cursor = conn.cursor()
-                    cursor.execute('''
-                        SELECT bssid, ssid, signal_strength, channel, encryption, 
-                               first_seen, last_seen, is_trusted 
-                        FROM network_scans 
-                        ORDER BY last_seen DESC LIMIT 50
-                    ''')
-                    networks = cursor.fetchall()
-                    
-                    if not networks:
-                        print(f"{Fore.YELLOW}Δεν υπάρχουν καταγεγραμμένα δίκτυα Wi-Fi.{Style.RESET_ALL}")
-                        input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-                        return
-                    
-                    print(f"\n{Fore.GREEN}🌐 Τελευταία {len(networks)} Καταγεγραμμένα Δίκτυα:{Style.RESET_ALL}")
-                    print("="*120)
-                    print(f"{'SSID':<25} {'BSSID':<20} {'Σήμα':<8} {'Κανάλι':<8} {'Κρυπτογρ.':<12} {'Τελευταία Εμφ.':<20} {'Εμπιστοσύνη':<12}")
-                    print("-"*120)
-                    
-                    for net in networks:
-                        bssid, ssid, signal, channel, encryption, first_seen, last_seen, trusted = net
-                        
-                        ssid_disp = (ssid[:22] + '...') if ssid and len(ssid) > 25 else (ssid or 'Κρυφό')
-                        bssid_disp = bssid[:17] + '...' if len(bssid) > 20 else bssid
-                        signal_disp = f"{signal} dBm" if signal else "Δ/Υ"
-                        channel_disp = str(channel) if channel else "Δ/Υ"
-                        encryption_disp = (encryption[:10] + '...') if encryption and len(encryption) > 12 else (encryption or 'Δ/Υ')
-                        last_seen_disp = last_seen[:19] if last_seen else "Δ/Υ"
-                        trust_disp = f"{Fore.GREEN}Εμπιστο{Style.RESET_ALL}" if trusted else f"{Fore.YELLOW}Άγνωστο{Style.RESET_ALL}"
-                        
-                        print(f"{ssid_disp:<25} {bssid_disp:<20} {signal_disp:<8} {channel_disp:<8} {encryption_disp:<12} {last_seen_disp:<20} {trust_disp:<12}")
-                    
-                    print("="*120)
-                    
-            except sqlite3.Error as e:
-                print(f"{Fore.RED}❌ Σφάλμα πρόσβασης βάσης δεδομένων: {e}{Style.RESET_ALL}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
         def manage_trusted_networks(self):
-            print(f"\n{Fore.CYAN}🔐 ΔΙΑΧΕΙΡΙΣΗ ΕΜΠΙΣΤΩΝ ΔΙΚΤΥΩΝ{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}⭐ ΔΙΑΧΕΙΡΙΣΗ ΕΜΠΙΣΤΕΥΤΩΝ ΔΙΚΤΥΩΝ{Style.RESET_ALL}")
+            print("1. Προσθήκη εμπιστευτού BSSID")
+            print("2. Αφαίρεση εμπιστευτού BSSID")
+            print("3. Προβολή εμπιστευτών BSSID")
+            choice = input(f"{Fore.WHITE}Επιλέξτε επιλογή (1-3): {Style.RESET_ALL}").strip()
             
-            while True:
-                print(f"\n{Fore.CYAN}Τρέχοντα Εμπιστα Δίκτυα ({len(self.trusted_bssids)}):{Style.RESET_ALL}")
-                if self.trusted_bssids:
-                    for bssid in list(self.trusted_bssids)[:10]:  # Εμφάνιση μόνο των πρώτων 10
-                        print(f"  - {bssid}")
-                    if len(self.trusted_bssids) > 10:
-                        print(f"  ... και {len(self.trusted_bssids) - 10} ακόμη")
+            if choice == '1':
+                bssid = input(f"{Fore.WHITE}Εισάγετε BSSID προς προσθήκη (π.χ., AA:BB:CC:DD:EE:FF): {Style.RESET_ALL}").strip().upper()
+                if not re.match(r'^([0-9A-F]{2}:){5}[0-9A-F]{2}$', bssid):
+                    print(f"{Fore.RED}❌ Μη έγκυρη μορφή BSSID.{Style.RESET_ALL}")
+                    return
+                
+                if bssid in self.trusted_bssids:
+                    print(f"{Fore.YELLOW}Το BSSID βρίσκεται ήδη στη λίστα εμπιστευτών.{Style.RESET_ALL}")
                 else:
-                    print(f"  {Fore.YELLOW}Δεν υπάρχουν εμπιστα δίκτυα{Style.RESET_ALL}")
-                
-                print(f"\n{Fore.CYAN}Επιλογές:{Style.RESET_ALL}")
-                print("  1. Προσθήκη BSSID στα εμπιστα")
-                print("  2. Αφαίρεση BSSID από τα εμπιστα") 
-                print("  3. Εξαγωγή λίστας εμπίστων δικτύων")
-                print("  4. Επαναφορά προεπιλεγμένων")
-                print("  5. Επιστροφή")
-                
-                choice = input(f"\n{Fore.WHITE}Επιλέξτε ενέργεια (1-5): {Style.RESET_ALL}").strip()
-                
-                if choice == '1':
-                    bssid = input(f"{Fore.WHITE}Εισάγετε BSSID για προσθήκη: {Style.RESET_ALL}").strip().upper()
-                    if bssid:
-                        self.trusted_bssids.add(bssid)
-                        self.known_networks['trusted_bssids'] = list(self.trusted_bssids)
-                        self.save_known_networks()
-                        print(f"{Fore.GREEN}✅ Το BSSID προστέθηκε στα εμπιστα{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Μη έγκυρο BSSID{Style.RESET_ALL}")
-                        
-                elif choice == '2':
-                    bssid = input(f"{Fore.WHITE}Εισάγετε BSSID για αφαίρεση: {Style.RESET_ALL}").strip().upper()
+                    self.trusted_bssids.add(bssid)
+                    self.known_networks['trusted_bssids'] = list(self.trusted_bssids)
+                    self.save_known_networks()
+                    print(f"{Fore.GREEN}✅ Το {bssid} προστέθηκε στα εμπιστευτά δίκτυα.{Style.RESET_ALL}")
+
+            elif choice == '2':
+                if self.trusted_bssids:
+                    print(f"{Fore.YELLOW}Τρέχοντα εμπιστευτά BSSID:{Style.RESET_ALL}")
+                    for bssid in self.trusted_bssids:
+                        print(f" - {bssid}")
+                    bssid = input(f"{Fore.WHITE}Εισάγετε BSSID προς αφαίρεση: {Style.RESET_ALL}").strip().upper()
+                    
                     if bssid in self.trusted_bssids:
                         self.trusted_bssids.remove(bssid)
                         self.known_networks['trusted_bssids'] = list(self.trusted_bssids)
                         self.save_known_networks()
-                        print(f"{Fore.GREEN}✅ Το BSSID αφαιρέθηκε από τα εμπιστα{Style.RESET_ALL}")
+                        print(f"{Fore.GREEN}✅ Το {bssid} αφαιρέθηκε από τα εμπιστευτά δίκτυα.{Style.RESET_ALL}")
                     else:
-                        print(f"{Fore.RED}❌ Το BSSID δεν βρέθηκε στη λίστα{Style.RESET_ALL}")
-                        
-                elif choice == '3':
-                    export_file = os.path.join(self.save_dir, f"trusted_networks_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
-                    try:
-                        with open(export_file, 'w') as f:
-                            for bssid in self.trusted_bssids:
-                                f.write(bssid + '\n')
-                        print(f"{Fore.GREEN}✅ Η λίστα εξήχθη στο: {export_file}{Style.RESET_ALL}")
-                    except Exception as e:
-                        print(f"{Fore.RED}❌ Σφάλμα εξαγωγής: {e}{Style.RESET_ALL}")
-                        
-                elif choice == '4':
-                    confirm = input(f"{Fore.RED}⚠️ Επαναφορά προεπιλεγμένων ρυθμίσεων; (ν/ο): {Style.RESET_ALL}").strip().lower()
-                    if confirm == 'ν':
-                        self.trusted_bssids = set()
-                        self.known_networks = {
-                            "trusted_bssids": [], 
-                            "trusted_ssids": ["Home", "Work"],
-                            "suspicious_ssids": ["Free WiFi", "Public WiFi"]
-                        }
-                        self.save_known_networks()
-                        print(f"{Fore.GREEN}✅ Οι ρυθμίσεις επαναφέρθηκαν{Style.RESET_ALL}")
-                        
-                elif choice == '5':
-                    break
+                        print(f"{Fore.RED}❌ Το BSSID δεν βρέθηκε στη λίστα εμπιστευτών.{Style.RESET_ALL}")
                 else:
-                    print(f"{Fore.RED}❌ Μη έγκυρη επιλογή{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}Δεν υπάρχουν εμπιστευτά δίκτυα προς αφαίρεση.{Style.RESET_ALL}")
 
-        # --- Ρυθμίσεις & Βελτιστοποιήσεις (Χωρίς Root) ---
-        def configure_tools(self):
-            print(f"\n{Fore.CYAN}⚙️ ΡΥΘΜΙΣΕΙΣ ΕΡΓΑΛΕΙΩΝ{Style.RESET_ALL}")
-            
-            while True:
-                print(f"\n{Fore.CYAN}Τρέχουσες Ρυθμίσεις:{Style.RESET_ALL}")
-                print(f"  1. Νήματα Σάρωσης: {self.config.get('max_scan_workers', 15)}")
-                print(f"  2. Χρονικό Όριο Σάρωσης: {self.config.get('scan_timeout', 1)} δευτερόλεπτα")
-                print(f"  3. Κορυφαίες Θύρες: {self.config.get('top_ports', '21,22,23,25,53,80,110,143,443,445,993,995,1723,3306,3389,5900,8080')}")
-                print(f"  4. Κοινά Ονόματα Χρήστη: {self.config.get('common_usernames', 'admin,root,user,administrator,test,guest')}")
-                print(f"  5. Κοινοί Κωδικοί Πρόσβασης: {self.config.get('common_passwords', 'admin,123456,password,1234,12345,123456789,letmein,1234567,123,abc123')}")
-                print(f"  6. Ειδοποίηση για Νέα Δίκτυα: {'Ναι' if self.config.get('alert_on_new_network', True) else 'Όχι'}")
-                print(f"  7. Διακομιστής Δοκιμής DNS: {self.config.get('dns_test_server', 'https://ipleak.net/json/')}")
-                print(f"  8. Επιστροφή")
-                
-                choice = input(f"\n{Fore.WHITE}Επιλέξτε ρύθμιση για αλλαγή (1-8): {Style.RESET_ALL}").strip()
-                
-                if choice == '1':
-                    try:
-                        new_value = int(input(f"{Fore.WHITE}Νέα τιμή για νήματα σάρωσης [15]: {Style.RESET_ALL}").strip() or "15")
-                        if 1 <= new_value <= 100:
-                            self.config['max_scan_workers'] = new_value
-                            self.max_workers = new_value
-                            self.save_config()
-                            print(f"{Fore.GREEN}✅ Τα νήματα σάρωσης ορίστηκαν σε: {new_value}{Style.RESET_ALL}")
-                        else:
-                            print(f"{Fore.RED}❌ Η τιμή πρέπει να είναι μεταξύ 1 και 100{Style.RESET_ALL}")
-                    except ValueError:
-                        print(f"{Fore.RED}❌ Μη έγκυρος αριθμός{Style.RESET_ALL}")
-                        
-                elif choice == '2':
-                    try:
-                        new_value = float(input(f"{Fore.WHITE}Νέο χρονικό όριο σάρωσης [1.0]: {Style.RESET_ALL}").strip() or "1.0")
-                        if 0.1 <= new_value <= 10.0:
-                            self.config['scan_timeout'] = new_value
-                            self.scan_timeout = new_value
-                            self.save_config()
-                            print(f"{Fore.GREEN}✅ Το χρονικό όριο σάρωσης ορίστηκε σε: {new_value}{Style.RESET_ALL}")
-                        else:
-                            print(f"{Fore.RED}❌ Η τιμή πρέπει να είναι μεταξύ 0.1 και 10.0{Style.RESET_ALL}")
-                    except ValueError:
-                        print(f"{Fore.RED}❌ Μη έγκυρος αριθμός{Style.RESET_ALL}")
-                        
-                elif choice == '3':
-                    new_ports = input(f"{Fore.WHITE}Νέες κορυφαίες θύρες (διαχωρισμός με κόμμα): {Style.RESET_ALL}").strip()
-                    if new_ports:
-                        try:
-                            # Επικύρωση ότι είναι αριθμοί
-                            ports = [int(p.strip()) for p in new_ports.split(',')]
-                            if all(1 <= p <= 65535 for p in ports):
-                                self.config['top_ports'] = new_ports
-                                self.save_config()
-                                print(f"{Fore.GREEN}✅ Οι κορυφαίες θύρες ενημερώθηκαν{Style.RESET_ALL}")
-                            else:
-                                print(f"{Fore.RED}❌ Οι θύρες πρέπει να είναι μεταξύ 1 και 65535{Style.RESET_ALL}")
-                        except ValueError:
-                            print(f"{Fore.RED}❌ Μη έγκυρη μορφή θυρών{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Δεν εισήχθησαν θύρες{Style.RESET_ALL}")
-                        
-                elif choice == '4':
-                    new_usernames = input(f"{Fore.WHITE}Νέα ονόματα χρήστη (διαχωρισμός με κόμμα): {Style.RESET_ALL}").strip()
-                    if new_usernames:
-                        self.config['common_usernames'] = new_usernames
-                        self.save_config()
-                        print(f"{Fore.GREEN}✅ Τα ονόματα χρήστη ενημερώθηκαν{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Δεν εισήχθησαν ονόματα χρήστη{Style.RESET_ALL}")
-                        
-                elif choice == '5':
-                    new_passwords = input(f"{Fore.WHITE}Νέοι κωδικοί πρόσβασης (διαχωρισμός με κόμμα): {Style.RESET_ALL}").strip()
-                    if new_passwords:
-                        self.config['common_passwords'] = new_passwords
-                        self.save_config()
-                        print(f"{Fore.GREEN}✅ Οι κωδικοί πρόσβασης ενημερώθηκαν{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Δεν εισήχθησαν κωδικοί πρόσβασης{Style.RESET_ALL}")
-                        
-                elif choice == '6':
-                    current = self.config.get('alert_on_new_network', True)
-                    new_value = not current
-                    self.config['alert_on_new_network'] = new_value
-                    self.save_config()
-                    status = "ενεργοποιημένες" if new_value else "απενεργοποιημένες"
-                    print(f"{Fore.GREEN}✅ Οι ειδοποιήσεις για νέα δίκτυα είναι τώρα {status}{Style.RESET_ALL}")
-                    
-                elif choice == '7':
-                    new_server = input(f"{Fore.WHITE}Νέος διακομιστής δοκιμής DNS: {Style.RESET_ALL}").strip()
-                    if new_server:
-                        self.config['dns_test_server'] = new_server
-                        self.save_config()
-                        print(f"{Fore.GREEN}✅ Ο διακομιστής DNS ενημερώθηκε{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Δεν εισήχθη διακομιστής{Style.RESET_ALL}")
-                        
-                elif choice == '8':
-                    break
+            elif choice == '3':
+                if self.trusted_bssids:
+                    print(f"{Fore.GREEN}✅ Εμπιστευτά Δίκτυα:{Style.RESET_ALL}")
+                    for bssid in self.trusted_bssids:
+                        print(f" - {bssid}")
                 else:
-                    print(f"{Fore.RED}❌ Μη έγκυρη επιλογή{Style.RESET_ALL}")
-
-        def system_info(self):
-            print(f"\n{Fore.CYAN}🖥️ ΠΛΗΡΟΦΟΡΙΕΣ ΣΥΣΤΗΜΑΤΟΣ{Style.RESET_ALL}")
-            print("="*50)
-            
-            # Πληροφορίες συστήματος
-            try:
-                import platform
-                system = platform.system()
-                release = platform.release()
-                version = platform.version()
-                machine = platform.machine()
-                processor = platform.processor()
-                
-                print(f"{Fore.GREEN}Σύστημα:{Style.RESET_ALL}")
-                print(f"  OS: {system} {release}")
-                print(f"  Έκδοση: {version}")
-                print(f"  Αρχιτεκτονική: {machine}")
-                if processor and processor != '': print(f"  Επεξεργαστής: {processor}")
-            except:
-                print(f"{Fore.RED}  Δεν ήταν δυνατή η ανάκτηση πληροφοριών συστήματος{Style.RESET_ALL}")
-            
-            # Πληροφορίες Python
-            print(f"\n{Fore.GREEN}Python:{Style.RESET_ALL}")
-            print(f"  Έκδοση: {sys.version.split()[0]}")
-            print(f"  Διαδρομή: {sys.executable}")
-            
-            # Πληροφορίες δικτύου
-            print(f"\n{Fore.GREEN}Δίκτυο:{Style.RESET_ALL}")
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
-                local_ip = s.getsockname()[0]
-                s.close()
-                print(f"  Τοπική IP: {local_ip}")
-            except:
-                print(f"  Τοπική IP: Δ/Υ")
-            
-            # Κατάσταση εξαρτήσεων
-            print(f"\n{Fore.GREEN}Εξαρτήσεις:{Style.RESET_ALL}")
-            deps = [
-                ('colorama', COLORS_AVAILABLE),
-                ('speedtest-cli', SPEEDTEST_AVAILABLE),
-                ('requests', REQUESTS_AVAILABLE),
-                ('beautifulsoup4', BS4_AVAILABLE),
-                ('paramiko', PARAMIKO_AVAILABLE),
-                ('python-whois', WHOIS_AVAILABLE),
-                ('dnspython', DNS_AVAILABLE),
-                ('curses', CURSES_AVAILABLE)
-            ]
-            
-            for dep, available in deps:
-                status = f"{Fore.GREEN}✅{Style.RESET_ALL}" if available else f"{Fore.RED}❌{Style.RESET_ALL}"
-                print(f"  {dep:<15} {status}")
-            
-            # Πληροφορίες αποθηκευτικού χώρου
-            print(f"\n{Fore.GREEN}Αποθηκευτικός Χώρος:{Style.RESET_ALL}")
-            try:
-                total, used, free = shutil.disk_usage(self.save_dir)
-                print(f"  Σύνολο: {total // (2**30)} GB")
-                print(f"  Χρησιμοποιημένο: {used // (2**30)} GB")
-                print(f"  Ελεύθερο: {free // (2**30)} GB")
-                print(f"  Αποθετήριο: {self.save_dir}")
-            except:
-                print(f"  Δεν ήταν δυνατή η ανάκτηση πληροφοριών δίσκου")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
-
-        def run_ssh_defender(self):
-            """Εκκίνηση του SSH Defender Honeypot."""
-            print(f"\n{Fore.CYAN}🛡️ ΕΚΚΙΝΗΣΗ SSH DEFENDER HONEYPOT{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}ΣΗΜΕΙΩΣΗ: Αυτό το εργαλείο δημιουργεί ένα honeypot SSH για καταγραφή επιθέσεων.{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}       Χρησιμοποιήστε το ΜΟΝΟ για εκπαιδευτικούς σκοπούς και σε δίκτυα που σας ανήκουν.{Style.RESET_ALL}")
-            
-            # Ρύθμιση διαδρομών αποθήκευσης
-            base_defender_dir = os.path.join(self.save_dir, "SSH_Defender")
-            log_dir = os.path.join(base_defender_dir, "logs")
-            stats_file = os.path.join(base_defender_dir, "attack_stats.json")
-            os.makedirs(log_dir, exist_ok=True)
-            
-            # Ερώτηση για λειτουργία
-            print(f"\n{Fore.CYAN}Επιλογές Λειτουργίας:{Style.RESET_ALL}")
-            print("1. Κυκλική Εναλλαγή Θυρών (Αυτόματη εναλλαγή σε γνωστές θύρες)")
-            print("2. Μία Θύρα (Παρακολούθηση μίας συγκεκριμένης θύρας)")
-            print("3. Τερματισμός Όλων των Τρεχόντων Honeypots")
-            
-            mode_choice = input(f"\n{Fore.WHITE}Επιλέξτε λειτουργία (1-3): {Style.RESET_ALL}").strip()
-            
-            # Αρχικοποίηση components
-            logger = Logger(log_dir, stats_file)
-            executor = ThreadPoolExecutor(max_workers=50)
-            defender = SSHDefender(HOST, logger, executor)
-            
-            if mode_choice == '1':
-                print(f"\n{Fore.GREEN}🚀 Εκκίνηση SSH Defender σε λειτουργία Κυκλικής Εναλλαγής...{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Θύρες που θα παρακολουθηθούν: {', '.join(map(str, FAMOUS_SSH_PORTS))}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Καταγραφές: {log_dir}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Στατιστικά: {stats_file}{Style.RESET_ALL}")
-                
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για έναρξη παρακολούθησης...{Style.RESET_ALL}")
-                
-                # Εκκίνηση κυκλικής εναλλαγής
-                defender.run_port_cycle()
-                
-            elif mode_choice == '2':
-                try:
-                    port = int(input(f"{Fore.WHITE}Εισάγετε θύρα παρακολούθησης [22]: {Style.RESET_ALL}").strip() or "22")
-                except ValueError:
-                    port = 22
-                    
-                print(f"\n{Fore.GREEN}🚀 Εκκίνηση SSH Defender στη θύρα {port}...{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Καταγραφές: {log_dir}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Στατιστικά: {stats_file}{Style.RESET_ALL}")
-                
-                input(f"\n{Fore.YELLOW}Πατήστε Enter για έναρξη παρακολούθησης...{Style.RESET_ALL}")
-                
-                # Εκκίνηση παρακολούθησης μίας θύρας με TUI
-                defender.start_port_listener(port)
-                if defender.running:
-                    # Εκκίνηση TUI
-                    if CURSES_AVAILABLE:
-                        try:
-                            curses.wrapper(lambda stdscr: DefenderTUI(stdscr, defender).run())
-                        except KeyboardInterrupt:
-                            print(f"\n{Fore.YELLOW}Λήψη σήματος διακοπής...{Style.RESET_ALL}")
-                        except Exception as e:
-                            print(f"\n{Fore.RED}Σφάλμα TUI: {e}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.RED}❌ Το TUI δεν είναι διαθέσιμο. Χρήση βασικής λειτουργίας.{Style.RESET_ALL}")
-                        print(f"{Fore.YELLOW}Πατήστε Ctrl+C για τερματισμό...{Style.RESET_ALL}")
-                        try:
-                            while defender.running:
-                                time.sleep(1)
-                        except KeyboardInterrupt:
-                            print(f"\n{Fore.YELLOW}Λήψη σήματος διακοπής...{Style.RESET_ALL}")
-                    
-                    defender.stop_all_ports()
-                else:
-                    print(f"{Fore.RED}❌ Αποτυχία εκκίνησης ακροατή.{Style.RESET_ALL}")
-                    
-            elif mode_choice == '3':
-                print(f"\n{Fore.YELLOW}Τερματισμός τυχόν τρεχόντων honeypots...{Style.RESET_ALL}")
-                defender.stop_all_ports()
-                print(f"{Fore.GREEN}✅ Ολοκληρώθηκε ο τερματισμός.{Style.RESET_ALL}")
-                
+                    print(f"{Fore.YELLOW}Δεν έχουν διαμορφωθεί εμπιστευτά δίκτυα.{Style.RESET_ALL}")
             else:
                 print(f"{Fore.RED}❌ Μη έγκυρη επιλογή.{Style.RESET_ALL}")
-                return
-            
-            # Τελική αποθήκευση στατιστικών
-            logger.save_stats()
-            print(f"\n{Fore.GREEN}✅ Το SSH Defender τερμάτισε.{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}📊 Τελικά Στατιστικά:{Style.RESET_ALL}")
-            stats_summary = logger.get_cumulative_stats_summary()
-            print(f"  Συνολικές Επιθέσεις: {stats_summary['Συνολικές Επιθέσεις']}")
-            print(f"  Κορυφαίες IP: {', '.join(stats_summary['Κορυφαίες IP Επιτιθέμενων'][:3])}")
-            print(f"  Κορυφαίες Θύρες: {', '.join(stats_summary['Κορυφαίες Θύρες Στόχοι'][:3])}")
-            
-            input(f"\n{Fore.YELLOW}Πατήστε Enter για επιστροφή στο κύριο μενού...{Style.RESET_ALL}")
 
-        def display_main_menu(self):
-            """Εμφάνιση του κύριου μενού με χρήση curses ή fallback σε απλό μενού."""
-            if not CURSES_AVAILABLE:
-                return self._display_fallback_menu()
-            
-            try:
-                # Χρήση curses για TUI
-                menu_choice = curses.wrapper(self._curses_main_menu)
-                return menu_choice
-            except Exception as e:
-                print(f"{Fore.RED}❌ Σφάλμα TUI: {e}{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Πτώση σε απλό μενού...{Style.RESET_ALL}")
-                return self._display_fallback_menu()
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
 
-        def _curses_main_menu(self, stdscr):
-            """Curses TUI για το κύριο μενού."""
-            _reset_curses_state(stdscr)
+        def clear_database(self):
+            print(f"\n{Fore.RED}🧹 ΕΚΚΑΘΑΡΙΣΗ ΒΑΣΗΣ ΔΕΔΟΜΕΝΩΝ{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Αυτό θα διαγράψει όλο το ιστορικό σάρωσης και τα αρχεία καταγραφής ελέγχου.{Style.RESET_ALL}")
+            confirm = input(f"{Fore.WHITE}Πληκτρολογήστε 'DELETE' για επιβεβαίωση: {Style.RESET_ALL}").strip()
             
-            menu_title = "ΠΡΟΧΩΡΗΜΕΝΑ ΔΙΚΤΥΑΚΑ ΕΡΓΑΛΕΙΑ"
-            menu_subtitle = "Βελτιστοποιημένο για Termux & Συσκευές με Περιορισμένους Πόρους"
-            
-            menu_options = [
-                "--- ΕΡΓΑΛΕΙΑ WI-FI & ΚΙΝΗΤΗΣ ---",
-                "1. Σάρωση Wi-Fi (Παθητική)",
-                "2. Προβολή Τρέχουσας Σύνδεσης", 
-                "3. Ενεργοποίηση/Απενεργοποίηση Wi-Fi",
-                "4. Πληροφορίες Κινητής Σύνδεσης & SIM",
-                "",
-                "--- ΣΑΡΩΣΕΙΣ ΔΙΚΤΥΟΥ & ΑΝΑΚΑΛΥΨΗ ---",
-                "5. Σαρωτής Nmap Wrapper",
-                "6. Βελτιωμένος Σαρωτής Θυρών",
-                "7. Ανακάλυψη Δικτύου",
-                "8. Υπολογιστής Υποδικτύου",
-                "",
-                "--- ΔΙΑΔΙΚΤΥΟ & ΔΙΑΓΝΩΣΤΙΚΑ ---", 
-                "9. Δοκιμή Ταχύτητας Διαδικτύου",
-                "10. Πληροφορίες Εξωτερικής IP",
-                "11. Διαγνωστικά Δικτύου (Ping/Traceroute)",
-                "",
-                "--- ΣΥΛΛΟΓΗ ΠΛΗΡΟΦΟΡΙΩΝ (OSINT) ---",
-                "12. Σαρωτής OSINTDS (Προηγμένος)",
-                "13. Αναζήτηση WHOIS",
-                "14. Αναζήτηση Πληροφοριών DNS",
-                "",
-                "--- ΕΡΓΑΛΕΙΑ ΑΣΦΑΛΕΙΑΣ ---",
-                "15. SSH Defender Honeypot",
-                "16. Brute Force SSH (Δοκιμές Πιστοποίησης)",
-                "17. Σάρωση Ευπάθειας",
-                "",
-                "--- ΠΑΡΑΚΟΛΟΥΘΗΣΗ & ΚΑΤΑΓΡΑΦΕΣ ---", 
-                "18. Προβολή Αποτελεσμάτων Ελέγχων",
-                "19. Εξαγωγή Αποτελεσμάτων Ελέγχων",
-                "20. Εκκαθάριση Αποτελεσμάτων Ελέγχων", 
-                "21. Ιστορικό Σαρώσεων Wi-Fi",
-                "22. Διαχείριση Εμπίστων Δικτύων",
-                "",
-                "--- ΡΥΘΜΙΣΕΙΣ & ΒΕΛΤΙΩΣΕΙΣ ---",
-                "23. Ρύθμιση Εργαλείων",
-                "24. Πληροφορίες Συστήματος",
-                "25. Αυτόματη Εγκατάσταση Εξαρτήσεων",
-                "",
-                "26. Έξοδος"
-            ]
-            
-            return _draw_curses_menu(stdscr, menu_title, menu_options)
-
-        def _display_fallback_menu(self):
-            """Απλό μενού fallback χωρίς curses."""
-            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'ΠΡΟΧΩΡΗΜΕΝΑ ΔΙΚΤΥΑΚΑ ΕΡΓΑΛΕΙΑ':^70}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}{'Βελτιστοποιημένο για Termux & Συσκευές με Περιορισμένους Πόρους':^70}{Style.RESET_ALL}")
-            print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-            
-            print(f"\n{Fore.CYAN}--- ΕΡΓΑΛΕΙΑ WI-FI & ΚΙΝΗΤΗΣ ---{Style.RESET_ALL}")
-            print(" 1. Σάρωση Wi-Fi (Παθητική)")
-            print(" 2. Προβολή Τρέχουσας Σύνδεσης")
-            print(" 3. Ενεργοποίηση/Απενεργοποίηση Wi-Fi") 
-            print(" 4. Πληροφορίες Κινητής Σύνδεσης & SIM")
-            
-            print(f"\n{Fore.CYAN}--- ΣΑΡΩΣΕΙΣ ΔΙΚΤΥΟΥ & ΑΝΑΚΑΛΥΨΗ ---{Style.RESET_ALL}")
-            print(" 5. Σαρωτής Nmap Wrapper")
-            print(" 6. Βελτιωμένος Σαρωτής Θυρών")
-            print(" 7. Ανακάλυψη Δικτύου")
-            print(" 8. Υπολογιστής Υποδικτύου")
-            
-            print(f"\n{Fore.CYAN}--- ΔΙΑΔΙΚΤΥΟ & ΔΙΑΓΝΩΣΤΙΚΑ ---{Style.RESET_ALL}")
-            print(" 9. Δοκιμή Ταχύτητας Διαδικτύου")
-            print("10. Πληροφορίες Εξωτερικής IP")
-            print("11. Διαγνωστικά Δικτύου (Ping/Traceroute)")
-            
-            print(f"\n{Fore.CYAN}--- ΣΥΛΛΟΓΗ ΠΛΗΡΟΦΟΡΙΩΝ (OSINT) ---{Style.RESET_ALL}")
-            print("12. Σαρωτής OSINTDS (Προηγμένος)")
-            print("13. Αναζήτηση WHOIS") 
-            print("14. Αναζήτηση Πληροφοριών DNS")
-            
-            print(f"\n{Fore.CYAN}--- ΕΡΓΑΛΕΙΑ ΑΣΦΑΛΕΙΑΣ ---{Style.RESET_ALL}")
-            print("15. SSH Defender Honeypot")
-            print("16. Brute Force SSH (Δοκιμές Πιστοποίησης)")
-            print("17. Σάρωση Ευπάθειας")
-            
-            print(f"\n{Fore.CYAN}--- ΠΑΡΑΚΟΛΟΥΘΗΣΗ & ΚΑΤΑΓΡΑΦΕΣ ---{Style.RESET_ALL}")
-            print("18. Προβολή Αποτελεσμάτων Ελέγχων")
-            print("19. Εξαγωγή Αποτελεσμάτων Ελέγχων")
-            print("20. Εκκαθάριση Αποτελεσμάτων Ελέγχων")
-            print("21. Ιστορικό Σαρώσεων Wi-Fi")
-            print("22. Διαχείριση Εμπίστων Δικτύων")
-            
-            print(f"\n{Fore.CYAN}--- ΡΥΘΜΙΣΕΙΣ & ΒΕΛΤΙΩΣΕΙΣ ---{Style.RESET_ALL}")
-            print("23. Ρύθμιση Εργαλείων")
-            print("24. Πληροφορίες Συστήματος")
-            print("25. Αυτόματη Εγκατάσταση Εξαρτήσεων")
-            
-            print(f"\n{Fore.CYAN}--- ΕΞΟΔΟΣ ---{Style.RESET_ALL}")
-            print("26. Έξοδος")
-            print(f"{Fore.CYAN}{'-'*70}{Style.RESET_ALL}")
-            
-            try:
-                choice = int(input(f"\n{Fore.WHITE}Επιλέξτε ενέργεια (1-26): {Style.RESET_ALL}").strip())
-                return choice - 1  # Για συμβατότητα με το index του curses menu
-            except ValueError:
-                return -1
-
-    # --- Αρχικοποίηση και Κύριος Βρόχος ---
-    def main():
-        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'ΠΡΟΧΩΡΗΜΕΝΑ ΔΙΚΤΥΑΚΑ ΕΡΓΑΛΕΙΑ':^70}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}{'Βελτιστοποιημένο για Termux & Συσκευές με Περιορισμένους Πόρους':^70}{Style.RESET_ALL}")
-        print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
-        
-        # Έλεγχος για Termux
-        is_termux = os.path.exists('/data/data/com.termux')
-        if is_termux:
-            print(f"{Fore.GREEN}✅ Εντοπίστηκε Termux Environment{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.YELLOW}⚠️  Δεν εντοπίστηκε Termux. Ορισμένες λειτουργίες μπορεί να μην λειτουργούν.{Style.RESET_ALL}")
-        
-        # Έλεγχος εξαρτήσεων
-        if not CURSES_AVAILABLE:
-            print(f"{Fore.RED}⚠️  Προειδοποίηση: Το 'curses' δεν είναι διαθέσιμο. Θα χρησιμοποιηθεί απλό μενού.{Style.RESET_ALL}")
-        
-        # Αρχικοποίηση εργαλείων
-        try:
-            tools = AdvancedNetworkTools()
-        except Exception as e:
-            print(f"{Fore.RED}❌ Σφάλμα αρχικοποίησης: {e}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Παρακαλώ ελέγξτε τα δικαιώματα και τον αποθηκευτικό χώρο.{Style.RESET_ALL}")
-            input(f"{Fore.YELLOW}Πατήστε Enter για έξοδο...{Style.RESET_ALL}")
-            return
-        
-        # Κύριος βρόχος εφαρμογής
-        while True:
-            try:
-                choice = tools.display_main_menu()
-                
-                if choice == 0:    # Σάρωση Wi-Fi
-                    tools.single_wifi_scan()
-                elif choice == 1:  # Προβολή Τρέχουσας Σύνδεσης
-                    tools.view_current_connection()
-                elif choice == 2:  # Ενεργοποίηση/Απενεργοποίηση Wi-Fi
-                    tools.toggle_wifi()
-                elif choice == 3:  # Πληροφορίες Κινητής Σύνδεσης & SIM
-                    tools.get_mobile_data_info()
-                elif choice == 4:  # Σαρωτής Nmap Wrapper
-                    tools.nmap_wrapper()
-                elif choice == 5:  # Βελτιωμένος Σαρωτής Θυρών
-                    tools.enhanced_port_scanner()
-                elif choice == 6:  # Ανακάλυψη Δικτύου
-                    tools.network_discovery()
-                elif choice == 7:  # Υπολογιστής Υποδικτύου
-                    tools.subnet_calculator()
-                elif choice == 8:  # Δοκιμή Ταχύτητας Διαδικτύου
-                    tools.run_internet_speed_test()
-                elif choice == 9:  # Πληροφορίες Εξωτερικής IP
-                    tools.get_external_ip_info()
-                elif choice == 10: # Διαγνωστικά Δικτύου
-                    tools.run_network_diagnostics()
-                elif choice == 11: # Σαρωτής OSINTDS
-                    tools.run_osintds_scanner()
-                elif choice == 12: # Αναζήτηση WHOIS
-                    tools.get_whois_info()
-                elif choice == 13: # Αναζήτηση Πληροφοριών DNS
-                    tools.get_dns_info()
-                elif choice == 14: # SSH Defender Honeypot
-                    tools.run_ssh_defender()
-                elif choice == 15: # Brute Force SSH
-                    tools.run_ssh_brute_force()
-                elif choice == 16: # Σάρωση Ευπάθειας
-                    tools.run_vulnerability_scanner()
-                elif choice == 17: # Προβολή Αποτελεσμάτων Ελέγχων
-                    tools.view_audit_logs()
-                elif choice == 18: # Εξαγωγή Αποτελεσμάτων Ελέγχων
-                    tools.export_audit_logs()
-                elif choice == 19: # Εκκαθάριση Αποτελεσμάτων Ελέγχων
-                    tools.clear_audit_logs()
-                elif choice == 20: # Ιστορικό Σαρώσεων Wi-Fi
-                    tools.view_wifi_history()
-                elif choice == 21: # Διαχείριση Εμπίστων Δικτύων
-                    tools.manage_trusted_networks()
-                elif choice == 22: # Ρύθμιση Εργαλείων
-                    tools.configure_tools()
-                elif choice == 23: # Πληροφορίες Συστήματος
-                    tools.system_info()
-                elif choice == 24: # Αυτόματη Εγκατάσταση Εξαρτήσεων
-                    auto_install_dependencies()
-                elif choice == 25: # Έξοδος
-                    print(f"\n{Fore.GREEN}✅ Έξοδος από τα Προηγμένα Δικτυακά Εργαλεία. Αντίο!{Style.RESET_ALL}")
-                    break
-                else:
-                    print(f"{Fore.RED}❌ Μη έγκυρη επιλογή. Παρακαλώ επιλέξτε από 1-26.{Style.RESET_ALL}")
-                    input(f"{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
+            if confirm == 'DELETE':
+                try:
+                    with sqlite3.connect(self.wifi_db_name) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('DELETE FROM network_scans')
+                        conn.commit()
+                    with sqlite3.connect(self.audit_db_name) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute('DELETE FROM audit_results')
+                        conn.commit()
                     
-            except KeyboardInterrupt:
-                print(f"\n\n{Fore.YELLOW}Λήψη σήματος διακοπής...{Style.RESET_ALL}")
-                confirm = input(f"{Fore.YELLOW}Είστε σίγουρος ότι θέλετε να τερματίσετε; (ν/ο): {Style.RESET_ALL}").strip().lower()
-                if confirm == 'ν':
-                    print(f"{Fore.GREEN}✅ Έξοδος...{Style.RESET_ALL}")
+                    print(f"{Fore.GREEN}✅ Όλες οι βάσεις δεδομένων εκκαθαρίστηκαν.{Style.RESET_ALL}")
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Σφάλμα κατά την εκκαθάριση βάσεων δεδομένων: {e}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.YELLOW}Η λειτουργία εκκαθάρισης ακυρώθηκε.{Style.RESET_ALL}")
+
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def system_settings(self):
+            while True:
+                print(f"\n{Fore.CYAN}⚙️ ΡΥΘΜΙΣΕΙΣ & ΔΙΑΜΟΡΦΩΣΗ ΣΥΣΤΗΜΑΤΟΣ{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}--- Τρέχουσα Διαμόρφωση ---{Style.RESET_ALL}")
+                print(f"1. Διάστημα Σάρωσης (δευτερόλεπτα): {self.config['scan_interval']}")
+                print(f"2. Μέγιστος Αριθμός Νημάτων Εργασίας Σάρωσης: {self.config['max_scan_workers']}")
+                print(f"3. Κορυφαίες Θύρες (Σάρωση Θυρών): {self.config['top_ports']}")
+                print(f"4. Κοινά Ονόματα Χρηστών (Bruteforce): {self.config['common_usernames']}")
+                print(f"5. Κοινοί Κωδικοί Πρόσβασης (Bruteforce): {self.config['common_passwords']}")
+                print(f"6. Επαναφορά στις προεπιλογές")
+                print(f"0. Επιστροφή στο Κύριο Μενού")
+                print("-" * 50)
+                
+                choice = input(f"{Fore.WHITE}Επιλέξτε επιλογή (0-6): {Style.RESET_ALL}").strip()
+                
+                if choice == '0':
+                    return
+
+                if choice == '1':
+                    try:
+                        interval = int(input(f"{Fore.WHITE}Νέο διάστημα σάρωσης (δευτερόλεπτα): {Style.RESET_ALL}").strip())
+                        self.config['scan_interval'] = max(10, interval) # Ελάχιστο 10 δευτερόλεπτα
+                    except ValueError:
+                        print(f"{Fore.RED}❌ Μη έγκυρος αριθμός.{Style.RESET_ALL}")
+                elif choice == '2':
+                    try:
+                        threads = int(input(f"{Fore.WHITE}Νέος μέγιστος αριθμός νημάτων εργασίας σάρωσης: {Style.RESET_ALL}").strip())
+                        # Όριο νήματος από 1 έως 100
+                        self.config['max_scan_workers'] = max(1, min(100, threads))
+                        self.max_workers = self.config['max_scan_workers']
+                    except ValueError:
+                        print(f"{Fore.RED}❌ Μη έγκυρος αριθμός.{Style.RESET_ALL}")
+                elif choice == '3':
+                    ports = input(f"{Fore.WHITE}Νέες κορυφαίες θύρες (χωρισμένες με κόμμα): {Style.RESET_ALL}").strip()
+                    if ports:
+                        self.config['top_ports'] = ports
+                elif choice == '4':
+                    usernames = input(f"{Fore.WHITE}Νέα κοινά ονόματα χρηστών (χωρισμένα με κόμμα): {Style.RESET_ALL}").strip()
+                    if usernames:
+                        self.config['common_usernames'] = usernames
+                elif choice == '5':
+                    passwords = input(f"{Fore.WHITE}Νέοι κοινοί κωδικοί πρόσβασης (χωρισμένοι με κόμμα): {Style.RESET_ALL}").strip()
+                    if passwords:
+                        self.config['common_passwords'] = passwords
+                elif choice == '6':
+                    print(f"{Fore.YELLOW}Επαναφορά στις προεπιλογές...{Style.RESET_ALL}")
+                    self.load_config() # Επαναφόρτωση προεπιλογών
+                else:
+                    print(f"{Fore.RED}❌ Μη έγκυρη επιλογή.{Style.RESET_ALL}")
+                    continue
+
+                self.save_config()
+                print(f"{Fore.GREEN}✅ Η διαμόρφωση ενημερώθηκε.{Style.RESET_ALL}")
+                input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+        def show_about(self):
+            print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN} ΠΡΟΗΓΜΕΝΗ ΕΡΓΑΛΕΙΟΘΗΚΗ ΔΙΚΤΥΟΥ & ΑΣΦΑΛΕΙΑΣ{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}Έκδοση: Combined & Optimized v2.0{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}Σκοπός: Παροχή εργαλείων ασφάλειας δικτύου χωρίς απαιτήσεις root{Style.RESET_ALL}")
+            print(f"{Fore.WHITE}Συμβατότητα: Linux, Termux (Android){Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}Βασικές Ενότητες:{Style.RESET_ALL}")
+            print(f"  - SSH Defender (Honeypot): Παρακολούθηση brute-force επιθέσεων.")
+            print(f"  - Network Scanner: Σάρωση θυρών και ανακάλυψη κεντρικών υπολογιστών.")
+            print(f"  - Wi-Fi/Mobile Info: Χρήση Termux:API για τοπικές πληροφορίες.")
+            print(f"  - OSINTDS Scanner: Συλλογή πληροφοριών URL και δοκιμή ευπαθειών.")
+            
+            print(f"\n{Fore.YELLOW}Απαιτούμενες Εξαρτήσεις (μερικές): requests, colorama, paramiko, dnspython, python-whois.{Style.RESET_ALL}")
+            
+            input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+
+        def display_menu(self):
+            menu_options = [
+                # Wi-Fi / Τοπικό
+                "Μία Σάρωση Wi-Fi", 
+                "Προβολή Τρέχουσας Σύνδεσης", 
+                "Εναλλαγή Wi-Fi (Termux:API)",
+                "Προβολή Πληροφοριών Κινητής/SIM (Termux:API)",
+                "--- Σάρωση Δικτύου & Ανακάλυψη ---",
+                "Περιτύλιγμα Nmap (Απαιτείται το πακέτο 'nmap')",
+                "Σάρωση Θυρών TCP (Γρήγορη)",
+                "Προηγμένη Ανακάλυψη Δικτύου",
+                "Υπολογιστής Υποδικτύου",
+                "--- Internet & Διαγνωστικά ---",
+                "Εκτέλεση Δοκιμής Ταχύτητας Internet",
+                "Δημόσια IP & Δοκιμή Διαρροής DNS",
+                "Αναζήτηση WHOIS",
+                "Αναζήτηση DNS",
+                "Traceroute",
+                "--- Ασφάλεια & Έλεγχος ---",
+                "Σαρωτής OSINTDS",
+                "Directory Bruteforcer",
+                "SSH Bruteforcer (Κωδικός/Λίστα Λέξεων)",
+                "--- Honeypot / Άμυνα ---",
+                "Εκτέλεση SSH Defender (Honeypot)",
+                "--- Δεδομένα & Διαχείριση ---",
+                "Προβολή Αρχείων Καταγραφής Ελέγχου",
+                "Εξαγωγή Αρχείων Καταγραφής Ελέγχου",
+                "Διαχείριση Εμπιστευτών Δικτύων",
+                "Εκκαθάριση Βάσης Δεδομένων Σάρωσης/Ελέγχου",
+                "--- Σύστημα & Έξοδος ---",
+                "Ρυθμίσεις Συστήματος",
+                "Σχετικά με Αυτό το Εργαλείο",
+                "Έξοδος (Q/0)" # 0 is also exit
+            ]
+
+            while True:
+                # Καθαρισμός οθόνης (προαιρετικό)
+                # os.system('clear' if os.name != 'nt' else 'cls')
+
+                # Απλές επιλογές μενού κειμένου
+                print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+                print(f"{Fore.CYAN} ΠΡΟΗΓΜΕΝΗ ΕΡΓΑΛΕΙΟΘΗΚΗ ΔΙΚΤΥΟΥ & ΑΣΦΑΛΕΙΑΣ{Style.RESET_ALL}")
+                print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+                
+                for i, option in enumerate(menu_options):
+                    if option.startswith("---"):
+                        print(f"{Fore.YELLOW}{option}{Style.RESET_ALL}")
+                    else:
+                        # 0 για Έξοδο, οπότε η αρίθμηση ξεκινά από 1
+                        idx = i if i <= 3 else i - 1 if i <= 8 else i - 2 if i <= 15 else i - 3 if i <= 19 else i - 4 if i <= 24 else i - 5 
+                        
+                        if option.endswith("(Q/0)"):
+                            print(f"{Fore.WHITE}{0:2}. {option}{Style.RESET_ALL}")
+                        elif option.startswith("---"):
+                            continue
+                        else:
+                             print(f"{Fore.WHITE}{idx:2}. {option}{Style.RESET_ALL}")
+                        
+
+                print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+                
+                user_input = input(f"{Fore.WHITE}Επιλέξτε επιλογή (0-{len(menu_options)-5}): {Style.RESET_ALL}").strip()
+
+                if user_input.lower() in ['0', 'q']:
                     break
-            except Exception as e:
-                print(f"\n{Fore.RED}❌ Μη αναμενόμενο σφάλμα: {e}{Style.RESET_ALL}")
-                import traceback
-                traceback.print_exc()
-                input(f"{Fore.YELLOW}Πατήστε Enter για συνέχεια...{Style.RESET_ALL}")
 
-    if __name__ == "__main__":
-        main()
+                try:
+                    selected_idx = int(user_input)
+                except ValueError:
+                    selected_idx = -1
 
-# Εκτέλεση της εφαρμογής
+                # Χειροκίνητη αντιστοίχιση επιλογής σε μεθόδους
+                if selected_idx == 1:
+                    self.single_wifi_scan()
+                elif selected_idx == 2:
+                    self.view_current_connection()
+                elif selected_idx == 3:
+                    self.toggle_wifi()
+                elif selected_idx == 4:
+                    self.get_mobile_data_info()
+                elif selected_idx == 5:
+                    self.nmap_wrapper()
+                elif selected_idx == 6:
+                    self.run_port_scan()
+                elif selected_idx == 7:
+                    self.network_discovery()
+                elif selected_idx == 8:
+                    self.subnet_calculator()
+                elif selected_idx == 9:
+                    self.run_internet_speed_test()
+                elif selected_idx == 10:
+                    self.run_dns_leak_test()
+                elif selected_idx == 11:
+                    self.run_whois_lookup()
+                elif selected_idx == 12:
+                    self.run_dns_lookup()
+                elif selected_idx == 13:
+                    self.run_traceroute()
+                elif selected_idx == 14:
+                    self.run_osintds_scanner()
+                elif selected_idx == 15:
+                    self.directory_bruteforcer()
+                elif selected_idx == 16:
+                    self.ssh_bruteforcer()
+                elif selected_idx == 17:
+                    # SSH Defender requires ThreadPoolExecutor, which is handled internally
+                    # Needs a new executor specifically for the SSH Defender class
+                    defender_executor = concurrent.futures.ThreadPoolExecutor(max_workers=50)
+                    logger = Logger(
+                        log_dir=os.path.join(self.save_dir, "ssh_defender_logs"), 
+                        stats_file=os.path.join(self.save_dir, "ssh_defender_stats.json")
+                    )
+                    defender = SSHDefender(HOST, logger, defender_executor)
+                    
+                    print(f"\n{Fore.CYAN}--- SSH DEFENDER START ---{Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}  1. Run Port Cycle (Rotate famous ports){Style.RESET_ALL}")
+                    print(f"{Fore.YELLOW}  2. Run Permanent Honeypot on Port 22{Style.RESET_ALL}")
+                    defender_choice = input(f"{Fore.WHITE}  Select option (1/2): {Style.RESET_ALL}").strip()
+                    
+                    if defender_choice == '1':
+                        defender.run_port_cycle()
+                    elif defender_choice == '2':
+                        defender.start_port_listener(22)
+                        input(f"\n{Fore.YELLOW}Press Enter to stop monitoring...{Style.RESET_ALL}")
+                        defender.stop_all_ports()
+                        defender.logger.save_stats()
+                        print(f"\n{Fore.GREEN}✅ SSH Defender terminated.{Style.RESET_ALL}")
+                    else:
+                        print(f"{Fore.RED}❌ Invalid choice. Returning to main menu.{Style.RESET_ALL}")
+                        defender.stop_all_ports()
+                        defender.logger.save_stats()
+                        
+                    # Εκτύπωση τελικών στατιστικών
+                    summary = defender.logger.get_cumulative_stats_summary()
+                    print(f"\n{Fore.CYAN}--- SSH DEFENDER CUMULATIVE STATS ---{Style.RESET_ALL}")
+                    for key, value in summary.items():
+                        if isinstance(value, list):
+                            print(f"  {key}:")
+                            for item in value:
+                                print(f"    - {item}")
+                        else:
+                            print(f"  {key}: {value}")
+                    print(f"{Fore.CYAN}---------------------------------------{Style.RESET_ALL}")
+                    input(f"\n{Fore.YELLOW}Πατήστε Enter για να συνεχίσετε...{Style.RESET_ALL}")
+
+                elif selected_idx == 18:
+                    self.view_audit_logs()
+                elif selected_idx == 19:
+                    self.export_audit_logs()
+                elif selected_idx == 20:
+                    self.manage_trusted_networks()
+                elif selected_idx == 21:
+                    self.clear_database()
+                elif selected_idx == 22:
+                    self.system_settings()
+                elif selected_idx == 23:
+                    self.show_about()
+                else:
+                    print(f"{Fore.RED}❌ Άκυρη επιλογή: {user_input}{Style.RESET_ALL}")
+                    time.sleep(1)
+
+
+    if len(sys.argv) > 1 and sys.argv[1] == '--install-deps':
+        auto_install_dependencies()
+        print(f"\n{Fore.GREEN}Please run the script again to start the application.{Style.RESET_ALL}")
+        return
+
+    # Έλεγχος αν υπάρχει το colorama για να μην εκτυπώνουμε τίποτα χωρίς χρώμα
+    try:
+        from colorama import Fore, Style
+    except ImportError:
+        class DummyColor:
+            def __getattr__(self, name): return ''
+        Fore = Back = Style = DummyColor()
+
+    # Έλεγχος για Termux
+    is_termux = os.path.exists('/data/data/com.termux')
+    
+    # Μήνυμα καλωσορίσματος
+    print(f"\n{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}           ΠΡΟΗΓΜΕΝΗ ΕΡΓΑΛΕΙΟΘΗΚΗ ΔΙΚΤΥΟΥ & ΑΣΦΑΛΕΙΑΣ{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}                   Συνδυασμένη & Βελτιστοποιημένη v2.0{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}Πλατφόρμα: {'Termux (Android)' if is_termux else 'Linux'}{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}Απαιτήσεις: Δεν χρειάζεται πρόσβαση root!{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}Αρχικοποίηση...{Style.RESET_ALL}")
+    
+    # Έλεγχος για κρίσιμες εξαρτήσεις που λείπουν
+    missing_critical = []
+    if not REQUESTS_AVAILABLE:
+        missing_critical.append("requests")
+    
+    if missing_critical:
+        print(f"\n{Fore.RED}❌ Λείπουν κρίσιμες εξαρτήσεις:{Style.RESET_ALL}")
+        for dep in missing_critical:
+            print(f"  - {dep}")
+        print(f"\n{Fore.YELLOW}Εκτελέστε: python {sys.argv[0]} --install-deps{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Ή εγκαταστήστε τα πακέτα που λείπουν χειροκίνητα.{Style.RESET_ALL}")
+        sys.exit(1)
+    
+    # Όλα καλά, εκκίνηση εφαρμογής
+    try:
+        app = AdvancedNetworkTools()
+        app.display_menu()
+    except Exception as e:
+        print(f"\n{Fore.RED}❌ Ένα μη αναμενόμενο σφάλμα συνέβη: {e}{Style.RESET_ALL}")
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     main_app_loop()
