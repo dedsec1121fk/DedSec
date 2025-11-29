@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-DedSec's Network Toolkit (Lite & Non-Root Optimized) - Ελληνική Έκδοση
-Refactored for stability and speed.
-Focuses on OSINT, Web Auditing, and Connectivity.
-"""
-
 import os
 import sys
 import subprocess

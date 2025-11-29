@@ -1,5 +1,3 @@
-[file name]: QR Code Generator Greek.py
-[file content begin]
 import os
 import re
 import subprocess
@@ -89,4 +87,3 @@ def generate_qr_for_link():
 
 if __name__ == "__main__":
     generate_qr_for_link()
-[file content end]
