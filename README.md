@@ -68,7 +68,7 @@ Get the DedSec Project command-line tools running on your **Android device with 
     ```bash
     cd DedSec && bash Setup.sh
     ```
-    > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list or grid**. Then, close Termux from your notifications and reopen it.
+    > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list, grid, or number**. Then, close Termux from your notifications and reopen it.
     > 
     > **Tip:** After setup, you can quickly open the menu by typing `e` (for the English version) or `g` (for the Greek version) in Termux.
 
@@ -76,13 +76,13 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 ## ⚙️ Settings & Configuration
 
-The DedSec Project includes a comprehensive **Settings** tool that provides centralized control over your toolkit:
+The DedSec Project includes a comprehensive **Settings.py** tool that provides centralized control over your toolkit:
 
 ### Settings Features
 
 - **Project Updates**: Automatic package management and updates
 - **Language Selection**: Persistent language preference (English/Greek)
-- **Menu Customization**: Choose between list or grid menu styles
+- **Menu Customization**: Choose between three menu styles: list, grid, or number selection
 - **Prompt Configuration**: Customize your terminal prompt
 - **System Information**: Display hardware details and system status
 - **Home Scripts Integration**: Access and run scripts from your home directory
@@ -95,7 +95,7 @@ The DedSec Project includes a comprehensive **Settings** tool that provides cent
 
 After installation, access the settings menu to:
 1. Select your preferred language
-2. Choose your menu style (list/grid)
+2. Choose your menu style (list/grid/number)
 3. Configure system preferences
 4. Update all tools to latest versions
 
@@ -127,7 +127,7 @@ The toolkit includes the following main categories and tools:
 
 8.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation and user-friendly interface.
 
-9.  **Settings**: Central configuration and management tool for project updates, language selection, menu style customization, prompt configuration, and system information display with persistent preferences. Features automatic dependency installation, backup and restore functionality, and complete uninstall capability.
+9.  **Settings**: Central configuration and management tool for project updates, language selection, menu style customization (list/grid/number), prompt configuration, and system information display with persistent preferences. Features automatic dependency installation, backup and restore functionality, and complete uninstall capability.
 
 10. **Simple Websites Creator**: Comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features multiple hosting guides, real-time preview, and mobile-friendly designs.
 
