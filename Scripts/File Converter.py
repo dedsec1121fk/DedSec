@@ -1,20 +1,5 @@
 #!/usr/bin/env python
 
-"""
-An advanced, interactive file converter for Termux using 'curses'.
-Version 3.1: Organizes all folders into a master "File Converter" directory.
-
-This script will:
-1. Check and install required Python libraries.
-2. Check for external binaries (ffmpeg, unrar, cairo).
-3. Create a "File Converter" folder in Downloads, containing 40 organizer sub-folders.
-4. Provide a 'curses'-based UI for navigation.
-5. Support many document, image, A/V, and data conversions.
-
-CRITICAL SETUP (in Termux):
-pkg install ffmpeg unrar libcairo libgirepository libjpeg-turbo libpng
-"""
-
 import sys
 import os
 import subprocess
@@ -31,6 +16,21 @@ import shutil
 from contextlib import redirect_stderr, redirect_stdout
 
 # --- 1. SETUP & CONFIGURATION ---
+
+# System packages required for Termux (Binaries + Build tools for Python libs)
+TERMUX_PACKAGES = [
+    "ffmpeg", 
+    "unrar", 
+    "libcairo", 
+    "libgirepository", 
+    "libjpeg-turbo", 
+    "libpng", 
+    "python", 
+    "clang",       # Required to build some python libs
+    "make",        # Required to build some python libs
+    "binutils",    # Required to build some python libs
+    "libffi"
+]
 
 # (14) Python libraries to auto-install
 REQUIRED_MODULES = {
@@ -52,19 +52,13 @@ REQUIRED_MODULES = {
 
 # (40) Folders to create
 FOLDER_NAMES = [
-    # Images (10)
     "JPG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "ICO", "TGA", "SVG", "PSD",
-    # Documents (12)
     "PDF", "TXT", "DOCX", "ODT", "HTML", "MD", "CSV", "RTF", "EPUB", "JSON", "XML", "PPTX",
-    # Archives (5)
     "ZIP", "TAR", "RAR", "7Z", "GZ",
-    # Audio (7)
     "MP3", "WAV", "OGG", "FLAC", "M4A", "AAC", "WMA",
-    # Video (6)
     "MP4", "MKV", "AVI", "MOV", "WMV", "FLV"
 ]
 
-# Helper lists for logic
 IMAGE_FOLDERS = ["JPG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "ICO", "TGA", "SVG", "PSD"]
 IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.gif', '.ico', '.tga']
 VECTOR_IMAGE_EXTS = ['.svg']
@@ -72,165 +66,178 @@ LAYERED_IMAGE_EXTS = ['.psd']
 AV_EXTS = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma', '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv']
 ARCHIVE_EXTS = ['.zip', '.tar', '.gz', '.bz2', '.rar', '.7z']
 TEXT_DOC_EXTS = ['.txt', '.docx', '.odt', '.html', '.md', '.csv', '.rtf', '.epub', '.json', '.xml', '.pptx', '.svg']
-DATA_EXTS = ['.csv', '.json', '.xml']
 
-# Paths
 STORAGE_PATH = "/storage/emulated/0"
 DOWNLOAD_PATH = os.path.join(STORAGE_PATH, "Download")
-# --- MODIFIED: All folders are now nested inside "File Converter" ---
 BASE_CONVERTER_PATH = os.path.join(DOWNLOAD_PATH, "File Converter")
 
-# Global flags for external binaries
 HAS_FFMPEG = False
 HAS_UNRAR = False
 HAS_CAIRO = False
 
-# --- 2. PRE-CURSES SETUP FUNCTIONS (Standard Print) ---
+# --- 2. AUTO-INSTALLATION FUNCTIONS ---
 
 def clear_screen_standard():
     os.system('clear')
 
-def check_and_install_dependencies():
+def install_termux_system_deps():
+    """Automatically installs required system packages via pkg."""
+    print("--- 1/4 Checking System Dependencies (Termux) ---")
+    
+    # Check if we are likely in Termux
+    if not os.path.exists("/data/data/com.termux/files/usr/bin/pkg"):
+        print("Not running in standard Termux environment. Skipping system pkg install.")
+        return
+
+    print("Updating package lists and installing binaries...")
+    print("This may take a minute. Please wait...")
+    
+    try:
+        # Update repositories
+        subprocess.run(["pkg", "update", "-y"], check=False)
+        
+        # Install packages
+        cmd = ["pkg", "install", "-y"] + TERMUX_PACKAGES
+        subprocess.run(cmd, check=True)
+        print("System binaries installed successfully.\n")
+    except Exception as e:
+        print(f"WARNING: System install failed: {e}")
+        print("Attempting to continue, but some features (FFmpeg, Cairo) may fail.\n")
+    time.sleep(1)
+
+def check_and_install_python_deps():
     """Checks and installs required Python modules."""
-    print("--- Checking Required Python Libraries (14) ---")
+    print("--- 2/4 Checking Python Libraries ---")
+    
+    # Upgrade pip first to ensure we can install wheels correctly
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], 
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except:
+        pass
+
     all_installed = True
     for module_name, package_name in REQUIRED_MODULES.items():
         spec = importlib.util.find_spec(module_name)
         if spec is None:
             all_installed = False
-            print(f"Installing '{package_name}'...")
+            print(f"Installing '{package_name}'... (Building wheels may take time)")
             try:
-                with open(os.devnull, 'w') as devnull:
-                    with redirect_stdout(devnull), redirect_stderr(devnull):
-                        subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
-                print(f"Successfully installed '{package_name}'.")
+                # We use subprocess directly to see output if it fails, 
+                # but hide it if it succeeds to keep UI clean.
+                subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
+                print(f"✔ Installed '{package_name}'.")
             except Exception:
-                print(f"ERROR: Failed to install '{package_name}'.")
-                print(f"Please install it manually: pip install {package_name}")
-                sys.exit(1)
+                print(f"✖ ERROR: Failed to install '{package_name}'.")
+                print(f"  Try manually: pip install {package_name}")
+                # We don't exit here, we try to keep going
         else:
-            # print(f"Library '{package_name}' is already installed.")
             pass
     
     if all_installed:
         print("All Python libraries are present.\n")
     else:
-        print("All required libraries are now installed.\n")
+        print("Library check complete.\n")
     time.sleep(0.5)
 
-def check_external_bins():
-    """Checks for 'ffmpeg', 'unrar', and 'cairo'."""
+def check_external_bins_status():
+    """Checks which external binaries are actually available after install."""
     global HAS_FFMPEG, HAS_UNRAR, HAS_CAIRO
-    print("--- Checking External Binaries ---")
+    print("--- 3/4 Verifying Integrations ---")
     
     # Check ffmpeg
-    try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(["ffmpeg", "-version"], check=True, stdout=devnull, stderr=devnull)
-        print("Found 'ffmpeg'. Audio/Video conversions are ENABLED.")
+    if shutil.which("ffmpeg"):
+        print("✔ 'ffmpeg' detected. A/V conversions ENABLED.")
         HAS_FFMPEG = True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("WARNING: 'ffmpeg' not found. A/V conversions DISABLED.")
-        print("  To enable, run: pkg install ffmpeg\n")
+    else:
+        print("✖ 'ffmpeg' NOT found. A/V conversions DISABLED.")
         HAS_FFMPEG = False
 
     # Check unrar
-    try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(["unrar"], check=True, stdout=devnull, stderr=devnull)
-        print("Found 'unrar'. RAR extraction is ENABLED.")
+    if shutil.which("unrar"):
+        print("✔ 'unrar' detected. RAR extraction ENABLED.")
         HAS_UNRAR = True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("WARNING: 'unrar' not found. RAR extraction DISABLED.")
-        print("  To enable, run: pkg install unrar\n")
+    else:
+        print("✖ 'unrar' NOT found. RAR extraction DISABLED.")
         HAS_UNRAR = False
         
-    # Check cairo (for SVG)
+    # Check cairo
     if importlib.util.find_spec("cairosvg") is not None:
-        print("Found 'cairosvg'. SVG conversions are ENABLED.")
-        HAS_CAIRO = True
+        # Basic check if the library loads without DLL errors
+        try:
+            import cairosvg
+            HAS_CAIRO = True
+            print("✔ 'cairosvg' loaded. SVG conversions ENABLED.")
+        except OSError:
+            print("✖ 'cairosvg' installed but system libs missing. SVG DISABLED.")
+            HAS_CAIRO = False
     else:
-        print("WARNING: 'cairosvg' Python lib not found. SVG conversion DISABLED.")
-        print("  The script tried to install it, but it may have failed.")
-        print("  You may also need: pkg install libcairo libgirepository\n")
+        print("✖ 'cairosvg' not found. SVG DISABLED.")
         HAS_CAIRO = False
         
     print("")
     time.sleep(0.5)
 
-
-def check_storage_access():
-    print("--- Checking Storage Access ---")
+def ensure_storage_access():
+    print("--- 4/4 Checking Storage Access ---")
     if not os.path.exists(DOWNLOAD_PATH):
-        print(f"ERROR: Cannot access internal storage at '{DOWNLOAD_PATH}'.")
-        print("Please run 'termux-setup-storage' in your Termux terminal,")
-        print("grant the permission, and then run this script again.")
-        sys.exit(1)
+        print(f"Access to '{DOWNLOAD_PATH}' denied or missing.")
+        print("Attempting to request storage permissions...")
+        try:
+            subprocess.run(["termux-setup-storage"], check=True)
+            print("Permission requested. Please allow it in the popup.")
+            print("Waiting 5 seconds for permission to propagate...")
+            time.sleep(5)
+        except FileNotFoundError:
+            print("Could not run 'termux-setup-storage'.")
+        
+        if not os.path.exists(DOWNLOAD_PATH):
+             print(f"ERROR: Still cannot access '{DOWNLOAD_PATH}'.")
+             print("Please restart Termux and run this script again.")
+             sys.exit(1)
+             
     print("Storage access confirmed.\n")
     time.sleep(0.5)
 
 def setup_folders():
-    # --- MODIFIED: Creates the main "File Converter" directory first ---
-    print(f"--- Setting up Organizer Folders ---")
-    print(f"Location: {BASE_CONVERTER_PATH}")
     try:
-        # 1. Create the main parent directory
         os.makedirs(BASE_CONVERTER_PATH, exist_ok=True)
-        # 2. Create all 40 sub-folders inside it
         for folder in FOLDER_NAMES:
             os.makedirs(os.path.join(BASE_CONVERTER_PATH, folder), exist_ok=True)
-        print(f"Successfully created/verified {len(FOLDER_NAMES)} sub-folders.\n")
     except Exception as e:
         print(f"ERROR: Could not create folders: {e}")
         sys.exit(1)
-    time.sleep(0.5)
 
 # --- 3. IMPORTS (Post-Installation) ---
-try:
-    from PIL import Image
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import inch
-    from docx import Document
-    from odf.opendocument import load as odf_load
-    from odf.text import P as odf_P
-    from bs4 import BeautifulSoup
-    import markdown
-    import lxml
-    import cairosvg
-    from psd_tools import PSDImage
-    from striprtf.striprtf import rtf_to_text
-    from ebooklib import epub, ITEM_DOCUMENT
-    import pptx
-    import rarfile
-    import py7zr
-except ImportError as e:
-    print(f"CRITICAL ERROR: Failed to import a library: {e}")
-    print("Please ensure all dependencies are installed (see startup logs).")
-    sys.exit(1)
+# These are imported inside functions or wrapped to prevent crash before install finishes
 
 # --- 4. CORE CONVERSION LOGIC ---
 
 def get_text_from_file(input_path, in_ext):
-    """Helper to extract raw text from various document types."""
     text_lines = []
     try:
         if in_ext == '.txt':
             with open(input_path, 'r', encoding='utf-8') as f:
                 text_lines = f.readlines()
         elif in_ext == '.docx':
+            from docx import Document
             doc = Document(input_path)
             text_lines = [para.text + '\n' for para in doc.paragraphs]
         elif in_ext == '.odt':
+            from odf.opendocument import load as odf_load
+            from odf.text import P as odf_P
             doc = odf_load(input_path)
             for para in doc.getElementsByType(odf_P):
                 text_lines.append(str(para) + '\n')
         elif in_ext in ['.html', '.xml', '.svg']:
+            from bs4 import BeautifulSoup
             with open(input_path, 'r', encoding='utf-8') as f:
                 parser = 'lxml' if in_ext != '.html' else 'html.parser'
                 soup = BeautifulSoup(f, parser)
                 text_lines = [line + '\n' for line in soup.get_text().splitlines()]
         elif in_ext == '.md':
+            import markdown
+            from bs4 import BeautifulSoup
             with open(input_path, 'r', encoding='utf-8') as f:
                 html = markdown.markdown(f.read())
                 soup = BeautifulSoup(html, 'html.parser')
@@ -244,16 +251,20 @@ def get_text_from_file(input_path, in_ext):
                 data = json.load(f)
                 text_lines = [json.dumps(data, indent=2)]
         elif in_ext == '.rtf':
+            from striprtf.striprtf import rtf_to_text
             with open(input_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             text_lines = [rtf_to_text(content)]
         elif in_ext == '.epub':
+            from ebooklib import epub, ITEM_DOCUMENT
+            from bs4 import BeautifulSoup
             book = epub.read_epub(input_path)
             for item in book.get_items():
                 if item.get_type() == ITEM_DOCUMENT:
                     soup = BeautifulSoup(item.get_content(), 'html.parser')
-                    text_lines.append(soup.get_text() + '\n\n') # Add space between chapters
+                    text_lines.append(soup.get_text() + '\n\n')
         elif in_ext == '.pptx':
+            import pptx
             prs = pptx.Presentation(input_path)
             for slide in prs.slides:
                 for shape in slide.shapes:
@@ -264,7 +275,10 @@ def get_text_from_file(input_path, in_ext):
     return text_lines
 
 def write_text_to_pdf(text_lines, output_path):
-    # (Unchanged)
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import inch
+    
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     margin_x, margin_y = 0.75 * inch, 1 * inch
@@ -272,7 +286,7 @@ def write_text_to_pdf(text_lines, output_path):
     text_object.setFont("Helvetica", 10)
     line_height, y = 12, height - margin_y
     for line in text_lines:
-        for sub_line in line.split('\n'): # Handle multi-line strings
+        for sub_line in line.split('\n'):
             if y < margin_y:
                 c.drawText(text_object)
                 c.showPage()
@@ -285,7 +299,7 @@ def write_text_to_pdf(text_lines, output_path):
     c.save()
 
 def handle_image_conversion(stdscr, in_path, out_path):
-    # (Pillow handler, unchanged)
+    from PIL import Image
     with Image.open(in_path) as img:
         if out_path.lower().endswith(('.jpg', '.jpeg')):
             if img.mode == 'RGBA':
@@ -293,9 +307,9 @@ def handle_image_conversion(stdscr, in_path, out_path):
         img.save(out_path)
 
 def handle_svg_conversion(stdscr, in_path, out_path):
-    """Converts SVG to PNG or PDF."""
     if not HAS_CAIRO:
-        raise Exception("Cairo/SVG libraries not installed.")
+        raise Exception("Cairo/SVG libraries not installed/loaded.")
+    import cairosvg
     out_ext = os.path.splitext(out_path)[1].lower()
     if out_ext == '.png':
         cairosvg.svg2png(url=in_path, write_to=out_path)
@@ -305,23 +319,21 @@ def handle_svg_conversion(stdscr, in_path, out_path):
         raise Exception(f"SVG conversion to {out_ext} not supported.")
 
 def handle_psd_conversion(stdscr, in_path, out_path):
-    """Converts PSD composite to a flat image."""
+    from psd_tools import PSDImage
     psd = PSDImage.open(in_path)
     composite_image = psd.composite()
     composite_image.save(out_path)
 
 def handle_av_conversion(stdscr, in_path, out_path):
-    # (Unchanged)
     if not HAS_FFMPEG:
         raise Exception("'ffmpeg' not found. A/V conversion is disabled.")
     command = ['ffmpeg', '-i', in_path, '-y', out_path]
     curses.endwin()
     print("--- Running ffmpeg ---")
     print(f"Command: {' '.join(command)}")
-    print("This may take some time...")
     try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(command, check=True, stdout=devnull, stderr=subprocess.STDOUT)
+        # Using subprocess directly to show output
+        subprocess.run(command, check=True)
         print("ffmpeg conversion finished successfully.")
     except Exception as e:
         print(f"ffmpeg ERROR: {e}")
@@ -332,7 +344,6 @@ def handle_av_conversion(stdscr, in_path, out_path):
         stdscr.refresh()
 
 def handle_extraction(stdscr, in_path, out_folder_path, in_ext):
-    """Extracts various archive types."""
     base_name = os.path.splitext(os.path.basename(in_path))[0]
     extract_path = os.path.join(out_folder_path, base_name)
     os.makedirs(extract_path, exist_ok=True)
@@ -341,29 +352,30 @@ def handle_extraction(stdscr, in_path, out_folder_path, in_ext):
         with zipfile.ZipFile(in_path, 'r') as zf:
             zf.extractall(extract_path)
     elif in_ext in ['.tar', '.gz', '.bz2']:
-        if in_ext == '.gz' and not in_path.endswith('.tar.gz'): # Single file gzip
+        if in_ext == '.gz' and not in_path.endswith('.tar.gz'):
              out_filename = os.path.splitext(os.path.basename(in_path))[0]
-             out_path = os.path.join(out_folder_path, out_filename) # Extract to folder, not subfolder
+             out_path = os.path.join(out_folder_path, out_filename)
              with gzip.open(in_path, 'rb') as f_in:
                  with open(out_path, 'wb') as f_out:
                      shutil.copyfileobj(f_in, f_out)
-             return f"Decompressed to: {out_path}" # Return different message
-        else: # .tar, .tar.gz, .tar.bz2
+             return f"Decompressed to: {out_path}"
+        else:
             with tarfile.open(in_path, 'r:*') as tf:
                 tf.extractall(extract_path)
     elif in_ext == '.rar':
         if not HAS_UNRAR:
             raise Exception("'unrar' binary not found.")
+        import rarfile
         with rarfile.RarFile(in_path) as rf:
             rf.extractall(extract_path)
     elif in_ext == '.7z':
+        import py7zr
         with py7zr.SevenZipFile(in_path, 'r') as zf:
             zf.extractall(extract_path)
             
-    return f"Extracted to: {extract_path}" # Default success message
+    return f"Extracted to: {extract_path}"
 
 def handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext):
-    """Handles CSV <-> JSON conversions."""
     if in_ext == '.csv' and out_ext == '.json':
         data = []
         with open(in_path, 'r', encoding='utf-8', newline='') as f:
@@ -377,9 +389,6 @@ def handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext):
             data = json.load(f)
         if not isinstance(data, list) or not data:
             raise Exception("JSON must be a non-empty list of objects.")
-        if not all(isinstance(x, dict) for x in data):
-            raise Exception("JSON must be a list of objects (dicts).")
-            
         headers = data[0].keys()
         with open(out_path, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=headers)
@@ -389,14 +398,14 @@ def handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext):
         raise Exception(f"Data conversion {in_ext} to {out_ext} not supported.")
 
 def handle_md_to_html(stdscr, in_path, out_path):
-    # (Unchanged)
+    import markdown
     with open(in_path, 'r', encoding='utf-8') as f:
         html = markdown.markdown(f.read())
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
 def handle_single_image_to_pdf(stdscr, in_path, out_path):
-    # (Unchanged)
+    from PIL import Image
     try:
         with Image.open(in_path) as img:
             img_rgb = img.convert('RGB')
@@ -405,7 +414,7 @@ def handle_single_image_to_pdf(stdscr, in_path, out_path):
         raise Exception(f"Pillow (Image->PDF) Error: {e}")
 
 def handle_multi_image_to_pdf(stdscr, image_paths, out_path):
-    # (Unchanged)
+    from PIL import Image
     try:
         images_rgb = []
         for path in image_paths:
@@ -423,75 +432,57 @@ def handle_multi_image_to_pdf(stdscr, image_paths, out_path):
 # --- 5. MAIN CONVERSION ROUTER ---
 
 def convert_file(stdscr, in_path, out_folder_name):
-    """
-    Main router function for dispatching conversion tasks.
-    Returns (success_bool, message_string)
-    """
     in_ext = os.path.splitext(in_path)[1].lower()
     out_ext = f".{out_folder_name.lower()}"
-    
     base_name = os.path.splitext(os.path.basename(in_path))[0]
     out_folder_path = os.path.join(BASE_CONVERTER_PATH, out_folder_name)
     out_path = os.path.join(out_folder_path, f"{base_name}{out_ext}")
 
     try:
-        # --- Route 1: Extraction ---
         if in_ext in ARCHIVE_EXTS:
-            # Note: GZ files will be decompressed *into* the folder named GZ
-            # All others (ZIP, TAR, RAR, 7Z) extract to a *sub-folder*
             out_folder = out_folder_path if in_ext == '.gz' else os.path.join(BASE_CONVERTER_PATH, out_folder_name)
             message = handle_extraction(stdscr, in_path, out_folder, in_ext)
             return (True, message)
 
-        # --- Route 2: SVG Conversion (to PNG, PDF) ---
         if in_ext in VECTOR_IMAGE_EXTS and out_ext in ['.png', '.pdf']:
             handle_svg_conversion(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
 
-        # --- Route 3: PSD Conversion (to flat image) ---
         if in_ext in LAYERED_IMAGE_EXTS and out_ext in IMAGE_EXTS:
             handle_psd_conversion(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
 
-        # --- Route 4: Image-to-Image (Pillow) ---
         if in_ext in IMAGE_EXTS and out_ext in IMAGE_EXTS:
             handle_image_conversion(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
             
-        # --- Route 5: Single Image-to-PDF ---
         if in_ext in IMAGE_EXTS and out_ext == '.pdf':
             handle_single_image_to_pdf(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
 
-        # --- Route 6: A/V-to-A/V (ffmpeg) ---
         if in_ext in AV_EXTS and out_ext in AV_EXTS:
             handle_av_conversion(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
             
-        # --- Route 7: Data Conversion (CSV <-> JSON) ---
         if in_ext in ['.csv', '.json'] and out_ext in ['.csv', '.json']:
             handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext)
             return (True, f"Saved to: {out_path}")
 
-        # --- Route 8: MD-to-HTML ---
         if in_ext == '.md' and out_ext == '.html':
             handle_md_to_html(stdscr, in_path, out_path)
             return (True, f"Saved to: {out_path}")
 
-        # --- Route 9: Anything-to-TXT ---
         if out_ext == '.txt' and in_ext in TEXT_DOC_EXTS:
             text_lines = get_text_from_file(in_path, in_ext)
             with open(out_path, 'w', encoding='utf-8') as f:
                 f.writelines(text_lines)
             return (True, f"Saved to: {out_path}")
             
-        # --- Route 10: Anything-to-PDF ---
         if out_ext == '.pdf' and in_ext in TEXT_DOC_EXTS:
             text_lines = get_text_from_file(in_path, in_ext)
             write_text_to_pdf(text_lines, out_path)
             return (True, f"Saved to: {out_path}")
 
-        # --- No Route Found ---
         return (False, f"Unsupported conversion: {in_ext} to {out_ext}")
 
     except Exception as e:
@@ -499,7 +490,6 @@ def convert_file(stdscr, in_path, out_folder_name):
 
 
 # --- 6. CURSES UI HELPER FUNCTIONS ---
-# (Unchanged from v2, but added note to run_help)
 
 def draw_header(stdscr, title):
     h, w = stdscr.getmaxyx()
@@ -514,7 +504,7 @@ def draw_header(stdscr, title):
 
 def draw_status(stdscr, message, is_error=False):
     h, w = stdscr.getmaxyx()
-    nav_hint = " (Use Arrows, Enter to Select, q to Back) "
+    nav_hint = " (Arrows/Enter to Select, q to Back) "
     hint_len = len(nav_hint)
     color = curses.color_pair(3) if is_error else curses.color_pair(2)
     stdscr.attron(color)
@@ -574,12 +564,9 @@ def run_file_selector(stdscr, folder_path, title, input_folder_name):
         return None
         
     options = ["[ .. Go Back .. ]"]
-    
     if input_folder_name in IMAGE_FOLDERS:
         options.append(f"[ ** Convert ALL {len(files)} Images in '{input_folder_name}' to one PDF ** ]")
-    
     options.extend(files)
-    # --- MODIFIED: Updated path in subtitle ---
     selection = run_menu(stdscr, title, options, f"Folder: /Download/File Converter/{input_folder_name}")
     if selection == "[ .. Go Back .. ]":
         return None
@@ -595,33 +582,23 @@ def run_help(stdscr):
     h, w = stdscr.getmaxyx()
     draw_header(stdscr, "How to Use")
     help_text = [
-        "This converter uses a simple 3-step process:",
+        "1. MOVE FILES:",
+        f"   Go to: /Download/File Converter/",
+        "   Move files into the correct INPUT folder.",
         "",
-        "1. MOVE YOUR FILES:",
-        "   Use your phone's File Manager. Go to:",
-        # --- MODIFIED: Updated path in help text ---
-        f"   /Download/File Converter/",
-        "   Move files into the correct folder (e.g., move",
-        "   'report.docx' into the 'DOCX' folder).",
+        "2. RUN CONVERTER:",
+        "   Select 'Convert a File' -> INPUT folder -> File.",
         "",
-        "2. RUN THIS CONVERTER:",
-        "   Select 'Convert a File' from the main menu.",
+        "3. SELECT OUTPUT:",
+        "   Select the format you want.",
         "",
-        "3. FOLLOW THE STEPS:",
-        "   Step 1: Choose the INPUT folder (e.g., 'DOCX').",
-        "   Step 2: Choose the file you want to convert.",
-        "   Step 3: Choose the OUTPUT format (e.g., 'PDF').",
-        "",
-        "** SPECIAL CONVERSIONS **",
-        " - Archives (ZIP, RAR, 7Z, TAR): Choose 'ZIP' -> 'file.zip' -> 'ZIP'",
-        "   This will extract 'file.zip' into a new folder: /ZIP/file/",
-        " - Multi-Image PDF: Choose 'JPG' -> '[ ** Convert ALL... ** ]'",
-        "   This combines all images in 'JPG' into one PDF.",
-        " - Data: You can convert CSV <-> JSON.",
-        " - A/V: Audio/Video conversions require 'ffmpeg' (see startup)."
+        "** NOTES **",
+        " - Archives extract to their own folder.",
+        " - A/V conversion uses FFmpeg (Auto-installed).",
+        " - Images can be combined into one PDF."
     ]
     for i, line in enumerate(help_text):
-        if 5 + i >= h - 2: break # Stop if too long for screen
+        if 5 + i >= h - 2: break
         stdscr.addstr(5 + i, (w - len(line)) // 2, line)
     draw_status(stdscr, "Press 'q' or Enter to go back.")
     stdscr.refresh()
@@ -631,7 +608,6 @@ def run_help(stdscr):
             return
 
 def run_text_input(stdscr, prompt):
-    # (Unchanged)
     stdscr.clear()
     h, w = stdscr.getmaxyx()
     draw_header(stdscr, "Input Required")
@@ -640,7 +616,7 @@ def run_text_input(stdscr, prompt):
     stdscr.attron(curses.color_pair(2))
     stdscr.addstr(box_y, box_x, " " * 40)
     stdscr.attroff(curses.color_pair(2))
-    draw_status(stdscr, "Type the filename (no extension). Press Enter when done.")
+    draw_status(stdscr, "Type filename. Enter to Confirm.")
     curses.curs_set(1)
     stdscr.keypad(True)
     text = ""
@@ -663,7 +639,6 @@ def run_text_input(stdscr, prompt):
     curses.curs_set(0); stdscr.keypad(False); return text
 
 def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
-    # (Unchanged)
     try:
         image_paths = [
             os.path.join(input_folder_path, f) 
@@ -672,18 +647,18 @@ def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
         ]
         image_paths.sort()
     except Exception as e:
-        draw_status(stdscr, f"Error reading images: {e}", is_error=True); stdscr.getch(); return
+        draw_status(stdscr, f"Error: {e}", is_error=True); stdscr.getch(); return
     if not image_paths:
-        draw_status(stdscr, "No images found in that folder.", is_error=True); stdscr.getch(); return
-    confirm = run_confirmation(stdscr, f"Combine all {len(image_paths)} images in '{input_folder_name}' into one PDF?")
+        draw_status(stdscr, "No images found.", is_error=True); stdscr.getch(); return
+    confirm = run_confirmation(stdscr, f"Combine {len(image_paths)} images into one PDF?")
     if confirm != "Yes": return
     default_name = f"{input_folder_name}_Album"
-    filename = run_text_input(stdscr, f"Enter a name for the PDF (default: {default_name})")
+    filename = run_text_input(stdscr, f"Enter PDF name (default: {default_name})")
     if filename is None: return
     if not filename: filename = default_name
     out_folder_path = os.path.join(BASE_CONVERTER_PATH, "PDF")
     out_path = os.path.join(out_folder_path, f"{filename}.pdf")
-    draw_status(stdscr, "Working... combining images into PDF..."); stdscr.refresh()
+    draw_status(stdscr, "Working..."); stdscr.refresh()
     try:
         handle_multi_image_to_pdf(stdscr, image_paths, out_path)
         draw_status(stdscr, f"Success! Saved to: /PDF/{filename}.pdf")
@@ -694,12 +669,11 @@ def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
 # --- 7. MAIN CURSES APPLICATION ---
 
 def main(stdscr):
-    # (Unchanged)
     curses.curs_set(0); stdscr.nodelay(0); stdscr.timeout(-1)
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK) # Highlight
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE) # Header/Footer
-    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)   # Error
+    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)
 
     while True:
         main_choice = run_menu(stdscr, "Main Menu", ["Convert a File", "Help / How to Use", "Exit"])
@@ -717,25 +691,17 @@ def main(stdscr):
             continue
             
         full_input_path = os.path.join(input_folder_path, input_file)
-        
-        # --- Special Case: Archive Extraction ---
         in_ext = os.path.splitext(input_file)[1].lower()
         if in_ext in ARCHIVE_EXTS:
-            # For archives, the "output folder" is just the folder of the same type
-            # e.g., extract a ZIP file into the "ZIP" folder.
             output_folder = input_folder
-            prompt = f"Extract '{input_file}' into '/{output_folder}/'?"
-            if in_ext not in ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']:
-                output_folder = input_folder # Failsafe
-                
+            prompt = f"Extract '{input_file}' here?"
         else:
-            # --- Normal Conversion Path ---
-            output_folder = run_menu(stdscr, "Step 3: Choose OUTPUT Format/Folder", FOLDER_NAMES)
+            output_folder = run_menu(stdscr, "Step 3: Choose OUTPUT Format", FOLDER_NAMES)
             if output_folder is None: continue
             if output_folder == input_folder:
-                draw_status(stdscr, "Error: Input and Output folder cannot be the same.", is_error=True)
+                draw_status(stdscr, "Input and Output cannot be the same.", is_error=True)
                 stdscr.getch(); continue
-            prompt = f"Convert '{input_file}' to {output_folder} format?"
+            prompt = f"Convert '{input_file}' to {output_folder}?"
              
         confirm = run_confirmation(stdscr, prompt)
         if confirm != "Yes": continue
@@ -750,15 +716,24 @@ def main(stdscr):
 if __name__ == "__main__":
     try:
         clear_screen_standard()
-        print("--- Initializing Termux Converter v3.1 (40 Formats) ---")
-        check_and_install_dependencies()
-        check_external_bins()
-        check_storage_access()
+        print("--- Initializing Termux Converter v3.2 (Auto-Install) ---")
+        
+        # 1. Install System Binaries (pkg)
+        install_termux_system_deps()
+        
+        # 2. Install Python Modules (pip)
+        check_and_install_python_deps()
+        
+        # 3. Verify Integrations
+        check_external_bins_status()
+        
+        # 4. Check Storage
+        ensure_storage_access()
+        
         setup_folders()
         
         print("--- Setup Complete ---")
-        # --- MODIFIED: Updated final path message ---
-        print(f"Organizer folders are ready in: /storage/emulated/0/Download/File Converter/")
+        print(f"Folders ready in: /storage/emulated/0/Download/File Converter/")
         print("\nStarting application...")
         time.sleep(1)
         
