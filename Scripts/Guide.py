@@ -29,7 +29,7 @@ GUIDE_DATA = {
                 "Cross-Platform Compatibility"
             ]
         },
-        "Sod - Advanced Load Testing Framework.py": {
+        "Sod.py": {
             "Description": "A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring. Perfect for stress testing your own web applications and APIs.",
             "How to Use": "1. Run the script (auto-installs dependencies first). 2. Configure target IP/port in the menu. 3. Select test type (HTTP, WebSocket, Database, etc.). 4. Set thread count and duration. 5. Monitor real-time metrics during testing.",
             "Save Location": "Configuration: load_test_config.json in script directory | Results: Displayed in terminal",
@@ -63,21 +63,23 @@ GUIDE_DATA = {
                 "Risk Level Assessment"
             ]
         },
-        "DedSec's Network Toolkit.py": {
-            "Description": "An all-in-one advanced network toolkit. Includes Wi-Fi scanning, Port scanning, SSH Honeypot, OSINT scanner, and vulnerability testing. Comprehensive network and security toolkit for Termux and Linux systems. Features Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, SSH honeypot defense, and network diagnostics. Runs 100% without root access and optimized for low-resource devices.",
-            "How to Use": "1. Run the script to see the main menu. 2. Use Arrow Keys to navigate categories (Wi-Fi, Network, OSINT, etc.). 3. Select a tool like 'Nmap Wrapper' or 'OSINTDS Scanner'.",
-            "Save Location": "Reports and logs are saved in: ~/DedSec's Network",
-            "Requirements": "Hefty dependencies. Run with `--install-deps` flag once to auto-install everything (nmap, speedtest, etc.).",
-            "Tips": "The 'SSH Defender' option turns your device into a trap for hackers trying to brute-force you.",
+        "DedSec's Network.py": {
+            "Description": "An all-in-one advanced network toolkit. Includes network scanning, port scanning, SSH auditing, OSINT gathering, and vulnerability testing. Comprehensive network and security toolkit for Termux and Linux systems. Features internet speed testing, subnet calculation, DNS record lookup, web crawling, subdomain enumeration, and security scanning capabilities. Auto-installs dependencies and provides both interactive TUI and CLI interfaces.",
+            "How to Use": "1. Run the script (use --install flag first time for dependencies). 2. Navigate through categories (Network, OSINT, Web Security). 3. Select tools like Port Scanner, WHOIS Lookup, or SQL Injection Tester.",
+            "Save Location": "Reports and logs are saved in: ~/DedSec_Tools/",
+            "Requirements": "Run with --install flag first to auto-install dependencies (requests, paramiko, speedtest-cli, etc.)",
+            "Tips": "The SSH Brute Force tool tests common passwords - use only on systems you own for security testing.",
             "Features": [
-                "Wi-Fi & Local Network Scanning",
-                "Port Scanning & Network Discovery", 
-                "OSINT & Information Gathering",
-                "Vulnerability Assessment",
-                "SSH Defender Honeypot System",
-                "Network Diagnostics & Speed Testing",
-                "No Root Access Required",
-                "Optimized for Low-Resource Devices"
+                "Port Scanning & Network Discovery",
+                "Internet Speed Testing & IP Information",
+                "WHOIS Lookup & DNS Record Analysis",
+                "Subdomain Enumeration & Web Crawling",
+                "HTTP Header Analysis & CMS Detection",
+                "SQL Injection & XSS Vulnerability Testing",
+                "SSH Brute Force Auditing",
+                "Auto-Dependency Installation",
+                "Interactive TUI & CLI Modes",
+                "Audit Logging & Results Database"
             ]
         },
         "Digital Footprint Finder.py": {
@@ -135,21 +137,24 @@ GUIDE_DATA = {
             ]
         },
         "File Converter.py": {
-            "Description": "A powerful file converter supporting 40+ formats. Organizes Downloads. Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives. Features automatic dependency installation, organized folder structure, and comprehensive conversion capabilities.",
-            "How to Use": "1. Move files to `~/storage/downloads/File Converter/InputFolder`. 2. Run script. 3. Convert.",
+            "Description": "A powerful file converter supporting 40+ formats. Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives. Features automatic dependency installation, organized folder structure, and comprehensive conversion capabilities. Includes automatic system package installation, Python library management, and robust error handling for reliable file processing.",
+            "How to Use": "1. Move files to `~/storage/downloads/File Converter/[FormatFolder]`. 2. Run script. 3. Select input folder, file, and output format. 4. Convert.",
             "Save Location": "~/storage/downloads/File Converter/",
-            "Requirements": "`pkg install ffmpeg`, python libraries (Pillow, etc).",
-            "Tips": "Auto-creates folders on first run.",
+            "Requirements": "Auto-installs ffmpeg, unrar, and Python libraries (Pillow, reportlab, python-docx, etc.)",
+            "Tips": "Auto-creates folders on first run. Use the multi-image to PDF feature for combining multiple images.",
             "Features": [
                 "40+ Supported File Formats",
                 "Curses-based Interactive UI",
-                "Automatic Dependency Installation", 
-                "Organized Folder Structure",
-                "Image Format Conversion",
-                "Document Format Conversion", 
-                "Audio/Video Conversion",
-                "Archive Extraction",
-                "Multi-Image to PDF Conversion"
+                "Automatic System Dependency Installation",
+                "Python Library Auto-Installation",
+                "Organized Folder Structure (40 format folders)",
+                "Image Format Conversion & Multi-Image to PDF",
+                "Document Format Conversion (PDF, DOCX, ODT, HTML, etc.)",
+                "Audio/Video Conversion (via FFmpeg)",
+                "Archive Extraction (ZIP, RAR, 7Z, TAR, GZ)",
+                "Data Conversion (CSV to JSON, JSON to CSV)",
+                "Text Extraction from Various Document Formats",
+                "Robust Error Handling & Progress Feedback"
             ]
         },
         "Fox's Connections.py": {
@@ -188,15 +193,15 @@ GUIDE_DATA = {
         },
         "Settings.py": {
             "Description": "Configuration manager. Handles language, menu style, and uninstallation. Central configuration and management tool for the DedSec Project. Provides comprehensive system control including project updates, language selection, menu style customization, prompt configuration, and system information display with persistent language preference and icon-based menu navigation. Features Home Scripts integration, backup/restore functionality, and complete uninstall capability.",
-            "How to Use": "Run to change between List/Grid menu or English/Greek.",
-            "Save Location": "Config: `~/.smart_notes_config.json`.",
+            "How to Use": "Run to change between List/Grid menu or English/Greek. Use --menu [style] for direct menu access.",
+            "Save Location": "Config: `~/.smart_notes_config.json`. Language: `~/Language.json`",
             "Requirements": "None.",
-            "Tips": "Use this to uninstall the whole project.",
+            "Tips": "Use this to uninstall the whole project or switch between English and Greek interfaces.",
             "Features": [
                 "Project Update & Package Management",
                 "Persistent Language Preference (JSON-based)", 
                 "Icon-Based Menu Navigation with Home Scripts Integration",
-                "Menu Style Customization (List/Grid)",
+                "Menu Style Customization (List/Grid/Number)",
                 "Custom Prompt Configuration",
                 "System Information & Hardware Details",
                 "Home Scripts Integration (Access scripts in home directory)",
@@ -698,6 +703,10 @@ def format_list_item(name, category_name=""):
             icon = "🌐"
         elif "Sod" in name:
             icon = "⚡"
+        elif "File Converter" in name:
+            icon = "🔄"
+        elif "Dark" in name:
+            icon = "🌑"
     
     # Format with icons
     return f"{icon} {name}"
