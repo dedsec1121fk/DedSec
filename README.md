@@ -113,9 +113,9 @@ The toolkit includes the following main categories and tools:
 
 1.  **Android App Launcher**: Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection. Includes comprehensive security reporting for installed applications.
 
-2.  **Dark**: Comprehensive dark web intelligence and reconnaissance platform with advanced crawling, analysis, and data extraction capabilities. Features automated Tor network integration, intelligent web crawling, powerful data extraction (emails, crypto, PGP keys), and supports both interactive UI and CLI modes.
+2.  **Dark**: Comprehensive dark web intelligence and reconnaissance platform with advanced crawling, analysis, and data extraction capabilities. Features automated Tor network integration, intelligent web crawling, powerful data extraction (emails, crypto, PGP keys), and supports both interactive UI and CLI modes. Includes plugin system for extensibility and automatic dependency installation.
 
-3.  **DedSec's Network Toolkit**: Comprehensive network and security toolkit for Termux and Linux systems. Features Wi-Fi scanning, port scanning, OSINT gathering, vulnerability assessment, SSH honeypot defense, and network diagnostics. Runs 100% without root access and optimized for low-resource devices.
+3.  **DedSec's Network Toolkit**: Comprehensive network and security toolkit for Termux and Linux systems. Features internet speed testing, external IP information, subnet calculation, port scanning, WHOIS lookup, DNS record retrieval, subdomain enumeration, reverse IP lookup, web crawling, HTTP header analysis, CMS detection, SQL injection testing, reflected XSS scanning, SSH brute force, and audit logging. Runs 100% without root access and optimized for low-resource devices.
 
 4.  **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning, advanced detection logic with rate-limit handling, and automatic dependency installation. Saves comprehensive reports to a TXT file in the Downloads folder.
 
@@ -127,7 +127,7 @@ The toolkit includes the following main categories and tools:
 
 8.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation and user-friendly interface.
 
-9.  **Settings**: Central configuration and management tool for project updates, language selection, menu style customization, prompt configuration, and system information display with persistent preferences.
+9.  **Settings**: Central configuration and management tool for project updates, language selection, menu style customization, prompt configuration, and system information display with persistent preferences. Features automatic dependency installation, backup and restore functionality, and complete uninstall capability.
 
 10. **Simple Websites Creator**: Comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features multiple hosting guides, real-time preview, and mobile-friendly designs.
 
