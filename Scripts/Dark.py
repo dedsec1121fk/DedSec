@@ -687,7 +687,7 @@ def run_plugins(plugins, data):
 # -------------------------
 # (unchanged from original but improved safeguards)
 
-def draw_menu(stdscr, selected_idx, menu_items, title, status_msg=""):
+def draw_menu(stdscr, selected_idx, menu_items, title, status_msg="", menu_style="list"):
     stdscr.clear()
     h, w = stdscr.getmaxyx()
     try:
@@ -710,16 +710,23 @@ def draw_menu(stdscr, selected_idx, menu_items, title, status_msg=""):
     for idx, item in enumerate(menu_items):
         x = 2
         y = start_y + idx
-        if idx == selected_idx:
-            try:
-                stdscr.attron(curses.color_pair(2))
-                stdscr.addstr(y, x, f"> {item}")
-                stdscr.attroff(curses.color_pair(2))
-            except Exception:
-                stdscr.addstr(y, x, f"> {item}")
-        else:
-            stdscr.addstr(y, x, f"  {item}")
-    stdscr.addstr(h-2, 0, "Use ↑↓ to navigate, Enter to select, q to quit")
+        if menu_style == "list":
+            if idx == selected_idx:
+                try:
+                    stdscr.attron(curses.color_pair(2))
+                    stdscr.addstr(y, x, f"> {item}")
+                    stdscr.attroff(curses.color_pair(2))
+                except Exception:
+                    stdscr.addstr(y, x, f"> {item}")
+            else:
+                stdscr.addstr(y, x, f"  {item}")
+        elif menu_style == "number":
+            stdscr.addstr(y, x, f"{idx + 1}. {item}")
+
+    if menu_style == "list":
+        stdscr.addstr(h-2, 0, "Use ↑↓ to navigate, Enter to select, q to quit")
+    else:
+        stdscr.addstr(h-2, 0, f"Enter a number (1-{len(menu_items)}) to select, q to quit")
     stdscr.refresh()
 
 
@@ -761,6 +768,9 @@ def curses_menu(stdscr):
     curses.start_color()
     curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
     curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    
+    menu_style = "list"  # "list" or "number"
+    
     menu_items = [
         "Install example plugins",
         "Check/start Tor",
@@ -768,136 +778,178 @@ def curses_menu(stdscr):
         "Search Ahmia",
         "Load & run plugins on last results",
         "Export last results (json/csv/txt)",
+        "Choose Menu Style",
         "Exit"
     ]
     current_selection = 0
     status_msg = ""
     while True:
-        draw_menu(stdscr, current_selection, menu_items, "TorBot All-in-One", status_msg)
+        draw_menu(stdscr, current_selection, menu_items, "TorBot All-in-One", status_msg, menu_style)
         status_msg = ""
         key = stdscr.getch()
-        if key == curses.KEY_UP:
-            current_selection = (current_selection - 1) % len(menu_items)
-        elif key == curses.KEY_DOWN:
-            current_selection = (current_selection + 1) % len(menu_items)
-        elif key == ord('\n') or key == ord(' '):
-            if current_selection == 0:
-                installed = install_plugins()
-                status_msg = f"Installed {len(installed)} plugins: {', '.join(installed)}"
-            elif current_selection == 1:
+
+        selected_action_index = -1  # Flag for no action
+
+        if key == ord('q'):
+            break
+
+        if menu_style == "list":
+            if key == curses.KEY_UP:
+                current_selection = (current_selection - 1) % len(menu_items)
+            elif key == curses.KEY_DOWN:
+                current_selection = (current_selection + 1) % len(menu_items)
+            elif key == ord('\n') or key == ord(' '):
+                selected_action_index = current_selection
+
+        elif menu_style == "number":
+            if ord('1') <= key <= ord(str(len(menu_items))):
+                try:
+                    # '1' maps to index 0
+                    selected_action_index = int(chr(key)) - 1
+                except ValueError:
+                    pass  # Not a valid number
+
+        # --- Handle the selected action ---
+        if selected_action_index == -1:
+            continue  # No action selected, loop again
+
+        # --- Action processing ---
+        if selected_action_index == 0:  # Install plugins
+            installed = install_plugins()
+            status_msg = f"Installed {len(installed)} plugins: {', '.join(installed)}"
+        elif selected_action_index == 1:  # Check/start Tor
+            if is_tor_running():
+                status_msg = "[*] Tor appears to be running (SOCKS open)."
+            else:
+                ok, msg = try_start_tor_background()
+                status_msg = f"[*] try_start_tor_background -> {ok}, {msg}"
+                time.sleep(1)
                 if is_tor_running():
-                    status_msg = "[*] Tor appears to be running (SOCKS open)."
+                    create_session(DEFAULT_SOCKS)
+                    status_msg += " Tor is running and session configured."
                 else:
-                    ok, msg = try_start_tor_background()
-                    status_msg = f"[*] try_start_tor_background -> {ok}, {msg}"
-                    time.sleep(1)
-                    if is_tor_running():
-                        create_session(DEFAULT_SOCKS)
-                        status_msg += " Tor is running and session configured."
-                    else:
-                        status_msg += " Tor still not running."
-            elif current_selection == 2:
-                url = get_user_input(stdscr, "Enter start URL (.onion or http):")
-                if not url:
-                    status_msg = "No URL provided, skipping crawl."
-                    continue
-                max_pages = get_user_input(stdscr, "Max pages:", "200")
-                depth = get_user_input(stdscr, "Max depth:", "2")
-                same_domain = get_user_input(stdscr, "Same domain only? (y/N):", "n").lower().startswith('y')
-                save_snap = get_user_input(stdscr, "Save snapshots? (y/N):", "n").lower().startswith('y')
-                socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
-                try:
-                    max_pages = int(max_pages)
-                    depth = int(depth)
-                except:
-                    max_pages = 200
-                    depth = 2
-                if not is_tor_running() and (".onion" in url):
-                    status_msg = "[*] Tor SOCKS not detected; trying to start tor automatically."
-                    ok, msg = try_start_tor_background()
-                    status_msg += f" Result: {ok}, {msg}"
-                set_socks(socks_proxy or DEFAULT_SOCKS)
-                create_session(socks_proxy or DEFAULT_SOCKS)
-                show_message(stdscr, "Starting crawl... This may take a while.")
-                out = crawl(url, max_pages=max_pages, max_depth=depth,
-                           same_domain=same_domain, save_snapshots=save_snap, verbose=False)
-                # Run plugins
-                plugins = load_plugins()
-                if plugins:
-                    out = run_plugins(plugins, out)
-                # Save exports
-                fn_json = save_json(f"crawl_{int(time.time())}.json", out)
-                save_csv(f"crawl_{int(time.time())}.csv", out)
-                save_txt(f"crawl_{int(time.time())}.txt", out)
-                status_msg = f"Crawl completed. Found {len(out)} pages. JSON: {fn_json}"
-            elif current_selection == 3:
-                query = get_user_input(stdscr, "Enter search query:")
-                if not query:
-                    status_msg = "No query provided, skipping search."
-                    continue
-                limit = get_user_input(stdscr, "Result limit:", "50")
-                socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
-                try:
-                    limit = int(limit)
-                except:
-                    limit = 50
-                set_socks(socks_proxy or DEFAULT_SOCKS)
-                create_session(socks_proxy or DEFAULT_SOCKS)
-                show_message(stdscr, "Searching... Please wait.")
-                res = search_combined(query, limit=limit)
-                if not res:
-                    status_msg = "No results or failed to query Ahmia."
-                else:
-                    save_json(f"search_{int(time.time())}.json", res)
-                    status_msg = f"Found {len(res)} results. Saved to JSON."
-            elif current_selection == 4:
-                files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
-                if not files:
-                    status_msg = "No result files found. Run a crawl first."
-                    continue
-                files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
-                default_file = os.path.join(RESULTS_DIR, files[0])
-                file_path = get_user_input(stdscr, "Path to JSON results file:", default_file)
-                if not os.path.isfile(file_path):
-                    status_msg = f"File not found: {file_path}"
-                    continue
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                except Exception as e:
-                    status_msg = f"Failed to load JSON: {e}"
-                    continue
-                plugins = load_plugins()
-                if not plugins:
-                    status_msg = "No plugins loaded."
-                    continue
-                show_message(stdscr, "Running plugins... Please wait.")
-                out = run_plugins(plugins, data)
-                save_json(f"plugins_out_{int(time.time())}.json", out)
-                status_msg = f"Plugins run complete. Processed {len(out) if isinstance(out, list) else 1} items."
-            elif current_selection == 5:
-                files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
-                if not files:
-                    status_msg = "No result files found. Run a crawl first."
-                    continue
-                files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
-                default_file = os.path.join(RESULTS_DIR, files[0])
-                file_path = get_user_input(stdscr, "Path to JSON results file:", default_file)
-                if not os.path.isfile(file_path):
-                    status_msg = f"File not found: {file_path}"
-                    continue
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                except Exception as e:
-                    status_msg = f"Failed to load JSON: {e}"
-                    continue
-                save_csv(f"export_{int(time.time())}.csv", data)
-                save_txt(f"export_{int(time.time())}.txt", data)
-                status_msg = f"Export completed. Processed {len(data)} items."
-            elif current_selection == 6:
-                break
-        elif key == ord('q'):
+                    status_msg += " Tor still not running."
+        elif selected_action_index == 2:  # Crawl
+            url = get_user_input(stdscr, "Enter start URL (.onion or http):")
+            if not url:
+                status_msg = "No URL provided, skipping crawl."
+                continue
+            max_pages = get_user_input(stdscr, "Max pages:", "200")
+            depth = get_user_input(stdscr, "Max depth:", "2")
+            same_domain = get_user_input(stdscr, "Same domain only? (y/N):", "n").lower().startswith('y')
+            save_snap = get_user_input(stdscr, "Save snapshots? (y/N):", "n").lower().startswith('y')
+            socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
+            try:
+                max_pages = int(max_pages)
+                depth = int(depth)
+            except:
+                max_pages = 200
+                depth = 2
+            if not is_tor_running() and (".onion" in url):
+                status_msg = "[*] Tor SOCKS not detected; trying to start tor automatically."
+                ok, msg = try_start_tor_background()
+                status_msg += f" Result: {ok}, {msg}"
+            set_socks(socks_proxy or DEFAULT_SOCKS)
+            create_session(socks_proxy or DEFAULT_SOCKS)
+            show_message(stdscr, "Starting crawl... This may take a while.")
+            out = crawl(url, max_pages=max_pages, max_depth=depth,
+                       same_domain=same_domain, save_snapshots=save_snap, verbose=False)
+            # Run plugins
+            plugins = load_plugins()
+            if plugins:
+                out = run_plugins(plugins, out)
+            # Save exports
+            fn_json = save_json(f"crawl_{int(time.time())}.json", out)
+            save_csv(f"crawl_{int(time.time())}.csv", out)
+            save_txt(f"crawl_{int(time.time())}.txt", out)
+            status_msg = f"Crawl completed. Found {len(out)} pages. JSON: {fn_json}"
+        elif selected_action_index == 3:  # Search
+            query = get_user_input(stdscr, "Enter search query:")
+            if not query:
+                status_msg = "No query provided, skipping search."
+                continue
+            limit = get_user_input(stdscr, "Result limit:", "50")
+            socks_proxy = get_user_input(stdscr, f"SOCKS proxy:", DEFAULT_SOCKS)
+            try:
+                limit = int(limit)
+            except:
+                limit = 50
+            set_socks(socks_proxy or DEFAULT_SOCKS)
+            create_session(socks_proxy or DEFAULT_SOCKS)
+            show_message(stdscr, "Searching... Please wait.")
+            res = search_combined(query, limit=limit)
+            if not res:
+                status_msg = "No results or failed to query Ahmia."
+            else:
+                save_json(f"search_{int(time.time())}.json", res)
+                status_msg = f"Found {len(res)} results. Saved to JSON."
+        elif selected_action_index == 4:  # Load plugins
+            files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
+            if not files:
+                status_msg = "No result files found. Run a crawl first."
+                continue
+            files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
+            default_file = os.path.join(RESULTS_DIR, files[0])
+            file_path = get_user_input(stdscr, "Path to JSON results file:", default_file)
+            if not os.path.isfile(file_path):
+                status_msg = f"File not found: {file_path}"
+                continue
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                status_msg = f"Failed to load JSON: {e}"
+                continue
+            plugins = load_plugins()
+            if not plugins:
+                status_msg = "No plugins loaded."
+                continue
+            show_message(stdscr, "Running plugins... Please wait.")
+            out = run_plugins(plugins, data)
+            save_json(f"plugins_out_{int(time.time())}.json", out)
+            status_msg = f"Plugins run complete. Processed {len(out) if isinstance(out, list) else 1} items."
+        elif selected_action_index == 5:  # Export
+            files = [f for f in os.listdir(RESULTS_DIR) if f.startswith("crawl_") and f.endswith(".json")]
+            if not files:
+                status_msg = "No result files found. Run a crawl first."
+                continue
+            files = sorted(files, key=lambda x: os.path.getmtime(os.path.join(RESULTS_DIR, x)), reverse=True)
+            default_file = os.path.join(RESULTS_DIR, files[0])
+            file_path = get_user_input(stdscr, "Path to JSON results file:", default_file)
+            if not os.path.isfile(file_path):
+                status_msg = f"File not found: {file_path}"
+                continue
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                status_msg = f"Failed to load JSON: {e}"
+                continue
+            save_csv(f"export_{int(time.time())}.csv", data)
+            save_txt(f"export_{int(time.time())}.txt", data)
+            status_msg = f"Export completed. Processed {len(data)} items."
+        elif selected_action_index == 6:  # Choose Menu Style
+            prompt = "Choose Menu Style:\n1. List Style (Arrows)\n2. Number Style (1, 2, 3...)\n\nYour choice: "
+            stdscr.clear()
+            stdscr.addstr(0, 0, prompt)
+            stdscr.refresh()
+            curses.echo()  # Turn echo on for this
+            try:
+                choice = stdscr.getstr(4, 13, 1).decode('utf-8').strip()
+            except Exception:
+                choice = ""
+            curses.noecho()  # Turn it back off
+
+            if choice == "1":
+                menu_style = "list"
+                status_msg = "Menu style set to List."
+            elif choice == "2":
+                menu_style = "number"
+                status_msg = "Menu style set to Number."
+                current_selection = 0  # Reset selection
+            else:
+                status_msg = "Invalid choice. No change."
+        elif selected_action_index == 7:  # Exit
             break
 
 # -------------------------
