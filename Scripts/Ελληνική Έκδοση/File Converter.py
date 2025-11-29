@@ -1,20 +1,5 @@
 #!/usr/bin/env python
 
-"""
-Ένα προηγμένο, διαδραστικό μετατροπέα αρχείων για Termux χρησιμοποιώντας 'curses'.
-Έκδοση 3.1: Οργανώνει όλους τους φακέλους σε έναν κύριο φάκελο "File Converter".
-
-Αυτό το script θα:
-1. Ελέγξει και θα εγκαταστήσει τις απαιτούμενες βιβλιοθήκες Python.
-2. Ελέγξει για εξωτερικά προγράμματα (ffmpeg, unrar, cairo).
-3. Δημιουργήσει έναν φάκελο "File Converter" στο Downloads, που περιέχει 40 υπο-φακέλους.
-4. Παρασχέσει ένα περιβάλλον χρήστη βασισμένο στο 'curses' για πλοήγηση.
-5. Υποστηρίξει πολλούς μετασχηματισμούς εγγράφων, εικόνων, ήχου/βίντεο και δεδομένων.
-
-ΣΗΜΑΝΤΙΚΕΣ ΟΔΗΓΙΕΣ ΕΓΚΑΤΑΣΤΑΣΗΣ (στο Termux):
-pkg install ffmpeg unrar libcairo libgirepository libjpeg-turbo libpng
-"""
-
 import sys
 import os
 import subprocess
@@ -30,7 +15,22 @@ import gzip
 import shutil
 from contextlib import redirect_stderr, redirect_stdout
 
-# --- 1. ΡΥΘΜΙΣΗ & ΔΙΑΜΟΡΦΩΣΗ ---
+# --- 1. ΡΥΘΜΙΣΕΙΣ & ΔΙΑΜΟΡΦΩΣΗ ---
+
+# Απαιτούμενα πακέτα συστήματος για Termux (Δυαδικά + Εργαλεία κατασκευής για βιβλιοθήκες Python)
+TERMUX_PACKAGES = [
+    "ffmpeg", 
+    "unrar", 
+    "libcairo", 
+    "libgirepository", 
+    "libjpeg-turbo", 
+    "libpng", 
+    "python", 
+    "clang",       # Απαιτείται για την κατασκευή ορισμένων βιβλιοθηκών python
+    "make",        # Απαιτείται για την κατασκευή ορισμένων βιβλιοθηκών python
+    "binutils",    # Απαιτείται για την κατασκευή ορισμένων βιβλιοθηκών python
+    "libffi"
+]
 
 # (14) Βιβλιοθήκες Python για αυτόματη εγκατάσταση
 REQUIRED_MODULES = {
@@ -50,21 +50,15 @@ REQUIRED_MODULES = {
     "py7zr": "py7zr"          # Εξαγωγή 7-Zip
 }
 
-# (40) Φάκελοι προς δημιουργία
+# (40) Φάκελοι για δημιουργία
 FOLDER_NAMES = [
-    # Εικόνες (10)
     "JPG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "ICO", "TGA", "SVG", "PSD",
-    # Έγγραφα (12)
     "PDF", "TXT", "DOCX", "ODT", "HTML", "MD", "CSV", "RTF", "EPUB", "JSON", "XML", "PPTX",
-    # Αρχεία (5)
     "ZIP", "TAR", "RAR", "7Z", "GZ",
-    # Ήχος (7)
     "MP3", "WAV", "OGG", "FLAC", "M4A", "AAC", "WMA",
-    # Βίντεο (6)
     "MP4", "MKV", "AVI", "MOV", "WMV", "FLV"
 ]
 
-# Βοηθητικές λίστες για λογική
 IMAGE_FOLDERS = ["JPG", "PNG", "WEBP", "BMP", "TIFF", "GIF", "ICO", "TGA", "SVG", "PSD"]
 IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.gif', '.ico', '.tga']
 VECTOR_IMAGE_EXTS = ['.svg']
@@ -72,165 +66,178 @@ LAYERED_IMAGE_EXTS = ['.psd']
 AV_EXTS = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma', '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv']
 ARCHIVE_EXTS = ['.zip', '.tar', '.gz', '.bz2', '.rar', '.7z']
 TEXT_DOC_EXTS = ['.txt', '.docx', '.odt', '.html', '.md', '.csv', '.rtf', '.epub', '.json', '.xml', '.pptx', '.svg']
-DATA_EXTS = ['.csv', '.json', '.xml']
 
-# Διαδρομές
 STORAGE_PATH = "/storage/emulated/0"
 DOWNLOAD_PATH = os.path.join(STORAGE_PATH, "Download")
-# --- ΤΡΟΠΟΠΟΙΗΜΕΝΟ: Όλοι οι φάκελοι είναι τώρα μέσα στον κύριο φάκελο "File Converter" ---
 BASE_CONVERTER_PATH = os.path.join(DOWNLOAD_PATH, "File Converter")
 
-# Παγκόσμιες σημαίες για εξωτερικά προγράμματα
 HAS_FFMPEG = False
 HAS_UNRAR = False
 HAS_CAIRO = False
 
-# --- 2. ΣΥΝΑΡΤΗΣΕΙΣ ΡΥΘΜΙΣΗΣ ΠΡΙΝ ΑΠΟ ΤΟ CURSES (Τυπική εκτύπωση) ---
+# --- 2. ΣΥΝΑΡΤΗΣΕΙΣ ΑΥΤΟΜΑΤΗΣ ΕΓΚΑΤΑΣΤΑΣΗΣ ---
 
 def clear_screen_standard():
     os.system('clear')
 
-def check_and_install_dependencies():
-    """Ελέγχει και εγκαθιστά τις απαιτούμενες βιβλιοθήκες Python."""
-    print("--- Έλεγχος Απαιτούμενων Βιβλιοθηκών Python (14) ---")
+def install_termux_system_deps():
+    """Εγκαθιστά αυτόματα τα απαιτούμενα πακέτα συστήματος μέσω pkg."""
+    print("--- 1/4 Έλεγχος Εξαρτήσεων Συστήματος (Termux) ---")
+    
+    # Έλεγχος αν τρέχουμε πιθανώς σε Termux
+    if not os.path.exists("/data/data/com.termux/files/usr/bin/pkg"):
+        print("Δεν τρέχει σε τυπικό περιβάλλον Termux. Παράκαμψη εγκατάστασης πακέτων συστήματος.")
+        return
+
+    print("Ενημέρωση λιστών πακέτων και εγκατάσταση δυαδικών...")
+    print("Αυτό μπορεί να πάρει λίγο χρόνο. Παρακαλώ περιμένετε...")
+    
+    try:
+        # Ενημέρωση αποθετηρίων
+        subprocess.run(["pkg", "update", "-y"], check=False)
+        
+        # Εγκατάσταση πακέτων
+        cmd = ["pkg", "install", "-y"] + TERMUX_PACKAGES
+        subprocess.run(cmd, check=True)
+        print("Τα δυαδικά συστήματος εγκαταστάθηκαν με επιτυχία.\n")
+    except Exception as e:
+        print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Η εγκατάσταση συστήματος απέτυχε: {e}")
+        print("Προσπάθεια συνέχισης, αλλά ορισμένες λειτουργίες (FFmpeg, Cairo) μπορεί να αποτύχουν.\n")
+    time.sleep(1)
+
+def check_and_install_python_deps():
+    """Ελέγχει και εγκαθιστά τα απαιτούμενα modules Python."""
+    print("--- 2/4 Έλεγχος Βιβλιοθηκών Python ---")
+    
+    # Αναβάθμιση pip πρώτα για να διασφαλιστεί ότι μπορούμε να εγκαταστήσουμε σωστά τα wheels
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"], 
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except:
+        pass
+
     all_installed = True
     for module_name, package_name in REQUIRED_MODULES.items():
         spec = importlib.util.find_spec(module_name)
         if spec is None:
             all_installed = False
-            print(f"Εγκατάσταση '{package_name}'...")
+            print(f"Εγκατάσταση '{package_name}'... (Η κατασκευή wheels μπορεί να πάρει χρόνο)")
             try:
-                with open(os.devnull, 'w') as devnull:
-                    with redirect_stdout(devnull), redirect_stderr(devnull):
-                        subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
-                print(f"Επιτυχής εγκατάσταση '{package_name}'.")
+                # Χρησιμοποιούμε απευθείας subprocess για να δούμε την έξοδο αν αποτύχει,
+                # αλλά την κρύβουμε αν επιτύχει για να κρατήσουμε το UI καθαρό.
+                subprocess.run([sys.executable, "-m", "pip", "install", package_name], check=True)
+                print(f"✔ Εγκαταστάθηκε το '{package_name}'.")
             except Exception:
-                print(f"ΣΦΑΛΜΑ: Αποτυχία εγκατάστασης '{package_name}'.")
-                print(f"Παρακαλώ εγκαταστήστε το χειροκίνητα: pip install {package_name}")
-                sys.exit(1)
+                print(f"✖ ΣΦΑΛΜΑ: Αποτυχία εγκατάστασης του '{package_name}'.")
+                print(f"  Δοκιμάστε χειροκίνητα: pip install {package_name}")
+                # Δεν τερματίζουμε εδώ, προσπαθούμε να συνεχίσουμε
         else:
-            # print(f"Η βιβλιοθήκη '{package_name}' είναι ήδη εγκατεστημένη.")
             pass
     
     if all_installed:
-        print("Όλες οι βιβλιοθήκες Python είναι εγκατεστημένες.\n")
+        print("Όλες οι βιβλιοθήκες Python είναι παρόντες.\n")
     else:
-        print("Όλες οι απαιτούμενες βιβλιοθήκες είναι τώρα εγκατεστημένες.\n")
+        print("Ο έλεγχος βιβλιοθηκών ολοκληρώθηκε.\n")
     time.sleep(0.5)
 
-def check_external_bins():
-    """Ελέγχει για 'ffmpeg', 'unrar', και 'cairo'."""
+def check_external_bins_status():
+    """Ελέγχει ποια εξωτερικά δυαδικά είναι πραγματικά διαθέσιμα μετά την εγκατάσταση."""
     global HAS_FFMPEG, HAS_UNRAR, HAS_CAIRO
-    print("--- Έλεγχος Εξωτερικών Προγραμμάτων ---")
+    print("--- 3/4 Επαλήθευση Ολοκληρωμάτων ---")
     
     # Έλεγχος ffmpeg
-    try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(["ffmpeg", "-version"], check=True, stdout=devnull, stderr=devnull)
-        print("Βρέθηκε 'ffmpeg'. Οι μετατροπές ήχου/βίντεο είναι ΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
+    if shutil.which("ffmpeg"):
+        print("✔ Βρέθηκε το 'ffmpeg'. Μετατροπές ήχου/βίντεο ΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
         HAS_FFMPEG = True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το 'ffmpeg' δεν βρέθηκε. Οι μετατροπές ήχου/βίντεο είναι ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
-        print("  Για ενεργοποίηση, εκτελέστε: pkg install ffmpeg\n")
+    else:
+        print("✖ Δεν βρέθηκε το 'ffmpeg'. Μετατροπές ήχου/βίντεο ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
         HAS_FFMPEG = False
 
     # Έλεγχος unrar
-    try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(["unrar"], check=True, stdout=devnull, stderr=devnull)
-        print("Βρέθηκε 'unrar'. Η εξαγωγή RAR είναι ΕΝΕΡΓΟΠΟΙΗΜΕΝΗ.")
+    if shutil.which("unrar"):
+        print("✔ Βρέθηκε το 'unrar'. Εξαγωγή RAR ΕΝΕΡΓΟΠΟΙΗΜΕΝΗ.")
         HAS_UNRAR = True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το 'unrar' δεν βρέθηκε. Η εξαγωγή RAR είναι ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΗ.")
-        print("  Για ενεργοποίηση, εκτελέστε: pkg install unrar\n")
+    else:
+        print("✖ Δεν βρέθηκε το 'unrar'. Εξαγωγή RAR ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΗ.")
         HAS_UNRAR = False
         
-    # Έλεγχος cairo (για SVG)
+    # Έλεγχος cairo
     if importlib.util.find_spec("cairosvg") is not None:
-        print("Βρέθηκε 'cairosvg'. Οι μετατροπές SVG είναι ΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
-        HAS_CAIRO = True
+        # Βασικός έλεγχος αν η βιβλιοθήκη φορτώνεται χωρίς σφάλματα DLL
+        try:
+            import cairosvg
+            HAS_CAIRO = True
+            print("✔ Φορτώθηκε το 'cairosvg'. Μετατροπές SVG ΕΝΕΡΓΟΠΟΙΗΜΕΝΕΣ.")
+        except OSError:
+            print("✖ Το 'cairosvg' είναι εγκατεστημένο αλλά λείπουν βιβλιοθήκες συστήματος. SVG ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟ.")
+            HAS_CAIRO = False
     else:
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Η βιβλιοθήκη Python 'cairosvg' δεν βρέθηκε. Η μετατροπή SVG είναι ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΗ.")
-        print("  Το script προσπάθησε να την εγκαταστήσει, αλλά μπορεί να απέτυχε.")
-        print("  Μπορεί επίσης να χρειαστείτε: pkg install libcairo libgirepository\n")
+        print("✖ Δεν βρέθηκε το 'cairosvg'. SVG ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟ.")
         HAS_CAIRO = False
         
     print("")
     time.sleep(0.5)
 
-
-def check_storage_access():
-    print("--- Έλεγχος Πρόσβασης Αποθήκευσης ---")
+def ensure_storage_access():
+    print("--- 4/4 Έλεγχος Πρόσβασης Αποθήκευσης ---")
     if not os.path.exists(DOWNLOAD_PATH):
-        print(f"ΣΦΑΛΜΑ: Δεν είναι δυνατή η πρόσβαση στην εσωτερική αποθήκευση στο '{DOWNLOAD_PATH}'.")
-        print("Παρακαλώ εκτελέστε 'termux-setup-storage' στο τερματικό του Termux,")
-        print("παραχωρήστε την άδεια και μετά εκτελέστε ξανά αυτό το script.")
-        sys.exit(1)
-    print("Η πρόσβαση στην αποθήκευση επιβεβαιώθηκε.\n")
+        print(f"Δεν επιτρέπεται η πρόσβαση στο '{DOWNLOAD_PATH}' ή λείπει.")
+        print("Προσπάθεια αίτησης δικαιωμάτων αποθήκευσης...")
+        try:
+            subprocess.run(["termux-setup-storage"], check=True)
+            print("Ζητήθηκε άδεια. Παρακαλώ επιτρέψτε την στο popup.")
+            print("Αναμονή 5 δευτερολέπτων για διάδοση της άδειας...")
+            time.sleep(5)
+        except FileNotFoundError:
+            print("Δεν ήταν δυνατή η εκτέλεση του 'termux-setup-storage'.")
+        
+        if not os.path.exists(DOWNLOAD_PATH):
+             print(f"ΣΦΑΛΜΑ: Ακόμη δεν είναι δυνατή η πρόσβαση στο '{DOWNLOAD_PATH}'.")
+             print("Παρακαλώ επανεκκινήστε το Termux και ξανατρέξτε το script.")
+             sys.exit(1)
+             
+    print("Επιβεβαιώθηκε η πρόσβαση αποθήκευσης.\n")
     time.sleep(0.5)
 
 def setup_folders():
-    # --- ΤΡΟΠΟΠΟΙΗΜΕΝΟ: Δημιουργεί πρώτα τον κύριο φάκελο "File Converter" ---
-    print(f"--- Ρύθμιση Φακέλων Οργάνωσης ---")
-    print(f"Τοποθεσία: {BASE_CONVERTER_PATH}")
     try:
-        # 1. Δημιουργία του κύριου γονικού φακέλου
         os.makedirs(BASE_CONVERTER_PATH, exist_ok=True)
-        # 2. Δημιουργία όλων των 40 υπο-φακέλων μέσα σε αυτόν
         for folder in FOLDER_NAMES:
             os.makedirs(os.path.join(BASE_CONVERTER_PATH, folder), exist_ok=True)
-        print(f"Δημιουργήθηκαν/επαληθεύτηκαν επιτυχώς {len(FOLDER_NAMES)} υπο-φάκελοι.\n")
     except Exception as e:
-        print(f"ΣΦΑΛΜΑ: Δεν ήταν δυνατή η δημιουργία των φακέλων: {e}")
+        print(f"ΣΦΑΛΜΑ: Δεν ήταν δυνατή η δημιουργία φακέλων: {e}")
         sys.exit(1)
-    time.sleep(0.5)
 
 # --- 3. ΕΙΣΑΓΩΓΕΣ (Μετά την εγκατάσταση) ---
-try:
-    from PIL import Image
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import inch
-    from docx import Document
-    from odf.opendocument import load as odf_load
-    from odf.text import P as odf_P
-    from bs4 import BeautifulSoup
-    import markdown
-    import lxml
-    import cairosvg
-    from psd_tools import PSDImage
-    from striprtf.striprtf import rtf_to_text
-    from ebooklib import epub, ITEM_DOCUMENT
-    import pptx
-    import rarfile
-    import py7zr
-except ImportError as e:
-    print(f"ΚΡΙΤΙΚΟ ΣΦΑΛΜΑ: Αποτυχία εισαγωγής βιβλιοθήκης: {e}")
-    print("Παρακαλώ βεβαιωθείτε ότι όλες οι εξαρτήσεις είναι εγκατεστημένες (δείτε τα αρχεία καταγραφής έναρξης).")
-    sys.exit(1)
+# Αυτές εισάγονται μέσα σε συναρτήσεις ή τυλίγονται για να αποφευχθεί crash πριν ολοκληρωθεί η εγκατάσταση
 
-# --- 4. ΚΥΡΙΑ ΛΟΓΙΚΗ ΜΕΤΑΤΡΟΠΗΣ ---
+# --- 4. ΒΑΣΙΚΗ ΛΟΓΙΚΗ ΜΕΤΑΤΡΟΠΗΣ ---
 
 def get_text_from_file(input_path, in_ext):
-    """Βοηθητική λειτουργία για εξαγωγή απλού κειμένου από διάφορους τύπους εγγράφων."""
     text_lines = []
     try:
         if in_ext == '.txt':
             with open(input_path, 'r', encoding='utf-8') as f:
                 text_lines = f.readlines()
         elif in_ext == '.docx':
+            from docx import Document
             doc = Document(input_path)
             text_lines = [para.text + '\n' for para in doc.paragraphs]
         elif in_ext == '.odt':
+            from odf.opendocument import load as odf_load
+            from odf.text import P as odf_P
             doc = odf_load(input_path)
             for para in doc.getElementsByType(odf_P):
                 text_lines.append(str(para) + '\n')
         elif in_ext in ['.html', '.xml', '.svg']:
+            from bs4 import BeautifulSoup
             with open(input_path, 'r', encoding='utf-8') as f:
                 parser = 'lxml' if in_ext != '.html' else 'html.parser'
                 soup = BeautifulSoup(f, parser)
                 text_lines = [line + '\n' for line in soup.get_text().splitlines()]
         elif in_ext == '.md':
+            import markdown
+            from bs4 import BeautifulSoup
             with open(input_path, 'r', encoding='utf-8') as f:
                 html = markdown.markdown(f.read())
                 soup = BeautifulSoup(html, 'html.parser')
@@ -244,27 +251,34 @@ def get_text_from_file(input_path, in_ext):
                 data = json.load(f)
                 text_lines = [json.dumps(data, indent=2)]
         elif in_ext == '.rtf':
+            from striprtf.striprtf import rtf_to_text
             with open(input_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             text_lines = [rtf_to_text(content)]
         elif in_ext == '.epub':
+            from ebooklib import epub, ITEM_DOCUMENT
+            from bs4 import BeautifulSoup
             book = epub.read_epub(input_path)
             for item in book.get_items():
                 if item.get_type() == ITEM_DOCUMENT:
                     soup = BeautifulSoup(item.get_content(), 'html.parser')
-                    text_lines.append(soup.get_text() + '\n\n') # Προσθήκη κενού μεταξύ κεφαλαίων
+                    text_lines.append(soup.get_text() + '\n\n')
         elif in_ext == '.pptx':
+            import pptx
             prs = pptx.Presentation(input_path)
             for slide in prs.slides:
                 for shape in slide.shapes:
                     if shape.has_text_frame:
                         text_lines.append(shape.text + '\n')
     except Exception as e:
-        raise Exception(f"Η εξαγωγή κειμένου απέτυχε: {e}")
+        raise Exception(f"Αποτυχία εξαγωγής κειμένου: {e}")
     return text_lines
 
 def write_text_to_pdf(text_lines, output_path):
-    # (Αμετάβλητο)
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import inch
+    
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     margin_x, margin_y = 0.75 * inch, 1 * inch
@@ -272,7 +286,7 @@ def write_text_to_pdf(text_lines, output_path):
     text_object.setFont("Helvetica", 10)
     line_height, y = 12, height - margin_y
     for line in text_lines:
-        for sub_line in line.split('\n'): # Χειρισμός συμβολοσειρών πολλαπλών γραμμών
+        for sub_line in line.split('\n'):
             if y < margin_y:
                 c.drawText(text_object)
                 c.showPage()
@@ -285,7 +299,7 @@ def write_text_to_pdf(text_lines, output_path):
     c.save()
 
 def handle_image_conversion(stdscr, in_path, out_path):
-    # (Χειριστής Pillow, αμετάβλητος)
+    from PIL import Image
     with Image.open(in_path) as img:
         if out_path.lower().endswith(('.jpg', '.jpeg')):
             if img.mode == 'RGBA':
@@ -293,46 +307,43 @@ def handle_image_conversion(stdscr, in_path, out_path):
         img.save(out_path)
 
 def handle_svg_conversion(stdscr, in_path, out_path):
-    """Μετατρέπει SVG σε PNG ή PDF."""
     if not HAS_CAIRO:
-        raise Exception("Οι βιβλιοθήκες Cairo/SVG δεν είναι εγκατεστημένες.")
+        raise Exception("Οι βιβλιοθήκες Cairo/SVG δεν είναι εγκατεστημένες/φορτωμένες.")
+    import cairosvg
     out_ext = os.path.splitext(out_path)[1].lower()
     if out_ext == '.png':
         cairosvg.svg2png(url=in_path, write_to=out_path)
     elif out_ext == '.pdf':
         cairosvg.svg2pdf(url=in_path, write_to=out_path)
     else:
-        raise Exception(f"Η μετατροπή SVG σε {out_ext} δεν υποστηρίζεται.")
+        raise Exception(f"Μετατροπή SVG σε {out_ext} δεν υποστηρίζεται.")
 
 def handle_psd_conversion(stdscr, in_path, out_path):
-    """Μετατρέπει το σύνθετο PSD σε επίπεδη εικόνα."""
+    from psd_tools import PSDImage
     psd = PSDImage.open(in_path)
     composite_image = psd.composite()
     composite_image.save(out_path)
 
 def handle_av_conversion(stdscr, in_path, out_path):
-    # (Αμετάβλητο)
     if not HAS_FFMPEG:
-        raise Exception("Το 'ffmpeg' δεν βρέθηκε. Η μετατροπή ήχου/βίντεο είναι απενεργοποιημένη.")
+        raise Exception("Δεν βρέθηκε το 'ffmpeg'. Η μετατροπή ήχου/βίντεο είναι απενεργοποιημένη.")
     command = ['ffmpeg', '-i', in_path, '-y', out_path]
     curses.endwin()
     print("--- Εκτέλεση ffmpeg ---")
     print(f"Εντολή: {' '.join(command)}")
-    print("Αυτό μπορεί να πάρει λίγο χρόνο...")
     try:
-        with open(os.devnull, 'w') as devnull:
-            subprocess.run(command, check=True, stdout=devnull, stderr=subprocess.STDOUT)
-        print("Η μετατροπή ffmpeg ολοκληρώθηκε επιτυχώς.")
+        # Χρήση subprocess απευθείας για εμφάνιση εξόδου
+        subprocess.run(command, check=True)
+        print("Η μετατροπή ffmpeg ολοκληρώθηκε με επιτυχία.")
     except Exception as e:
         print(f"ΣΦΑΛΜΑ ffmpeg: {e}")
-        raise Exception(f"Η μετατροπή ffmpeg απέτυχε. {e}")
+        raise Exception(f"Αποτυχία μετατροπής ffmpeg. {e}")
     finally:
         print("Πατήστε Enter για επιστροφή στην εφαρμογή...")
         sys.stdin.read(1)
         stdscr.refresh()
 
 def handle_extraction(stdscr, in_path, out_folder_path, in_ext):
-    """Εξάγει διάφορους τύπους αρχείων."""
     base_name = os.path.splitext(os.path.basename(in_path))[0]
     extract_path = os.path.join(out_folder_path, base_name)
     os.makedirs(extract_path, exist_ok=True)
@@ -341,29 +352,30 @@ def handle_extraction(stdscr, in_path, out_folder_path, in_ext):
         with zipfile.ZipFile(in_path, 'r') as zf:
             zf.extractall(extract_path)
     elif in_ext in ['.tar', '.gz', '.bz2']:
-        if in_ext == '.gz' and not in_path.endswith('.tar.gz'): # Μονό αρχείο gzip
+        if in_ext == '.gz' and not in_path.endswith('.tar.gz'):
              out_filename = os.path.splitext(os.path.basename(in_path))[0]
-             out_path = os.path.join(out_folder_path, out_filename) # Εξαγωγή σε φάκελο, όχι υποφάκελο
+             out_path = os.path.join(out_folder_path, out_filename)
              with gzip.open(in_path, 'rb') as f_in:
                  with open(out_path, 'wb') as f_out:
                      shutil.copyfileobj(f_in, f_out)
-             return f"Αποσυμπιέστηκε σε: {out_path}" # Διαφορετικό μήνυμα
-        else: # .tar, .tar.gz, .tar.bz2
+             return f"Αποσυμπιέστηκε σε: {out_path}"
+        else:
             with tarfile.open(in_path, 'r:*') as tf:
                 tf.extractall(extract_path)
     elif in_ext == '.rar':
         if not HAS_UNRAR:
-            raise Exception("Το 'unrar' δεν βρέθηκε.")
+            raise Exception("Δεν βρέθηκε το δυαδικό 'unrar'.")
+        import rarfile
         with rarfile.RarFile(in_path) as rf:
             rf.extractall(extract_path)
     elif in_ext == '.7z':
+        import py7zr
         with py7zr.SevenZipFile(in_path, 'r') as zf:
             zf.extractall(extract_path)
             
-    return f"Εξήχθη σε: {extract_path}" # Προεπιλεγμένο μήνυμα επιτυχίας
+    return f"Εξήχθη σε: {extract_path}"
 
 def handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext):
-    """Χειρίζεται μετατροπές CSV <-> JSON."""
     if in_ext == '.csv' and out_ext == '.json':
         data = []
         with open(in_path, 'r', encoding='utf-8', newline='') as f:
@@ -377,26 +389,23 @@ def handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext):
             data = json.load(f)
         if not isinstance(data, list) or not data:
             raise Exception("Το JSON πρέπει να είναι μια μη κενή λίστα αντικειμένων.")
-        if not all(isinstance(x, dict) for x in data):
-            raise Exception("Το JSON πρέπει να είναι μια λίστα αντικειμένων (λεξικά).")
-            
         headers = data[0].keys()
         with open(out_path, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=headers)
             writer.writeheader()
             writer.writerows(data)
     else:
-        raise Exception(f"Η μετατροπή δεδομένων {in_ext} σε {out_ext} δεν υποστηρίζεται.")
+        raise Exception(f"Μετατροπή δεδομένων {in_ext} σε {out_ext} δεν υποστηρίζεται.")
 
 def handle_md_to_html(stdscr, in_path, out_path):
-    # (Αμετάβλητο)
+    import markdown
     with open(in_path, 'r', encoding='utf-8') as f:
         html = markdown.markdown(f.read())
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write(html)
 
 def handle_single_image_to_pdf(stdscr, in_path, out_path):
-    # (Αμετάβλητο)
+    from PIL import Image
     try:
         with Image.open(in_path) as img:
             img_rgb = img.convert('RGB')
@@ -405,7 +414,7 @@ def handle_single_image_to_pdf(stdscr, in_path, out_path):
         raise Exception(f"Σφάλμα Pillow (Εικόνα->PDF): {e}")
 
 def handle_multi_image_to_pdf(stdscr, image_paths, out_path):
-    # (Αμετάβλητο)
+    from PIL import Image
     try:
         images_rgb = []
         for path in image_paths:
@@ -420,92 +429,73 @@ def handle_multi_image_to_pdf(stdscr, image_paths, out_path):
     except Exception as e:
         raise Exception(f"Σφάλμα Pillow (Πολλαπλές Εικόνες->PDF): {e}")
 
-# --- 5. ΚΥΡΙΟΣ ΔΙΑΝΟΜΕΑΣ ΜΕΤΑΤΡΟΠΗΣ ---
+# --- 5. ΚΥΡΙΟΣ ΔΙΑΚΟΜΙΣΤΗΣ ΜΕΤΑΤΡΟΠΩΝ ---
 
 def convert_file(stdscr, in_path, out_folder_name):
-    """
-    Κύρια λειτουργία δρομολόγησης για την αποστολή εργασιών μετατροπής.
-    Επιστρέφει (επιτυχία_boolean, μήνυμα_συμβολοσειρά)
-    """
     in_ext = os.path.splitext(in_path)[1].lower()
     out_ext = f".{out_folder_name.lower()}"
-    
     base_name = os.path.splitext(os.path.basename(in_path))[0]
     out_folder_path = os.path.join(BASE_CONVERTER_PATH, out_folder_name)
     out_path = os.path.join(out_folder_path, f"{base_name}{out_ext}")
 
     try:
-        # --- Διαδρομή 1: Εξαγωγή ---
         if in_ext in ARCHIVE_EXTS:
-            # Σημείωση: Τα αρχεία GZ θα αποσυμπιεστούν *μέσα* στον φάκελο με όνομα GZ
-            # Όλα τα άλλα (ZIP, TAR, RAR, 7Z) εξάγονται σε *υπο-φάκελο*
             out_folder = out_folder_path if in_ext == '.gz' else os.path.join(BASE_CONVERTER_PATH, out_folder_name)
             message = handle_extraction(stdscr, in_path, out_folder, in_ext)
             return (True, message)
 
-        # --- Διαδρομή 2: Μετατροπή SVG (σε PNG, PDF) ---
         if in_ext in VECTOR_IMAGE_EXTS and out_ext in ['.png', '.pdf']:
             handle_svg_conversion(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Διαδρομή 3: Μετατροπή PSD (σε επίπεδη εικόνα) ---
         if in_ext in LAYERED_IMAGE_EXTS and out_ext in IMAGE_EXTS:
             handle_psd_conversion(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Διαδρομή 4: Εικόνα-σε-Εικόνα (Pillow) ---
         if in_ext in IMAGE_EXTS and out_ext in IMAGE_EXTS:
             handle_image_conversion(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
             
-        # --- Διαδρομή 5: Μονή Εικόνα-σε-PDF ---
         if in_ext in IMAGE_EXTS and out_ext == '.pdf':
             handle_single_image_to_pdf(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Διαδρομή 6: Ήχος/Βίντεο-σε-Ήχος/Βίντεο (ffmpeg) ---
         if in_ext in AV_EXTS and out_ext in AV_EXTS:
             handle_av_conversion(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
             
-        # --- Διαδρομή 7: Μετατροπή Δεδομένων (CSV <-> JSON) ---
         if in_ext in ['.csv', '.json'] and out_ext in ['.csv', '.json']:
             handle_data_conversion(stdscr, in_path, out_path, in_ext, out_ext)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Διαδρομή 8: MD-σε-HTML ---
         if in_ext == '.md' and out_ext == '.html':
             handle_md_to_html(stdscr, in_path, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Διαδρομή 9: Οτιδήποτε-σε-TXT ---
         if out_ext == '.txt' and in_ext in TEXT_DOC_EXTS:
             text_lines = get_text_from_file(in_path, in_ext)
             with open(out_path, 'w', encoding='utf-8') as f:
                 f.writelines(text_lines)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
             
-        # --- Διαδρομή 10: Οτιδήποτε-σε-PDF ---
         if out_ext == '.pdf' and in_ext in TEXT_DOC_EXTS:
             text_lines = get_text_from_file(in_path, in_ext)
             write_text_to_pdf(text_lines, out_path)
             return (True, f"Αποθηκεύτηκε σε: {out_path}")
 
-        # --- Δεν Βρέθηκε Διαδρομή ---
         return (False, f"Μη υποστηριζόμενη μετατροπή: {in_ext} σε {out_ext}")
 
     except Exception as e:
         return (False, f"ΣΦΑΛΜΑ: {str(e)}")
 
 
-# --- 6. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ ΠΕΡΙΒΑΛΛΟΝΤΟΣ ΧΡΗΣΤΗ CURSES ---
-# (Αμετάβλητες από v2, αλλά προστέθηκε σημείωση στο run_help)
+# --- 6. ΒΟΗΘΗΤΙΚΕΣ ΣΥΝΑΡΤΗΣΕΙΣ CURSES UI ---
 
 def draw_header(stdscr, title):
     h, w = stdscr.getmaxyx()
     stdscr.attron(curses.color_pair(2))
     stdscr.addstr(0, 0, " " * w, curses.color_pair(2))
-    header_text = f" Termux Curses Converter (q για έξοδο/πίσω) "
+    header_text = f" Termux Μετατροπέας Αρχείων (q για έξοδο/πίσω) "
     stdscr.addstr(0, (w - len(header_text)) // 2, header_text, curses.A_REVERSE)
     stdscr.attroff(curses.color_pair(2))
     stdscr.attron(curses.color_pair(1))
@@ -514,7 +504,7 @@ def draw_header(stdscr, title):
 
 def draw_status(stdscr, message, is_error=False):
     h, w = stdscr.getmaxyx()
-    nav_hint = " (Βελάκια, Enter για Επιλογή, q για Πίσω) "
+    nav_hint = " (Βέλη/Enter για Επιλογή, q για Πίσω) "
     hint_len = len(nav_hint)
     color = curses.color_pair(3) if is_error else curses.color_pair(2)
     stdscr.attron(color)
@@ -569,17 +559,14 @@ def run_file_selector(stdscr, folder_path, title, input_folder_name):
         return None
     
     if not files:
-        draw_status(stdscr, f"Δεν βρέθηκαν αρχεία στον φάκελο {os.path.basename(folder_path)}", is_error=True)
+        draw_status(stdscr, f"Δεν βρέθηκαν αρχεία στον {os.path.basename(folder_path)}", is_error=True)
         stdscr.getch()
         return None
         
     options = ["[ .. Επιστροφή .. ]"]
-    
     if input_folder_name in IMAGE_FOLDERS:
-        options.append(f"[ ** Μετατροπή ΟΛΩΝ των {len(files)} Εικόνων στον φάκελο '{input_folder_name}' σε ένα PDF ** ]")
-    
+        options.append(f"[ ** Μετατροπή ΟΛΩΝ {len(files)} Εικόνων στον '{input_folder_name}' σε ένα PDF ** ]")
     options.extend(files)
-    # --- ΤΡΟΠΟΠΟΙΗΜΕΝΟ: Ενημερωμένη διαδρομή στον υπότιτλο ---
     selection = run_menu(stdscr, title, options, f"Φάκελος: /Download/File Converter/{input_folder_name}")
     if selection == "[ .. Επιστροφή .. ]":
         return None
@@ -595,33 +582,23 @@ def run_help(stdscr):
     h, w = stdscr.getmaxyx()
     draw_header(stdscr, "Πώς να Χρησιμοποιήσετε")
     help_text = [
-        "Αυτός ο μετατροπέας χρησιμοποιεί μια απλή διαδικασία 3 βημάτων:",
+        "1. ΜΕΤΑΚΙΝΗΣΗ ΑΡΧΕΙΩΝ:",
+        f"   Μεταβείτε σε: /Download/File Converter/",
+        "   Μετακινήστε αρχεία στον σωστό φάκελο ΕΙΣΟΔΟΥ.",
         "",
-        "1. ΜΕΤΑΚΙΝΗΣΤΕ ΤΑ ΑΡΧΕΙΑ ΣΑΣ:",
-        "   Χρησιμοποιήστε τη Διαχείριση Αρχείων του τηλεφώνου σας. Μεταβείτε στο:",
-        # --- ΤΡΟΠΟΠΟΙΗΜΕΝΟ: Ενημερωμένη διαδρομή στο κείμενο βοήθειας ---
-        f"   /Download/File Converter/",
-        "   Μετακινήστε αρχεία στον σωστό φάκελο (π.χ., μετακινήστε",
-        "   το 'report.docx' στον φάκελο 'DOCX').",
+        "2. ΕΚΤΕΛΕΣΗ ΜΕΤΑΤΡΟΠΕΑ:",
+        "   Επιλέξτε 'Μετατροπή Αρχείου' -> Φάκελος ΕΙΣΟΔΟΥ -> Αρχείο.",
         "",
-        "2. ΕΚΤΕΛΕΣΤΕ ΑΥΤΟΝ ΤΟΝ ΜΕΤΑΤΡΟΠΕΑ:",
-        "   Επιλέξτε 'Μετατροπή Αρχείου' από το κύριο μενού.",
+        "3. ΕΠΙΛΟΓΗ ΕΞΟΔΟΥ:",
+        "   Επιλέξτε τη μορφή που θέλετε.",
         "",
-        "3. ΑΚΟΛΟΥΘΗΣΤΕ ΤΙΣ ΟΔΗΓΙΕΣ:",
-        "   Βήμα 1: Επιλέξτε τον φάκελο ΕΙΣΟΔΟΥ (π.χ., 'DOCX').",
-        "   Βήμα 2: Επιλέξτε το αρχείο που θέλετε να μετατρέψετε.",
-        "   Βήμα 3: Επιλέξτε τη ΜΟΡΦΗ ΕΞΟΔΟΥ (π.χ., 'PDF').",
-        "",
-        "** ΕΙΔΙΚΕΣ ΜΕΤΑΤΡΟΠΕΣ **",
-        " - Αρχεία (ZIP, RAR, 7Z, TAR): Επιλέξτε 'ZIP' -> 'file.zip' -> 'ZIP'",
-        "   Αυτό θα εξαγάγει το 'file.zip' σε έναν νέο φάκελο: /ZIP/file/",
-        " - PDF Πολλαπλών Εικόνων: Επιλέξτε 'JPG' -> '[ ** Μετατροπή ΟΛΩΝ... ** ]'",
-        "   Αυτό συνδυάζει όλες τις εικόνες στον φάκελο 'JPG' σε ένα PDF.",
-        " - Δεδομένα: Μπορείτε να μετατρέψετε CSV <-> JSON.",
-        " - Ήχος/Βίντεο: Οι μετατροπές ήχου/βίντεο απαιτούν 'ffmpeg' (δείτε την έναρξη)."
+        "** ΣΗΜΕΙΩΣΕΙΣ **",
+        " - Τα αρχεία αρχειοθέτησης εξάγονται στον δικό τους φάκελο.",
+        " - Η μετατροπή ήχου/βίντεο χρησιμοποιεί FFmpeg (Αυτόματη εγκατάσταση).",
+        " - Οι εικόνες μπορούν να συνδυαστούν σε ένα PDF."
     ]
     for i, line in enumerate(help_text):
-        if 5 + i >= h - 2: break # Σταματά αν είναι πολύ μεγάλο για την οθόνη
+        if 5 + i >= h - 2: break
         stdscr.addstr(5 + i, (w - len(line)) // 2, line)
     draw_status(stdscr, "Πατήστε 'q' ή Enter για επιστροφή.")
     stdscr.refresh()
@@ -631,7 +608,6 @@ def run_help(stdscr):
             return
 
 def run_text_input(stdscr, prompt):
-    # (Αμετάβλητο)
     stdscr.clear()
     h, w = stdscr.getmaxyx()
     draw_header(stdscr, "Απαιτείται Εισαγωγή")
@@ -640,7 +616,7 @@ def run_text_input(stdscr, prompt):
     stdscr.attron(curses.color_pair(2))
     stdscr.addstr(box_y, box_x, " " * 40)
     stdscr.attroff(curses.color_pair(2))
-    draw_status(stdscr, "Πληκτρολογήστε το όνομα αρχείου (χωρίς επέκταση). Πατήστε Enter όταν τελειώσετε.")
+    draw_status(stdscr, "Πληκτρολογήστε όνομα αρχείου. Enter για Επιβεβαίωση.")
     curses.curs_set(1)
     stdscr.keypad(True)
     text = ""
@@ -663,7 +639,6 @@ def run_text_input(stdscr, prompt):
     curses.curs_set(0); stdscr.keypad(False); return text
 
 def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
-    # (Αμετάβλητο)
     try:
         image_paths = [
             os.path.join(input_folder_path, f) 
@@ -672,18 +647,18 @@ def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
         ]
         image_paths.sort()
     except Exception as e:
-        draw_status(stdscr, f"Σφάλμα ανάγνωσης εικόνων: {e}", is_error=True); stdscr.getch(); return
+        draw_status(stdscr, f"Σφάλμα: {e}", is_error=True); stdscr.getch(); return
     if not image_paths:
-        draw_status(stdscr, "Δεν βρέθηκαν εικόνες σε αυτόν τον φάκελο.", is_error=True); stdscr.getch(); return
-    confirm = run_confirmation(stdscr, f"Συνδυασμός όλων των {len(image_paths)} εικόνων στον φάκελο '{input_folder_name}' σε ένα PDF;")
+        draw_status(stdscr, "Δεν βρέθηκαν εικόνες.", is_error=True); stdscr.getch(); return
+    confirm = run_confirmation(stdscr, f"Συνδυασμός {len(image_paths)} εικόνων σε ένα PDF;")
     if confirm != "Ναι": return
     default_name = f"{input_folder_name}_Album"
-    filename = run_text_input(stdscr, f"Εισάγετε ένα όνομα για το PDF (προεπιλογή: {default_name})")
+    filename = run_text_input(stdscr, f"Εισάγετε όνομα PDF (προεπιλογή: {default_name})")
     if filename is None: return
     if not filename: filename = default_name
     out_folder_path = os.path.join(BASE_CONVERTER_PATH, "PDF")
     out_path = os.path.join(out_folder_path, f"{filename}.pdf")
-    draw_status(stdscr, "Εργασία... συνδυασμός εικόνων σε PDF..."); stdscr.refresh()
+    draw_status(stdscr, "Εργασία..."); stdscr.refresh()
     try:
         handle_multi_image_to_pdf(stdscr, image_paths, out_path)
         draw_status(stdscr, f"Επιτυχία! Αποθηκεύτηκε σε: /PDF/{filename}.pdf")
@@ -694,12 +669,11 @@ def run_multi_image_to_pdf_wizard(stdscr, input_folder_path, input_folder_name):
 # --- 7. ΚΥΡΙΑ ΕΦΑΡΜΟΓΗ CURSES ---
 
 def main(stdscr):
-    # (Αμετάβλητο)
     curses.curs_set(0); stdscr.nodelay(0); stdscr.timeout(-1)
     curses.start_color()
-    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK) # Επισήμανση
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE) # Κεφαλίδα/Υποσέλιδο
-    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)   # Σφάλμα
+    curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_WHITE)
+    curses.init_pair(3, curses.COLOR_WHITE, curses.COLOR_RED)
 
     while True:
         main_choice = run_menu(stdscr, "Κύριο Μενού", ["Μετατροπή Αρχείου", "Βοήθεια / Πώς να Χρησιμοποιήσετε", "Έξοδος"])
@@ -717,25 +691,17 @@ def main(stdscr):
             continue
             
         full_input_path = os.path.join(input_folder_path, input_file)
-        
-        # --- Ειδική Περίπτωση: Εξαγωγή Αρχείου ---
         in_ext = os.path.splitext(input_file)[1].lower()
         if in_ext in ARCHIVE_EXTS:
-            # Για αρχεία, ο "φάκελος εξόδου" είναι απλά ο φάκελος του ίδιου τύπου
-            # π.χ., εξαγωγή ενός αρχείου ZIP στον φάκελο "ZIP".
             output_folder = input_folder
-            prompt = f"Εξαγωγή '{input_file}' στον '/{output_folder}/';"
-            if in_ext not in ['.zip', '.rar', '.7z', '.tar', '.gz', '.bz2']:
-                output_folder = input_folder # Ασφάλεια
-                
+            prompt = f"Εξαγωγή '{input_file}' εδώ;"
         else:
-            # --- Κανονική Διαδρομή Μετατροπής ---
-            output_folder = run_menu(stdscr, "Βήμα 3: Επιλογή Μορφής/Φακέλου ΕΞΟΔΟΥ", FOLDER_NAMES)
+            output_folder = run_menu(stdscr, "Βήμα 3: Επιλογή Μορφής ΕΞΟΔΟΥ", FOLDER_NAMES)
             if output_folder is None: continue
             if output_folder == input_folder:
-                draw_status(stdscr, "Σφάλμα: Ο φάκελος εισόδου και εξόδου δεν μπορεί να είναι ο ίδιος.", is_error=True)
+                draw_status(stdscr, "Η είσοδος και η έξοδος δεν μπορούν να είναι ίδιες.", is_error=True)
                 stdscr.getch(); continue
-            prompt = f"Μετατροπή '{input_file}' σε μορφή {output_folder};"
+            prompt = f"Μετατροπή '{input_file}' σε {output_folder};"
              
         confirm = run_confirmation(stdscr, prompt)
         if confirm != "Ναι": continue
@@ -745,20 +711,29 @@ def main(stdscr):
         draw_status(stdscr, message, is_error=not success)
         stdscr.getch()
 
-# --- 8. ΣΗΜΕΙΟ ΕΝΑΡΞΗΣ ΣΚΡΙΠΤ ---
+# --- 8. ΣΗΜΕΙΟ ΕΝΑΡΞΗΣ SCRIPT ---
 
 if __name__ == "__main__":
     try:
         clear_screen_standard()
-        print("--- Αρχικοποίηση Termux Converter v3.1 (40 Μορφές) ---")
-        check_and_install_dependencies()
-        check_external_bins()
-        check_storage_access()
+        print("--- Αρχικοποίηση Termux Μετατροπέα v3.2 (Αυτόματη Εγκατάσταση) ---")
+        
+        # 1. Εγκατάσταση Δυαδικών Συστήματος (pkg)
+        install_termux_system_deps()
+        
+        # 2. Εγκατάσταση Modules Python (pip)
+        check_and_install_python_deps()
+        
+        # 3. Επαλήθευση Ολοκληρωμάτων
+        check_external_bins_status()
+        
+        # 4. Έλεγχος Αποθήκευσης
+        ensure_storage_access()
+        
         setup_folders()
         
-        print("--- Ρύθμιση Ολοκληρώθηκε ---")
-        # --- ΤΡΟΠΟΠΟΙΗΜΕΝΟ: Ενημερωμένο μήνυμα τελικής διαδρομής ---
-        print(f"Οι φάκελοι οργάνωσης είναι έτοιμοι στο: /storage/emulated/0/Download/File Converter/")
+        print("--- Η Διαμόρφωση Ολοκληρώθηκε ---")
+        print(f"Οι φάκελοι είναι έτοιμοι σε: /storage/emulated/0/Download/File Converter/")
         print("\nΕκκίνηση εφαρμογής...")
         time.sleep(1)
         
@@ -768,7 +743,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nΈξοδος...")
     except Exception as e:
-        print("\nΠροέκυψε ένα κρίσιμο σφάλμα:")
+        print("\nΠροέκυψε κρίσιμο σφάλμα:")
         traceback.print_exc()
     finally:
         os.system('clear')
