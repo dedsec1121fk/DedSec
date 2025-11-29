@@ -50,663 +50,761 @@ def load_timezones():
         pass
     return sorted([
         'UTC', 'Europe/Athens', 'Europe/London', 'Europe/Berlin', 'Europe/Paris',
-        'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Australia/Sydney'
+        'America/New_York', 'America/Los_Angeles', 'America/Chicago', 'Asia/Tokyo',
+        'Asia/Shanghai', 'Asia/Kolkata', 'Asia/Dubai', 'Australia/Sydney',
+        'Pacific/Auckland', 'Africa/Johannesburg'
     ])
 
-TIMEZONES = load_timezones()
-
-# -----------------
-# Core File Logic
-# -----------------
-
-def load_notes():
-    """Loads notes from the JSON file."""
-    if not os.path.exists(NOTES_FILE):
-        return {}
+# Load countries
+def load_countries():
     try:
-        with open(NOTES_FILE, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"Error loading notes: {e}. Starting with an empty set.")
-        return {}
-
-def save_notes(notes):
-    """Saves notes to the JSON file."""
-    try:
-        with open(NOTES_FILE, 'w') as f:
-            json.dump(notes, f, indent=4, ensure_ascii=False)
-    except Exception as e:
-        print(f"Error saving notes: {e}")
-
-# -----------------
-# Reminder Logic
-# -----------------
-
-def _parse_reminder_data(note_content: str) -> dict:
-    """Parses reminder metadata from the beginning of a note."""
-    data = {}
-    lines = note_content.split('\n')
-    for line in lines:
-        if line.strip().startswith('#reminder:'):
-            parts = line.split(':', 2)
-            if len(parts) == 3:
-                key = parts[1].strip()
-                value = parts[2].strip()
-                data[key] = value
-        elif not line.strip(): # Stop on first empty line
-            break
-        elif not line.strip().startswith('#'): # Stop on first non-comment/non-empty line
-            break
-    return data
-
-def get_reminder_content(note_content: str) -> str:
-    """Removes metadata lines from note content for display."""
-    lines = note_content.split('\n')
-    content_lines = []
-    metadata_done = False
-    for line in lines:
-        if not metadata_done and line.strip().startswith('#reminder:'):
-            continue
-        if not metadata_done and not line.strip():
-            metadata_done = True
-            continue
-        if not metadata_done and not line.strip().startswith('#'):
-            metadata_done = True
-            
-        if metadata_done:
-            content_lines.append(line)
-    return '\n'.join(content_lines).strip()
-
-def run_reminders(auto_run=False):
-    """Checks and executes overdue reminders."""
-    notes = load_notes()
-    reminders_run = 0
-    
-    if not dateparser:
-        if auto_run: return # Cannot run without dateutil
-        print('Cannot run reminders: The dateutil library is required.')
-        print('Please install it with: pip install python-dateutil')
-        return
-
-    print("\n--- Checking Reminders ---")
-    
-    for name, content in notes.items():
-        data = _parse_reminder_data(content)
-        
-        # Check for reminder trigger
-        if 'due' in data:
-            try:
-                # Use dateparser to handle flexible date formats
-                due_time = dateparser.parse(data['due'])
-                
-                # Assume local timezone if none is specified in 'due' string
-                if due_time.tzinfo is None or due_time.tzinfo.utcoffset(due_time) is None:
-                    # Best-effort localization (assuming system local time)
-                    due_time = due_time.astimezone(datetime.now().astimezone().tzinfo)
-                    
-                if due_time < datetime.now().astimezone():
-                    print(f"\n🔔 Reminder Overdue: {name} (Due: {data['due']})")
-                    print("-" * (len(name) + 20))
-                    print(get_reminder_content(content))
-                    
-                    command = data.get('run_cmd')
-                    if command:
-                        print(f"\n[!] Executing command: {command}")
-                        try:
-                            # Use shlex to safely split the command string
-                            process = subprocess.run(shlex.split(command), capture_output=True, text=True, timeout=10)
-                            print(f"Command Output:\n{process.stdout}")
-                            if process.stderr:
-                                print(f"Command Error:\n{process.stderr}")
-                            print(f"Command finished with exit code {process.returncode}")
-                        except Exception as e:
-                            print(f"❌ Error executing command: {e}")
-                            
-                    # Remove the reminder metadata after execution (if set to auto_remove)
-                    if data.get('auto_remove', 'False').lower() == 'true':
-                        print("\n[!] Auto-removing reminder metadata...")
-                        new_lines = []
-                        for line in content.split('\n'):
-                            if not line.strip().startswith('#reminder:'):
-                                new_lines.append(line)
-                        notes[name] = '\n'.join(new_lines).strip()
-                        save_notes(notes)
-                    
-                    reminders_run += 1
-                    print("-" * (len(name) + 20))
-                    
-            except Exception as e:
-                print(f"❌ Error parsing date for note {name}: {e}")
-                
-    if reminders_run == 0:
-        print("No overdue reminders found.")
-
-    return reminders_run
-
-# -----------------
-# TUI Logic (Curses)
-# -----------------
-
-class TUI:
-    def __init__(self, stdscr):
-        self.stdscr = stdscr
-        self.notes = load_notes()
-        self.config = self._load_config()
-        self.current_selection = 0
-        self.filter_text = ""
-        self.current_notes = self.get_filtered_notes()
-        self._init_curses()
-
-    def _load_config(self):
-        """Loads configuration or returns default."""
-        if not os.path.exists(CONFIG_FILE):
-            return {"last_opened_note": None, "editor_cmd": "$EDITOR"}
-        try:
-            with open(CONFIG_FILE, 'r') as f:
-                return json.load(f)
-        except Exception:
-            return {"last_opened_note": None, "editor_cmd": "$EDITOR"}
-
-    def _save_config(self):
-        """Saves current configuration."""
-        try:
-            with open(CONFIG_FILE, 'w') as f:
-                json.dump(self.config, f, indent=4, ensure_ascii=False)
-        except Exception as e:
-            self._log_error(f"Config Save Error: {e}")
-
-    def _log_error(self, message):
-        """Logs an error with a timestamp."""
-        try:
-            with open(ERROR_LOG, 'a') as f:
-                f.write(f"[{datetime.now().isoformat()}] {message}\n")
-        except Exception:
-            pass # Failsafe
-
-    def _init_curses(self):
-        """Initializes curses settings."""
-        curses.cbreak()
-        curses.noecho()
-        self.stdscr.keypad(True)
-        try:
-            curses.curs_set(0) # Hide cursor
-        except curses.error:
-            pass
-            
-        if curses.has_colors():
-            curses.start_color()
-            curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK) # Default
-            curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK)  # Title
-            curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK) # Filter/Warning
-            curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)  # Highlight background
-            curses.init_pair(5, curses.COLOR_GREEN, curses.COLOR_BLACK) # Reminder
-            curses.init_pair(6, curses.COLOR_RED, curses.COLOR_BLACK)   # Error/Overdue
-
-    def get_filtered_notes(self):
-        """Filters notes based on the current filter text."""
-        notes = sorted(self.notes.keys(), key=str.lower)
-        if not self.filter_text:
-            return notes
-            
-        filter_lower = self.filter_text.lower()
-        
-        # Exact match / starts with
-        filtered = [name for name in notes if name.lower().startswith(filter_lower)]
-        # Contains
-        filtered.extend([name for name in notes if filter_lower in name.lower() and name not in filtered])
-        # Fuzzy match (similarity ratio)
-        filtered.extend([
-            name for name in notes 
-            if name not in filtered and SequenceMatcher(None, filter_lower, name.lower()).ratio() > 0.3
+        import pycountry
+        names = [c.name for c in pycountry.countries]
+        return sorted(set(names))
+    except Exception:
+        return sorted([
+            'Greece', 'United States', 'United Kingdom', 'Germany', 'France', 'Spain',
+            'Italy', 'India', 'China', 'Japan', 'Australia', 'Canada', 'Brazil', 'Russia',
+            'South Africa', 'Egypt', 'Turkey', 'Mexico', 'Netherlands', 'Sweden'
         ])
 
-        return filtered
+TIMEZONES = load_timezones()
+COUNTRIES = load_countries()
 
-    def _draw_main_screen(self):
-        """Draws the main list screen."""
-        self.stdscr.clear()
-        h, w = self.stdscr.getmaxyx()
-        
-        # 1. Title Bar
-        title = " Smart Notes - TUI "
-        self.stdscr.attron(curses.A_BOLD | curses.color_pair(2))
-        self.stdscr.addstr(0, w//2 - len(title)//2, title)
-        self.stdscr.addstr(0, 0, f"({len(self.current_notes)}/{len(self.notes)})")
-        self.stdscr.attroff(curses.A_BOLD | curses.color_pair(2))
-        
-        # 2. Filter/Help Bar
-        filter_text = f"Filter: {self.filter_text.ljust(w - 20)}"
-        self.stdscr.attron(curses.A_REVERSE | curses.color_pair(3))
-        self.stdscr.addstr(1, 0, filter_text)
-        self.stdscr.addstr(1, w - 19, "h: Help / q: Quit")
-        self.stdscr.attroff(curses.A_REVERSE | curses.color_pair(3))
-        
-        # 3. Note List
-        display_start = max(0, self.current_selection - (h - 5) // 2)
-        
-        for idx in range(h - 3):
-            list_index = display_start + idx
-            y = 2 + idx
-            
-            if list_index >= len(self.current_notes):
-                break
-                
-            note_name = self.current_notes[list_index]
-            display_name = note_name.ljust(w - 1)
-            
-            is_selected = list_index == self.current_selection
-            
-            # Check for reminder status
-            has_reminder = False
-            is_overdue = False
-            
-            try:
-                data = _parse_reminder_data(self.notes.get(note_name, ""))
-                if 'due' in data:
-                    has_reminder = True
-                    due_time = dateparser.parse(data['due']).astimezone(datetime.now().astimezone().tzinfo)
-                    if due_time < datetime.now().astimezone():
-                        is_overdue = True
-            except Exception:
-                pass # Ignore parsing errors during draw
+# --- I/O helpers ---
 
-            # Set colors
-            attr = curses.color_pair(1)
-            if is_selected:
-                attr = curses.A_BOLD | curses.color_pair(4)
-            elif is_overdue:
-                attr = curses.A_BOLD | curses.color_pair(6)
-            elif has_reminder:
-                attr = curses.color_pair(5)
-            
-            # Draw
-            self.stdscr.attron(attr)
-            self.stdscr.addstr(y, 0, display_name[:w-1])
-            self.stdscr.attroff(attr)
+def _safe_read_json(path):
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-        # 4. Status/Key Bindings Bar
-        status_text = "ENTER: Open | d: Delete | a: Add/Edit | /: Filter | r: Reminders"
-        self.stdscr.attron(curses.A_REVERSE)
-        self.stdscr.addstr(h-1, 0, status_text.ljust(w))
-        self.stdscr.attroff(curses.A_REVERSE)
-        
-        self.stdscr.refresh()
 
-    def _handle_filter_input(self):
-        """Allows user to enter filter text."""
-        curses.curs_set(1) # Show cursor
-        self.stdscr.nodelay(False) # Blocking input
-        
-        h, w = self.stdscr.getmaxyx()
-        # Create a tiny window for input at the top
-        input_win = curses.newwin(1, w - 8, 1, 8)
-        input_win.attron(curses.A_REVERSE | curses.color_pair(3))
-        
-        inp = list(self.filter_text)
-        
-        while True:
-            input_win.clear()
-            display_text = ''.join(inp)
-            input_win.addstr(0, 0, display_text[:w-9])
-            input_win.refresh()
-            
-            ch = self.stdscr.getch()
-            
-            if ch in (10, 13): # Enter
-                self.filter_text = ''.join(inp).strip()
-                break
-            elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                if inp:
-                    inp.pop()
-            elif ch == 27 or ch == ord('/'): # ESC or / cancels filter
-                break
-            elif 32 <= ch <= 126: # Printable characters
-                inp.append(chr(ch))
-        
-        curses.curs_set(0)
-        self.filter_text = ''.join(inp).strip()
-        self.current_notes = self.get_filtered_notes()
-        self.current_selection = 0
-        self.stdscr.nodelay(True) # Non-blocking input again
-
-    def _open_note_view(self, note_name):
-        """Opens a read-only view of the note content."""
-        h, w = self.stdscr.getmaxyx()
-        
-        # Prepare content
-        content = self.notes.get(note_name, "NOTE NOT FOUND")
-        display_content = [f"--- Note: {note_name} ---"]
-        
-        data = _parse_reminder_data(content)
-        if data:
-            display_content.append("--- Metadata ---")
-            for k, v in data.items():
-                display_content.append(f"  {k}: {v}")
-            display_content.append("--- Content ---")
-        
-        display_content.append(get_reminder_content(content))
-        
-        # Handle scrolling
-        scroll_pos = 0
-        
-        while True:
-            self.stdscr.clear()
-            
-            # Title
-            title = f" Note: {note_name} "
-            self.stdscr.attron(curses.A_BOLD | curses.color_pair(2))
-            self.stdscr.addstr(0, w//2 - len(title)//2, title)
-            self.stdscr.attroff(curses.A_BOLD | curses.color_pair(2))
-            
-            # Content
-            max_lines = h - 2
-            for i in range(max_lines):
-                line_index = scroll_pos + i
-                y = 1 + i
-                if line_index < len(display_content):
-                    line = display_content[line_index][:w-1]
-                    self.stdscr.addstr(y, 0, line)
-                else:
-                    break
-                    
-            # Status line
-            status_text = "Scroll: UP/DOWN | q: Close | e: Edit"
-            self.stdscr.attron(curses.A_REVERSE)
-            self.stdscr.addstr(h-1, 0, status_text.ljust(w))
-            self.stdscr.attroff(curses.A_REVERSE)
-            
-            self.stdscr.refresh()
-            key = self.stdscr.getch()
-            
-            if key in (ord('q'), ord('Q'), 27): # q or ESC
-                break
-            elif key in (curses.KEY_UP, ord('k')):
-                scroll_pos = max(0, scroll_pos - 1)
-            elif key in (curses.KEY_DOWN, ord('j')):
-                scroll_pos = min(len(display_content) - max_lines, scroll_pos + 1)
-            elif key in (ord('e'), ord('E')):
-                self._external_edit(note_name)
-                # Re-load content after external edit
-                self.notes = load_notes() 
-                self.config['last_opened_note'] = note_name
-                self._save_config()
-                # Break and redraw main screen
-                break 
-
-        self.stdscr.clear()
-
-    def _get_input(self, prompt, default=''):
-        """Gets single-line input from user."""
-        curses.curs_set(1)
-        self.stdscr.nodelay(False)
-        self.stdscr.clear()
-        h, w = self.stdscr.getmaxyx()
-        
-        input_win = curses.newwin(3, w-4, h//2 - 1, 2)
-        input_win.box()
-        
-        # Center prompt
-        p_x = w//2 - len(prompt)//2 - 2
-        p_x = max(1, p_x)
-        
-        input_win.addstr(0, p_x, prompt, curses.A_BOLD | curses.color_pair(2))
-        
-        inp = list(default)
-        pos = len(inp)
-        
-        while True:
-            input_win.addstr(1, 1, ' ' * (w - 6)) # Clear input line
-            display_text = ''.join(inp)
-            
-            # Check for max length
-            max_len = w - 6
-            start_index = max(0, pos - max_len)
-            display_text = display_text[start_index:]
-            
-            input_win.addstr(1, 1, display_text, curses.A_BOLD)
-            input_win.move(1, 1 + pos - start_index)
-            input_win.refresh()
-            
-            try:
-                ch = self.stdscr.getch()
-            except:
-                ch = -1
-            
-            if ch in (10, 13): # Enter
-                curses.curs_set(0)
-                self.stdscr.nodelay(True)
-                return ''.join(inp).strip()
-            elif ch in (3, 27): # Ctrl+C or ESC
-                curses.curs_set(0)
-                self.stdscr.nodelay(True)
-                return None
-            elif ch in (curses.KEY_BACKSPACE, 127, 8):
-                if pos > 0:
-                    inp.pop(pos - 1)
-                    pos -= 1
-            elif ch == curses.KEY_LEFT:
-                pos = max(0, pos - 1)
-            elif ch == curses.KEY_RIGHT:
-                pos = min(len(inp), pos + 1)
-            elif 32 <= ch <= 255:
-                if len(inp) < 255: # Max 255 chars
-                    inp.insert(pos, chr(ch))
-                    pos += 1
-            
-    def _display_message(self, message):
-        """Displays a message and waits for a keypress."""
-        curses.curs_set(0)
-        self.stdscr.nodelay(False)
-        self.stdscr.clear()
-        h, w = self.stdscr.getmaxyx()
-        
-        lines = message.split('\n')
-        
-        # Center and display lines
-        for i, line in enumerate(lines):
-            y = h//2 - len(lines)//2 + i
-            x = w//2 - len(line)//2
-            if 0 <= y < h:
-                try:
-                    self.stdscr.addstr(y, x, line)
-                except curses.error:
-                    pass
-                    
-        # Wait for keypress message
-        wait_msg = "Press any key to continue..."
-        self.stdscr.attron(curses.A_REVERSE)
-        self.stdscr.addstr(h-1, 0, wait_msg.ljust(w))
-        self.stdscr.attroff(curses.A_REVERSE)
-        
-        self.stdscr.refresh()
-        self.stdscr.getch()
-        self.stdscr.nodelay(True)
-
-    def _external_edit(self, note_name=None):
-        """Launches external editor for a note."""
-        
-        # 1. Prepare temp file with current content
-        temp_file = os.path.join(HOME, f".smart_notes_temp_{os.getpid()}.txt")
-        initial_content = self.notes.get(note_name, "") if note_name else ""
-        
-        try:
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                f.write(initial_content)
-        except Exception as e:
-            self._display_message(f"Error preparing temp file: {e}")
-            return
-            
-        # 2. Get editor command
-        editor_cmd = self.config.get("editor_cmd", "$EDITOR")
-        editor_cmd = os.environ.get('EDITOR', 'vi') if editor_cmd == '$EDITOR' else editor_cmd
-        
-        full_command = f"{editor_cmd} {shlex.quote(temp_file)}"
-
-        # 3. Leave curses mode and launch editor
-        curses.endwin()
-        try:
-            print(f"Launching external editor: {full_command}")
-            subprocess.run(shlex.split(full_command), check=True)
-            print("Editor closed. Reading new content...")
-            
-            # 4. Read content back
-            with open(temp_file, 'r', encoding='utf-8') as f:
-                new_content = f.read().strip()
-            
-            # 5. Handle saving
-            if not note_name:
-                # New note case
-                name = input("Enter new note name: ").strip()
-                if not name:
-                    print("Canceled: Empty name.")
-                    return
-                if name in self.notes:
-                    if input('Replace existing? (y/N): ').lower() != 'y':
-                        print('Canceled.')
-                        return
-                
-                self.notes[name] = new_content
-                self.config['last_opened_note'] = name
-            else:
-                # Existing note case
-                self.notes[note_name] = new_content
-                self.config['last_opened_note'] = note_name
-                
-            save_notes(self.notes)
-            self._save_config()
-            print("Note saved.")
-
-        except subprocess.CalledProcessError:
-            print("Editor failed with an error. Note not saved.")
-        except KeyboardInterrupt:
-            print("\nEditing canceled by user.")
-        except Exception as e:
-            print(f"An error occurred during external edit: {e}")
-            self._log_error(f"External Edit Error: {e}\n{traceback.format_exc()}")
-        finally:
-            # Clean up temp file
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-            
-            # Re-initialize curses state
-            self.stdscr = curses.initscr() 
-            self._init_curses()
-            
-            # Re-filter/re-select
-            self.current_notes = self.get_filtered_notes()
-            if note_name:
-                try:
-                    self.current_selection = self.current_notes.index(note_name)
-                except ValueError:
-                    self.current_selection = 0
-
-    def _delete_note(self, note_name):
-        """Deletes a note after confirmation."""
-        confirmation = self._get_input(f"Delete '{note_name}'? (Y/n): ", default='n')
-        if confirmation and confirmation.lower() in ('y', 'yes'):
-            del self.notes[note_name]
-            save_notes(self.notes)
-            if self.config.get('last_opened_note') == note_name:
-                self.config['last_opened_note'] = None
-                self._save_config()
-                
-            self.current_notes = self.get_filtered_notes()
-            self.current_selection = min(self.current_selection, len(self.current_notes) - 1)
-            self._display_message(f"Note '{note_name}' deleted.")
+def load_notes():
+    raw = _safe_read_json(NOTES_FILE)
+    if not isinstance(raw, dict):
+        raw = {}
+    norm = {}
+    for k, v in raw.items():
+        if k == '_reminders':
+            norm[k] = v if isinstance(v, list) else []
+            continue
+        if isinstance(v, str):
+            norm[k] = v
         else:
-            self._display_message("Deletion canceled.")
-
-    def _help_screen(self):
-        """Displays the TUI help screen."""
-        help_text = """
-Smart Notes - Help
-
-Key Bindings:
-  UP/DOWN/k/j : Move selection
-  ENTER       : Open/View selected note
-  e (View)    : Edit selected note with external editor
-  a           : Add a new note (launches external editor)
-  d           : Delete selected note (with confirmation)
-  /           : Start filtering the list
-  r           : Run overdue reminders (checks all notes)
-  q / ESC     : Quit the application
-  h           : Show this help screen
-
-Editor Configuration:
-- Uses the environment variable $EDITOR (e.g., nano, vi).
-- To change it, edit: ~/.smart_notes_config.json
-  Example: {"editor_cmd": "nano"}
-
-Reminder Format (Start of note):
-#reminder:due: YYYY-MM-DD HH:MM:SS (e.g., 2025-10-20 18:00)
-#reminder:run_cmd: command to execute (e.g., 'notify-send "Reminder"')
-#reminder:auto_remove: True (removes metadata after command runs)
-
-Files:
-- Notes: ~/.smart_notes.json
-- Config: ~/.smart_notes_config.json
-- Error Log: ~/.smart_notes_error.log
-"""
-        self._display_message(help_text)
-
-    def run(self):
-        """Main TUI loop."""
-        
-        # Check for reminders on startup
-        if run_reminders(auto_run=True) > 0:
-            self._display_message("Overdue reminders were run. Press a key to continue to notes.")
-
-        # Try to restore last selection
-        last_note = self.config.get('last_opened_note')
-        if last_note and last_note in self.current_notes:
             try:
-                self.current_selection = self.current_notes.index(last_note)
-            except ValueError:
-                self.current_selection = 0
-                
-        self.stdscr.nodelay(True) # Non-blocking input
+                norm[k] = json.dumps(v, indent=2, ensure_ascii=False)
+            except Exception:
+                norm[k] = str(v)
+    return norm
 
+
+def save_notes(notes):
+    try:
+        with open(NOTES_FILE, 'w') as f:
+            json.dump(notes, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+
+def load_config():
+    cfg = _safe_read_json(CONFIG_FILE)
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def save_config(cfg):
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(cfg, f, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+def ensure_termux_api():
+    return bool(shutil.which('termux-notification'))
+
+# --- utilities ---
+
+def log_exception(exc: Exception):
+    try:
+        with open(ERROR_LOG, 'a') as f:
+            f.write('\n--- %s ---\n' % datetime.now().isoformat())
+            traceback.print_exc(file=f)
+    except Exception:
+        pass
+
+
+def score_query(a, b):
+    return SequenceMatcher(None, (a or '').lower(), (b or '').lower()).ratio()
+
+
+def reinit_curses():
+    stdscr = curses.initscr()
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+    try:
+        curses.curs_set(0)
+    except Exception:
+        pass
+    stdscr.clear()
+    return stdscr
+
+
+def centered_addstr(win, y, text, attr=0):
+    try:
+        h, w = win.getmaxyx()
+        x = max(0, (w - len(text)) // 2)
+        win.addstr(y, x, text, attr)
+    except Exception:
+        pass
+
+# --- curses UI components ---
+
+def curses_editor(stdscr, initial_text):
+    curses.curs_set(1)
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+    lines = initial_text.split('\n') if initial_text else ['']
+    cursor_y, cursor_x = 0, 0
+    while True:
+        stdscr.erase()
+        title = ' Nano-like editor — Ctrl+X save, Ctrl+C cancel '
+        stdscr.attron(curses.A_REVERSE)
+        centered_addstr(stdscr, 0, title[:w-1])
+        stdscr.attroff(curses.A_REVERSE)
+        max_display = h - 4
+        start = 0
+        if cursor_y >= max_display:
+            start = cursor_y - max_display + 1
+        for idx in range(start, min(start + max_display, len(lines))):
+            ln = lines[idx]
+            try:
+                stdscr.addstr(2 + idx - start, 2, ln[:w-4])
+            except Exception:
+                pass
+        status = f"Ln {cursor_y+1}, Col {cursor_x+1} — Ctrl+X=save"
+        centered_addstr(stdscr, h-2, status[:w-1])
+        try:
+            stdscr.move(2 + cursor_y - start, 2 + cursor_x)
+        except Exception:
+            pass
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch == 24:  # Ctrl+X
+            curses.curs_set(0)
+            return '\n'.join(lines)
+        elif ch in (3,):  # Ctrl+C
+            curses.curs_set(0)
+            return None
+        elif ch in (curses.KEY_BACKSPACE, 127, 8):
+            if cursor_x > 0:
+                lines[cursor_y] = lines[cursor_y][:cursor_x-1] + lines[cursor_y][cursor_x:]
+                cursor_x -= 1
+            else:
+                if cursor_y > 0:
+                    prev = lines[cursor_y-1]
+                    cur = lines.pop(cursor_y)
+                    cursor_x = len(prev)
+                    lines[cursor_y-1] = prev + cur
+                    cursor_y -= 1
+        elif ch == curses.KEY_LEFT:
+            if cursor_x > 0:
+                cursor_x -= 1
+            elif cursor_y > 0:
+                cursor_y -= 1
+                cursor_x = len(lines[cursor_y])
+        elif ch == curses.KEY_RIGHT:
+            if cursor_x < len(lines[cursor_y]):
+                cursor_x += 1
+            elif cursor_y < len(lines)-1:
+                cursor_y += 1
+                cursor_x = 0
+        elif ch == curses.KEY_UP:
+            if cursor_y > 0:
+                cursor_y -= 1
+                cursor_x = min(cursor_x, len(lines[cursor_y]))
+        elif ch == curses.KEY_DOWN:
+            if cursor_y < len(lines)-1:
+                cursor_y += 1
+                cursor_x = min(cursor_x, len(lines[cursor_y]))
+        elif ch in (10, 13):
+            cur = lines[cursor_y]
+            left = cur[:cursor_x]
+            right = cur[cursor_x:]
+            lines[cursor_y] = left
+            lines.insert(cursor_y+1, right)
+            cursor_y += 1
+            cursor_x = 0
+        elif ch == curses.KEY_DC:
+            if cursor_x < len(lines[cursor_y]):
+                lines[cursor_y] = lines[cursor_y][:cursor_x] + lines[cursor_y][cursor_x+1:]
+            else:
+                if cursor_y < len(lines)-1:
+                    lines[cursor_y] = lines[cursor_y] + lines.pop(cursor_y+1)
+        elif 0 <= ch <= 255:
+            lines[cursor_y] = lines[cursor_y][:cursor_x] + chr(ch) + lines[cursor_y][cursor_x:]
+            cursor_x += 1
+        cursor_x = max(0, min(cursor_x, len(lines[cursor_y])))
+        if cursor_y < 0:
+            cursor_y = 0
+        if cursor_y >= len(lines):
+            cursor_y = len(lines)-1
+
+
+def curses_input(stdscr, prompt, default=''):
+    curses.curs_set(1)
+    h,w = stdscr.getmaxyx()
+    inp = list(default)
+    pos = len(inp)
+    while True:
+        stdscr.erase()
+        centered_addstr(stdscr, h//2 - 2, prompt)
+        disp = ''.join(inp)
+        x = max(0, (w - len(disp)) // 2)
+        try:
+            stdscr.addstr(h//2, x, disp[:w-2])
+        except Exception:
+            pass
+        stdscr.move(h//2, x + pos)
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch in (10,13):
+            curses.curs_set(0)
+            return disp
+        elif ch in (27,):
+            curses.curs_set(0)
+            return None
+        elif ch in (curses.KEY_BACKSPACE, 127, 8):
+            if pos > 0:
+                inp.pop(pos-1)
+                pos -= 1
+        elif ch == curses.KEY_LEFT:
+            pos = max(0, pos-1)
+        elif ch == curses.KEY_RIGHT:
+            pos = min(len(inp), pos+1)
+        elif 0 <= ch <= 255:
+            inp.insert(pos, chr(ch))
+            pos += 1
+
+
+def curses_select_from_list(stdscr, title, options, start_index=0):
+    curses.curs_set(0)
+    if not options:
+        return None
+    idx = start_index
+    while True:
+        stdscr.erase()
+        h, w = stdscr.getmaxyx()
+        centered_addstr(stdscr, 1, title)
+        per_page = max(6, h - 8)
+        page = idx // per_page
+        start = page * per_page
+        end = min(len(options), start + per_page)
+        for i in range(start, end):
+            attr = curses.A_REVERSE if i == idx else 0
+            centered_addstr(stdscr, 3 + i - start, f" {options[i]} ", attr)
+        centered_addstr(stdscr, h-2, 'Up/Down move, Left/Right page, Enter select, / search, ESC cancel')
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch in (curses.KEY_UP,):
+            idx = (idx - 1) % len(options)
+        elif ch in (curses.KEY_DOWN,):
+            idx = (idx + 1) % len(options)
+        elif ch == curses.KEY_LEFT:
+            idx = max(0, idx - per_page)
+        elif ch == curses.KEY_RIGHT:
+            idx = min(len(options)-1, idx + per_page)
+        elif ch in (10,13):
+            return options[idx]
+        elif ch == 27:
+            return None
+        elif ch == ord('/'):
+            q = curses_input(stdscr, 'Search:')
+            if q:
+                ql = q.lower()
+                for i,opt in enumerate(options):
+                    if ql in opt.lower():
+                        idx = i
+                        break
+
+# Search
+def curses_search(stdscr, notes):
+    try:
+        curses.curs_set(1)
+        h, w = stdscr.getmaxyx()
+        query = ''
+        matches = []
+        selected = 0
+        keys = [k for k in notes.keys() if k != '_reminders']
         while True:
-            self._draw_main_screen()
-            key = self.stdscr.getch()
-            
-            if key == curses.KEY_UP or key == ord('k'):
-                self.current_selection = (self.current_selection - 1) % len(self.current_notes) if self.current_notes else 0
-            elif key == curses.KEY_DOWN or key == ord('j'):
-                self.current_selection = (self.current_selection + 1) % len(self.current_notes) if self.current_notes else 0
-            elif key == curses.KEY_ENTER or key in [10, 13]: # ENTER
-                if self.current_notes:
-                    note_name = self.current_notes[self.current_selection]
-                    self._open_note_view(note_name)
-            elif key == ord('q') or key == ord('Q') or key == 27: # q or ESC
-                break
-            elif key == ord('a') or key == ord('A'):
-                self._external_edit() # Add new note
-            elif key == ord('d') or key == ord('D'):
-                if self.current_notes:
-                    self._delete_note(self.current_notes[self.current_selection])
-            elif key == ord('h') or key == ord('H'):
-                self._help_screen()
-            elif key == ord('/'):
-                self._handle_filter_input()
-            elif key == ord('r') or key == ord('R'):
-                run_reminders()
-                self._display_message("Reminder check complete. Press a key to continue to notes.")
-                self.notes = load_notes() # Refresh notes in case auto_remove was used
+            stdscr.erase()
+            centered_addstr(stdscr, 1, ' Search Notes (type to filter) — Enter select, ESC back ')
+            stdscr.addstr(3, max(2, (w - 60)//2), 'Query: ' + query + ' ')
+            scored = []
+            for k in keys:
+                s = score_query(query, k) if query else 0
+                s2 = score_query(query, notes.get(k, '')) if query else 0
+                score = max(s, s2)
+                scored.append((score, k))
+            scored.sort(reverse=True)
+            matches = [k for sc,k in scored if sc>0 or not query][:min(20, len(scored))]
+            start_y = 5
+            for idx, key in enumerate(matches):
+                marker = '>' if idx == selected else ' '
+                line = f"{marker} {key}"
+                try:
+                    stdscr.addstr(start_y+idx, max(2, (w - 60)//2), line[:60])
+                except Exception:
+                    pass
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch in (27,):
+                curses.curs_set(0)
+                return None
+            elif ch in (10,13):
+                if not matches:
+                    continue
+                curses.curs_set(0)
+                return matches[selected]
+            elif ch == curses.KEY_UP:
+                selected = max(0, selected-1)
+            elif ch == curses.KEY_DOWN:
+                selected = min(len(matches)-1, selected+1)
+            elif ch in (curses.KEY_BACKSPACE, 127, 8):
+                query = query[:-1]
+                selected = 0
+            elif 0 <= ch <= 255:
+                query += chr(ch)
+                selected = 0
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'Search error', traceback.format_exc())
+        return None
 
-# -----------------
-# Console/CLI Logic
-# -----------------
+# Confirm dialog
+def confirm_dialog(stdscr, text):
+    h,w = stdscr.getmaxyx()
+    while True:
+        stdscr.erase()
+        centered_addstr(stdscr, h//2 - 1, text + ' (Y/N)')
+        centered_addstr(stdscr, h//2 + 1, 'Y: Yes    N: No')
+        stdscr.refresh()
+        ch = stdscr.getch()
+        if ch in (ord('y'), ord('Y')):
+            return True
+        elif ch in (ord('n'), ord('N'), 27):
+            return False
 
-def cli_add_note():
-    """Adds a note via standard console input (for Termux widget/automation)."""
+# View note
+def view_note_curses(stdscr, title, content):
+    try:
+        h,w = stdscr.getmaxyx()
+        stdscr.clear()
+        if not isinstance(content, str):
+            try:
+                content = json.dumps(content, indent=2, ensure_ascii=False)
+            except Exception:
+                content = str(content)
+        lines = content.split('\n')
+        pos = 0
+        while True:
+            stdscr.erase()
+            centered_addstr(stdscr, 1, f' {title} ')
+            for i in range(min(h-6, len(lines)-pos)):
+                try:
+                    stdscr.addstr(3+i, 2, lines[pos+i][:w-4])
+                except Exception:
+                    pass
+            centered_addstr(stdscr, h-2, 'Up/Down scroll, B for back')
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch == curses.KEY_DOWN:
+                if pos + (h-6) < len(lines):
+                    pos += 1
+            elif ch == curses.KEY_UP:
+                pos = max(0, pos-1)
+            elif ch in (ord('b'), ord('B'), 27):
+                return
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'View error', traceback.format_exc())
+
+# Actions for note
+def action_for_note(stdscr, key, notes):
+    try:
+        h,w = stdscr.getmaxyx()
+        while True:
+            stdscr.erase()
+            centered_addstr(stdscr, 1, f' Note: {key} ')
+            content = notes.get(key, '')
+            if not isinstance(content, str):
+                try:
+                    preview_text = json.dumps(content, indent=2, ensure_ascii=False)
+                except Exception:
+                    preview_text = str(content)
+            else:
+                preview_text = content
+            preview = preview_text.split('\n')[:10]
+            for i,line in enumerate(preview):
+                try:
+                    stdscr.addstr(3+i, 2, line[:w-4])
+                except Exception:
+                    pass
+            centered_addstr(stdscr, h-4, 'V: View  E: Edit  D: Delete  B: Back')
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch in (ord('v'), ord('V')):
+                view_note_curses(stdscr, key, content)
+            elif ch in (ord('e'), ord('E')):
+                initial = preview_text if isinstance(content, (dict, list)) else str(content)
+                new = curses_editor(stdscr, initial)
+                if new is not None:
+                    notes[key] = new
+                    save_notes(notes)
+            elif ch in (ord('d'), ord('D')):
+                confirmed = confirm_dialog(stdscr, f'Delete note "{key}"?')
+                if confirmed:
+                    notes.pop(key, None)
+                    save_notes(notes)
+                    return
+            elif ch in (ord('b'), ord('B'), 27):
+                return
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'Note action error', traceback.format_exc())
+
+# Add note (curses)
+def add_note_curses(stdscr):
+    try:
+        notes = load_notes()
+        name = curses_input(stdscr, 'Note name:')
+        if name is None or not name.strip():
+            return
+        name = name.strip()
+        if name in notes:
+            overwrite = curses_input(stdscr, 'Overwrite existing? (y/N):', 'N')
+            if not overwrite or overwrite.lower() not in ('y'):
+                return
+        new = curses_editor(stdscr, notes.get(name, ''))
+        if new is None:
+            return
+        notes[name] = new
+        save_notes(notes)
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'Add note error', traceback.format_exc())
+
+# Date/time picker
+def curses_date_picker(stdscr, initial_dt=None):
+    try:
+        curses.curs_set(0)
+        now = datetime.now()
+        year = initial_dt.year if initial_dt else now.year
+        month = initial_dt.month if initial_dt else now.month
+        day = initial_dt.day if initial_dt else now.day
+        hour = initial_dt.hour if initial_dt else now.hour
+        minute = initial_dt.minute if initial_dt else 0
+        fields = ['year','month','day','hour','minute','confirm']
+        idx = 0
+        while True:
+            stdscr.erase()
+            h,w = stdscr.getmaxyx()
+            centered_addstr(stdscr, 1, ' Select date & time for reminder ')
+            centered_addstr(stdscr, 3, f' Year:   {year} ', curses.A_REVERSE if fields[idx]=='year' else 0)
+            centered_addstr(stdscr, 5, f' Month:  {month} ', curses.A_REVERSE if fields[idx]=='month' else 0)
+            centered_addstr(stdscr, 7, f' Day:    {day} ', curses.A_REVERSE if fields[idx]=='day' else 0)
+            centered_addstr(stdscr, 9, f' Hour:   {hour:02d} ', curses.A_REVERSE if fields[idx]=='hour' else 0)
+            centered_addstr(stdscr, 11, f' Minute: {minute:02d} ', curses.A_REVERSE if fields[idx]=='minute' else 0)
+            centered_addstr(stdscr, 13, f' [ Confirm ] ', curses.A_REVERSE if fields[idx]=='confirm' else 0)
+            centered_addstr(stdscr, h-2, 'Left/Right field, Up/Down value, Enter confirm, ESC cancel')
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch == curses.KEY_LEFT:
+                idx = (idx - 1) % len(fields)
+            elif ch == curses.KEY_RIGHT:
+                idx = (idx + 1) % len(fields)
+            elif ch == curses.KEY_UP:
+                if fields[idx] == 'year':
+                    year += 1
+                elif fields[idx] == 'month':
+                    month = 12 if month == 12 else month + 1
+                    _, mdays = calendar.monthrange(year, month)
+                    if day > mdays:
+                        day = mdays
+                elif fields[idx] == 'day':
+                    _, mdays = calendar.monthrange(year, month)
+                    day = 1 if day >= mdays else day + 1
+                elif fields[idx] == 'hour':
+                    hour = (hour + 1) % 24
+                elif fields[idx] == 'minute':
+                    minute = (minute + 1) % 60
+            elif ch == curses.KEY_DOWN:
+                if fields[idx] == 'year':
+                    year = max(now.year, year - 1)
+                elif fields[idx] == 'month':
+                    month = 1 if month == 1 else month - 1
+                    _, mdays = calendar.monthrange(year, month)
+                    if day > mdays:
+                        day = mdays
+                elif fields[idx] == 'day':
+                    _, mdays = calendar.monthrange(year, month)
+                    day = mdays if day <= 1 else day - 1
+                elif fields[idx] == 'hour':
+                    hour = (hour - 1) % 24
+                elif fields[idx] == 'minute':
+                    minute = (minute - 1) % 60
+            elif ch in (10,13):
+                if fields[idx] == 'confirm':
+                    try:
+                        picked = datetime(year, month, day, hour, minute)
+                        if picked <= datetime.now():
+                            centered_addstr(stdscr, (h//2)+6, 'Please select a future time', curses.A_BOLD)
+                            stdscr.refresh()
+                            time.sleep(1.2)
+                            continue
+                        return picked
+                    except Exception:
+                        centered_addstr(stdscr, (h//2)+6, 'Invalid date, adjust values', curses.A_BOLD)
+                        stdscr.refresh()
+                        time.sleep(1.2)
+                        continue
+            elif ch == 27:
+                return None
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'Date picker error', traceback.format_exc())
+        return None
+
+# Reminders menu
+def curses_reminders_menu(stdscr):
+    try:
+        notes = load_notes()
+        reminders = notes.get('_reminders', [])
+        idx = 0
+        options = ['Add reminder','List reminders','Delete reminder','Back']
+        while True:
+            stdscr.erase()
+            h,w = stdscr.getmaxyx()
+            centered_addstr(stdscr, 1, ' Calendar / Reminders ')
+            total_h = len(options) * 2
+            start_y = max(3, (h - total_h) // 2)
+            for i,opt in enumerate(options):
+                centered_addstr(stdscr, start_y + i*2, f" {opt} ", curses.A_REVERSE if i==idx else 0)
+            stdscr.refresh()
+            ch = stdscr.getch()
+            if ch == curses.KEY_UP:
+                idx = (idx - 1) % len(options)
+            elif ch == curses.KEY_DOWN:
+                idx = (idx + 1) % len(options)
+            elif ch in (10,13):
+                choice = options[idx]
+                if choice == 'Add reminder':
+                    title = curses_input(stdscr, 'Reminder title:')
+                    if title is None:
+                        continue
+                    title = title.strip()
+                    dt = curses_date_picker(stdscr)
+                    if dt is None:
+                        continue
+                    note_text = curses_editor(stdscr, '')
+                    if note_text is None:
+                        note_text = ''
+                    reminders.append({'title': title, 'datetime': dt.isoformat(), 'text': note_text})
+                    notes['_reminders'] = reminders
+                    save_notes(notes)
+                    scheduled = schedule_termux_notification(title, dt, note_text)
+                    stdscr.erase()
+                    centered_addstr(stdscr, h//2, 'Reminder saved.' + (' Scheduled.' if scheduled else ' Saved (not scheduled).'))
+                    stdscr.refresh()
+                    time.sleep(1.2)
+                elif choice == 'List reminders':
+                    stdscr.erase()
+                    centered_addstr(stdscr, 1, ' Scheduled reminders ')
+                    if not reminders:
+                        centered_addstr(stdscr, h//2, 'No reminders')
+                    else:
+                        for i,r in enumerate(reminders[:h-6]):
+                            centered_addstr(stdscr, 3+i, f"{i+1}) {r['title']} at {r['datetime']}")
+                    centered_addstr(stdscr, h-2, 'Press any key to continue')
+                    stdscr.refresh()
+                    stdscr.getch()
+                elif choice == 'Delete reminder':
+                    if not reminders:
+                        stdscr.erase()
+                        centered_addstr(stdscr, h//2, 'No reminders to delete')
+                        stdscr.refresh()
+                        time.sleep(1.0)
+                    else:
+                        opts = [f"{r['title']} @ {r['datetime']}" for r in reminders]
+                        sel = curses_select_from_list(stdscr, 'Select reminder to delete', opts)
+                        if sel is None:
+                            continue
+                        sel_idx = opts.index(sel)
+                        if confirm_dialog(stdscr, f'Delete "{reminders[sel_idx]["title"]}"?'):
+                            reminders.pop(sel_idx)
+                            notes['_reminders'] = reminders
+                            save_notes(notes)
+                elif choice == 'Back':
+                    return
+            elif ch == 27:
+                return
+    except Exception as e:
+        log_exception(e)
+        error_dialog(stdscr, 'Reminders error', traceback.format_exc())
+
+# Scheduler (creates a small shell script safely quoted)
+def schedule_termux_notification(title, dt, text):
+    try:
+        job_bin = shutil.which('termux-job-scheduler')
+        notif_bin = shutil.which('termux-notification')
+        if not notif_bin:
+            return False
+        epoch_ms = int(dt.timestamp() * 1000)
+        if job_bin:
+            job_id = f"smart_notes_{int(time.time())}"
+            script_path = os.path.join(HOME, f'.smart_notes_job_{job_id}.sh')
+            safe_title = shlex.quote(title)
+            safe_text = shlex.quote(text or '')
+            try:
+                with open(script_path, 'w') as f:
+                    f.write('#!/data/data/com.termux/files/usr/bin/sh\n')
+                    f.write(f'termux-notification --title {safe_title} --content {safe_text}\n')
+                os.chmod(script_path, 0o755)
+                subprocess.check_call([
+                    'termux-job-scheduler', '-s', job_id, '-t', str(epoch_ms),
+                    '--service', 'com.termux.job.JobService', '-c', f'sh {shlex.quote(script_path)}'
+                ])
+                return True
+            except Exception:
+                return False
+        else:
+            at_bin = shutil.which('at')
+            if at_bin:
+                try:
+                    # Use at if available (best-effort)
+                    cmd = f'termux-notification --title {shlex.quote(title)} --content {shlex.quote(text or "")}'
+                    at_time_str = dt.strftime('%H:%M %Y-%m-%d')
+                    p = subprocess.Popen(['at', '-M', at_time_str], stdin=subprocess.PIPE)
+                    p.communicate(input=(cmd + "\n").encode())
+                    return True
+                except Exception:
+                    return False
+    except Exception:
+        return False
+    return False
+
+# Run pending reminders
+def run_pending_reminders():
     notes = load_notes()
-    name = input('Enter note name: ').strip()
+    reminders = notes.get('_reminders', [])
+    now = datetime.now()
+    changed = False
+    for r in list(reminders):
+        try:
+            dt = datetime.fromisoformat(r['datetime'])
+        except Exception:
+            continue
+        if dt <= now:
+            if ensure_termux_api():
+                try:
+                    subprocess.check_call(['termux-notification', '--title', r['title'], '--content', r.get('text','')])
+                except Exception:
+                    pass
+            reminders.remove(r)
+            changed = True
+    if changed:
+        notes['_reminders'] = reminders
+        save_notes(notes)
+
+# Main menu
+def main_menu(stdscr):
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+    try:
+        curses.curs_set(0)
+    except Exception:
+        pass
+    while True:
+        notes = load_notes()
+        options = ['Add Note','Search Note','Calendar / Reminders','Settings (country/timezone)','Exit']
+        idx = 0
+        try:
+            while True:
+                stdscr.erase()
+                h, w = stdscr.getmaxyx()
+                centered_addstr(stdscr, 1, ' Smart Notes — Termux ')
+                total_h = len(options) * 2
+                start_y = max(3, (h - total_h) // 2)
+                for i, opt in enumerate(options):
+                    y = start_y + i*2
+                    attr = curses.A_REVERSE if i == idx else 0
+                    centered_addstr(stdscr, y, f" {opt} ", attr)
+                stdscr.refresh()
+                ch = stdscr.getch()
+                if ch in (curses.KEY_UP,):
+                    idx = (idx - 1) % len(options)
+                elif ch in (curses.KEY_DOWN,):
+                    idx = (idx + 1) % len(options)
+                elif ch in (10,13):
+                    choice = options[idx]
+                    if choice == 'Add Note':
+                        add_note_curses(stdscr)
+                        break
+                    elif choice == 'Search Note':
+                        key = curses_search(stdscr, notes)
+                        if key:
+                            action_for_note(stdscr, key, notes)
+                        break
+                    elif choice == 'Calendar / Reminders':
+                        curses_reminders_menu(stdscr)
+                        break
+                    elif choice == 'Settings (country/timezone)':
+                        sel_country = curses_select_from_list(stdscr, 'Select country (ESC to cancel)', COUNTRIES + ['Custom'])
+                        if sel_country is None:
+                            break
+                        if sel_country == 'Custom':
+                            sel_country = curses_input(stdscr, 'Enter country name:')
+                            if sel_country is None:
+                                break
+                        sel_tz = curses_select_from_list(stdscr, 'Select timezone (ESC to cancel)', TIMEZONES + ['Custom'])
+                        if sel_tz is None:
+                            break
+                        if sel_tz == 'Custom':
+                            sel_tz = curses_input(stdscr, 'Enter timezone (e.g. Europe/Athens):')
+                            if sel_tz is None:
+                                break
+                        cfg = load_config()
+                        cfg['country'] = sel_country
+                        cfg['timezone'] = sel_tz
+                        save_config(cfg)
+                        stdscr.erase()
+                        centered_addstr(stdscr, h//2, 'Settings saved.')
+                        stdscr.refresh()
+                        time.sleep(1.0)
+                        break
+                    elif choice == 'Exit':
+                        return
+                elif ch in (27,):
+                    return
+        except Exception as e:
+            log_exception(e)
+            error_dialog(stdscr, 'Unexpected error in main menu', traceback.format_exc())
+
+# CLI fallback add
+def add_note_interactive():
+    notes = load_notes()
+    print('\n=== Add Note ===')
+    name = input('Note name: ').strip()
     if not name:
         print('Canceled: empty name')
         return
     if name in notes:
-        if input('Replace existing? (y/N): ').lower() not in ('y', 'yes'):
+        if input('Overwrite existing? (y/N): ').lower() not in ('y'):
             print('Canceled')
             return
     print('Starting editor. Terminate with a line containing only .save')
@@ -730,28 +828,22 @@ def print_help():
     print('Smart Notes - Termux')
     print('Commands:')
     print('  (no arguments) -> curses environment')
-    print('  --add            -> add note via command line')
-    print('  --run-reminders  -> execute overdue reminders')
-    print('  --help           -> this help screen')
+    print('  --add          -> add note via command line')
+    print('  --run-reminders-> run pending reminders')
+    print('  --help         -> this help')
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
         arg = sys.argv[1]
         if arg == '--add':
-            cli_add_note()
-        elif arg == '--run-reminders':
-            run_reminders()
-        elif arg == '--help':
-            print_help()
-        else:
-            print(f"Unknown argument: {arg}. Use --help for usage.")
-    else:
-        # TUI Mode
-        try:
-            curses.wrapper(TUI)
-        except curses.error as e:
-            print(f"Error in TUI (curses): {e}. Falling back to console.")
-            print("To add a note, use: python3 Smart\\ Notes.py --add")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-            traceback.print_exc()
+            add_note_interactive(); sys.exit(0)
+        if arg == '--run-reminders':
+            run_pending_reminders(); sys.exit(0)
+        if arg in ('-h','--help'):
+            print_help(); sys.exit(0)
+    try:
+        curses.wrapper(main_menu)
+    except Exception as e:
+        log_exception(e)
+        print('Fatal error — logged to', ERROR_LOG)
+        traceback.print_exc()
