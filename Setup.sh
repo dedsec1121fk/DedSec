@@ -13,6 +13,15 @@ CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libx
 # Install Termux packages. '|| true' ensures the script continues on package failure.
 pkg install -y $CORE_PACKAGES || true
 
+# --- NEW: Tor Check and Installation ---
+# Checks if the 'tor' command exists. If not, it installs it.
+if ! command -v tor > /dev/null; then
+    echo "Tor not found. Installing..."
+    pkg install -y tor
+else
+    echo "Tor is already installed. Skipping."
+fi
+
 echo "Termux package installation complete. Continuing to Python setup..."
 
 # --- 2. Python Package Setup ---
