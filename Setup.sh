@@ -33,6 +33,15 @@ pip install --upgrade pip setuptools wheel --break-system-packages
 # --- 3. Python Package Installation ---
 echo "3. Installing the target Python dependencies..."
 
+# --- NEW: Check for psutil ---
+# Checks if the python module 'psutil' can be imported. If not, install it.
+if ! python -c "import psutil" &> /dev/null; then
+    echo "psutil module not found. Installing..."
+    pip install psutil --break-system-packages
+else
+    echo "psutil is already installed. Skipping."
+fi
+
 PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
 
 # Install all packages.
