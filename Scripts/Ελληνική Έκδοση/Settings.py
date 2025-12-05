@@ -96,7 +96,7 @@ GREEK_STRINGS = {
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
-    "Choose Language/Επιλέξτε ΓλώσSA": "Choose Language/Επιλέξτε Γλώσσα",
+    "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα",
     "Credits": "Συντελεστές",
     "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec",
     "Exit": "Έξοδος",
@@ -146,7 +146,7 @@ GREEK_STRINGS = {
     "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
     "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
     "GitHub repository size": "Μέγεθος αποθετηρίου GitHub",
-    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέ π",
+    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέρωσης...",
     "Update applied. DedSec Project Size": "Ενημέρωση εφαρμόστηκε. Μέγεθος Έργου DedSec",
     "No available update found.": "Δεν βρέθηκε διαθέσιμη ενημέρωση.",
     "Cloned new DedSec repository. DedSec Project Size": "Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec",
@@ -244,9 +244,9 @@ def get_file_icon(filename, full_path):
         return GENERIC_SCRIPT_ICON
 
 def format_display_name(filename, full_path):
-    """Formats the display name with icons."""
+    """Formats the display name with icons - only at the start."""
     icon = get_file_icon(filename, full_path)
-    return f"{icon} {filename} {icon}"
+    return f"{icon} {filename}"
 
 # --- Utility Functions ---
 
@@ -612,15 +612,17 @@ def get_current_menu_style():
 # ------------------------------
 # Change Menu Style
 # ------------------------------
-def choose_menu_style_curses(stdscr):
+def choose_menu_style(stdscr):
     curses.curs_set(0)
     options = [ _("List Style"), _("Grid Style"), _("Choose By Number")]
     current = 0
+    
     while True:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
         title = _("Choose Menu Style")
         stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        
         for idx, option in enumerate(options):
             x = width // 2 - len(option) // 2
             y = height // 2 - len(options) // 2 + idx
@@ -630,8 +632,10 @@ def choose_menu_style_curses(stdscr):
                 stdscr.attroff(curses.A_REVERSE)
             else:
                 stdscr.addstr(y, x, option)
+        
         stdscr.refresh()
         key = stdscr.getch()
+        
         if key == curses.KEY_UP and current > 0:
             current -= 1
         elif key == curses.KEY_DOWN and current < len(options) - 1:
@@ -644,7 +648,7 @@ def choose_menu_style_curses(stdscr):
             return None
 
 def change_menu_style():
-    style = curses.wrapper(choose_menu_style_curses)
+    style = curses.wrapper(choose_menu_style)
     if style is None:
         print(_("No menu style selected. Returning to settings menu..."))
         return
@@ -657,19 +661,20 @@ def change_menu_style():
     print(f"\n[+] {_('Menu style changed to')} {style.capitalize()} {_('Style')}. {_('Bash configuration updated.')}")
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
-
 # ------------------------------
 # Choose Language
 # ------------------------------
-def choose_language_curses(stdscr):
+def choose_language(stdscr):
     curses.curs_set(0)
     options = ["English", "Ελληνικά"]
     current = 0
+    
     while True:
         stdscr.clear()
         height, width = stdscr.getmaxyx()
         title = _("Choose Language/Επιλέξτε Γλώσσα")
         stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        
         for idx, option in enumerate(options):
             x = width // 2 - len(option) // 2
             y = height // 2 - len(options) // 2 + idx
@@ -679,8 +684,10 @@ def choose_language_curses(stdscr):
                 stdscr.attroff(curses.A_REVERSE)
             else:
                 stdscr.addstr(y, x, option)
+        
         stdscr.refresh()
         key = stdscr.getch()
+        
         if key == curses.KEY_UP and current > 0:
             current -= 1
         elif key == curses.KEY_DOWN and current < len(options) - 1:
@@ -691,7 +698,7 @@ def choose_language_curses(stdscr):
             return None
 
 def change_language():
-    language = curses.wrapper(choose_language_curses)
+    language = curses.wrapper(choose_language)
     if language is None:
         print(_("No language selected. Returning to settings menu..."))
         return
@@ -740,7 +747,7 @@ def browse_directory_list_menu(current_path, base_path):
         items.append(go_back_text)
         listing_dir = HOME_DIR
     elif os.path.abspath(current_path) == os.path.abspath(base_path):
-        items.append(f"{HOME_ICON} {_('Home Scripts')} {HOME_ICON}")
+        items.append(f"{HOME_ICON} {_('Home Scripts')}")
         listing_dir = base_path
     else:
         items.append(go_back_text)
@@ -783,15 +790,14 @@ def browse_directory_list_menu(current_path, base_path):
     if selected.startswith(".."):
         return "back"
     
-    if selected == f"{HOME_ICON} {_('Home Scripts')} {HOME_ICON}":
+    if selected == f"{HOME_ICON} {_('Home Scripts')}":
         return "go_home"
     
     # Extract the actual filename by removing the icon and spaces
-    # Icons are usually longer than 1 char now, so split logic is better
-    # Format: ICON name ICON
-    parts = selected.split(' ')
-    if len(parts) >= 3:
-        actual_name = " ".join(parts[1:-1])
+    # Format: ICON name
+    parts = selected.split(' ', 1)
+    if len(parts) >= 2:
+        actual_name = parts[1]
     else:
         actual_name = selected
         
@@ -865,7 +871,7 @@ def run_list_menu():
             return
 
 # ------------------------------
-# Integrated Number Menu (NEW)
+# Integrated Number Menu
 # ------------------------------
 def run_number_menu():
     base_path = os.getcwd()
@@ -882,7 +888,7 @@ def run_number_menu():
             items.append((".. (" + _("Go Back") + ")", "back"))
         elif os.path.abspath(current_path) == os.path.abspath(base_path):
             listing_dir = base_path
-            items.append((f"{HOME_ICON} {_('Home Scripts')} {HOME_ICON}", "go_home"))
+            items.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         else:
             listing_dir = current_path
             items.append((".. (" + _("Go Back") + ")", "back"))
@@ -982,7 +988,6 @@ def run_number_menu():
             print(_("Invalid selection. Please try again."))
             input()
 
-
 # ------------------------------
 # Helper for Grid Menu
 # ------------------------------
@@ -995,7 +1000,7 @@ def list_directory_entries(path, base_path):
         entries.append((go_back_text, "back"))
         listing_dir = HOME_DIR
     elif os.path.abspath(path) == os.path.abspath(base_path):
-        entries.append((f"{HOME_ICON} {_('Home Scripts')} {HOME_ICON}", "go_home"))
+        entries.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         listing_dir = base_path
     else:
         entries.append((go_back_text, "back"))
@@ -1290,12 +1295,192 @@ def uninstall_dedsec():
     return True
 
 # ------------------------------
-# Main Settings Menu
+# Settings Menu with Different Styles
 # ------------------------------
-def menu(stdscr):
-    curses.curs_set(0)
-    curses.start_color()
-    curses.use_default_colors()
+def run_settings_list_menu():
+    """Settings menu using list style (curses)"""
+    def menu(stdscr):
+        curses.curs_set(0)
+        curses.start_color()
+        curses.use_default_colors()
+        menu_options = [
+            _("About"),
+            _("DedSec Project Update"),
+            _("Update Packages & Modules"),
+            _("Change Prompt"),
+            _("Change Menu Style"),
+            _("Choose Language/Επιλέξτε Γλώσσα"),
+            _("Credits"),
+            _("Uninstall DedSec Project"),
+            _("Exit")
+        ]
+        current_row = 0
+        while True:
+            stdscr.clear()
+            height, width = stdscr.getmaxyx()
+            title = _("Select an option")
+            stdscr.addstr(1, width // 2 - len(title) // 2, title)
+            for idx, option in enumerate(menu_options):
+                x = width // 2 - len(option) // 2
+                y = height // 2 - len(menu_options) // 2 + idx
+                if idx == current_row:
+                    stdscr.attron(curses.A_REVERSE)
+                    stdscr.addstr(y, x, option)
+                    stdscr.attroff(curses.A_REVERSE)
+                else:
+                    stdscr.addstr(y, x, option)
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key == curses.KEY_UP and current_row > 0:
+                current_row -= 1
+            elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
+                current_row += 1
+            elif key in [curses.KEY_ENTER, 10, 13]:
+                return current_row
+    
+    return curses.wrapper(menu)
+
+def run_settings_grid_menu():
+    """Settings menu using grid style"""
+    def draw_settings_grid_menu(stdscr, options):
+        curses.curs_set(0)
+        stdscr.nodelay(0)
+        stdscr.timeout(-1)
+        curses.start_color()
+        curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_BLACK, curses.COLOR_WHITE)
+        curses.init_pair(2, curses.COLOR_MAGENTA, -1)
+        curses.init_pair(3, curses.COLOR_WHITE, -1)
+        
+        current_index = 0
+        num_items = len(options)
+        
+        while True:
+            stdscr.clear()
+            term_height, term_width = stdscr.getmaxyx()
+            
+            # Grid layout parameters
+            ICON_WIDTH = max(25, term_width // 3)
+            ICON_HEIGHT = max(5, term_height // 5)
+            max_cols = term_width // ICON_WIDTH
+            
+            if max_cols == 0:
+                ICON_WIDTH = term_width
+                max_cols = 1
+            
+            rows_per_page = (term_height - 2) // ICON_HEIGHT
+            total_visible_cells = max_cols * rows_per_page
+            
+            if total_visible_cells <= 0:
+                stdscr.addstr(0, 0, _("Terminal window is too small."))
+                stdscr.refresh()
+                key = stdscr.getch()
+                if key in [ord('q'), ord('Q'), 10, 13]:
+                    return None
+                continue
+
+            # Draw title
+            title = _("Select an option")
+            try:
+                stdscr.addstr(0, term_width // 2 - len(title) // 2, title, curses.color_pair(3))
+            except curses.error:
+                pass
+
+            page_start_index = (current_index // total_visible_cells) * total_visible_cells
+            page_end_index = min(page_start_index + total_visible_cells, num_items)
+            
+            # Draw grid items
+            for idx_on_page, actual_index in enumerate(range(page_start_index, page_end_index)):
+                i = idx_on_page // max_cols
+                j = idx_on_page % max_cols
+                y = 2 + i * ICON_HEIGHT
+                x = j * ICON_WIDTH
+                
+                if y + ICON_HEIGHT >= term_height - 1:
+                    continue
+
+                # Draw box
+                for box_i in range(x, x + ICON_WIDTH):
+                    if box_i < term_width:
+                        try:
+                            stdscr.addch(y, box_i, curses.ACS_HLINE, curses.color_pair(2))
+                            stdscr.addch(y + ICON_HEIGHT - 1, box_i, curses.ACS_HLINE, curses.color_pair(2))
+                        except curses.error:
+                            pass
+                
+                for box_j in range(y, y + ICON_HEIGHT):
+                    if box_j < term_height - 1:
+                        try:
+                            stdscr.addch(box_j, x, curses.ACS_VLINE, curses.color_pair(2))
+                            stdscr.addch(box_j, x + ICON_WIDTH - 1, curses.ACS_VLINE, curses.color_pair(2))
+                        except curses.error:
+                            pass
+                
+                # Draw corners
+                try:
+                    stdscr.addch(y, x, curses.ACS_ULCORNER, curses.color_pair(2))
+                    stdscr.addch(y, x + ICON_WIDTH - 1, curses.ACS_URCORNER, curses.color_pair(2))
+                    stdscr.addch(y + ICON_HEIGHT - 1, x, curses.ACS_LLCORNER, curses.color_pair(2))
+                    stdscr.addch(y + ICON_HEIGHT - 1, x + ICON_WIDTH - 1, curses.ACS_LRCORNER, curses.color_pair(2))
+                except curses.error:
+                    pass
+
+                # Highlight current selection
+                if actual_index == current_index:
+                    for hi in range(y + 1, y + ICON_HEIGHT - 1):
+                        for hj in range(x + 1, x + ICON_WIDTH - 1):
+                            if hi < term_height - 1 and hj < term_width - 1:
+                                try:
+                                    stdscr.addch(hi, hj, ' ', curses.color_pair(1))
+                                except curses.error:
+                                    pass
+
+                # Draw option text
+                option_text = options[actual_index]
+                box_text_width = ICON_WIDTH - 4
+                wrapped_lines = textwrap.wrap(option_text, box_text_width)
+                
+                total_lines = len(wrapped_lines)
+                padding_y = (ICON_HEIGHT - total_lines) // 2
+                
+                for line_idx, line in enumerate(wrapped_lines):
+                    line_y = y + padding_y + line_idx
+                    padding_x = (ICON_WIDTH - len(line)) // 2
+                    line_x = x + padding_x
+                    
+                    if line_y < term_height - 1 and line_x < term_width:
+                        try:
+                            color = curses.color_pair(1) if actual_index == current_index else curses.color_pair(3)
+                            stdscr.addstr(line_y, line_x, line[:term_width - line_x], color)
+                        except curses.error:
+                            pass
+            
+            # Draw instructions
+            instructions = f"Arrow Keys: Move | Enter: Select | q: Quit"
+            try:
+                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
+            except curses.error:
+                pass
+            
+            stdscr.refresh()
+            
+            key = stdscr.getch()
+            
+            if key == curses.KEY_UP and current_index - max_cols >= 0:
+                current_index -= max_cols
+            elif key == curses.KEY_DOWN and current_index + max_cols < num_items:
+                current_index += max_cols
+            elif key == curses.KEY_LEFT and current_index % max_cols > 0:
+                current_index -= 1
+            elif key == curses.KEY_RIGHT and (current_index % max_cols) < (max_cols - 1) and (current_index + 1) < num_items:
+                current_index += 1
+            elif key in [10, 13]:
+                return current_index
+            elif key in [ord('q'), ord('Q')]:
+                return None
+            elif key == curses.KEY_RESIZE:
+                pass
+
     menu_options = [
         _("About"),
         _("DedSec Project Update"),
@@ -1307,33 +1492,69 @@ def menu(stdscr):
         _("Uninstall DedSec Project"),
         _("Exit")
     ]
-    current_row = 0
+    
+    return curses.wrapper(lambda stdscr: draw_settings_grid_menu(stdscr, menu_options))
+
+def run_settings_number_menu():
+    """Settings menu using number style"""
+    menu_options = [
+        _("About"),
+        _("DedSec Project Update"),
+        _("Update Packages & Modules"),
+        _("Change Prompt"),
+        _("Change Menu Style"),
+        _("Choose Language/Επιλέξτε Γλώσσα"),
+        _("Credits"),
+        _("Uninstall DedSec Project"),
+        _("Exit")
+    ]
+    
     while True:
-        stdscr.clear()
-        height, width = stdscr.getmaxyx()
-        title = _("Select an option")
-        stdscr.addstr(1, width // 2 - len(title) // 2, title)
-        for idx, option in enumerate(menu_options):
-            x = width // 2 - len(option) // 2
-            y = height // 2 - len(menu_options) // 2 + idx
-            if idx == current_row:
-                stdscr.attron(curses.A_REVERSE)
-                stdscr.addstr(y, x, option)
-                stdscr.attroff(curses.A_REVERSE)
-            else:
-                stdscr.addstr(y, x, option)
-        stdscr.refresh()
-        key = stdscr.getch()
-        if key == curses.KEY_UP and current_row > 0:
-            current_row -= 1
-        elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
-            current_row += 1
-        elif key in [curses.KEY_ENTER, 10, 13]:
-            return current_row
+        os.system("clear")
+        print(f"=== {_('Select an option')} ===\n")
+        for i, option in enumerate(menu_options):
+            print(f"{i + 1}. {option}")
+        print(f"\n0. {_('Exit')}")
+        
+        try:
+            choice_str = input(f"\n{_('Enter the number of your choice: ')}").strip()
+            if not choice_str:
+                continue
+            choice = int(choice_str)
+        except ValueError:
+            print(_("Invalid selection. Please try again."))
+            input(_("Press Enter to continue..."))
+            continue
+        
+        if choice == 0:
+            return 8  # Exit option
+        
+        if 1 <= choice <= len(menu_options):
+            return choice - 1
+        else:
+            print(_("Invalid selection. Please try again."))
+            input(_("Press Enter to continue..."))
+
+def run_settings_menu():
+    """Main settings menu that uses the current menu style"""
+    current_style = get_current_menu_style()
+    
+    if current_style == 'grid':
+        selected = run_settings_grid_menu()
+    elif current_style == 'number':
+        selected = run_settings_number_menu()
+    else:  # Default to list
+        selected = run_settings_list_menu()
+    
+    return selected
 
 def main():
     while True:
-        selected = curses.wrapper(menu)
+        selected = run_settings_menu()
+        if selected is None:
+            print(_("Exiting..."))
+            break
+            
         os.system("clear")
         if selected == 0:
             show_about()
@@ -1365,26 +1586,37 @@ def main():
 # ------------------------------
 if __name__ == "__main__":
     try:
+        # Load language preference at startup
         get_current_display_language()
         
         create_backup_zip_if_not_exists()
         
         if len(sys.argv) > 1 and sys.argv[1] == "--menu":
             if len(sys.argv) > 2:
-                if sys.argv[2] == "list":
+                current_style = sys.argv[2]
+                if current_style == "list":
                     run_list_menu()
                     sys.exit(0)
-                elif sys.argv[2] == "grid":
+                elif current_style == "grid":
                     run_grid_menu()
                     sys.exit(0)
-                elif sys.argv[2] == "number":
+                elif current_style == "number":
                     run_number_menu()
                     sys.exit(0)
                 else:
                     print(_("Unknown menu style. Use 'list' or 'grid' or 'number'."))
                     main()
             else:
-                main()
+                # If no style specified, use the current style from bashrc
+                current_style = get_current_menu_style()
+                if current_style == 'list':
+                    run_list_menu()
+                elif current_style == 'grid':
+                    run_grid_menu()
+                elif current_style == 'number':
+                    run_number_menu()
+                else:
+                    run_list_menu()  # Default fallback
         else:
             main()
     except KeyboardInterrupt:
