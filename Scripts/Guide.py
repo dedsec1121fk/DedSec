@@ -5,7 +5,7 @@ import sys
 import os
 
 # ==============================================================================
-#  SCRIPT DATABASE & CONFIGURATION (UPDATED WITH FAQ)
+#  SCRIPT DATABASE & CONFIGURATION (UPDATED WITH NEW SCRIPTS)
 # ==============================================================================
 
 # This dictionary contains all the manual data organized by categories
@@ -227,6 +227,62 @@ GUIDE_DATA = {
                 "Reminder Metadata Auto-Removal",
                 "Cross-Platform Compatibility"
             ]
+        },
+        "My AI.py": {
+            "Description": "A powerful CLI AI assistant powered by Google's Gemini API with bilingual English/Greek support. Features persistent memory, Aiden Pearce persona from Watch Dogs, and natural conversation flow. The assistant maintains context across sessions and can handle coding, analysis, creative writing, and technical tasks with tactical precision.",
+            "How to Use": "1. Run script (first time: enter Gemini API key). 2. Chat naturally in English or Greek. 3. Use commands: 'delete history' to clear memory, 'exit' to quit. 4. Supports piped input: echo 'question' | python3 MyAI.py",
+            "Save Location": "Config: ~/.local/share/my_ai/config.json | History: ~/.local/share/my_ai/history.json",
+            "Requirements": "Gemini API key (free from Google AI Studio), Python 3.7+, requests library.",
+            "Tips": "The AI remembers previous conversations. Use clear prompts for technical tasks. Can switch languages mid-conversation.",
+            "Features": [
+                "Gemini API Integration (gemini-1.5-flash model)",
+                "Bilingual English/Greek Support with Auto-Detection",
+                "Persistent Chat Memory Across Sessions",
+                "Aiden Pearce Persona (Tactical/Cynical Tone)",
+                "Natural Conversation Flow with Context Retention",
+                "Command Control (Delete History, Exit)",
+                "Piped Input Support for Automation",
+                "Configurable System Instructions",
+                "Auto-Dependency Installation",
+                "Cross-Platform Compatibility (Termux/Linux)"
+            ]
+        },
+        "I'm The Truth.py": {
+            "Description": "A massive collection of 400+ Christian stories, wisdom, and parables from Orthodox tradition. Features include warrior saints, Old Testament stories, modern saints, desert fathers wisdom, and Jesus' parables. Interactive TUI with search, random selection, and categorized browsing for spiritual growth and meditation.",
+            "How to Use": "1. Run script. 2. Navigate categories with arrow keys. 3. Press Enter to read stories. 4. Use '/' to search, 'R' for random, 'Q' to quit.",
+            "Save Location": "No file saving - all content embedded in script.",
+            "Requirements": "rich library (auto-installed), Python 3.6+.",
+            "Tips": "Use search function to find specific stories. Random feature provides daily inspiration.",
+            "Features": [
+                "400+ Stories Across Multiple Categories",
+                "Interactive TUI with Rich Formatting",
+                "Search Functionality Across All Content",
+                "Random Story Selection",
+                "Categories: Warrior Saints, Old Testament, Modern Saints, Parables, Desert Fathers",
+                "Spiritual Lessons & Practical Applications",
+                "Auto-Installation of Dependencies",
+                "Cross-Platform Terminal Support"
+            ]
+        },
+        "File Type Checker.py": {
+            "Description": "Advanced file security analysis tool that detects malware, steganography, and suspicious content. Features magic byte detection, entropy analysis, VirusTotal integration, metadata extraction, and automatic quarantine. Handles files up to 50GB with smart buffering to avoid memory overload. Perfect for analyzing downloads and unknown files.",
+            "How to Use": "1. Place files in ~/Downloads/File Type Checker folder. 2. Run script. 3. View detailed security reports for each file. 4. Risky files are automatically quarantined.",
+            "Save Location": "Scan folder: ~/Downloads/File Type Checker/ | Quarantined files: .dangerous extension",
+            "Requirements": "rich, requests, exifread libraries (auto-installed), internet for VirusTotal.",
+            "Tips": "Set VIRUSTOTAL_API_KEY in script for cloud scanning. Large files analyzed via head/tail sampling.",
+            "Features": [
+                "Magic Byte & File Signature Detection",
+                "Entropy Analysis for Encryption/Packing Detection",
+                "VirusTotal Cloud Scanning Integration",
+                "Steganography Detection (Hidden Data in Images)",
+                "Metadata Extraction (EXIF, GPS, etc.)",
+                "String Pattern Matching (IPs, Emails, Malware Signatures)",
+                "PE Header Analysis for Executables",
+                "PDF/Office Macro Detection",
+                "Automatic Quarantine of Risky Files",
+                "Smart Buffering for Large Files (up to 50GB)",
+                "Rich Terminal Interface with Color-Coded Reports"
+            ]
         }
     },
     
@@ -262,6 +318,24 @@ GUIDE_DATA = {
                 "One-Time Display with Auto Cleanup",
                 "Global Bashrc Patching",
                 "Centered Art Display Based on Terminal Width"
+            ]
+        },
+        "Password Master.py": {
+            "Description": "A comprehensive password management suite with encrypted vault, password generator, analyzer, and improver. Features military-grade encryption (PBKDF2 + Fernet), zxcvbn strength analysis, and clipboard integration. Includes password generation with passphrases, strength improvement tools, and secure vault management with export/backup capabilities.",
+            "How to Use": "1. Run script. 2. Set master password for vault (first time). 3. Choose Vault (store passwords) or Security Tools (generate/analyze). 4. Follow menu prompts.",
+            "Save Location": "Vault: my_vault.enc in script directory | Backups: ~/Downloads/Password Master Backup/",
+            "Requirements": "colorama, zxcvbn, cryptography libraries (auto-installed).",
+            "Tips": "Use a strong master password and backup vault regularly. Passphrase generator creates memorable but strong passwords.",
+            "Features": [
+                "Encrypted Password Vault with Master Password",
+                "Password Generator (Random & Passphrase)",
+                "Password Strength Analyzer (zxcvbn algorithm)",
+                "Password Improver Tool",
+                "Clipboard Integration for Secure Copying",
+                "Vault Management (Add, Search, Delete, Export)",
+                "Automatic Dependency Installation",
+                "Cross-Platform (Termux, Linux, Windows)",
+                "Backup/Restore Functionality"
             ]
         }
     },
@@ -503,46 +577,11 @@ GUIDE_DATA = {
                 "Auto-save Functionality with Background Threading"
             ]
         }
-    },
-    
-    "Frequently Asked Questions": {
-        "Are these scripts malware?": {
-            "Description": "No. These are security auditing tools and educational scripts. However, because they are capable of actions like 'Phishing' or 'Network Scanning,' your antivirus or Play Protect might flag them as 'HackTools'. This is normal for cybersecurity software. The code is open-source on GitHub for you to review.",
-            "How to Use": "N/A",
-            "Save Location": "N/A",
-            "Requirements": "N/A",
-            "Tips": "N/A",
-            "Features": []
-        },
-        "Do I need to pay to use the main toolkit?": {
-            "Description": "No. The core DedSec Project, including all 40+ tools listed in the Basic Toolkit, Mods, and Personal Information Capture sections, is completely free and open-source. We believe in accessible education for everyone. We only charge for premium custom development services found in the Store.",
-            "How to Use": "N/A",
-            "Save Location": "N/A",
-            "Requirements": "N/A",
-            "Tips": "N/A",
-            "Features": []
-        },
-        "Is this legal to use?": {
-            "Description": "The tools are legal to install and study. However, using them to attack networks, computers, or people without their explicit written permission is illegal. DedSec Project is built for educational purposes and ethical hacking (Penetration Testing) only.",
-            "How to Use": "N/A",
-            "Save Location": "N/A",
-            "Requirements": "N/A",
-            "Tips": "N/A",
-            "Features": []
-        },
-        "Will this harm my device?": {
-            "Description": "Generally, no. The tools run inside the Termux sandbox and do not require Root access, meaning they cannot easily damage your core Android system. However, you should always be careful when running scripts and ensure you have enough storage space.",
-            "How to Use": "N/A",
-            "Save Location": "N/A",
-            "Requirements": "N/A",
-            "Tips": "N/A",
-            "Features": []
-        }
     }
 }
 
 # ==============================================================================
-#  UI LOGIC (UPDATED WITH FAQ SUPPORT)
+#  UI LOGIC
 # ==============================================================================
 
 def safe_addstr(stdscr, y, x, string, attr=0):
@@ -611,15 +650,10 @@ def show_script_details(stdscr, script_name, category_name):
         
         current_y = 3
         
-        # Helper to print sections (updated to handle FAQ items)
+        # Helper to print sections
         def print_section(title, content, color_pair, is_list=False):
             nonlocal current_y
             if current_y >= h - 2: return 
-            
-            # Skip empty or N/A sections for FAQ
-            if category_name == "Frequently Asked Questions" and title != "Description":
-                if content == "N/A" or not content or (is_list and not content):
-                    return
             
             # Print Title
             safe_addstr(stdscr, current_y, pad_x, title.upper(), curses.color_pair(color_pair) | curses.A_BOLD)
@@ -644,21 +678,12 @@ def show_script_details(stdscr, script_name, category_name):
                     current_y += 1
                 current_y += 1 # Extra spacing
 
-        # Print all sections (adjusted for FAQ)
+        # Print all sections
         print_section("Description", data["Description"], 1)
-        
-        # Only show additional sections if not FAQ or if they have content
-        if category_name != "Frequently Asked Questions" or data["How to Use"] != "N/A":
-            print_section("How to Use", data["How to Use"], 5)
-        
-        if category_name != "Frequently Asked Questions" or data["Save Location"] != "N/A":
-            print_section("Save Location", data["Save Location"], 6)
-        
-        if category_name != "Frequently Asked Questions" or data["Requirements"] != "N/A":
-            print_section("Requirements", data["Requirements"], 3)
-        
-        if category_name != "Frequently Asked Questions" or data["Tips"] != "N/A":
-            print_section("Pro Tips", data["Tips"], 2)
+        print_section("How to Use", data["How to Use"], 5)
+        print_section("Save Location", data["Save Location"], 6)
+        print_section("Requirements", data["Requirements"], 3)
+        print_section("Pro Tips", data["Tips"], 2)
         
         if "Features" in data and data["Features"]:
             print_section("Features", data["Features"], 4, is_list=True)
@@ -671,42 +696,46 @@ def show_script_details(stdscr, script_name, category_name):
 
 def format_list_item(name, category_name=""):
     """Formats the script name with icons to match the visual style."""
-    # FAQ items get question mark icon
-    if category_name == "Frequently Asked Questions":
-        icon = "❓"
-    else:
-        # Default icon
-        icon = "📁" 
-        if name.endswith(".py"):
-            icon = "🐍"
-        elif "Camera" in name:
-            icon = "📷"
-        elif "Location" in name:
-            icon = "📍"
-        elif "Microphone" in name:
-            icon = "🎤"
-        elif "Card" in name:
-            icon = "💳"
-        elif "Facebook" in name or "Instagram" in name or "Snapchat" in name or "TikTok" in name:
-            icon = "📱"
-        elif "Network" in name:
-            icon = "🌐"
-        elif "Notes" in name:
-            icon = "📝"
-        elif "Settings" in name:
-            icon = "⚙️"
-        elif "Tamagotchi" in name:
-            icon = "🐣"
-        elif "QR" in name:
-            icon = "📱"
-        elif "Websites" in name:
-            icon = "🌐"
-        elif "Sod" in name:
-            icon = "⚡"
-        elif "File Converter" in name:
-            icon = "🔄"
-        elif "Dark" in name:
-            icon = "🌑"
+    # Default icon
+    icon = "📁" 
+    if name.endswith(".py"):
+        icon = "🐍"
+    elif "Camera" in name:
+        icon = "📷"
+    elif "Location" in name:
+        icon = "📍"
+    elif "Microphone" in name:
+        icon = "🎤"
+    elif "Card" in name:
+        icon = "💳"
+    elif "Facebook" in name or "Instagram" in name or "Snapchat" in name or "TikTok" in name:
+        icon = "📱"
+    elif "Network" in name:
+        icon = "🌐"
+    elif "Notes" in name:
+        icon = "📝"
+    elif "Settings" in name:
+        icon = "⚙️"
+    elif "Tamagotchi" in name:
+        icon = "🐣"
+    elif "QR" in name:
+        icon = "📱"
+    elif "Websites" in name:
+        icon = "🌐"
+    elif "Sod" in name:
+        icon = "⚡"
+    elif "File Converter" in name:
+        icon = "🔄"
+    elif "Dark" in name:
+        icon = "🌑"
+    elif "AI" in name:
+        icon = "🤖"
+    elif "Truth" in name:
+        icon = "📖"
+    elif "File Type Checker" in name:
+        icon = "🔍"
+    elif "Password" in name:
+        icon = "🔒"
     
     # Format with icons
     return f"{icon} {name}"
