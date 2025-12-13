@@ -24,6 +24,7 @@ import html
 import tempfile
 import webbrowser
 import shutil
+import zipfile
 
 # --- Dependency Imports & Global Flags ---
 CURSES_AVAILABLE = False
@@ -72,7 +73,8 @@ def _try_import(module_name, global_var_name):
 SPEEDTEST_AVAILABLE = _try_import('speedtest', 'speedtest')
 REQUESTS_AVAILABLE = _try_import('requests', 'requests')
 if REQUESTS_AVAILABLE:
-    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+    import urllib3
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 BS4_AVAILABLE = _try_import('bs4', 'bs4_module')
 if BS4_AVAILABLE:
     BeautifulSoup = bs4_module.BeautifulSoup
@@ -123,7 +125,6 @@ def auto_install_dependencies():
 
 # --- TUI Helpers ---
 def _draw_curses_menu(stdscr, title, options):
-    curses.curs_set(0)
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK) 
     curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK) 
     curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK) 
@@ -134,29 +135,40 @@ def _draw_curses_menu(stdscr, title, options):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
         
-        # Title
+        # Center Title
+        title_x = max(0, (w // 2) - (len(title) // 2))
         stdscr.attron(curses.A_BOLD | curses.color_pair(2))
-        stdscr.addstr(1, max(0, w//2 - len(title)//2), title)
+        stdscr.addstr(1, title_x, title)
         stdscr.attroff(curses.A_BOLD | curses.color_pair(2))
-        stdscr.addstr(2, max(0, w//2 - 25), "=" * 50)
+        
+        # Centered Horizontal Rule
+        rule = "=" * min(w - 4, 50)
+        rule_x = max(0, (w // 2) - (len(rule) // 2))
+        stdscr.addstr(2, rule_x, rule)
 
         for idx, option in enumerate(options):
             y = 4 + idx
             if y >= h - 1: break
             
-            x = max(0, w//2 - len(option)//2)
+            # Formatting options to look uniform and centered
+            if option.startswith("---"):
+                text = option
+            else:
+                text = f"[ {option} ]"
+            
+            x = max(0, (w // 2) - (len(text) // 2))
             
             if option.startswith("---"):
                 stdscr.attron(curses.color_pair(3))
-                stdscr.addstr(y, x, option)
+                stdscr.addstr(y, x, text)
                 stdscr.attroff(curses.color_pair(3))
             elif idx == current_row:
                 stdscr.attron(curses.A_BOLD | curses.color_pair(4))
-                stdscr.addstr(y, x, option.center(40))
+                stdscr.addstr(y, x, text)
                 stdscr.attroff(curses.A_BOLD | curses.color_pair(4))
             else:
                 stdscr.attron(curses.color_pair(1))
-                stdscr.addstr(y, x, option.center(40))
+                stdscr.addstr(y, x, text)
                 stdscr.attroff(curses.color_pair(1))
         
         stdscr.refresh()
@@ -178,8 +190,8 @@ def _draw_curses_menu(stdscr, title, options):
 class AdvancedNetworkTools:
     def __init__(self):
         # Save Directory Setup
-        is_termux = os.path.exists('/data/data/com.termux')
-        if is_termux:
+        self.is_termux = os.path.exists('/data/data/com.termux')
+        if self.is_termux:
             base_dir = os.path.expanduser('~')
             self.save_dir = os.path.join(base_dir, "DedSec_Tools")
         else:
@@ -198,8 +210,6 @@ class AdvancedNetworkTools:
         
         self.max_workers = self.config.get('max_scan_workers', 15)
         self.scan_timeout = self.config.get('scan_timeout', 1.5)
-        
-        # Menu Style Preference (Default: 'list' if available, else 'number')
         self.menu_style = 'list' if CURSES_AVAILABLE else 'number'
 
     def load_config(self):
@@ -244,32 +254,107 @@ class AdvancedNetworkTools:
                 conn.commit()
         except Exception: pass
 
-    # --- Tool: Internet & Networking ---
+    # --- Tool: Website Downloader (Recursive) ---
+
+    def website_downloader(self):
+        print(f"\n{Fore.CYAN}📥 RECURSIVE WEBSITE DOWNLOADER{Style.RESET_ALL}")
+        if not REQUESTS_AVAILABLE or not BS4_AVAILABLE:
+            print(f"{Fore.RED}❌ Requests/BS4 missing.{Style.RESET_ALL}"); return
+
+        # Directory Setup
+        if self.is_termux:
+            storage_path = "/sdcard/Download/Websites"
+        else:
+            storage_path = os.path.join(os.path.expanduser("~"), "Downloads", "Websites")
+
+        if not os.path.exists(storage_path):
+            try: os.makedirs(storage_path)
+            except: storage_path = os.path.join(self.save_dir, "Websites")
+            if not os.path.exists(storage_path): os.makedirs(storage_path)
+
+        url = input(f"{Fore.WHITE}Target URL: {Style.RESET_ALL}").strip()
+        if not url.startswith('http'): url = 'http://' + url
+        
+        try:
+            max_depth = int(input(f"{Fore.WHITE}Crawl Depth (1=Single Page, 2+=Recursive): {Style.RESET_ALL}") or "1")
+        except: max_depth = 1
+
+        domain = urlparse(url).netloc
+        folder_name = domain.replace(".", "_")
+        target_folder = os.path.join(storage_path, folder_name)
+        if not os.path.exists(target_folder): os.makedirs(target_folder)
+
+        visited = set()
+        to_visit = deque([(url, 1)])
+        
+        print(f"[*] Downloading to: {target_folder}")
+
+        while to_visit:
+            curr_url, depth = to_visit.popleft()
+            if curr_url in visited or depth > max_depth: continue
+            visited.add(curr_url)
+
+            try:
+                print(f"  {Fore.GREEN}[+]{Style.RESET_ALL} Fetching: {curr_url}")
+                r = requests.get(curr_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+                
+                # Determine file name
+                parsed_path = urlparse(curr_url).path
+                fname = os.path.basename(parsed_path) or "index.html"
+                if not fname.endswith(".html"): fname += ".html"
+                
+                with open(os.path.join(target_folder, fname), "wb") as f:
+                    f.write(r.content)
+
+                soup = BeautifulSoup(r.content, 'html.parser')
+                
+                # Recursion
+                if depth < max_depth:
+                    for a in soup.find_all('a', href=True):
+                        full_link = urljoin(curr_url, a['href'])
+                        if urlparse(full_link).netloc == domain:
+                            to_visit.append((full_link, depth + 1))
+
+                # Assets
+                tags = {'img': 'src', 'link': 'href', 'script': 'src'}
+                for tag, attr in tags.items():
+                    for item in soup.find_all(tag, **{attr: True}):
+                        asset_url = urljoin(curr_url, item.get(attr))
+                        asset_name = os.path.basename(urlparse(asset_url).path)
+                        if asset_name:
+                            try:
+                                asset_r = requests.get(asset_url, timeout=5)
+                                with open(os.path.join(target_folder, asset_name), "wb") as f:
+                                    f.write(asset_r.content)
+                            except: pass
+            except: pass
+
+        # ZIP Feature
+        do_zip = input(f"\n{Fore.WHITE}Compress into ZIP? (y/n): {Style.RESET_ALL}").lower()
+        if do_zip == 'y':
+            zip_name = f"{target_folder}.zip"
+            with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(target_folder):
+                    for file in files:
+                        zipf.write(os.path.join(root, file), arcname=file)
+            print(f"{Fore.GREEN}✅ ZIP Created: {zip_name}{Style.RESET_ALL}")
+
+        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
+
+    # --- Tool: Internet & Networking (Originals) ---
     
     def run_internet_speed_test(self):
         print(f"\n{Fore.CYAN}⚡️ SPEED TEST{Style.RESET_ALL}")
         if not SPEEDTEST_AVAILABLE:
             print(f"{Fore.RED}❌ 'speedtest-cli' not installed.{Style.RESET_ALL}")
-            input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-            return
-
+            input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}"); return
         try:
-            print(f"[*] Selecting best server...")
             st = speedtest.Speedtest()
             st.get_best_server()
-            print(f"[*] Testing Download...")
             dl = st.download() / 1_000_000
-            print(f"[*] Testing Upload...")
             ul = st.upload() / 1_000_000
-            ping = st.results.ping
-            
-            print(f"\n{Fore.GREEN}✅ RESULTS:{Style.RESET_ALL}")
-            print(f"  Ping:     {ping:.2f} ms")
-            print(f"  Download: {Fore.GREEN}{dl:.2f} Mbps{Style.RESET_ALL}")
-            print(f"  Upload:   {Fore.GREEN}{ul:.2f} Mbps{Style.RESET_ALL}")
-            print(f"  ISP:      {st.results.client['isp']}")
-        except Exception as e:
-            print(f"{Fore.RED}❌ Error: {e}{Style.RESET_ALL}")
+            print(f"\n{Fore.GREEN}✅ RESULTS:{Style.RESET_ALL}\n  Ping: {st.results.ping}ms\n  DL: {dl:.2f} Mbps\n  UL: {ul:.2f} Mbps")
+        except Exception as e: print(f"{Fore.RED}❌ Error: {e}{Style.RESET_ALL}")
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def get_external_ip_info(self):
@@ -278,324 +363,169 @@ class AdvancedNetworkTools:
         try:
             data = requests.get("http://ip-api.com/json/", timeout=10).json()
             if data.get('status') == 'success':
-                print(f"\n{Fore.GREEN}✅ External IP Found:{Style.RESET_ALL}")
-                print(f"  IP:       {data.get('query')}")
-                print(f"  ISP:      {data.get('isp')}")
-                print(f"  Location: {data.get('city')}, {data.get('country')}")
-                print(f"  Org:      {data.get('org')}")
-            else:
-                print(f"{Fore.RED}❌ Failed to retrieve info.{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.RED}❌ Connection failed: {e}{Style.RESET_ALL}")
+                print(f"\n{Fore.GREEN}✅ External IP: {data.get('query')}{Style.RESET_ALL}\n  ISP: {data.get('isp')}\n  Loc: {data.get('city')}, {data.get('country')}")
+        except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def subnet_calculator(self):
         print(f"\n{Fore.CYAN}🧮 SUBNET CALCULATOR{Style.RESET_ALL}")
-        ip_input = input(f"{Fore.WHITE}Enter IP/CIDR (e.g. 192.168.1.0/24): {Style.RESET_ALL}").strip()
-        
+        ip_input = input(f"Enter IP/CIDR: ").strip()
         try:
-            if '/' not in ip_input: raise ValueError
             ip_str, cidr_str = ip_input.split('/')
             cidr = int(cidr_str)
             ip_parts = list(map(int, ip_str.split('.')))
-            
             ip_int = (ip_parts[0] << 24) + (ip_parts[1] << 16) + (ip_parts[2] << 8) + ip_parts[3]
             mask_int = (0xFFFFFFFF << (32 - cidr)) & 0xFFFFFFFF
             network_int = ip_int & mask_int
             broadcast_int = network_int | ~mask_int & 0xFFFFFFFF
-            
-            def int_to_ip(val):
-                return '.'.join([str((val >> (i << 3)) & 0xFF) for i in (3, 2, 1, 0)])
-            
-            print(f"\n{Fore.GREEN}✅ Calculation:{Style.RESET_ALL}")
-            print(f"  Network:   {int_to_ip(network_int)}")
-            print(f"  Broadcast: {int_to_ip(broadcast_int)}")
-            print(f"  Netmask:   {int_to_ip(mask_int)}")
-            print(f"  Usable:    {max(0, 2**(32-cidr) - 2)} hosts")
-        except:
-            print(f"{Fore.RED}❌ Invalid format.{Style.RESET_ALL}")
+            int_to_ip = lambda val: '.'.join([str((val >> (i << 3)) & 0xFF) for i in (3, 2, 1, 0)])
+            print(f"Network: {int_to_ip(network_int)}\nBroadcast: {int_to_ip(broadcast_int)}\nMask: {int_to_ip(mask_int)}")
+        except: print(f"{Fore.RED}Invalid format.{Style.RESET_ALL}")
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def enhanced_port_scanner(self):
-        """Python-based TCP Connect Scanner (Works without root)"""
         print(f"\n{Fore.CYAN}🔍 PORT SCANNER (TCP){Style.RESET_ALL}")
-        target = input(f"{Fore.WHITE}Target IP/Hostname: {Style.RESET_ALL}").strip()
+        target = input("Target: ").strip()
         if not target: return
-
         try:
             target_ip = socket.gethostbyname(target)
-            print(f"[*] Resolving {target} -> {target_ip}")
-        except:
-            print(f"{Fore.RED}❌ Host not found.{Style.RESET_ALL}")
-            return
-
-        mode = input(f"{Fore.WHITE}Scan: (1) Top Ports, (2) Range 1-1024: {Style.RESET_ALL}").strip()
-        if mode == '1':
             ports = [int(p) for p in self.config['top_ports'].split(',')]
-        elif mode == '2':
-            ports = range(1, 1025)
-        else:
-            ports = [21, 22, 80, 443]
-
-        print(f"[*] Scanning {len(ports)} ports with {self.max_workers} threads...")
-        
-        def scan_port(port):
-            try:
+            def scan(port):
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(self.scan_timeout)
                     if s.connect_ex((target_ip, port)) == 0:
-                        try:
-                            serv = socket.getservbyport(port)
-                        except: serv = "unknown"
-                        return port, serv
-            except: pass
-            return None
-
-        open_ports = []
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [executor.submit(scan_port, p) for p in ports]
-            for future in concurrent.futures.as_completed(futures):
-                res = future.result()
-                if res:
-                    print(f"  {Fore.GREEN}[+] Port {res[0]} OPEN ({res[1]}){Style.RESET_ALL}")
-                    open_ports.append(res)
-
-        if open_ports:
-            self.record_audit_finding(target, 'Port Scan', f"{len(open_ports)} Ports Open", str(open_ports), 'Info')
-        
+                        print(f"  {Fore.GREEN}[+] Port {port} OPEN{Style.RESET_ALL}")
+            with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
+                ex.map(scan, ports)
+        except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-
-    # --- Tool: OSINT & Info Gathering ---
 
     def get_whois_info(self):
         print(f"\n{Fore.CYAN}👤 WHOIS LOOKUP{Style.RESET_ALL}")
-        if not WHOIS_AVAILABLE: 
-            print("Module missing."); return
+        if not WHOIS_AVAILABLE: return
         domain = input("Domain: ").strip()
-        if domain:
-            try:
-                w = whois.whois(domain)
-                print(f"\n{Fore.GREEN}✅ Registrar: {w.registrar}{Style.RESET_ALL}")
-                print(f"   Creation Date: {w.creation_date}")
-                print(f"   Emails: {w.emails}")
-            except Exception as e:
-                print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+        try:
+            w = whois.whois(domain)
+            print(f"Registrar: {w.registrar}\nEmails: {w.emails}")
+        except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def get_dns_records(self):
         print(f"\n{Fore.CYAN}🌐 DNS RECORDS{Style.RESET_ALL}")
         if not DNS_AVAILABLE: return
         domain = input("Domain: ").strip()
-        if domain:
-            for r in ['A', 'AAAA', 'MX', 'TXT', 'NS']:
-                try:
-                    answers = dns_resolver.resolve(domain, r)
-                    print(f"{Fore.CYAN}[{r}]{Style.RESET_ALL}")
-                    for d in answers: print(f"  {d}")
-                except: pass
+        for r in ['A', 'MX', 'TXT']:
+            try:
+                ans = dns_resolver.resolve(domain, r)
+                print(f"[{r}]: " + ", ".join([str(d) for d in ans]))
+            except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def web_crawler(self):
         print(f"\n{Fore.CYAN}🕷️ WEB CRAWLER{Style.RESET_ALL}")
-        if not REQUESTS_AVAILABLE or not BS4_AVAILABLE: return
-        url = input("Start URL: ").strip()
-        if not url.startswith('http'): url = 'https://' + url
-        
-        print(f"[*] Crawling (Max 50 links)...")
-        links = set()
-        try:
-            r = requests.get(url, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
-            soup = BeautifulSoup(r.content, 'html.parser')
-            for a in soup.find_all('a', href=True):
-                full = urljoin(url, a['href'])
-                if full not in links:
-                    links.add(full)
-                    print(f"  - {full}")
-                    if len(links) >= 50: break
-        except Exception as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
-        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-
-    def subdomain_enum(self):
-        print(f"\n{Fore.CYAN}🔎 SUBDOMAIN ENUMERATION{Style.RESET_ALL}")
-        if not DNS_AVAILABLE: return
-        domain = input("Domain: ").strip()
-        
-        subs = ['www', 'mail', 'ftp', 'webmail', 'smtp', 'pop', 'ns1', 'dev', 'test', 'api', 'admin', 'blog', 'shop']
-        print(f"[*] Checking common subdomains...")
-        
-        def check(sub):
-            full = f"{sub}.{domain}"
-            try:
-                dns_resolver.resolve(full, 'A')
-                return full
-            except: return None
-
-        with ThreadPoolExecutor(max_workers=20) as ex:
-            futures = [ex.submit(check, s) for s in subs]
-            for f in concurrent.futures.as_completed(futures):
-                if f.result():
-                    print(f"{Fore.GREEN}[+] Found: {f.result()}{Style.RESET_ALL}")
-                    self.record_audit_finding(domain, 'Subdomain', 'Found', f.result(), 'Info')
-        
-        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-
-    def reverse_ip_lookup(self):
-        print(f"\n{Fore.CYAN}🔄 REVERSE IP LOOKUP{Style.RESET_ALL}")
-        target = input("Target IP/Domain: ").strip()
-        try:
-            r = requests.get(f"https://api.hackertarget.com/reverseiplookup/?q={target}", timeout=10)
-            if 'error' not in r.text.lower() and 'no records' not in r.text.lower():
-                print(f"\n{Fore.GREEN}✅ Domains on this IP:{Style.RESET_ALL}")
-                for line in r.text.splitlines():
-                    print(f"  - {line}")
-            else:
-                print(f"{Fore.YELLOW}No records found.{Style.RESET_ALL}")
-        except:
-            print(f"{Fore.RED}API Error.{Style.RESET_ALL}")
-        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-
-    # --- Tool: Web Security & Vulnerabilities ---
-
-    def http_headers(self):
-        print(f"\n{Fore.CYAN}📋 HEADER ANALYZER{Style.RESET_ALL}")
         url = input("URL: ").strip()
         if not url.startswith('http'): url = 'https://' + url
         try:
             r = requests.get(url, timeout=5)
-            h = r.headers
-            security = ['Strict-Transport-Security', 'X-Frame-Options', 'Content-Security-Policy']
-            
-            print(f"\n{Fore.GREEN}[+] Security Headers:{Style.RESET_ALL}")
-            for s in security:
-                if s in h: print(f"  {Fore.GREEN}✔ {s}: Found{Style.RESET_ALL}")
-                else: print(f"  {Fore.RED}✖ {s}: Missing{Style.RESET_ALL}")
-            
-            if 'Server' in h:
-                print(f"{Fore.YELLOW}[!] Server Leak: {h['Server']}{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.RED}Error: {e}{Style.RESET_ALL}")
+            soup = BeautifulSoup(r.content, 'html.parser')
+            for a in soup.find_all('a', href=True)[:20]:
+                print(f"  - {urljoin(url, a['href'])}")
+        except: pass
+        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
+
+    def subdomain_enum(self):
+        print(f"\n{Fore.CYAN}🔎 SUBDOMAIN ENUMERATION{Style.RESET_ALL}")
+        domain = input("Domain: ").strip()
+        subs = ['www', 'mail', 'dev', 'api', 'admin']
+        def check(s):
+            try: socket.gethostbyname(f"{s}.{domain}")
+            except: return None
+            return f"{s}.{domain}"
+        with ThreadPoolExecutor(max_workers=10) as ex:
+            results = ex.map(check, subs)
+            for res in results:
+                if res: print(f"{Fore.GREEN}[+] {res}{Style.RESET_ALL}")
+        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
+
+    def reverse_ip_lookup(self):
+        print(f"\n{Fore.CYAN}🔄 REVERSE IP LOOKUP{Style.RESET_ALL}")
+        target = input("Target: ").strip()
+        try:
+            r = requests.get(f"https://api.hackertarget.com/reverseiplookup/?q={target}", timeout=10)
+            print(r.text)
+        except: pass
+        input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
+
+    def http_headers(self):
+        print(f"\n{Fore.CYAN}📋 HEADER ANALYZER{Style.RESET_ALL}")
+        url = input("URL: ").strip()
+        try:
+            r = requests.get(url, timeout=5)
+            for k, v in r.headers.items(): print(f"{k}: {v}")
+        except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def sql_injector(self):
-        print(f"\n{Fore.CYAN}💉 SQL INJECTION TESTER (Basic){Style.RESET_ALL}")
-        url = input(f"URL with param (e.g. site.com?id=1): ").strip()
-        if '?' not in url: 
-            print("Need URL parameters."); return
-        
-        payloads = ["'", "\"", "' OR '1'='1", " OR 1=1"]
-        errors = ['sql', 'mysql', 'syntax', 'ora-']
-        
-        print(f"[*] Testing payloads...")
-        vuln = False
-        for p in payloads:
-            target = url + p
+        print(f"\n{Fore.CYAN}💉 SQL INJECTION TESTER{Style.RESET_ALL}")
+        url = input("URL with param: ").strip()
+        if '?' in url:
+            payload = url + "'"
             try:
-                r = requests.get(target, timeout=5, headers={'User-Agent': 'Mozilla/5.0'})
-                if any(e in r.text.lower() for e in errors):
-                    print(f"{Fore.RED}[!] Vulnerable to Error-Based SQLi with: {p}{Style.RESET_ALL}")
-                    vuln = True
-                    break
+                r = requests.get(payload, timeout=5)
+                if "sql" in r.text.lower(): print(f"{Fore.RED}[!] Vulnerable!{Style.RESET_ALL}")
+                else: print("No obvious vulnerability.")
             except: pass
-        
-        if not vuln: print(f"{Fore.GREEN}No obvious error-based vulnerabilities.{Style.RESET_ALL}")
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def xss_scanner(self):
-        print(f"\n{Fore.CYAN}🎯 XSS SCANNER (Reflected){Style.RESET_ALL}")
-        url = input(f"URL with param (e.g. site.com?q=test): ").strip()
-        if '?' not in url: return
-        
-        base, params = url.split('?', 1)
-        key = params.split('=')[0]
-        payload = "<script>alert('XSS')</script>"
-        target = f"{base}?{key}={payload}"
-        
-        print(f"[*] Sending payload...")
-        try:
-            r = requests.get(target, timeout=5)
-            if payload in r.text:
-                print(f"{Fore.RED}[!] Reflected XSS Found!{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.GREEN}Payload not reflected.{Style.RESET_ALL}")
-        except: pass
+        print(f"\n{Fore.CYAN}🎯 XSS SCANNER{Style.RESET_ALL}")
+        url = input("URL with param: ").strip()
+        payload = "<script>alert(1)</script>"
+        if '?' in url:
+            try:
+                r = requests.get(url + payload, timeout=5)
+                if payload in r.text: print(f"{Fore.RED}[!] XSS Found!{Style.RESET_ALL}")
+                else: print("Safe.")
+            except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def cms_detect(self):
         print(f"\n{Fore.CYAN}🧬 CMS DETECTOR{Style.RESET_ALL}")
         url = input("URL: ").strip()
-        if not url.startswith('http'): url = 'https://' + url
         try:
-            r = requests.get(url, timeout=5)
-            text = r.text.lower()
-            if 'wp-content' in text: print(f"{Fore.GREEN}Detected: WordPress{Style.RESET_ALL}")
-            elif 'joomla' in text: print(f"{Fore.GREEN}Detected: Joomla{Style.RESET_ALL}")
-            elif 'drupal' in text: print(f"{Fore.GREEN}Detected: Drupal{Style.RESET_ALL}")
-            elif 'shopify' in text: print(f"{Fore.GREEN}Detected: Shopify{Style.RESET_ALL}")
-            else: print(f"{Fore.YELLOW}Unknown CMS.{Style.RESET_ALL}")
+            r = requests.get(url, timeout=5).text.lower()
+            if 'wp-content' in r: print("WordPress")
+            elif 'joomla' in r: print("Joomla")
+            else: print("Unknown")
         except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
-    # --- Tool: SSH Auditing ---
-
     def ssh_brute(self):
-        print(f"\n{Fore.CYAN}🔐 SSH BRUTE FORCE (Paramiko){Style.RESET_ALL}")
-        if not PARAMIKO_AVAILABLE: 
-            print("Paramiko missing."); return
-        
-        host = input("Host IP: ").strip()
-        user = input("Username: ").strip()
-        passwords = ['admin', '123456', 'password', 'root', 'toor', '1234']
-        
-        print(f"[*] Trying common passwords...")
-        for pwd in passwords:
+        print(f"\n{Fore.CYAN}🔐 SSH BRUTE FORCE{Style.RESET_ALL}")
+        if not PARAMIKO_AVAILABLE: return
+        host = input("Host: ").strip()
+        user = input("User: ").strip()
+        for p in ['123456', 'admin', 'password']:
             try:
                 ssh = paramiko.SSHClient()
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                ssh.connect(host, username=user, password=pwd, timeout=3)
-                print(f"\n{Fore.GREEN}✅ CRACKED: {user}:{pwd}{Style.RESET_ALL}")
-                ssh.close()
-                break
-            except: 
-                print(f"  [-] Failed: {pwd}")
-        
+                ssh.connect(host, username=user, password=p, timeout=3)
+                print(f"{Fore.GREEN}CRACKED: {p}{Style.RESET_ALL}"); ssh.close(); break
+            except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
-
-    # --- Tool: Management ---
 
     def view_logs(self):
         print(f"\n{Fore.CYAN}📊 AUDIT LOGS{Style.RESET_ALL}")
         try:
             with sqlite3.connect(self.audit_db_name) as conn:
-                cur = conn.cursor()
-                cur.execute("SELECT * FROM audit_results ORDER BY timestamp DESC LIMIT 20")
-                rows = cur.fetchall()
-                for r in rows:
-                    print(f"[{r[6]}] {r[2]} - {r[3]} ({r[5]})")
+                for r in conn.execute("SELECT * FROM audit_results LIMIT 10"): print(r)
         except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def change_menu_style(self):
-        print(f"\n{Fore.CYAN}🎨 CHOOSE MENU STYLE{Style.RESET_ALL}")
-        print(f"{Fore.WHITE}1. Interactive List (Requires Curses/TUI){Style.RESET_ALL}")
-        print(f"{Fore.WHITE}2. Choose By Number (Classic CLI){Style.RESET_ALL}")
-        
-        choice = input(f"\n{Fore.WHITE}Select option (1-2): {Style.RESET_ALL}").strip()
-        
-        if choice == '1':
-            if CURSES_AVAILABLE:
-                self.menu_style = 'list'
-                print(f"{Fore.GREEN}✅ Menu style set to Interactive List.{Style.RESET_ALL}")
-            else:
-                print(f"{Fore.RED}❌ Curses not available. Cannot switch to List style.{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}Install ncurses-utils or run in a compatible terminal.{Style.RESET_ALL}")
-        elif choice == '2':
-            self.menu_style = 'number'
-            print(f"{Fore.GREEN}✅ Menu style set to Choose By Number.{Style.RESET_ALL}")
-        else:
-            print(f"{Fore.RED}❌ Invalid selection.{Style.RESET_ALL}")
-            
-        time.sleep(1.5)
+        self.menu_style = 'number' if self.menu_style == 'list' else 'list'
+        print(f"Style changed to: {self.menu_style}")
+        time.sleep(1)
 
     # --- Main Menu ---
 
@@ -607,93 +537,58 @@ class AdvancedNetworkTools:
                 "Subnet Calculator",              # 2
                 "Internet Speed Test",            # 3
                 "External IP Info",               # 4
-                "--- OSINT & RECON ---",          # 5
-                "WHOIS Lookup",                   # 6
-                "DNS Records",                    # 7
-                "Subdomain Enumeration",          # 8
-                "Reverse IP Lookup",              # 9
-                "Web Crawler",                    # 10
-                "--- WEB SECURITY ---",           # 11
-                "HTTP Header Analyzer",           # 12
-                "CMS Detector",                   # 13
-                "SQL Injection Tester",           # 14
-                "Reflected XSS Scanner",          # 15
-                "SSH Brute Force",                # 16
-                "--- SYSTEM ---",                 # 17
-                "View Audit Logs",                # 18
-                "Change Menu Style",              # 19
-                "Exit"                            # 20
+                "Website Downloader (Recursive)", # 5
+                "--- OSINT & RECON ---",          # 6
+                "WHOIS Lookup",                   # 7
+                "DNS Records",                    # 8
+                "Subdomain Enumeration",          # 9
+                "Reverse IP Lookup",              # 10
+                "Web Crawler",                    # 11
+                "--- WEB SECURITY ---",           # 12
+                "HTTP Header Analyzer",           # 13
+                "CMS Detector",                   # 14
+                "SQL Injection Tester",           # 15
+                "Reflected XSS Scanner",          # 16
+                "SSH Brute Force",                # 17
+                "--- SYSTEM ---",                 # 18
+                "View Audit Logs",                # 19
+                "Change Menu Style",              # 20
+                "Exit"                            # 21
             ]
 
-            # Logic to decide Menu Rendering Style
             sel = -1
             if CURSES_AVAILABLE and self.menu_style == 'list':
                 sel = curses.wrapper(_draw_curses_menu, "DedSec Network Tool (Lite)", options)
             else:
-                # Number Selection Style
-                print(f"\n{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}   DEDSEC TOOLKIT - SELECT BY NUMBER{Style.RESET_ALL}")
-                print(f"{Fore.CYAN}{'='*40}{Style.RESET_ALL}")
-                
-                valid_indices = []
+                print(f"\n{Fore.CYAN}   DEDSEC TOOLKIT - SELECT BY NUMBER{Style.RESET_ALL}")
                 for i, o in enumerate(options):
-                    if o.startswith("---"):
-                        print(f"{Fore.YELLOW}{o}{Style.RESET_ALL}")
-                    else:
-                        print(f"{Fore.WHITE}{i:2}. {o}{Style.RESET_ALL}")
-                        valid_indices.append(i)
-                
-                try:
-                    choice_input = input(f"\n{Fore.CYAN}Select option > {Style.RESET_ALL}").strip()
-                    if choice_input:
-                        sel = int(choice_input)
-                except ValueError:
-                    sel = -1
+                    if o.startswith("---"): print(f"{Fore.YELLOW}{o}{Style.RESET_ALL}")
+                    else: print(f"{Fore.WHITE}{i:2}. {o}{Style.RESET_ALL}")
+                try: sel = int(input(f"\nSelect option > ").strip())
+                except: sel = -1
 
             # Mapping Selection to Functions
             opt_map = {
-                1: self.enhanced_port_scanner,
-                2: self.subnet_calculator,
-                3: self.run_internet_speed_test,
-                4: self.get_external_ip_info,
-                6: self.get_whois_info,
-                7: self.get_dns_records,
-                8: self.subdomain_enum,
-                9: self.reverse_ip_lookup,
-                10: self.web_crawler,
-                12: self.http_headers,
-                13: self.cms_detect,
-                14: self.sql_injector,
-                15: self.xss_scanner,
-                16: self.ssh_brute,
-                18: self.view_logs,
-                19: self.change_menu_style
+                1: self.enhanced_port_scanner, 2: self.subnet_calculator, 3: self.run_internet_speed_test,
+                4: self.get_external_ip_info, 5: self.website_downloader, 7: self.get_whois_info,
+                8: self.get_dns_records, 9: self.subdomain_enum, 10: self.reverse_ip_lookup,
+                11: self.web_crawler, 13: self.http_headers, 14: self.cms_detect,
+                15: self.sql_injector, 16: self.xss_scanner, 17: self.ssh_brute,
+                19: self.view_logs, 20: self.change_menu_style
             }
 
-            if sel == 20:
-                print(f"{Fore.GREEN}Goodbye.{Style.RESET_ALL}")
-                break
-            
+            if sel == 21: break
             if sel in opt_map:
-                try:
-                    opt_map[sel]()
-                except KeyboardInterrupt:
-                    print(f"\n{Fore.YELLOW}Operation Cancelled.{Style.RESET_ALL}")
+                try: opt_map[sel]()
+                except KeyboardInterrupt: print("\nCancelled.")
             elif sel != -1 and not options[sel].startswith("---"):
-                print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}")
-                time.sleep(1)
+                print(f"{Fore.RED}Invalid selection.{Style.RESET_ALL}"); time.sleep(1)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--install":
         auto_install_dependencies()
         sys.exit()
-
     try:
         app = AdvancedNetworkTools()
         app.run()
-    except KeyboardInterrupt:
-        print("\nExiting.")
-    except Exception as e:
-        print(f"Error: {e}")
-        if not REQUESTS_AVAILABLE:
-            print(f"Run 'python {sys.argv[0]} --install' to fix dependencies.")
+    except KeyboardInterrupt: print("\nExiting.")
