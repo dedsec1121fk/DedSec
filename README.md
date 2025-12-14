@@ -38,39 +38,41 @@ Get the DedSec Project command-line tools running on your **Android device with 
 
 | Component | Minimum Specification |
 | :-------- | :------------------------------------------------------------------- |
-| **Device** | Android with [Termux](https://f-droid.org/) installed |
+| **Device** | Android with Termux installed |
 | **Storage** | Min **8GB** free. (Images and recordings also consume space.) |
 | **RAM** | Min **2GB** |
 
 ### Step-by-Step Setup
 
-> **Note:** To install APKs (e.g., F-Droid), ensure you:
-> - Enable unknown sources (Settings > Security > **Install Unknown Apps**).
-> - Download F-Droid, then get Termux from [F-Droid](https://f-droid.org/).
-> - Install add-ons: Termux:API, Termux:Styling.
-> - Allow the `fdroid` process when prompted.
+> **Note:** To install APKs (e.g., F-Droid), ensure you enable unknown sources in **Settings > Security > Install Unknown Apps**.
 
-1.  **Update Packages & Install Git**
+1.  **Install F-Droid & Termux**
+    F-Droid is the recommended way to install Termux and other security tools.
+    * Download and install the [F-Droid APK](https://f-droid.org/).
+    * Open F-Droid and search for **Termux** to install it.
+    * **Recommended Add-ons:** Install **Termux:API** and **Termux:Styling** from F-Droid for full functionality.
+
+2.  **Update Packages & Install Git**
     Open Termux and run the following command to make sure your packages are up-to-date and `git` is installed:
     ```bash
     pkg update -y && pkg upgrade -y && pkg install git nano -y && termux-setup-storage
     ```
-    > **Important:** Open the Termux application on your device before copying and pasting the command above.
+    > **Tip:** To prevent the screen from turning off during long operations: long-press the Termux terminal, then tap 'More' and select 'Keep screen on'.
 
-2.  **Clone the Repository**
+3.  **Clone the Repository**
     Download the project files from GitHub:
     ```bash
     git clone [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
     ```
 
-3.  **Run the Setup Script**
+4.  **Run the Setup Script**
     Navigate into the project directory and run the setup script. It will handle the complete installation for you.
     ```bash
     cd DedSec && bash Setup.sh
     ```
-    > The script will handle the complete installation. After the process, you will see a settings menu, you must choose **Change Menu Style** and then choose a menu style: **list, grid, or number**. Then, close Termux from your notifications and reopen it.
+    > The script will handle the complete installation. After the process, you will see a settings menu; you must choose **Change Menu Style** and then choose a menu style: **list, grid, or number**. Then, close Termux from your notifications and reopen it.
     > 
-    > **Tip:** After setup, you can quickly open the menu by typing `e` (for the English version) or `g` (for the Greek version) in Termux.
+    > **Quick Launch:** After setup, you can quickly open the menu by typing `e` (English) or `g` (Greek) in Termux.
 
 ---
 
@@ -111,77 +113,109 @@ The toolkit includes the following main categories and tools:
 
 #### 🛠️ Basic Toolkit
 
-1.  **Android App Launcher**: Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection. Includes comprehensive security reporting for installed applications.
+1.  **Android App Launcher**: Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection.
+    * *Save Location:* `~/storage/shared/Download/Extracted APK's` (APKs) | `~/storage/shared/Download/App_Security_Reports` (Reports)
 
-2.  **Dark**: A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. It features automated Tor connectivity, an Ahmia search integration, and a recursive crawler for .onion sites. The tool utilizes a modular plugin system to extract specific data types (Emails, BTC/XMR addresses, PGP keys, Phones) and supports saving snapshots. It offers both a Curses TUI and CLI mode, with results exportable to JSON, CSV, and TXT.
+2.  **Dark**: A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. Features automated Tor connectivity, Ahmia search integration, and a recursive crawler for .onion sites.
+    * *Save Location:* `/sdcard/Download/DarkNet` (or `~/DarkNet` if storage is inaccessible)
 
-3.  **DedSec's Network Toolkit**: An advanced, non-root network toolkit optimized for speed and stability. It features a dual-mode interface (TUI/CLI) and includes tools for connectivity testing (Speedtest, Subnet), OSINT (Whois, DNS, Reverse IP, Subdomain Enum), web auditing (Crawler, CMS Detect, Headers, Basic SQLi/XSS), and an SSH brute-forcer. It maintains a local SQLite audit log of findings.
+3.  **DedSec's Network Toolkit**: An advanced, non-root network toolkit optimized for speed and stability. Includes tools for connectivity testing, OSINT (Whois, DNS, Reverse IP), web auditing, and an SSH brute-forcer.
+    * *Save Location:* `~/DedSec_Tools`
 
-4.  **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning, advanced detection logic with rate-limit handling, and automatic dependency installation. Saves comprehensive reports to a TXT file in the Downloads folder. Covers social media, tech, gaming, finance, and more. Uses API checking, search engine dorking, and comprehensive site scanning to build a complete digital footprint profile.
+4.  **Digital Footprint Finder**: Advanced OSINT tool for discovering digital footprints across 250+ platforms. Features rapid, multi-threaded username scanning and advanced detection logic.
+    * *Save Location:* `~/storage/downloads/Digital Footprint Finder/[username].txt`
 
 5.  **Extra Content**: A simple utility script designed to move the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access.
+    * *Save Location:* `~/storage/downloads/Extra Content`
 
-6.  **File Converter**: A powerful file converter supporting 40+ formats. Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives. Features automatic dependency installation, organized folder structure, and comprehensive conversion capabilities.
+6.  **File Converter**: A powerful interactive file converter supporting 40+ formats across images, documents, audio, video, and archives.
+    * *Save Location:* `~/storage/downloads/File Converter/`
 
-7.  **File Type Checker**: Advanced file analysis and security scanner that detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats. Features magic byte detection, entropy analysis, steganography detection, virus scanning via VirusTotal API, and automatic quarantine of suspicious files. Supports analysis of files up to 50GB with intelligent memory management.
+7.  **File Type Checker**: Advanced file analysis and security scanner that detects file types, extracts metadata, calculates hashes, and identifies potential threats (magic byte detection, VirusTotal API).
+    * *Save Location:* `/sdcard/Download/File Type Checker` (Quarantined files renamed with `.dangerous`)
 
-8.  **Fox's Connections**: Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Fox Chat and DedSec's Database with single secret key authentication. Provides real-time messaging, file sharing, video calls, and integrated file management. Features 50GB file uploads, WebRTC video calls, cloudflare tunneling, and unified login system.
+8.  **Fox's Connections**: Secure chat/file-sharing server. Unified application combining Fox Chat and DedSec's Database. Features 50GB file uploads, WebRTC video calls, and Cloudflare tunneling.
+    * *Save Location:* `~/Downloads/DedSec's Database`
 
-9.  **I'm The Truth**: Comprehensive Orthodox Christian wisdom database featuring 400+ stories, parables, and teachings from saints, martyrs, and biblical figures. Organized into categories including Warrior Saints, Desert Fathers, New Testament miracles, and practical wisdom. Features rich terminal interface with pagination, searchable content, and daily inspirational readings for spiritual growth and moral guidance.
+9.  **I'm The Truth**: Comprehensive Orthodox Christian wisdom database featuring 400+ stories, parables, and teachings.
+    * *Save Location:* Internal database.
 
-10. **My AI**: Bilingual AI assistant with persistent memory and persona customization. Features Aiden Pearce (The Fox) persona from Watch Dogs, with natural conversation flow and context awareness. Supports English and Greek languages, auto-detects input language, maintains chat history, and provides intelligent responses for coding, analysis, writing, and general assistance. Integrates with Gemini API for powerful AI capabilities.
+10. **My AI**: Bilingual AI assistant (English/Greek) with persistent memory and persona customization (Aiden Pearce). Integrates with Gemini API for powerful AI capabilities.
+    * *Save Location:* `~/.local/share/my_ai/config.json` (Config) | `~/.local/share/my_ai/history.json` (History)
 
-11. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation, user-friendly interface, and error handling for reliable operation.
+11. **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs.
+    * *Save Location:* `~/storage/downloads/QR Codes/`
 
-12. **Settings**: The central control hub for the DedSec ecosystem. It manages project updates, dependency installation, and complete uninstallation with backup restoration. Users can customize their experience by changing the terminal prompt, switching system languages (English/Greek), and selecting from three distinct menu navigation styles (List, Grid, or Number). It also displays detailed hardware and system information.
+12. **Settings**: The central control hub. Manages project updates, language (English/Greek), menu styles (List/Grid/Number), and backups.
+    * *Save Location:* `~/Language.json` (Config) | `~/Termux.zip` (Backups)
 
-13. **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features include multiple hosting guides, real-time preview, mobile-friendly designs, and professional templates.
+13. **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts and SEO settings.
+    * *Save Location:* `~/storage/downloads/Websites/`
 
-14. **Smart Notes**: Terminal note-taking app with reminders. Advanced note-taking application with reminder functionality, featuring both TUI (Text User Interface) and CLI support. Includes sophisticated reminder system with due dates, automatic command execution, external editor integration, and comprehensive note organization capabilities.
+14. **Smart Notes**: Terminal note-taking app with reminder functionality, featuring both TUI and CLI support.
+    * *Save Location:* `~/.smart_notes.json`
 
-15. **Sod**: A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring.
+15. **Sod**: A comprehensive load testing tool for web applications. Features multiple testing methods (HTTP, WebSocket, database simulation) and real-time metrics.
+    * *Save Location:* `load_test_config.json` (in script directory)
 
 #### 🔧 Mods
 
-16. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens. Customizable ASCII art loading screen system for Termux startup. Features automatic installation, custom art support, adjustable delay timers, and seamless integration with Termux bash configuration. Includes automatic cleanup to ensure one-time display and global bashrc patching for delayed script execution.
+16. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens.
+    * *System Modification:* Modifies `.bash_profile` and `bash.bashrc`.
 
-17. **Password Master**: Comprehensive password management suite featuring encrypted vault storage, password generation, strength analysis, and improvement tools. Includes AES-256 encrypted vault with master password protection, random password generator, passphrase generator, password strength analyzer, and password improvement suggestions. Features clipboard integration for easy copying and secure password storage.
+17. **Password Master**: Comprehensive password management suite featuring encrypted vault storage, generation, and strength analysis.
+    * *Save Location:* `my_vault.enc` (in script directory) | `~/storage/emulated/0/Download/Password Master Backup` (Backups)
 
-18. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and falls back to cleanuri.com. Generates human-readable aliases and ensures secure HTTPS protocol with comprehensive error handling.
+18. **URL Masker**: Advanced URL masking tool that shortens URLs using is.gd with custom aliases and falls back to cleanuri.com to create unsuspicious links.
+    * *Output:* Displayed on screen.
 
 #### 📱 Personal Information Capture (Educational Use Only)
 
-19. **Fake Back Camera Page**: Phishing Tool. Hosts a fake 'Device Registration' page that requests camera access. Captures photos from the BACK camera. Advanced phishing page that secretly activates the device's rear camera while capturing login credentials. Features stealth camera activation, automatic photo capture every 2.5 seconds, and professional login interface.
+19. **Fake Back Camera Page**: Phishing page that secretly activates the device's rear camera while capturing login credentials.
+    * *Save Location:* `~/storage/downloads/Camera-Phish-Back`
 
-20. **Fake Card Details Page**: Phishing Tool. Hosts a fake 'Security Verification' page claiming an antivirus expiry. Tricks users into entering credit card info. Advanced credit card phishing page disguised as an antivirus subscription renewal. Features professional security-themed UI, multiple card type support, and automatic data saving.
+20. **Fake Card Details Page**: Phishing page disguised as an antivirus subscription renewal to capture credit card information.
+    * *Save Location:* `~/storage/downloads/CardActivations`
 
-21. **Fake Data Grabber Page**: Phishing Tool. Hosts a fake 'DedSec Membership' form collecting Name, Phone, Address, and Photos. Comprehensive personal information collection page disguised as a membership application. Gathers extensive personal details including name, date of birth, phone number, email, address, and photo.
+21. **Fake Data Grabber Page**: "DedSec Membership" form collecting Name, Phone, Address, and Photos.
+    * *Save Location:* `~/storage/downloads/Peoples_Lives`
 
-22. **Fake Front Camera Page**: Phishing Tool. Hosts a fake 'Identity Verification' page. Captures photos from the FRONT camera (Selfie). Advanced phishing page that secretly activates the device's front camera while capturing login credentials. Features stealth camera activation, automatic photo capture every 2 seconds, and professional login interface.
+22. **Fake Front Camera Page**: Phishing page that secretly activates the device's front camera (selfie) while capturing login credentials.
+    * *Save Location:* `~/storage/downloads/Camera-Phish-Front`
 
-23. **Fake Google Location Page**: Phishing Tool. Hosts a fake Google 'Verify it's you' page asking for location sharing. Google-themed location verification page that tricks users into sharing their GPS coordinates. Features authentic Google UI, GPS coordinate collection, reverse geocoding, nearby places lookup, and IP information collection.
+23. **Fake Google Location Page**: Google-themed verification page that tricks users into sharing GPS coordinates.
+    * *Save Location:* `~/storage/downloads/Locations`
 
-24. **Fake Location Page**: Phishing Tool. Generic 'Improve Your Service' page asking for location permissions. Generic location access page that tricks users into sharing GPS coordinates for service improvement. Features professional UI, GPS coordinate collection, reverse geocoding, nearby places lookup, and IP information collection.
+24. **Fake Location Page**: Generic "Improve Your Service" page asking for location permissions.
+    * *Save Location:* `~/storage/downloads/Locations`
 
-25. **Fake Microphone Page**: Phishing Tool. Hosts a fake 'Voice Command' setup page. Records audio from the target. Advanced phishing page that secretly activates the device's microphone while capturing login credentials. Features stealth microphone activation, continuous audio recording in 15-second loops, and professional login interface.
+25. **Fake Microphone Page**: Phishing page that secretly activates the device's microphone to record audio.
+    * *Save Location:* `~/storage/downloads/Recordings`
 
 #### 📱 Social Media Fake Pages (Educational Use Only)
 
-26. **Fake Facebook Friends Page**: Phishing Tool. Hosts a fake Facebook login page promoting 'Connect with friends'. Captures credentials. Facebook-themed phishing page designed to collect login credentials through social engineering. Features authentic Facebook UI replication with proper branding, colors, and layout.
+26. **Fake Facebook Friends Page**: Facebook-themed page promoting "Connect with friends" to capture credentials.
+    * *Save Location:* `~/storage/downloads/FacebookFriends`
 
-27. **Fake Google Free Money Page**: Phishing Tool. Hosts a fake Google page offering a '$500 Credit'. Captures Google credentials. Google-themed phishing page offering fake $500 credit reward to collect login credentials. Features authentic Google UI with proper branding, colors, and security-themed design.
+27. **Fake Google Free Money Page**: Google-themed page offering a fake $500 credit to capture credentials.
+    * *Save Location:* `~/storage/downloads/GoogleFreeMoney`
 
-28. **Fake Instagram Followers Page**: Phishing Tool. Hosts a fake Instagram login page promising 'Free Followers'. Captures credentials. Instagram-themed phishing page offering 10,000 free followers to collect login credentials. Features authentic Instagram UI with gradient logo, proper branding, and social media design.
+28. **Fake Instagram Followers Page**: Instagram-themed page offering free followers to capture credentials.
+    * *Save Location:* `~/storage/downloads/InstagramFollowers`
 
-29. **Fake Snapchat Friends Page**: Phishing Tool. Hosts a fake Snapchat login page promising '100+ Friends'. Captures credentials. Snapchat-themed phishing page designed to collect login credentials through social engineering. Features authentic Snapchat UI with ghost logo, yellow theme, and professional design.
+29. **Fake Snapchat Friends Page**: Snapchat-themed page promising instant friends addition.
+    * *Save Location:* `~/storage/downloads/SnapchatFriends`
 
-30. **Fake TikTok Followers Page**: Phishing Tool. Hosts a fake TikTok login page promising '5000 Free Followers'. Captures credentials. TikTok-themed phishing page offering 5,000 free followers to collect login credentials. Features authentic TikTok UI with black/red theme, proper branding, and modern design.
+30. **Fake TikTok Followers Page**: TikTok-themed page offering free followers to capture credentials.
+    * *Save Location:* `~/storage/downloads/TikTokFollowers`
 
-31. **What's Up Dude Page**: Phishing Tool. Hosts a fake WhatsApp-style login page. Captures credentials. Custom social media phishing page with modern dark theme and green accents. Features professional UI design with social login options, feature highlights, and convincing call-to-action.
+31. **What's Up Dude Page**: Fake WhatsApp-style login page with a modern dark theme.
+    * *Save Location:* `~/storage/downloads/WhatsUpDude`
 
 #### 🎮 Games
 
-32. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement.
+32. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet through various life stages (Egg to Elder).
+    * *Save Location:* `~/.termux_tamagotchi_v8.json`
 
 ---
 
