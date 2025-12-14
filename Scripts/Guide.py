@@ -64,22 +64,22 @@ GUIDE_DATA = {
             ]
         },
         "DedSec's Network.py": {
-            "Description": "An all-in-one advanced network toolkit. Includes network scanning, port scanning, SSH auditing, OSINT gathering, and vulnerability testing. Comprehensive network and security toolkit for Termux and Linux systems. Features internet speed testing, subnet calculation, DNS record lookup, web crawling, subdomain enumeration, and security scanning capabilities. Auto-installs dependencies and provides both interactive TUI and CLI interfaces.",
-            "How to Use": "1. Run the script (use --install flag first time for dependencies). 2. Navigate through categories (Network, OSINT, Web Security). 3. Select tools like Port Scanner, WHOIS Lookup, or SQL Injection Tester.",
+            "Description": "An advanced network reconnaissance and security toolkit featuring a recursive website downloader and vulnerability scanners. Comprehensive network toolkit for Termux/Linux including multi-threaded port scanning, internet speed testing, and subnet calculation. Features OSINT tools (WHOIS, DNS, Subdomain Enum), web security scanners (SQLi, XSS, CMS Detect), and SSH brute-forcing. Includes a Curses-based TUI, automated dependency installation, and SQLite logging for audit results.",
+            "How to Use": "1. Run the script (use --install flag first time for dependencies). 2. Navigate through categories (Network, OSINT, Web Security). 3. Select tools like Port Scanner, Recursive Downloader, or SQL Injection Tester.",
             "Save Location": "Reports and logs are saved in: ~/DedSec_Tools/",
-            "Requirements": "Run with --install flag first to auto-install dependencies (requests, paramiko, speedtest-cli, etc.)",
-            "Tips": "The SSH Brute Force tool tests common passwords - use only on systems you own for security testing.",
+            "Requirements": "Run with --install flag first to auto-install dependencies (requests, paramiko, speedtest-cli, bs4, etc.)",
+            "Tips": "The Website Downloader supports recursive crawling and ZIP compression. Use 'View Audit Logs' to see past scan results.",
             "Features": [
-                "Port Scanning & Network Discovery",
-                "Internet Speed Testing & IP Information",
+                "Recursive Website Downloader with ZIP Support",
+                "Multi-threaded Port Scanning & Subnet Calc",
+                "Internet Speed Testing & External IP Info",
                 "WHOIS Lookup & DNS Record Analysis",
                 "Subdomain Enumeration & Web Crawling",
                 "HTTP Header Analysis & CMS Detection",
-                "SQL Injection & XSS Vulnerability Testing",
+                "SQL Injection & Reflected XSS Scanners",
                 "SSH Brute Force Auditing",
-                "Auto-Dependency Installation",
-                "Interactive TUI & CLI Modes",
-                "Audit Logging & Results Database"
+                "SQLite Database Logging for Audits",
+                "Interactive Curses TUI & CLI Modes"
             ]
         },
         "Digital Footprint Finder.py": {
