@@ -18,7 +18,7 @@
 
 ---
 
-The **DedSec Project** is a comprehensive cybersecurity toolkit designed for educational purposes, providing 32+ powerful tools that cover everything from network security analysis to ethical hacking education. Everything here is completely free and designed to help you shift from being a target to being a defender.
+The **DedSec Project** is a comprehensive cybersecurity toolkit designed for educational purposes, providing 40+ powerful tools that cover everything from network security analysis to ethical hacking education. Everything here is completely free and designed to help you shift from being a target to being a defender.
 
 ## 📋 Table of Contents
 
