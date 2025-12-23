@@ -44,7 +44,7 @@ RED = "\033[31m"
 RESET = "\033[0m"
 BOLD = "\033[1m"
 
-# --- Command List (English & Greek) ---
+# --- Command List ---
 DELETE_COMMANDS = [
     "delete my chat history", "delete history", "clear chat", "clear history",
     "διαγραφή ιστορικού", "σβήσε το ιστορικό", "σβησε το ιστορικο", 
@@ -53,7 +53,17 @@ DELETE_COMMANDS = [
 
 EXIT_COMMANDS = ["exit", "quit", "shutdown", "q", "έξοδος", "exodos"]
 
-# --- Default Config (Aiden Pearce - Memory & Bilingual) ---
+# --- Fallback Models (Self-Healing Logic) ---
+# If one fails with 404, the script will try the next one automatically.
+KNOWN_MODELS = [
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-flash-8b",
+    "gemini-2.0-flash-exp", # Experimental
+    "gemini-pro"            # Old reliable
+]
+
 DEFAULT_CONFIG = {
     "api_key": "",
     "model_name": "gemini-1.5-flash", 
@@ -80,36 +90,30 @@ DEFAULT_CONFIG = {
     }
 }
 
-# --- History Management Functions ---
-
+# --- History Management ---
 def load_history():
-    """Loads chat history from the disk file."""
     if HISTORY_FILE.exists():
         try:
             with open(HISTORY_FILE, "r") as f:
                 history = json.load(f)
                 return history if isinstance(history, list) else []
         except json.JSONDecodeError:
-            print(f"{RED}[!] History file corrupted. Starting fresh.{RESET}")
             return []
     return []
 
 def save_history(history):
-    """Saves chat history to the disk file."""
     try:
         with open(HISTORY_FILE, "w") as f:
             json.dump(history, f, indent=4)
     except Exception as e:
         print(f"{RED}[!] Could not save history: {e}{RESET}")
-        
+
 def delete_history():
-    """Deletes the history file."""
     if HISTORY_FILE.exists():
         try:
             os.remove(HISTORY_FILE)
             return True
-        except Exception as e:
-            print(f"{RED}[!] Failed to delete history file: {e}{RESET}")
+        except:
             return False
     return False
 
@@ -119,28 +123,22 @@ def load_config():
     if not DATA_DIR.exists():
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Check if config exists and load it
     if CONFIG_FILE.exists():
         try:
             with open(CONFIG_FILE, "r") as f:
                 config = json.load(f)
             
-            # === AUTO-UPDATE LOGIC ===
-            # Updates the persona to the new "Natural Flow" version
-            new_persona = DEFAULT_CONFIG["system_instruction"]
-            if config.get("system_instruction") != new_persona:
-                config["system_instruction"] = new_persona
-                with open(CONFIG_FILE, "w") as f_save:
-                    json.dump(config, f_save, indent=4)
-                print(f"{YELLOW}[*] System persona auto-updated (Memory & Bilingual Flow).{RESET}")
-            # =========================
+            # Auto-update persona if needed
+            if config.get("system_instruction") != DEFAULT_CONFIG["system_instruction"]:
+                config["system_instruction"] = DEFAULT_CONFIG["system_instruction"]
+                with open(CONFIG_FILE, "w") as f:
+                    json.dump(config, f, indent=4)
             
             return config
-            
         except json.JSONDecodeError:
             print(f"{RED}[!] Config corrupted. Resetting...{RESET}")
 
-    # First Run Setup (If no config exists)
+    # First Run
     print(f"{CYAN}Welcome to My AI!{RESET}")
     print("Please paste your Gemini API Key.")
     api_key = input(f"\n{GREEN}Enter API Key:{RESET} ").strip()
@@ -153,16 +151,55 @@ def load_config():
         json.dump(new_config, f, indent=4)
     return new_config
 
-def chat_loop(config, initial_input=None):
+def update_model_in_config(config, new_model):
+    """Updates the model in the config file permanently."""
+    config["model_name"] = new_model
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            json.dump(config, f, indent=4)
+        print(f"{YELLOW}[*] System re-calibrated. Active model: {new_model}{RESET}")
+    except:
+        pass
+
+def try_request(config, history, payload):
+    """Attempts to send the request. If 404, it rotates models automatically."""
     api_key = config.get("api_key")
-    model = config.get("model_name", "gemini-1.5-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    current_model = config.get("model_name", "gemini-1.5-flash")
     
+    # Create a list of models to try: Current one first, then the rest of the list
+    models_to_try = [current_model] + [m for m in KNOWN_MODELS if m != current_model]
+    
+    for model in models_to_try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        
+        try:
+            response = requests.post(url, json=payload)
+            
+            if response.status_code == 200:
+                # Success! If we switched models, save the new one.
+                if model != current_model:
+                    update_model_in_config(config, model)
+                return response, model
+            
+            elif response.status_code == 404:
+                # Model not found, try next loop iteration
+                continue
+            
+            else:
+                # Other error (400, 500, etc), return immediately
+                return response, model
+
+        except requests.exceptions.RequestException:
+            continue
+
+    # If all failed
+    return None, current_model
+
+def chat_loop(config, initial_input=None):
     history = load_history()
     
     if history and sys.stdin.isatty():
-        print(f"{YELLOW}[*] Accessing encrypted logs... ({len(history) // 2} previous records found){RESET}")
-        print(f"{YELLOW}[*] Type 'delete history' or 'διαγραφή ιστορικού' to clear.{RESET}")
+        print(f"{YELLOW}[*] Accessing encrypted logs... ({len(history) // 2} records){RESET}")
     
     if sys.stdin.isatty():
         print(f"{BOLD}--- Aiden Pearce (The Fox) ---{RESET}")
@@ -179,66 +216,54 @@ def chat_loop(config, initial_input=None):
                 print("\nShutting down the network...")
                 break
 
-        if not user_text:
-            continue
+        if not user_text: continue
 
-        # --- Check for Control Commands ---
-        if user_text.lower() in EXIT_COMMANDS:
-            break
+        if user_text.lower() in EXIT_COMMANDS: break
         
-        # Check for Delete Commands (English & Greek)
         if user_text.lower() in DELETE_COMMANDS:
             if delete_history():
                 history = []
-                print(f"{GREEN}[✓] Logs wiped. Forensics clear.{RESET}")
+                print(f"{GREEN}[✓] Logs wiped.{RESET}")
             else:
-                print(f"{YELLOW}[!] No logs found to delete.{RESET}")
+                print(f"{YELLOW}[!] No logs.{RESET}")
             continue
-        # --- End Control Commands ---
 
-        # Add user input to history
         history.append({"role": "user", "parts": [{"text": user_text}]})
 
-        # Construct Payload
         payload = {
-            "contents": history, # Sending full history ensures "Natural Flow"
+            "contents": history,
             "systemInstruction": {"parts": [{"text": config.get("system_instruction")}]},
             "generationConfig": config.get("generation_config")
         }
 
         print(f"{YELLOW}scanning ctOS...{RESET}", end="\r", flush=True)
 
-        try:
-            response = requests.post(url, json=payload)
-            print(" " * 20, end="\r") 
+        # Attempt request with auto-healing
+        response, used_model = try_request(config, history, payload)
+        
+        print(" " * 20, end="\r") 
 
-            if response.status_code != 200:
-                print(f"{RED}Error {response.status_code}: {response.text}{RESET}")
-                history.pop() # Remove failed user input so it doesn't break flow
-                continue
-
+        if response and response.status_code == 200:
             data = response.json()
-            
             if "candidates" in data and data["candidates"]:
                 ai_text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
                 print(f"{GREEN}AIDEN:{RESET} {ai_text}")
-                
-                # Add AI response to history and save
                 history.append({"role": "model", "parts": [{"text": ai_text}]})
-                save_history(history) 
+                save_history(history)
             else:
-                print(f"{RED}[!] Blocked by CtOS firewall.{RESET}")
+                print(f"{RED}[!] Blocked by firewall.{RESET}")
                 history.pop()
-
-        except Exception as e:
-            print(f"{RED}Network disruption: {e}{RESET}")
+        else:
+            if response:
+                print(f"{RED}Error {response.status_code}: {response.text}{RESET}")
+            else:
+                print(f"{RED}[!] Connection failed. All models unreachable.{RESET}")
             history.pop()
 
 def main():
     config = load_config()
     args = sys.argv[1:]
 
-    # Edit config shortcut
     if "--config" in args:
         subprocess.call([os.getenv('EDITOR', 'nano'), str(CONFIG_FILE)])
         sys.exit(0)
@@ -246,11 +271,10 @@ def main():
     initial_input = None
     query_args = [a for a in args if not a.startswith("--")]
 
-    # Handle piped input or arguments
     if not sys.stdin.isatty():
-        piped_data = sys.stdin.read().strip()
-        if piped_data:
-            initial_input = piped_data
+        piped = sys.stdin.read().strip()
+        if piped:
+            initial_input = piped
             if query_args: initial_input += " " + " ".join(query_args)
     elif query_args:
         initial_input = " ".join(query_args)
