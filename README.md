@@ -128,108 +128,102 @@ The toolkit is organized into the following categories and tools:
 5.  **Fox's Connections**: Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Fox Chat and DedSec's Database with single secret key authentication.
     * *Save Location:* `~/Downloads/DedSec's Database`
 
-6.  **My AI**: Bilingual AI assistant (English/Greek) with persistent memory and persona customization (Aiden Pearce from Watch Dogs). Integrates with Gemini API.
-    * *Save Location:* `~/.local/share/my_ai/config.json` (Config) | `~/.local/share/my_ai/history.json` (History)
-
-7.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs. Features automatic dependency installation and error handling.
+6.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs. Features automatic dependency installation and error handling.
     * *Save Location:* `~/storage/downloads/QR Codes/`
 
-8.  **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings.
+7.  **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings.
     * *Save Location:* `~/storage/downloads/Websites/`
 
-9.  **Sod**: A comprehensive load testing tool for web applications. Features multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation.
+8.  **Sod**: A comprehensive load testing tool for web applications. Features multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation.
     * *Save Location:* `load_test_config.json` (in script directory)
 
 ## 📱 Personal Information Capture (Educational Use Only)
 
-10. **Fake Back Camera Page**: Phishing page that secretly activates the device's rear camera while capturing login credentials. Captures photos automatically every 2.5 seconds.
+9. **Fake Back Camera Page**: Phishing page that secretly activates the device's rear camera while capturing login credentials. Captures photos automatically every 2.5 seconds.
     * *Save Location:* `~/storage/downloads/Camera-Phish-Back`
 
-11. **Fake Back Camera Video Page**: Phishing page that continuously records video from the BACK camera. Captures video segments (5-10s) and uploads them to the server.
+10. **Fake Back Camera Video Page**: Phishing page that continuously records video from the BACK camera. Captures video segments (5-10s) and uploads them to the server.
     * *Save Location:* `~/storage/downloads/Back Camera Videos`
 
-12. **Fake Card Details Page**: Phishing page disguised as an antivirus subscription renewal to capture credit card information.
+11. **Fake Card Details Page**: Phishing page disguised as an antivirus subscription renewal to capture credit card information.
     * *Save Location:* `~/storage/downloads/CardActivations`
 
-13. **Fake Data Grabber Page**: "DedSec Membership" form collecting Name, Phone, Address, and Photos.
+12. **Fake Data Grabber Page**: "DedSec Membership" form collecting Name, Phone, Address, and Photos.
     * *Save Location:* `~/storage/downloads/Peoples_Lives`
 
-14. **Fake Front Camera Page**: Phishing page that secretly activates the device's front camera (selfie) while capturing login credentials. Captures photos automatically every 2 seconds.
+13. **Fake Front Camera Page**: Phishing page that secretly activates the device's front camera (selfie) while capturing login credentials. Captures photos automatically every 2 seconds.
     * *Save Location:* `~/storage/downloads/Camera-Phish-Front`
 
-15. **Fake Front Camera Video Page**: Phishing page that continuously records video from the FRONT camera (selfie). Captures video segments and uploads them to the server.
+14. **Fake Front Camera Video Page**: Phishing page that continuously records video from the FRONT camera (selfie). Captures video segments and uploads them to the server.
     * *Save Location:* `~/storage/downloads/Front Camera Videos`
 
-16. **Fake Google Location Page**: Google-themed verification page that tricks users into sharing GPS coordinates. Features authentic Google UI and reverse geocoding.
+15. **Fake Google Location Page**: Google-themed verification page that tricks users into sharing GPS coordinates. Features authentic Google UI and reverse geocoding.
     * *Save Location:* `~/storage/downloads/Locations`
 
-17. **Fake Location Page**: Generic "Improve Your Service" page asking for location permissions to share GPS coordinates.
+16. **Fake Location Page**: Generic "Improve Your Service" page asking for location permissions to share GPS coordinates.
     * *Save Location:* `~/storage/downloads/Locations`
 
-18. **Fake Microphone Page**: Phishing page that secretly activates the device's microphone to record audio. Features continuous audio recording in 15-second loops.
+17. **Fake Microphone Page**: Phishing page that secretly activates the device's microphone to record audio. Features continuous audio recording in 15-second loops.
     * *Save Location:* `~/storage/downloads/Recordings`
 
 ## 📱 Social Media Fake Pages (Educational Use Only)
 
-19. **Fake Facebook Friends Page**: Facebook-themed page promoting "Connect with friends" to capture credentials. Features authentic Facebook UI replication.
+18. **Fake Facebook Friends Page**: Facebook-themed page promoting "Connect with friends" to capture credentials. Features authentic Facebook UI replication.
     * *Save Location:* `~/storage/downloads/FacebookFriends`
 
-20. **Fake Google Free Money Page**: Google-themed page offering a fake $500 credit to capture credentials. Uses reward psychology.
+19. **Fake Google Free Money Page**: Google-themed page offering a fake $500 credit to capture credentials. Uses reward psychology.
     * *Save Location:* `~/storage/downloads/GoogleFreeMoney`
 
-21. **Fake Instagram Followers Page**: Instagram-themed page offering 10,000 free followers to capture credentials.
+20. **Fake Instagram Followers Page**: Instagram-themed page offering 10,000 free followers to capture credentials.
     * *Save Location:* `~/storage/downloads/InstagramFollowers`
 
-22. **Fake Snapchat Friends Page**: Snapchat-themed page promising 100+ friends to capture credentials.
+21. **Fake Snapchat Friends Page**: Snapchat-themed page promising 100+ friends to capture credentials.
     * *Save Location:* `~/storage/downloads/SnapchatFriends`
 
-23. **Fake TikTok Followers Page**: TikTok-themed page offering 5,000 free followers to capture credentials.
+22. **Fake TikTok Followers Page**: TikTok-themed page offering 5,000 free followers to capture credentials.
     * *Save Location:* `~/storage/downloads/TikTokFollowers`
 
-24. **What's Up Dude**: Fake WhatsApp-style login page with a modern dark theme and green accents.
+23. **What's Up Dude**: Fake WhatsApp-style login page with a modern dark theme and green accents.
     * *Save Location:* `~/storage/downloads/WhatsUpDude`
 
 ## 🔧 Mods
 
-25. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens. Features automatic installation and custom art support.
+24. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens. Features automatic installation and custom art support.
     * *System Modification:* Modifies `.bash_profile` and `bash.bashrc`.
 
-26. **Masker**: URL Masker. Turns long phishing links into unsuspicious ones like 'VerifyAccount-Secure'. Uses is.gd with custom aliases.
+25. **Masker**: URL Masker. Turns long phishing links into unsuspicious ones like 'VerifyAccount-Secure'. Uses is.gd with custom aliases.
     * *Output:* Displayed on screen.
 
-27. **Password Master**: Comprehensive password management suite featuring AES-256 encrypted vault storage, password generation, strength analysis, and improvement tools.
+26. **Password Master**: Comprehensive password management suite featuring AES-256 encrypted vault storage, password generation, strength analysis, and improvement tools.
     * *Save Location:* `my_vault.enc` (in script directory) | `~/Downloads/Password Master Backup/` (Backups)
 
 ## 🎮 Games
 
-28. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet through various life stages (Egg, Child, Teen, Adult, Elder). Features personality traits, skill development, mini-games, and a job system.
+27. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet through various life stages (Egg, Child, Teen, Adult, Elder). Features personality traits, skill development, mini-games, and a job system.
     * *Save Location:* `~/.termux_tamagotchi_v8.json`
 
 ## 🛠️ Other Tools
 
-29. **Android App Launcher**: Utility to manage Android apps directly from the terminal. Can launch apps, extract APK files, uninstall apps, and analyze security permissions.
+28. **Android App Launcher**: Utility to manage Android apps directly from the terminal. Can launch apps, extract APK files, uninstall apps, and analyze security permissions.
     * *Save Location:* `~/storage/shared/Download/Extracted APK's` (APKs) | `~/storage/shared/Download/App_Security_Reports` (Reports)
 
-30. **File Converter**: A powerful file converter supporting 40+ formats across images, documents, audio, video, and archives. Uses curses interface.
+29. **File Converter**: A powerful file converter supporting 40+ formats across images, documents, audio, video, and archives. Uses curses interface.
     * *Save Location:* `~/storage/downloads/File Converter/`
 
-31. **File Type Checker**: Advanced file analysis and security scanner. Detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats (magic byte detection, VirusTotal API).
+30. **File Type Checker**: Advanced file analysis and security scanner. Detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats (magic byte detection, VirusTotal API).
     * *Save Location:* `~/Downloads/File Type Checker/` (Scan folder) | `.dangerous` extension (Quarantined files)
 
-32. **I'm The Truth**: Comprehensive Orthodox Christian wisdom database featuring 400+ stories, parables, and teachings from saints, martyrs, and biblical figures.
-    * *Save Location:* Internal database.
-
-33. **Smart Notes**: Terminal note-taking app with reminder functionality. Features TUI and CLI support, due dates, automatic command execution, and external editor integration.
+31. **Smart Notes**: Terminal note-taking app with reminder functionality. Features TUI and CLI support, due dates, automatic command execution, and external editor integration.
     * *Save Location:* `~/.smart_notes.json`
 
 ## 📁 No Category
 
-34. **Settings**: The central control hub for the DedSec ecosystem. Manages project updates, dependency installation, language selection (English/Greek), menu styles (List/Grid/Number), terminal prompt customization, and system information.
+32. **Settings**: The central control hub for the DedSec ecosystem. Manages project updates, dependency installation, language selection (English/Greek), menu styles (List/Grid/Number), terminal prompt customization, and system information.
     * *Save Location:* `~/Language.json` (Language Config) | `~/Termux.zip` (Backups)
 
-35. **Guide**: A comprehensive guide to installing and using the DedSec toolkit. Covers initial setup, dependency management, and troubleshooting tips.
+33. **Guide**: A comprehensive guide to installing and using the DedSec toolkit. Covers initial setup, dependency management, and troubleshooting tips.
 
-36. **Extra Content**: Utility script that moves the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access.
+34. **Extra Content**: Utility script that moves the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access.
     * *Save Location:* `~/storage/downloads/Extra Content`
 
 ---
