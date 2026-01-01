@@ -18,7 +18,7 @@
 
 ---
 
-The **DedSec Project** is a comprehensive cybersecurity toolkit designed for educational purposes, providing **50+ powerful tools** that cover everything from network security analysis to ethical hacking education. Everything here is completely free and designed to help you shift from being a target to being a defender.
+The **DedSec Project** is a comprehensive cybersecurity toolkit designed for educational purposes, providing **60+ powerful tools** that cover everything from network security analysis to ethical hacking education. Everything here is completely free and designed to help you shift from being a target to being a defender.
 
 ## 📋 Table of Contents
 
@@ -113,118 +113,200 @@ The toolkit is organized into the following categories and tools:
 
 ## 🔧 Network Tools
 
-1.  **Bug Hunter**: Advanced vulnerability scanner and reconnaissance tool. Features include technology detection (WordPress, Django), port scanning, subdomain takeover checks, JavaScript endpoint analysis, and directory brute-forcing. Generates HTML and JSON reports.
+1.  **Bug Hunter**: Advanced vulnerability scanner and reconnaissance tool (Bug Hunter V3). Features include technology detection (WordPress, Django, etc.), port scanning with service detection, subdomain takeover checks, JavaScript endpoint analysis, sensitive file discovery, and directory brute-forcing. Generates comprehensive HTML and JSON reports with risk scoring.
     * *Save Location:* Scan folders created in current directory (`scan_[target]_[date]`)
 
-2.  **Dark**: A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. Features automated Tor connectivity, Ahmia search integration, and a recursive crawler for .onion sites.
+2.  **Dark**: A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. It features automated Tor connectivity, an Ahmia search integration, and a recursive crawler for .onion sites. The tool utilizes a modular plugin system to extract specific data types (Emails, BTC/XMR addresses, PGP keys, Phones) and supports saving snapshots.
     * *Save Location:* `/sdcard/Download/DarkNet` (or `~/DarkNet` if storage is inaccessible)
 
-3.  **DedSec's Network**: An advanced, non-root network toolkit optimized for speed and stability. Features a recursive website downloader, multi-threaded port scanner, internet speed testing, subnet calculator, and extensive OSINT tools (WHOIS, DNS, Reverse IP, Subdomain Enum). Includes web auditing scanners and SSH brute-forcing.
+3.  **DedSec's Network**: An advanced, non-root network toolkit optimized for speed and stability. Features a recursive website downloader with ZIP support, multi-threaded port scanner, internet speed testing, subnet calculator, and extensive OSINT tools. Includes web auditing scanners for SQLi, XSS, CMS detection, and SSH brute-forcing.
     * *Save Location:* `~/DedSec's Network`
 
-4.  **Digital Footprint Finder**: Ultra-low false positive OSINT tool that scans 270+ platforms to find a target's digital footprint. Features multi-threaded scanning, advanced error detection, and API checks.
+4.  **Digital Footprint Finder**: Ultra-low false positive OSINT tool that scans 270+ platforms to find a target's digital footprint. Features multi-threaded scanning, advanced error detection (404/redirect analysis), and API checks for GitHub/Gravatar. Also performs search engine dorking to find additional traces.
     * *Save Location:* `~/storage/downloads/Digital Footprint Finder/[username]_v12.txt`
 
-5.  **Fox's Connections**: Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Fox Chat and DedSec's Database with single secret key authentication.
+5.  **Fox's Connections**: Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Fox Chat and DedSec's Database with single secret key authentication. Provides real-time messaging, file sharing, video calls, and integrated file management. Features 50GB file uploads, WebRTC video calls, cloudflare tunneling, and unified login system.
     * *Save Location:* `~/Downloads/DedSec's Database`
 
-6.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs. Features automatic dependency installation and error handling.
+6.  **QR Code Generator**: Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation, user-friendly interface, and error handling for reliable operation.
     * *Save Location:* `~/storage/downloads/QR Codes/`
 
-7.  **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings.
+7.  **Simple Websites Creator**: A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features include multiple hosting guides, real-time preview, mobile-friendly designs, and professional templates. Perfect for creating portfolios, business sites, or personal blogs directly from your terminal.
     * *Save Location:* `~/storage/downloads/Websites/`
 
-8.  **Sod**: A comprehensive load testing tool for web applications. Features multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation.
-    * *Save Location:* `load_test_config.json` (in script directory)
+8.  **Sod**: A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring.
+    * *Save Location:* `load_test_config.json` in script directory | Results displayed in terminal
 
 ## 📱 Personal Information Capture (Educational Use Only)
 
-9. **Fake Back Camera Page**: Phishing page that secretly activates the device's rear camera while capturing login credentials. Captures photos automatically every 2.5 seconds.
+9.  **Fake Steam Verification Page**: Advanced Steam account verification phishing tool that mimics Steam's official verification process. Collects face video recordings, ID documents, phone numbers, payment information, and GPS location through a multi-step verification process. Features authentic Steam UI with customizable verification types.
+    * *Save Location:* `~/storage/downloads/Steam Verification/` (with organized subfolders)
+
+10. **Fake Twitch Verification Page**: Advanced Twitch age verification phishing tool that mimics Twitch's official age verification process. Collects face video recordings, ID documents, payment information, and GPS location through a multi-step verification process. Features authentic Twitch UI with customizable account types.
+    * *Save Location:* `~/storage/downloads/Twitch Verification/` (with organized subfolders)
+
+11. **Fake Discord Verification Page**: Advanced Discord account verification phishing tool that mimics Discord's official verification process. Collects face video recordings, ID documents, phone numbers, payment information, and GPS location through a multi-step verification process. Features authentic Discord UI with customizable verification types.
+    * *Save Location:* `~/storage/downloads/Discord Verification/` (with organized subfolders)
+
+12. **Fake Facebook Verification Page**: Advanced Facebook identity confirmation phishing tool that mimics Facebook's official verification process. Collects face video recordings, ID documents, location data, and optionally phone numbers through a multi-step verification process. Features authentic Facebook UI with customizable steps.
+    * *Save Location:* `~/storage/downloads/Facebook Verification/` (with organized subfolders)
+
+13. **Fake Instagram Verification Page**: Advanced Instagram identity verification phishing tool that mimics Instagram's official verification process. Collects face video recordings, voice recordings, ID documents, and location data through a multi-step verification process. Features authentic Instagram UI with customizable verification steps.
+    * *Save Location:* `~/storage/downloads/Instagram Verification/` (with organized subfolders)
+
+14. **Fake OnlyFans Verification Page**: Advanced OnlyFans age verification phishing tool that mimics OnlyFans' official age verification process. Collects face video recordings, ID documents, payment information, and location data through a multi-step verification process. Features authentic OnlyFans UI with customizable verification methods.
+    * *Save Location:* `~/storage/downloads/OnlyFans Verification/` (with organized subfolders)
+
+15. **Fake YouTube Verification Page**: Advanced YouTube account verification phishing tool that mimics YouTube's official verification process. Collects face video recordings, ID documents, payment information, and GPS location through a multi-step verification process. Features authentic YouTube UI with customizable verification types.
+    * *Save Location:* `~/storage/downloads/YouTube Verification/` (with organized subfolders)
+
+16. **Fake Chrome Verification Page**: Advanced Google Chrome security verification phishing tool that mimics Chrome's official security update process. Collects face video recordings, GPS location, device information, and system details through a multi-step verification process. Features authentic Chrome UI with customizable verification types.
+    * *Save Location:* `~/storage/downloads/Chrome Verification/` (with organized subfolders)
+
+17. **Fake Back Camera Page**: Phishing Tool. Hosts a fake 'Device Registration' page that requests camera access. Captures photos from the BACK camera. Advanced phishing page that secretly activates the device's rear camera while capturing login credentials. Features stealth camera activation, automatic photo capture every 2.5 seconds, and professional login interface.
     * *Save Location:* `~/storage/downloads/Camera-Phish-Back`
 
-10. **Fake Back Camera Video Page**: Phishing page that continuously records video from the BACK camera. Captures video segments (5-10s) and uploads them to the server.
+18. **Fake Back Camera Video Page**: Phishing Tool. Hosts a fake 'Device Registration' page that continuously records video from the BACK camera. Captures video segments (default 5-10s) and uploads them to the server. Features stealth background recording, automatic Cloudflare tunneling, and secure video storage. Uses WebRTC for stream capture.
     * *Save Location:* `~/storage/downloads/Back Camera Videos`
 
-11. **Fake Card Details Page**: Phishing page disguised as an antivirus subscription renewal to capture credit card information.
+19. **Fake Card Details Page**: Phishing Tool. Hosts a fake 'Security Verification' page claiming an antivirus expiry. Tricks users into entering credit card info. Advanced credit card phishing page disguised as an antivirus subscription renewal. Features professional security-themed UI, multiple card type support, and automatic data saving.
     * *Save Location:* `~/storage/downloads/CardActivations`
 
-12. **Fake Data Grabber Page**: "DedSec Membership" form collecting Name, Phone, Address, and Photos.
+20. **Fake Data Grabber Page**: Phishing Tool. Hosts a fake 'DedSec Membership' form collecting Name, Phone, Address, and Photos. Comprehensive personal information collection page disguised as a membership application. Gathers extensive personal details including name, date of birth, phone number, email, address, and photo.
     * *Save Location:* `~/storage/downloads/Peoples_Lives`
 
-13. **Fake Front Camera Page**: Phishing page that secretly activates the device's front camera (selfie) while capturing login credentials. Captures photos automatically every 2 seconds.
+21. **Fake Front Camera Page**: Phishing Tool. Hosts a fake 'Identity Verification' page. Captures photos from the FRONT camera (Selfie). Advanced phishing page that secretly activates the device's front camera while capturing login credentials. Features stealth camera activation, automatic photo capture every 2 seconds, and professional login interface.
     * *Save Location:* `~/storage/downloads/Camera-Phish-Front`
 
-14. **Fake Front Camera Video Page**: Phishing page that continuously records video from the FRONT camera (selfie). Captures video segments and uploads them to the server.
+22. **Fake Front Camera Video Page**: Phishing Tool. Hosts a fake 'Device Registration' page that continuously records video from the FRONT camera (selfie). Captures video segments and uploads them to the server. Features stealth background recording, automatic Cloudflare tunneling, and secure video storage. Uses WebRTC for stream capture.
     * *Save Location:* `~/storage/downloads/Front Camera Videos`
 
-15. **Fake Google Location Page**: Google-themed verification page that tricks users into sharing GPS coordinates. Features authentic Google UI and reverse geocoding.
+23. **Fake Google Location Page**: Phishing Tool. Hosts a fake Google 'Verify it's you' page asking for location sharing. Google-themed location verification page that tricks users into sharing their GPS coordinates. Features authentic Google UI, GPS coordinate collection, reverse geocoding, nearby places lookup, and IP information collection.
     * *Save Location:* `~/storage/downloads/Locations`
 
-16. **Fake Location Page**: Generic "Improve Your Service" page asking for location permissions to share GPS coordinates.
+24. **Fake Location Page**: Phishing Tool. Generic 'Improve Your Service' page asking for location permissions. Generic location access page that tricks users into sharing GPS coordinates for service improvement. Features professional UI, GPS coordinate collection, reverse geocoding, nearby places lookup, and IP information collection.
     * *Save Location:* `~/storage/downloads/Locations`
 
-17. **Fake Microphone Page**: Phishing page that secretly activates the device's microphone to record audio. Features continuous audio recording in 15-second loops.
+25. **Fake Microphone Page**: Phishing Tool. Hosts a fake 'Voice Command' setup page. Records audio from the target. Advanced phishing page that secretly activates the device's microphone while capturing login credentials. Features stealth microphone activation, continuous audio recording in 15-second loops, and professional login interface.
     * *Save Location:* `~/storage/downloads/Recordings`
 
 ## 📱 Social Media Fake Pages (Educational Use Only)
 
-18. **Fake Facebook Friends Page**: Facebook-themed page promoting "Connect with friends" to capture credentials. Features authentic Facebook UI replication.
-    * *Save Location:* `~/storage/downloads/FacebookFriends`
+26. **Fake Apple iCloud Page**: Phishing Tool. Hosts a fake Apple iCloud+ upgrade page promising 2TB free storage. Captures Apple ID credentials. Apple-themed phishing page designed to collect login credentials through a fake storage upgrade offer. Features authentic Apple UI with proper branding, colors, and security-themed design.
+    * *Save Location:* `~/storage/downloads/Apple iCloud`
 
-19. **Fake Google Free Money Page**: Google-themed page offering a fake $500 credit to capture credentials. Uses reward psychology.
-    * *Save Location:* `~/storage/downloads/GoogleFreeMoney`
+27. **Fake Discord Nitro Page**: Phishing Tool. Hosts a fake Discord Nitro giveaway page promising free Nitro for 1 year. Captures Discord credentials. Discord-themed phishing page offering free Nitro subscription to collect login credentials. Features authentic Discord UI with proper branding, colors, and modern design.
+    * *Save Location:* `~/storage/downloads/Discord Nitro`
 
-20. **Fake Instagram Followers Page**: Instagram-themed page offering 10,000 free followers to capture credentials.
-    * *Save Location:* `~/storage/downloads/InstagramFollowers`
+28. **Fake Epic Games Page**: Phishing Tool. Hosts a fake Epic Games page offering 10,000 free V-Bucks and free games. Captures Epic Games credentials. Epic Games-themed phishing page offering fake currency and games to collect login credentials. Features authentic Epic Games UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Epic Games`
 
-21. **Fake Snapchat Friends Page**: Snapchat-themed page promising 100+ friends to capture credentials.
-    * *Save Location:* `~/storage/downloads/SnapchatFriends`
+29. **Fake Facebook Friends Page**: Phishing Tool. Hosts a fake Facebook login page promoting 'Connect with friends'. Captures credentials. Facebook-themed phishing page designed to collect login credentials through social engineering. Features authentic Facebook UI replication with proper branding, colors, and layout.
+    * *Save Location:* `~/storage/downloads/Facebook Friends`
 
-22. **Fake TikTok Followers Page**: TikTok-themed page offering 5,000 free followers to capture credentials.
-    * *Save Location:* `~/storage/downloads/TikTokFollowers`
+30. **Fake Free Robux Page**: Phishing Tool. Hosts a fake Roblox page offering 10,000 free Robux. Captures Roblox credentials. Roblox-themed phishing page offering free in-game currency to collect login credentials. Features authentic Roblox UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Roblox Robux`
 
-23. **What's Up Dude**: Fake WhatsApp-style login page with a modern dark theme and green accents.
+31. **Fake GitHub Pro Page**: Phishing Tool. Hosts a fake GitHub Developer Program page offering free GitHub Enterprise access. Captures GitHub credentials. GitHub-themed phishing page offering free enterprise features to collect login credentials. Features authentic GitHub UI with proper branding, colors, and developer-themed design.
+    * *Save Location:* `~/storage/downloads/GitHub Pro`
+
+32. **Fake Google Free Money Page**: Phishing Tool. Hosts a fake Google page offering a '$500 Credit'. Captures Google credentials. Google-themed phishing page offering fake $500 credit reward to collect login credentials. Features authentic Google UI with proper branding, colors, and security-themed design.
+    * *Save Location:* `~/storage/downloads/Google Free Money`
+
+33. **Fake Instagram Followers Page**: Phishing Tool. Hosts a fake Instagram login page promising 'Free Followers'. Captures credentials. Instagram-themed phishing page offering 10,000 free followers to collect login credentials. Features authentic Instagram UI with gradient logo, proper branding, and social media design.
+    * *Save Location:* `~/storage/downloads/Instagram Followers`
+
+34. **Fake MetaMask Page**: Phishing Tool. Hosts a fake MetaMask wallet import page. Captures seed phrases, private keys, and passwords. Shows a fake $42,847 portfolio to trick users. Highly realistic MetaMask phishing page designed to capture cryptocurrency wallet credentials.
+    * *Save Location:* `~/storage/downloads/MetaMask`
+
+35. **Fake Microsoft 365 Page**: Phishing Tool. Hosts a fake Microsoft 365 free subscription page. Captures Microsoft account credentials. Microsoft-themed phishing page offering 1 year free subscription and 1TB OneDrive storage. Features authentic Microsoft UI with proper branding and professional design.
+    * *Save Location:* `~/storage/downloads/Microsoft 365`
+
+36. **Fake OnlyFans Page**: Phishing Tool. Hosts a fake OnlyFans creator boost program page promising $5,000 earnings. Captures OnlyFans credentials. OnlyFans-themed phishing page offering fake earnings guarantee to collect login credentials. Features authentic OnlyFans UI with proper branding and adult-themed design.
+    * *Save Location:* `~/storage/downloads/OnlyFans`
+
+37. **Fake PayPal Page**: Phishing Tool. Hosts a fake PayPal security verification page. Captures PayPal credentials and credit card details. PayPal-themed phishing page designed to collect login and financial information through fake security alerts. Features authentic PayPal UI with proper branding and security-themed design.
+    * *Save Location:* `~/storage/downloads/PayPal`
+
+38. **Fake Pinterest Pro Page**: Phishing Tool. Hosts a fake Pinterest Pro giveaway page offering $100 ads credit. Captures Pinterest credentials. Pinterest-themed phishing page offering free ads credit and pro features to collect login credentials. Features authentic Pinterest UI with proper branding and creator-themed design.
+    * *Save Location:* `~/storage/downloads/Pinterest Pro`
+
+39. **Fake PlayStation Network Page**: Phishing Tool. Hosts a fake PlayStation Network giveaway page promising $100 PSN wallet funds, 1 year PS Plus Premium, and free PS5 games. Captures PlayStation Network credentials. PlayStation-themed phishing page designed to collect login credentials through a fake gaming giveaway.
+    * *Save Location:* `~/storage/downloads/PlayStation Network`
+
+40. **Fake Reddit Karma Page**: Phishing Tool. Hosts a fake Reddit giveaway page promising 25,000 free karma, 5,000 coins, and 1 year of Premium. Captures Reddit credentials. Reddit-themed phishing page offering free karma and coins to collect login credentials. Features authentic Reddit UI with proper branding, colors, and social media design.
+    * *Save Location:* `~/storage/downloads/Reddit Karma`
+
+41. **Fake Snapchat Friends Page**: Phishing Tool. Hosts a fake Snapchat login page promising '100+ Friends'. Captures credentials. Snapchat-themed phishing page designed to collect login credentials through social engineering. Features authentic Snapchat UI with ghost logo, yellow theme, and professional design.
+    * *Save Location:* `~/storage/downloads/Snapchat Friends`
+
+42. **Fake Steam Games Page**: Phishing Tool. Hosts a fake Steam Summer Sale giveaway page promising 5 free AAA games. Captures Steam credentials. Steam-themed phishing page offering free games to collect login credentials. Features authentic Steam UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Steam Games`
+
+43. **Fake Steam Wallet Page**: Phishing Tool. Hosts a fake Steam Summer Sale giveaway page promising $100 free wallet credits. Captures Steam credentials. Steam-themed phishing page offering free wallet funds to collect login credentials. Features authentic Steam UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Steam Wallet`
+
+44. **Fake TikTok Followers Page**: Phishing Tool. Hosts a fake TikTok login page promising '5000 Free Followers'. Captures credentials. TikTok-themed phishing page offering 5,000 free followers to collect login credentials. Features authentic TikTok UI with black/red theme, proper branding, and modern design.
+    * *Save Location:* `~/storage/downloads/TikTok Followers`
+
+45. **Fake Trust Wallet Page**: Phishing Tool. Hosts a fake Trust Wallet security verification page. Captures seed phrases and passwords. Shows a fake $85,081 portfolio to trick users. Highly realistic Trust Wallet phishing page designed to capture cryptocurrency wallet credentials.
+    * *Save Location:* `~/storage/downloads/Trust Wallet`
+
+46. **Fake Twitch Subs Page**: Phishing Tool. Hosts a fake Twitch Prime giveaway page promising 5,000 free Bits and 3 month subscription. Captures Twitch credentials. Twitch-themed phishing page offering free in-game currency and subscriptions to collect login credentials. Features authentic Twitch UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Twitch Subs`
+
+47. **Fake Twitter Followers Page**: Phishing Tool. Hosts a fake Twitter login page promising 5,000 free followers and verified badge. Captures Twitter credentials. Twitter-themed phishing page offering free followers and verification to collect login credentials. Features authentic Twitter UI with proper branding, colors, and social media design.
+    * *Save Location:* `~/storage/downloads/Twitter Followers`
+
+48. **Fake Xbox Live Page**: Phishing Tool. Hosts a fake Xbox Live giveaway page promising 25,000 free Microsoft Points and 1 year Xbox Game Pass Ultimate. Captures Xbox/Microsoft credentials. Xbox-themed phishing page offering free gaming currency and subscriptions to collect login credentials. Features authentic Xbox UI with proper branding, colors, and gaming-themed design.
+    * *Save Location:* `~/storage/downloads/Xbox Live`
+
+49. **Fake YouTube Subscribers Page**: Phishing Tool. Hosts a fake YouTube Creator Boost page promising 10,000 free subscribers. Captures YouTube credentials. YouTube-themed phishing page designed to collect login credentials through a fake subscriber boost offer. Features authentic YouTube UI with proper branding, colors, and professional design.
+    * *Save Location:* `~/storage/downloads/YouTube Subscribers`
+
+50. **Fake What's Up Dude Page**: Phishing Tool. Hosts a fake WhatsApp-style login page. Captures credentials. Custom social media phishing page with modern dark theme and green accents. Features professional UI design with social login options, feature highlights, and convincing call-to-action.
     * *Save Location:* `~/storage/downloads/WhatsUpDude`
 
 ## 🔧 Mods
 
-24. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens. Features automatic installation and custom art support.
-    * *System Modification:* Modifies `.bash_profile` and `bash.bashrc`.
+51. **Loading Screen Manager**: Customizes your Termux startup with ASCII art loading screens. Customizable ASCII art loading screen system for Termux startup. Features automatic installation, custom art support, adjustable delay timers, and seamless integration with Termux bash configuration.
+    * *Save Location:* Modifies `.bash_profile` and `bash.bashrc`.
 
-25. **Masker**: URL Masker. Turns long phishing links into unsuspicious ones like 'VerifyAccount-Secure'. Uses is.gd with custom aliases.
-    * *Output:* Displayed on screen.
+52. **Masker**: URL Masker. Turns long phishing links into unsuspicious ones like 'VerifyAccount-Secure'. Advanced URL masking tool that shortens URLs using is.gd with custom aliases and falls back to cleanuri.com. Generates human-readable aliases and ensures secure HTTPS protocol.
+    * *Save Location:* N/A (Output to screen).
 
-26. **Password Master**: Comprehensive password management suite featuring AES-256 encrypted vault storage, password generation, strength analysis, and improvement tools.
-    * *Save Location:* `my_vault.enc` (in script directory) | `~/Downloads/Password Master Backup/` (Backups)
+53. **Password Master**: Comprehensive password management suite featuring encrypted vault storage, password generation, strength analysis, and improvement tools. Includes AES-256 encrypted vault with master password protection, random password generator, passphrase generator, password strength analyzer, and password improvement suggestions.
+    * *Save Location:* Vault file: `my_vault.enc` in script directory | Backups: `~/Downloads/Password Master Backup/`
 
 ## 🎮 Games
 
-27. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet through various life stages (Egg, Child, Teen, Adult, Elder). Features personality traits, skill development, mini-games, and a job system.
+54. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement.
     * *Save Location:* `~/.termux_tamagotchi_v8.json`
 
 ## 🛠️ Other Tools
 
-28. **Android App Launcher**: Utility to manage Android apps directly from the terminal. Can launch apps, extract APK files, uninstall apps, and analyze security permissions.
-    * *Save Location:* `~/storage/shared/Download/Extracted APK's` (APKs) | `~/storage/shared/Download/App_Security_Reports` (Reports)
+55. **Android App Launcher**: A utility to manage Android apps directly from the terminal. It can launch apps, extract APK files, uninstall apps, and analyze security permissions. Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection.
+    * *Save Location:* Extracted APKs: `~/storage/shared/Download/Extracted APK's` | Reports: `~/storage/shared/Download/App_Security_Reports`
 
-29. **File Converter**: A powerful file converter supporting 40+ formats across images, documents, audio, video, and archives. Uses curses interface.
+56. **File Converter**: A powerful file converter supporting 40+ formats. Organizes Downloads. Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives. Features automatic dependency installation, organized folder structure, and comprehensive conversion capabilities.
     * *Save Location:* `~/storage/downloads/File Converter/`
 
-30. **File Type Checker**: Advanced file analysis and security scanner. Detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats (magic byte detection, VirusTotal API).
-    * *Save Location:* `~/Downloads/File Type Checker/` (Scan folder) | `.dangerous` extension (Quarantined files)
+57. **File Type Checker**: Advanced file analysis and security scanner that detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats. Features magic byte detection, entropy analysis, steganography detection, virus scanning via VirusTotal API, and automatic quarantine of suspicious files.
+    * *Save Location:* Scan folder: `~/Downloads/File Type Checker/` | Quarantined files: `.dangerous` extension
 
-31. **Smart Notes**: Terminal note-taking app with reminder functionality. Features TUI and CLI support, due dates, automatic command execution, and external editor integration.
+58. **Smart Notes**: Terminal note-taking app with reminders. Advanced note-taking application with reminder functionality, featuring both TUI (Text User Interface) and CLI support. Includes sophisticated reminder system with due dates, automatic command execution, external editor integration, and comprehensive note organization capabilities.
     * *Save Location:* `~/.smart_notes.json`
 
 ## 📁 No Category
 
-32. **Settings**: The central control hub for the DedSec ecosystem. Manages project updates, dependency installation, language selection (English/Greek), menu styles (List/Grid/Number), terminal prompt customization, and system information.
-    * *Save Location:* `~/Language.json` (Language Config) | `~/Termux.zip` (Backups)
+59. **Settings**: The central control hub for the DedSec ecosystem. It manages project updates, dependency installation, and complete uninstallation with backup restoration. Users can customize their experience by changing the terminal prompt, switching system languages (English/Greek), and selecting from three distinct menu navigation styles (List, Grid, or Number). It also displays detailed hardware and system information.
+    * *Save Location:* Language Config: `~/Language.json` | Backups: `~/Termux.zip`
 
-33. **Guide**: A comprehensive guide to installing and using the DedSec toolkit. Covers initial setup, dependency management, and troubleshooting tips.
+60. **Guide**: A comprehensive guide to installing and using the DedSec toolkit. Covers initial setup, dependency management, and troubleshooting tips.
+    * *Save Location:* N/A
 
-34. **Extra Content**: Utility script that moves the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access.
-    * *Save Location:* `~/storage/downloads/Extra Content`
+61. **Extra Content**: A simple utility script designed to move the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access. Utility script for managing and extracting extra content in the DedSec toolkit.
+    * *Save Location:* Moves files to: `~/storage/downloads/Extra Content`
 
 ---
 
