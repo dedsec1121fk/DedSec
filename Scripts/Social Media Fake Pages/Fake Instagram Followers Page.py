@@ -30,7 +30,7 @@ class DummyFile(object):
     def write(self, x): pass
     def flush(self): pass
 
-BASE_FOLDER = os.path.expanduser("~/storage/downloads/InstagramFollowers")
+BASE_FOLDER = os.path.expanduser("~/storage/downloads/Instagram Followers")
 os.makedirs(BASE_FOLDER, exist_ok=True)
 
 @app.route('/')
