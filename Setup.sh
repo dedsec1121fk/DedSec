@@ -7,20 +7,11 @@ echo "1. Setting up storage, updating, and installing core packages..."
 termux-setup-storage
 pkg update -y && pkg upgrade -y
 
-# List of essential packages
-CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip"
+# List of essential packages (including tor as specified in Settings.py)
+CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor"
 
 # Install Termux packages. '|| true' ensures the script continues on package failure.
 pkg install -y $CORE_PACKAGES || true
-
-# --- NEW: Tor Check and Installation ---
-# Checks if the 'tor' command exists. If not, it installs it.
-if ! command -v tor > /dev/null; then
-    echo "Tor not found. Installing..."
-    pkg install -y tor
-else
-    echo "Tor is already installed. Skipping."
-fi
 
 echo "Termux package installation complete. Continuing to Python setup..."
 
@@ -33,19 +24,11 @@ pip install --upgrade pip setuptools wheel --break-system-packages
 # --- 3. Python Package Installation ---
 echo "3. Installing the target Python dependencies..."
 
-# --- NEW: Check for psutil ---
-# Checks if the python module 'psutil' can be imported. If not, install it.
-if ! python -c "import psutil" &> /dev/null; then
-    echo "psutil module not found. Installing..."
-    pip install psutil --break-system-packages
-else
-    echo "psutil is already installed. Skipping."
-fi
-
-PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug"
+# Python packages list from Settings.py (including psutil and pillow)
+PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
 
 # Install all packages.
-pip install $PYTHON_PACKAGES
+pip install $PYTHON_PACKAGES --break-system-packages
 
 if [ $? -eq 0 ]; then
     echo "SUCCESS: All Python dependencies installed successfully! 🎉"
