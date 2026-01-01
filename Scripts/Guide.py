@@ -126,6 +126,386 @@ GUIDE_DATA = {
         }
     },
 
+    "Social Media Fake Pages": {
+        "Fake Apple iCloud Page.py": {
+            "Description": "Apple iCloud phishing page promising 2TB free storage upgrade. Uses Apple's branding and design to appear legitimate.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to 'claim' free iCloud+ storage.",
+            "Save Location": "~/storage/downloads/Apple iCloud/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Apple users with promise of 2TB free iCloud+ storage. High-value accounts.",
+            "Features": [
+                "Apple iCloud UI Design",
+                "2TB Storage Promise",
+                "Countdown Timer",
+                "Device Sync Animation",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Discord Nitro Page.py": {
+            "Description": "Discord Nitro giveaway phishing page. Promises free 1-year Nitro subscription to steal Discord credentials.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share the generated Cloudflare link. 3. Credentials saved when users attempt to claim 'free Nitro'.",
+            "Save Location": "~/storage/downloads/Discord Nitro/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Discord gamers with promise of free Nitro. Uses Discord's exact branding.",
+            "Features": [
+                "Discord UI Clone",
+                "Nitro Giveaway Lure",
+                "10-Minute Timer",
+                "Server Boosts Promise",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Epic Games Page.py": {
+            "Description": "Epic Games Store phishing page offering 10,000 free V-Bucks and AAA games. Targets Fortnite players and Epic Games users.",
+            "How to Use": "1. Run script. 2. Share Cloudflare link. 3. Credentials saved when users try to claim V-Bucks.",
+            "Save Location": "~/storage/downloads/Epic Games/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets gamers with promise of free V-Bucks. Shows popular games like Fortnite, Borderlands 3, etc.",
+            "Features": [
+                "Epic Games Store UI",
+                "10,000 V-Bucks Promise",
+                "Free Games Showcase",
+                "20-Minute Timer",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Facebook Friends Page.py": {
+            "Description": "Facebook phishing page. 'Connect with friends' lure.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/Facebook Friends",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["Facebook UI", "Credential Harvester"]
+        },
+        "Fake Free Robux Page.py": {
+            "Description": "Roblox phishing page offering 10,000 free Robux. Targets Roblox players (often younger audience) with in-game currency promise.",
+            "How to Use": "1. Run script. 2. Share Cloudflare link. 3. Credentials saved when users attempt to claim Robux.",
+            "Save Location": "~/storage/downloads/Roblox Robux/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Roblox's younger player base. Uses official Roblox branding and design.",
+            "Features": [
+                "Roblox Official UI",
+                "10,000 Robux Promise",
+                "5-Minute Countdown",
+                "Premium Membership Offer",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake GitHub Pro Page.py": {
+            "Description": "GitHub Developer Program phishing page offering free Enterprise access. Targets developers with promise of premium GitHub features.",
+            "How to Use": "1. Run script. 2. Share Cloudflare link. 3. Credentials saved when developers try to claim Enterprise access.",
+            "Save Location": "~/storage/downloads/GitHub Pro/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets developers with high-value GitHub accounts. Promises Enterprise features and Actions minutes.",
+            "Features": [
+                "GitHub UI Design",
+                "Enterprise Access Promise",
+                "Developer Tools Showcase",
+                "15-Minute Timer",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Google Free Money Page.py": {
+            "Description": "Google phishing page. '$500 Credit' lure.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/Google Free Money",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["Google UI", "Monetary Bait"]
+        },
+        "Fake Instagram Followers Page.py": {
+            "Description": "Instagram phishing page. 'Free Followers' lure.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/Instagram Followers",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["Instagram UI", "Growth Bait"]
+        },
+        "Fake MetaMask Page.py": {
+            "Description": "MetaMask wallet import phishing page. 'Security verification required' lure to steal seed phrases and private keys. Shows fake $42,847 crypto portfolio.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share Cloudflare tunnel link. 3. Seed phrases/private keys and passwords saved.",
+            "Save Location": "~/storage/downloads/MetaMask/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets crypto users with 'wallet import' security alert. Shows realistic ETH/USDC/WBTC balances. HIGH VALUE - Seed phrases = complete wallet control.",
+            "Features": [
+                "MetaMask UI Clone",
+                "Seed Phrase Harvester",
+                "Private Key Harvester",
+                "Password Harvester",
+                "$42,847 Portfolio Display",
+                "Wallet Address Generator",
+                "Live Balance Animation",
+                "Asset Cards (ETH, WBTC, USDC, UNI)",
+                "Transaction History",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Microsoft 365 Page.py": {
+            "Description": "Microsoft 365 phishing page. 'Free 1-year subscription + 1TB OneDrive' lure. Targets students and professionals.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share Cloudflare tunnel link. 3. Microsoft account credentials saved.",
+            "Save Location": "~/storage/downloads/Microsoft 365/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Microsoft ecosystem users. Promises 1TB storage and full Office suite. HIGH RISK - Microsoft accounts control Windows, Office, Azure, Xbox.",
+            "Features": [
+                "Microsoft 365 UI Design",
+                "1-Year Subscription Promise",
+                "1TB OneDrive Storage",
+                "Office Apps Showcase",
+                "15-Minute Countdown Timer",
+                "Features Grid",
+                "Benefits List",
+                "Microsoft Branding",
+                "Security Badges",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake OnlyFans Page.py": {
+            "Description": "OnlyFans Creator Boost phishing page. '$5,000 guaranteed earnings' lure for creators. Targets content creators and subscribers.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share Cloudflare tunnel link. 3. OnlyFans credentials saved.",
+            "Save Location": "~/storage/downloads/OnlyFans/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets OnlyFans creators with earnings promise. EXTREME LEGAL WARNING - Adult content platform. HIGH SENSITIVITY.",
+            "Features": [
+                "OnlyFans Dark UI",
+                "$5,000 Earnings Promise",
+                "Top 1% Creator Status",
+                "24-Hour Countdown Timer",
+                "Stats Bar (Success Rate, Support, Creators)",
+                "Benefits List",
+                "Age Warning (18+)",
+                "Verified Badge",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake PayPal Page.py": {
+            "Description": "PayPal security verification phishing page. 'Unusual activity detected' lure to steal credentials AND credit card details.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share Cloudflare tunnel link. 3. Email/password + credit card details saved.",
+            "Save Location": "~/storage/downloads/PayPal/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets PayPal users with security alert. Collects BOTH credentials AND card details. FINANCIAL PHISHING - High value for attackers.",
+            "Features": [
+                "PayPal Official UI",
+                "Email/Password Harvester",
+                "Credit Card Harvester (Number, Expiry, CVV, Name)",
+                "$2,847 Balance Display",
+                "Security Alert Banner",
+                "Device Warning",
+                "Payment Activity Log",
+                "Card Formatting",
+                "Verification Process",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Pinterest Pro Page.py": {
+            "Description": "Pinterest Pro Creator phishing page. 'Free Pro account + $100 ads credit' lure. Targets content creators and businesses.",
+            "How to Use": "1. Run script (auto-installs dependencies). 2. Share Cloudflare tunnel link. 3. Pinterest credentials saved.",
+            "Save Location": "~/storage/downloads/Pinterest Pro/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Pinterest creators with ads credit promise. Shows stats and pro features. Business accounts often linked to payment methods.",
+            "Features": [
+                "Pinterest UI Design",
+                "$100 Ads Credit Promise",
+                "Pro Account Features",
+                "8-Minute Countdown Timer",
+                "Stats Bar (Views, Ads, Pins)",
+                "Features Grid (Analytics, Links, Ads, Idea Pins)",
+                "Benefits List",
+                "Verified Badge",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake PlayStation Network Page.py": {
+            "Description": "PlayStation Network phishing page offering $100 PSN funds + 1 year PS Plus Premium + 4 free PS5 games. Targets PlayStation gamers across PS5/PS4/PS3/PS Vita consoles.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to claim free PS Plus and games.",
+            "Save Location": "~/storage/downloads/PlayStation Network/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets console gamers with promise of $100 PSN funds and PS Plus. HIGH RISK - PSN accounts have purchased games and payment methods.",
+            "Features": [
+                "PlayStation UI Design",
+                "$100 PSN Wallet Promise",
+                "1-Year PS Plus Premium",
+                "4 Free PS5 Games",
+                "25-Minute Countdown Timer",
+                "Console Icons (PS5/PS4/PS3/PSV)",
+                "Games Showcase",
+                "Benefits List",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Reddit Karma Page.py": {
+            "Description": "Reddit phishing page offering 25,000 free karma + 5,000 coins + 1 year Premium. Targets Reddit users wanting account prestige.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users attempt to claim free karma and coins.",
+            "Save Location": "~/storage/downloads/Reddit Karma/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Reddit users with promise of karma and coins. Reddit Premium accounts have value.",
+            "Features": [
+                "Reddit Official UI",
+                "25,000 Karma Promise",
+                "5,000 Coins Promise",
+                "1-Year Premium",
+                "Snoo Logo Animation",
+                "Coins Display",
+                "OAuth Buttons",
+                "Benefits List",
+                "Mobile Responsive",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Snapchat Friends Page.py": {
+            "Description": "Snapchat phishing page. '100+ Friends' lure.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/Snapchat Friends",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["Snapchat UI", "Growth Bait"]
+        },
+        "Fake Steam Games Page.py": {
+            "Description": "Steam Summer Sale phishing page offering 5 free AAA games + 500 Steam points. Targets PC gamers with free game promises.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to claim free games.",
+            "Save Location": "~/storage/downloads/Steam Games/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Steam gamers with promise of free AAA games. Steam libraries can be worth thousands of dollars.",
+            "Features": [
+                "Steam UI Design",
+                "5 Free AAA Games",
+                "500 Steam Points",
+                "15-Minute Countdown",
+                "Game Genres Tags",
+                "Games Showcase",
+                "Trading Cards",
+                "Summer Sale Badge",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Steam Wallet Page.py": {
+            "Description": "Steam Summer Sale phishing page offering $100 free wallet credits + 3 free games. Targets Steam users wanting free funds.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to claim wallet credits.",
+            "Save Location": "~/storage/downloads/Steam Wallet/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Steam gamers with promise of wallet credits. HIGH VALUE - Steam accounts have game libraries worth money.",
+            "Features": [
+                "Steam Summer Sale UI",
+                "$100 Wallet Credits",
+                "3 Free Games",
+                "10-Minute Countdown",
+                "Online Counter",
+                "Game Grid",
+                "Exclusive Badge",
+                "Trading Cards",
+                "Mobile Touch Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake TikTok Followers Page.py": {
+            "Description": "TikTok phishing page. '5000 Free Followers' lure.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/TikTok Followers",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["TikTok UI", "Growth Bait"]
+        },
+        "Fake Trust Wallet Page.py": {
+            "Description": "Trust Wallet security verification phishing page showing $85,081 portfolio. 'Unusual activity detected' lure to steal 12/18/24-word seed phrases + passwords.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Seed phrases and passwords saved when users complete 'security verification'.",
+            "Save Location": "~/storage/downloads/Trust Wallet/",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets crypto users with security alert. EXTREMELY DANGEROUS - Seed phrase = complete wallet control. Shows realistic $85K portfolio.",
+            "Features": [
+                "Trust Wallet UI Design",
+                "12/18/24-word Seed Phrase Harvester",
+                "Password Harvester",
+                "$85,081 Portfolio Display",
+                "Asset Cards (ETH, BTC, SOL)",
+                "Security Alert Banner",
+                "QR Code Placeholder",
+                "Verification Steps",
+                "Mobile First Design",
+                "Blur Effects",
+                "Live Balance Simulation",
+                "Network Status",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Twitch Subs Page.py": {
+            "Description": "Twitch Prime giveaway phishing page offering 5,000 free bits + 3 month subscription. Targets Twitch streamers and viewers with premium benefits promise.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to claim free bits and subscription.",
+            "Save Location": "~/storage/downloads/Twitch Subs",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Twitch community with promise of free bits and subscription. Twitch accounts may have payment methods linked.",
+            "Features": [
+                "Twitch UI Design",
+                "5,000 Bits Promise",
+                "3-Month Subscription",
+                "7-Minute Countdown Timer",
+                "Benefits List",
+                "Stats Bar",
+                "Prime Giveaway Banner",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Twitter Followers Page.py": {
+            "Description": "Twitter (X) followers phishing page offering 5,000 free followers + verified badge. Targets Twitter users wanting growth and verification.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users attempt to claim free followers.",
+            "Save Location": "~/storage/downloads/Twitter Followers",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Twitter users with promise of followers and blue checkmark. Twitter accounts valuable for influencers.",
+            "Features": [
+                "Twitter UI Design",
+                "5,000 Followers Promise",
+                "Verified Badge",
+                "Mobile Optimized Login",
+                "OAuth Style",
+                "Benefits Display",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Xbox Live Page.py": {
+            "Description": "Xbox Live phishing page offering 25,000 free Microsoft points + 1 year Game Pass Ultimate + 4 free games. Targets Xbox gamers across console, PC, and cloud.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when users try to claim free points and Game Pass.",
+            "Save Location": "~/storage/downloads/Xbox Live",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets Xbox gamers with promise of points and Game Pass. HIGH RISK - Microsoft accounts control Xbox, Windows, Office, and payment methods.",
+            "Features": [
+                "Xbox UI Design",
+                "25,000 Microsoft Points",
+                "1-Year Game Pass Ultimate",
+                "4 Free Games",
+                "30-Minute Countdown Timer",
+                "Console Icons (Xbox, PC, Cloud)",
+                "Games Showcase",
+                "Benefits List",
+                "Mobile Optimized",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "Fake YouTube Subscribers Page.py": {
+            "Description": "YouTube Creator Boost phishing page offering 10,000 free subscribers. Targets YouTubers wanting to grow their channel and monetize faster.",
+            "How to Use": "1. Run script (auto-installs flask, werkzeug). 2. Share Cloudflare tunnel link. 3. Credentials saved when creators attempt to claim free subscribers.",
+            "Save Location": "~/storage/downloads/YouTube Subscribers",
+            "Requirements": "flask, werkzeug, cloudflared.",
+            "Tips": "Targets YouTube creators with promise of subscribers. YouTube accounts linked to AdSense and revenue.",
+            "Features": [
+                "YouTube UI Design",
+                "10,000 Subscribers Promise",
+                "Channel Boost Progress",
+                "Stats Bar",
+                "Trust Badges",
+                "Mobile Optimized",
+                "Creator Program Badge",
+                "Cloudflare Tunnel"
+            ]
+        },
+        "What's Up Dude Page.py": {
+            "Description": "Custom WhatsApp-style phishing page.",
+            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
+            "Save Location": "~/storage/downloads/WhatsUp Dude",
+            "Requirements": "flask, cloudflared.",
+            "Features": ["Dark Theme", "Chat App UI"]
+        }
+    },
+
     "Personal Information Capture": {
         "Fake Back Camera Page.py": {
             "Description": "Phishing tool. Hosts a 'Device Registration' page that secretly captures photos from the rear camera every 2.5 seconds.",
@@ -163,6 +543,21 @@ GUIDE_DATA = {
                 "Cloudflare Tunnel"
             ]
         },
+        "Fake Chrome Verification Page.py": {
+            "Description": "Advanced Chrome security verification phishing tool. Mimics Google Chrome's security update page to capture face video, location, device info, and system data. Features customizable verification types and multi-step verification process.",
+            "How to Use": "1. Run script. 2. Configure verification settings (Google account, verification type, etc.). 3. Share Cloudflare link. 4. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Chrome Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize verification steps to match target's device and account for higher success rate.",
+            "Features": [
+                "Realistic Chrome UI",
+                "Face Video Capture",
+                "GPS Location Capture",
+                "Device Scan Simulation",
+                "System Info Collection",
+                "Cloudflare Tunnel"
+            ]
+        },
         "Fake Data Grabber Page.py": {
             "Description": "Phishing tool. 'DedSec Membership' form collecting Name, DOB, Phone, Address, and Photo uploads.",
             "How to Use": "1. Run script. 2. Send link. 3. Data saved on submission.",
@@ -173,6 +568,41 @@ GUIDE_DATA = {
                 "Full Info Grabber",
                 "Photo Uploads",
                 "Cloudflare Tunnel"
+            ]
+        },
+        "Fake Discord Verification Page.py": {
+            "Description": "Advanced Discord account verification phishing tool. Mimics Discord's verification process to capture face video, ID documents, phone number, payment info, and location. Features customizable verification steps and realistic Discord UI.",
+            "How to Use": "1. Run script. 2. Configure verification settings (target username, verification type, etc.). 3. Share Cloudflare link. 4. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Discord Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize verification steps to match target's Discord account for higher success rate. Can be tailored for age verification, server access, payment verification, or security checks.",
+            "Features": [
+                "Realistic Discord UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Phone Number Capture",
+                "Payment Info Capture",
+                "GPS Location Capture",
+                "Account Info Collection",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process"
+            ]
+        },
+        "Fake Facebook Verification Page.py": {
+            "Description": "Advanced Facebook identity confirmation phishing tool. Mimics Facebook's security verification to capture face video, ID documents, location, and phone number. Features realistic Facebook UI and multi-step verification process.",
+            "How to Use": "1. Run script. 2. Configure verification settings (target name, email, etc.). 3. Share Cloudflare link. 4. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Facebook Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize verification steps to match target's Facebook account for higher success rate. Uses 'unusual login activity' as pretext.",
+            "Features": [
+                "Realistic Facebook UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Location Capture",
+                "Phone Number Capture",
+                "Account Info Collection",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process"
             ]
         },
         "Fake Front Camera Page.py": {
@@ -211,6 +641,26 @@ GUIDE_DATA = {
                 "Cloudflare Tunnel"
             ]
         },
+        "Fake Instagram Verification Page.py": {
+            "Description": "Advanced Instagram account verification phishing tool. Mimics Instagram's security verification to capture face video, voice recordings, ID documents, and location. Features realistic Instagram UI, multi-step verification process, and comprehensive data collection.",
+            "How to Use": "1. Run script. 2. Configure verification settings (target username, profile picture, verification types). 3. Share Cloudflare link. 4. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Instagram Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy, Pillow",
+            "Tips": "Customize target username and profile picture for higher credibility. Uses 'suspicious activity' and 'account restoration' as pretext.",
+            "Features": [
+                "Realistic Instagram UI",
+                "Face Video Capture",
+                "Voice Recording Capture",
+                "ID Document Capture",
+                "GPS Location Capture",
+                "Device Info Collection",
+                "Account Statistics Generation",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process",
+                "Random Username Generation",
+                "Profile Picture Integration"
+            ]
+        },
         "Fake Location Page.py": {
             "Description": "Phishing tool. Generic 'Improve Service' page asking for location permissions.",
             "How to Use": "1. Run script. 2. Send link. 3. GPS saved.",
@@ -234,51 +684,99 @@ GUIDE_DATA = {
                 "Stealth Upload",
                 "Cloudflare Tunnel"
             ]
-        }
-    },
-
-    "Social Media Fake Pages": {
-        "Fake Facebook Friends Page.py": {
-            "Description": "Facebook phishing page. 'Connect with friends' lure.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/FacebookFriends",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["Facebook UI", "Credential Harvester"]
         },
-        "Fake Google Free Money Page.py": {
-            "Description": "Google phishing page. '$500 Credit' lure.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/GoogleFreeMoney",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["Google UI", "Monetary Bait"]
+        "Fake OnlyFans Verification Page.py": {
+            "Description": "Advanced OnlyFans age verification phishing tool. Mimics OnlyFans age verification process to capture face video, ID documents, payment information, and location. Features realistic OnlyFans UI, multiple verification methods, and adult content access pretext.",
+            "How to Use": "1. Run script. 2. Configure verification settings (creator username, subscription price, verification method). 3. Share Cloudflare link. 4. Data saved as target completes age verification steps.",
+            "Save Location": "~/storage/downloads/OnlyFans Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize creator profile with subscription price and follower count. Uses '18+ age verification' and 'adult content access' as pretext.",
+            "Features": [
+                "Realistic OnlyFans UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Payment Info Capture",
+                "GPS Location Capture",
+                "Creator Profile Customization",
+                "Multiple Verification Methods",
+                "Cloudflare Tunnel",
+                "Multi-step Age Verification",
+                "Subscription Price Display",
+                "Follower Count Generation"
+            ]
         },
-        "Fake Instagram Followers Page.py": {
-            "Description": "Instagram phishing page. 'Free Followers' lure.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/InstagramFollowers",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["Instagram UI", "Growth Bait"]
+        "Fake Steam Verification Page.py": {
+            "Description": "Advanced Steam account verification phishing tool. Mimics Steam's verification process to capture face video, ID documents, Steam Guard codes, payment information, phone numbers, and location. Features realistic Steam UI, multiple verification types (Steam Guard, age verification, account recovery, purchase verification), and comprehensive data collection.",
+            "How to Use": "1. Run script. 2. Configure verification settings (Steam username, verification type, face/ID/phone/payment/location options). 3. Share Cloudflare link. 4. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Steam Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize Steam username, level, games owned, and wallet balance. Uses Steam Guard security or age verification as pretext. Supports multiple verification types for different attack scenarios.",
+            "Features": [
+                "Realistic Steam UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Steam Guard Code Capture",
+                "Phone Number Capture",
+                "Payment Info Capture",
+                "GPS Location Capture",
+                "Steam Account Statistics",
+                "Random Username Generation",
+                "Steam Profile URL Generation",
+                "Multiple Verification Types",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process",
+                "Steam Wallet Balance Display",
+                "Games Owned Statistics"
+            ]
         },
-        "Fake Snapchat Friends Page.py": {
-            "Description": "Snapchat phishing page. '100+ Friends' lure.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/SnapchatFriends",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["Snapchat UI", "Growth Bait"]
+        "Fake Twitch Verification Page.py": {
+            "Description": "Advanced Twitch age verification phishing tool. Mimics Twitch's age verification process to capture face video, ID documents, payment information, and location. Features realistic Twitch UI, streamer/viewer account customization, and comprehensive data collection with profile picture integration.",
+            "How to Use": "1. Run script. 2. Configure verification settings (target username, account type, face duration, ID/payment/location options). 3. Place profile picture image in download folder. 4. Share Cloudflare link. 5. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/Twitch Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize target username and use existing image as profile picture. Supports both streamer and viewer accounts. Uses age verification for mature content access as pretext.",
+            "Features": [
+                "Realistic Twitch UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Payment Info Capture",
+                "GPS Location Capture",
+                "Profile Picture Integration",
+                "Account Statistics Generation",
+                "Random Username Generation",
+                "Streamer/Viewer Account Types",
+                "Multiple ID Types",
+                "Nearby Places Detection",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process",
+                "Location Accuracy Visualization",
+                "Twitch Purple Theme Design"
+            ]
         },
-        "Fake TikTok Followers Page.py": {
-            "Description": "TikTok phishing page. '5000 Free Followers' lure.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/TikTokFollowers",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["TikTok UI", "Growth Bait"]
-        },
-        "What's Up Dude Page.py": {
-            "Description": "Custom WhatsApp-style phishing page.",
-            "How to Use": "1. Run script. 2. Send link. 3. Credentials saved.",
-            "Save Location": "~/storage/downloads/WhatsUpDude",
-            "Requirements": "flask, cloudflared.",
-            "Features": ["Dark Theme", "Chat App UI"]
+        "Fake YouTube Verification Page.py": {
+            "Description": "Advanced YouTube verification phishing tool. Mimics YouTube's verification process to capture face video, ID documents, payment information, and location. Features realistic YouTube UI, channel customization, multiple verification types (age verification, account recovery, channel verification), and comprehensive data collection with profile picture integration.",
+            "How to Use": "1. Run script. 2. Configure verification settings (channel name, username, verification type, face/ID/payment/location options). 3. Place profile picture image in download folder. 4. Share Cloudflare link. 5. Data saved as target completes verification steps.",
+            "Save Location": "~/storage/downloads/YouTube Verification/",
+            "Requirements": "cloudflared, flask, requests, geopy",
+            "Tips": "Customize channel name and use existing image as profile picture. Supports multiple verification types (age, recovery, channel). Uses age verification for restricted content, account recovery for suspicious activity, or channel verification for blue checkmark as pretext.",
+            "Features": [
+                "Realistic YouTube UI",
+                "Face Video Capture",
+                "ID Document Capture",
+                "Payment Info Capture",
+                "GPS Location Capture",
+                "Profile Picture Integration",
+                "Channel Statistics Generation",
+                "Random Channel Name Generation",
+                "Random Username Generation",
+                "Multiple Verification Types",
+                "Cloudflare Tunnel",
+                "Multi-step Verification Process",
+                "YouTube Red Theme Design",
+                "Customizable Verification Steps",
+                "Subscriber Count Generation",
+                "Content Type Specification"
+            ]
         }
     },
 
