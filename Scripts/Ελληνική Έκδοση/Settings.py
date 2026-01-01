@@ -1275,7 +1275,7 @@ def update_packages_modules():
     
     # 4. Python Dependencies (Exact list from Setup.sh including psutil)
     # Added 'psutil' to the list
-    python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil"
+    python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
     
     run_command(f"pip install {python_packages} --break-system-packages")
     
