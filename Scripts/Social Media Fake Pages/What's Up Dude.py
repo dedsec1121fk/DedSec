@@ -35,7 +35,7 @@ class DummyFile(object):
     def flush(self): pass
 
 # Data saving folder
-BASE_FOLDER = os.path.expanduser("~/storage/downloads/WhatsUpDude")
+BASE_FOLDER = os.path.expanduser("~/storage/downloads/WhatsUp Dude")
 os.makedirs(BASE_FOLDER, exist_ok=True)
 
 @app.route('/')
