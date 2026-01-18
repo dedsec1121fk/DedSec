@@ -312,8 +312,6 @@ The toolkit is organized into the following categories and tools:
 62. **Guide**: A comprehensive guide to installing and using the DedSec toolkit. Covers initial setup, dependency management, and troubleshooting tips.
     * *Save Location:* N/A
 
-63. **Extra Content**: A simple utility script designed to move the 'Extra Content' folder from the DedSec installation directory to your phone's Downloads folder for easy access. Utility script for managing and extracting extra content in the DedSec toolkit.
-    * *Save Location:* Moves files to: `~/storage/downloads/Extra Content`
 ---
 
 ## 💬 Contact Us & Credits
