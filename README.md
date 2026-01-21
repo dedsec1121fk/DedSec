@@ -284,10 +284,10 @@ The toolkit is organized into the following categories and tools:
 
 ## 🎮 Games
 
-55. **CTF God**: A full-screen curses CTF game for Termux featuring story mode missions, daily challenges, tournaments, ranks/achievements, a hint shop, challenge pack import/export, and per-user progress + leaderboard saving.
-    * *Save Location:* `/sdcard/Download/CTF God/[username]/` (auto-created)
+55. **CTF God**: Full‑screen Curses CTF game for Termux with story mode, missions, daily challenges, random boss levels, hint shop economy, achievements & ranks, challenge pack import/export, tournament mode, and anti‑cheat/integrity checks. Includes a built‑in level editor.
+    * *Save Location:* User workspaces & challenge files: `/storage/emulated/0/Download/CTF God/<username>/files` (fallback: `~/storage/downloads/CTF God/...`). Game state & packs: `~/.ctf_god/` (`state.json`, `packs/`, `custom.json`).
 
-56. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement.
+56. **Tamagotchi**: A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement. Includes detailed statistics tracking, inventory management, and permanent upgrades through stardust system.
     * *Save Location:* `~/.termux_tamagotchi_v8.json`
 
 ## 🛠️ Other Tools
@@ -330,6 +330,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Artwork:** Christina Chatzidimitriou
 * **Technical Help:** lamprouil, UKI_hunter
+* **Promoter:** Optimus Prime
 
 ---
 
