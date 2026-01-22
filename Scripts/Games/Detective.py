@@ -31,8 +31,8 @@ DIFFICULTIES = {
 }
 
 SAFETY_NOTE = (
-    "Content note: This game may include non-graphic references to serious crimes "
-    "including homicide, corruption, and sexual assault. It avoids explicit detail."
+    "Content note: This game may include non-graphic references to serious crimes, "
+    "including homicide, corruption, and sexual assault. It avoids explicit details."
 )
 
 # ----------------------------- Fixed story library (90) -----------------------------
@@ -835,7 +835,7 @@ Now you choose—when the case is old enough to close.
                    "Sentence 1: motive. Sentence 2: method. Sentence 3: culprit.",
                    ["Final theory written"], "Write your 3-sentence final theory."),
         ],
-        "Checkpoint: Type CLOSE to enter accusation phase.",
+        "Checkpoint: Type CLOSE to enter the accusation phase.",
         acc("close"),
         "Type CLOSE.",
         ["Ready for accusation"]
@@ -1027,14 +1027,14 @@ Commands:
 def command_help() -> None:
     print("\nCommands:")
     print("  :help       Show commands")
-    print("  :guide      ASCII 'graphic' explanation screens")
+    print("  :guide      Show ASCII guide screens")
     print("  :note       Add a quick note")
     print("  :notes      Review notes")
     print("  :evidence   Review evidence")
     print("  :board      Show evidence board (ASCII)")
     print("  :timeline   Show timeline anchors (ASCII)")
-    print("  :hint       Use a hint token to reveal checkpoint hint")
-    print("  :save       Save and exit to main menu")
+    print("  :hint       Use a hint token to reveal a checkpoint hint")
+    print("  :save       Save and return to the main menu")
     print("  :quit       Quit without saving\n")
 
 def draw_board(case: Case) -> None:
@@ -1209,7 +1209,7 @@ def first_time_player_name() -> str:
     if isinstance(cfg, dict) and cfg.get("player"):
         return str(cfg["player"])
     banner()
-    print_block("Enter your detective name (used for highscores):")
+    print_block("Enter your detective name (used for high scores):")
     name = input("> ").strip()[:24] or "Detective"
     save_json(cfg_path, {"player": name})
     return name
@@ -1608,7 +1608,7 @@ def accusation_phase(sg: SaveGame, case: Case, player: str) -> None:
 
 def show_highscores() -> None:
     banner()
-    print_block("HIGHSCORES (Top 15)")
+    print_block("HIGH SCORES (Top 15)")
     print("-" * WRAP)
     print(pretty_highscores(15))
     print("-" * WRAP)
@@ -1638,8 +1638,8 @@ def main_menu() -> None:
         print()
         print("  [1] New Case (random from fixed library)")
         print("  [2] Load Case (choose slot)")
-        print("  [3] Highscores")
-        print("  [4] ASCII Guide (graphics)")
+        print("  [3] High Scores")
+        print("  [4] ASCII Guide (text graphics)")
         print("  [5] Settings / Save Folder Info")
         print("  [6] Quit")
         print()
