@@ -137,7 +137,6 @@ The toolkit is organized into the following categories and tools:
 8.  **Sod**: A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring.
     * *Save Location:* `load_test_config.json` in script directory | Results displayed in terminal
 
-
 9.  **Store Scrapper**: Store/listing scraper that collects product URLs, extracts titles/prices/images, and can optionally perform deep per-product scraping (details, reviews, images). Includes resume support and multi-strategy extraction for modern, JS-heavy pages.
     * *Save Location:* `~/storage/downloads/Store Scrapper/` (or `~/Store Scrapper/` if storage is inaccessible)
 
@@ -337,8 +336,6 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 ## ⚠️ Disclaimer & Terms of Use
 
 > **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
-
-**Trademark Disclaimer:** The "DedSec" name and logo used in this project are for thematic and inspirational purposes only. This is an independent, fan-made project created for educational purposes and has no official connection to the "Watch Dogs" franchise. It is not associated with, endorsed by, or affiliated with Ubisoft Entertainment S.A.. All trademarks and copyrights for "Watch Dogs" and "DedSec" as depicted in the games belong to their respective owners, Ubisoft Entertainment S.A..
 
 This project, including all associated tools, scripts, and documentation ("the Software"), is provided strictly for **educational, research, and ethical security testing purposes**. It is intended for use exclusively in controlled, authorized environments by users who have obtained explicit, prior written permission from the owners of any systems they intend to test.
 
