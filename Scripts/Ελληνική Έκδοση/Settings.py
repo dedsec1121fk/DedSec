@@ -282,6 +282,32 @@ def run_command_silent(command, cwd=None):
     result = subprocess.run(command, shell=True, cwd=cwd, capture_output=True, text=True)
     return result.stdout.strip(), result.stderr.strip()
 
+
+
+def run_selected_file(abs_path):
+    """Runs a selected script/executable reliably (works with nested folders & spaces)."""
+    try:
+        abs_path = os.path.abspath(abs_path)
+        if not os.path.isfile(abs_path):
+            return None
+
+        workdir = os.path.dirname(abs_path) or os.getcwd()
+
+        # Decide how to run it
+        if abs_path.endswith(".py"):
+            cmd = ["python3", abs_path]
+        elif abs_path.endswith(".sh") or abs_path.endswith(".bash"):
+            cmd = ["bash", abs_path]
+        elif os.access(abs_path, os.X_OK):
+            cmd = [abs_path]
+        else:
+            return None
+
+        proc = subprocess.run(cmd, cwd=workdir)
+        return proc.returncode
+    except KeyboardInterrupt:
+        return 130
+
 def get_termux_info():
     if shutil.which("termux-info"):
         out, _err = run_command_silent("termux-info -j")
@@ -865,39 +891,23 @@ def run_list_menu():
             continue
             
         elif os.path.isfile(selected):
-            command = ""
-            
-            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
-                file_name = os.path.basename(selected)
-                if file_name.endswith(".py"):
-                    command = f"cd \"{HOME_DIR}\" && python3 \"{file_name}\""
-                elif file_name.endswith(".sh"):
-                    command = f"cd \"{HOME_DIR}\" && bash \"{file_name}\""
-                elif os.access(selected, os.X_OK):
-                    command = f"cd \"{HOME_DIR}\" && ./{file_name}"
-            else:
-                rel_path = os.path.relpath(selected, base_path)
-                if rel_path.endswith(".py"):
-                    command = f"python3 \"{rel_path}\""
-                elif rel_path.endswith(".sh"):
-                    command = f"bash \"{rel_path}\""
-                elif os.access(selected, os.X_OK):
-                    command = f"./\"{rel_path}\""
-            
-            if command:
-                ret = os.system(command)
-                
-                if (ret >> 8) == 2:
-                    print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-                    sys.exit(0)
-                
-                return
-            else:
+            retcode = run_selected_file(selected)
+
+            if retcode is None:
                 print(_("Invalid selection or non-executable script. Exiting."))
                 return
+
+            # Ctrl+C inside the launched script
+            if retcode in (2, 130):
+                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                sys.exit(0)
+
+            return
+
         else:
             print(_("Invalid selection. Exiting."))
             return
+
 
 # ------------------------------
 # Integrated Number Menu
@@ -986,36 +996,23 @@ def run_number_menu():
                 continue
             
             if os.path.isfile(selected_path):
-                command = ""
-                if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
-                    file_name = os.path.basename(selected_path)
-                    if file_name.endswith(".py"):
-                        command = f"cd \"{HOME_DIR}\" && python3 \"{file_name}\""
-                    elif file_name.endswith(".sh"):
-                        command = f"cd \"{HOME_DIR}\" && bash \"{file_name}\""
-                    elif os.access(selected_path, os.X_OK):
-                        command = f"cd \"{HOME_DIR}\" && ./{file_name}"
-                else:
-                    rel_path = os.path.relpath(selected_path, base_path)
-                    if rel_path.endswith(".py"):
-                        command = f"python3 \"{rel_path}\""
-                    elif rel_path.endswith(".sh"):
-                        command = f"bash \"{rel_path}\""
-                    elif os.access(selected_path, os.X_OK):
-                        command = f"./\"{rel_path}\""
-                
-                if command:
-                    ret = os.system(command)
-                    if (ret >> 8) == 2:
-                        print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-                        sys.exit(0)
-                    return
-                else:
+                retcode = run_selected_file(selected_path)
+
+                if retcode is None:
                     print(_("Invalid selection or non-executable script."))
                     input()
+                    continue
+
+                if retcode in (2, 130):
+                    print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                    sys.exit(0)
+
+                return
+
         else:
             print(_("Invalid selection. Please try again."))
             input()
+
 
 # ------------------------------
 # Helper for Grid Menu
@@ -1220,35 +1217,18 @@ def run_grid_menu():
             continue
         
         if os.path.isfile(selected_path):
-            command = ""
-            if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
-                file_name = os.path.basename(selected_path)
-                if file_name.endswith(".py"):
-                    command = f"cd \"{HOME_DIR}\" && python3 \"{file_name}\""
-                elif file_name.endswith(".sh"):
-                    command = f"cd \"{HOME_DIR}\" && bash \"{file_name}\""
-                elif os.access(selected_path, os.X_OK):
-                    command = f"cd \"{HOME_DIR}\" && ./{file_name}"
-            else:
-                rel_path = os.path.relpath(selected_path, base_path)
-                if rel_path.endswith(".py"):
-                    command = f"python3 \"{rel_path}\""
-                elif rel_path.endswith(".sh"):
-                    command = f"bash \"{rel_path}\""
-                elif os.access(selected_path, os.X_OK):
-                    command = f"./\"{rel_path}\""
-        
-            if command:
-                ret = os.system(command)
-                
-                if (ret >> 8) == 2:
-                    print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
-                    sys.exit(0)
-                
-                return 
-            else:
+            retcode = run_selected_file(selected_path)
+
+            if retcode is None:
                 print(_("Invalid selection or non-executable script. Exiting."))
                 return
+
+            if retcode in (2, 130):
+                print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
+                sys.exit(0)
+
+            return
+
 
 # ------------------------------
 # Update Packages & Modules
