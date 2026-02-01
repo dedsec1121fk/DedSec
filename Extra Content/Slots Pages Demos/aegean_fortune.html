@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Aegean Fortune</title>
+<style>
+  :root{
+    --bg1:#020713;
+    --bg2:#071a2e;
+    --panel:#07101f;
+    --panel2:#0a1730;
+    --text:#f7f6f0;
+    --muted:rgba(247,246,240,.72);
+    --accent:#1f6feb;
+    --accent2:#d4af37;
+    --gold:#d4af37;
+    --danger:#c96b3c;
+
+    --cols: 6;
+    --rows: 6;
+
+    --tile: clamp(40px, 7.2vmin, 74px); /* responsive tile size (smaller) */
+    --gap: 6px;
+    --radius: 16px;
+
+    --scale: 1;           /* fixed; layout is responsive */
+    --shadow: 0 18px 40px rgba(0,0,0,.45);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    color:var(--text);
+    overflow:hidden;
+    overscroll-behavior: none;
+    background:
+      radial-gradient(1100px 760px at 22% 12%, rgba(31,111,235,.20), transparent 60%),  /* Aegean blue glow */
+      radial-gradient(900px 700px at 86% 58%, rgba(212,175,55,.14), transparent 60%), /* gold sun */
+      radial-gradient(700px 560px at 52% 92%, rgba(15,35,70,.32), transparent 65%),   /* deep sea */
+      linear-gradient(180deg, var(--bg1), var(--bg2));
+  }
+
+  /* Safe-area padding for notches */
+  .safe{
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    height:100dvh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .stage{
+    width:100vw;
+    height:100dvh;
+    position:relative;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 12px;
+  }
+
+  .game{
+    width: min(980px, 100%);
+    height: min(760px, 100%);
+    max-height: 100%;
+    transform: none;
+    display:grid;
+    grid-template-columns: 1fr 300px;
+    gap: 12px;
+    padding: 10px;
+    border-radius: 28px;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.10);
+    position:relative;
+  }
+
+  .left{
+    display:flex;
+    flex-direction:column;
+    gap: 14px;
+    min-width:0;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding: 10px 12px;
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(31,111,235,.18), rgba(12,7,20,.55));
+    border: 1px solid rgba(255,255,255,.10);
+  }
+  .brand h1{
+    margin:0;
+    font-weight: 900;
+    letter-spacing:.4px;
+    font-size: 17px;
+    text-transform: uppercase;
+  }
+  .brandGrid{ display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:10px; width:100%; }
+  .brandLeft{ display:flex; justify-content:flex-start; }
+  .brandCenter{ display:flex; justify-content:center; }
+  .brandCenter h1{ text-align:center; }
+  .brandRight{ display:flex; justify-content:flex-end; gap:10px; flex-wrap:nowrap; min-width:0; }
+  .hdrLeftCol{ display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .hdrRightCol{ display:flex; align-items:flex-start; gap:10px; min-width:0; }
+
+  .hdrRightStack{ display:flex; flex-direction:column; gap:8px; align-items:stretch; min-width:0; }
+  .hdrCard{
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.10);
+    min-width:0;
+}
+  .hdrLabel{ font-size:12px; color: rgba(247,240,255,.75); font-weight:900; letter-spacing:.2px; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .hdrValue{ font-size:14px; font-weight:950; color: rgba(247,240,255,.95); white-space:nowrap; flex:0 0 auto; max-width:none; overflow:visible; text-overflow:clip; }
+  .hdrCard .hdrLabel{ flex: 1 1 auto; }
+  .hdrCard .hdrValue{ flex: 0 0 auto; }
+  /* Give the Total Win pill a little more room for the number */
+  .hdrSpinWin .hdrValue{ min-width: 72px; text-align:right; }
+
+  .moneyPill{ display:inline-flex; align-items:center; gap:8px; min-width:0; }
+  .moneyPill span{ display:inline-block; min-width:0; max-width: 140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .brandRight .pill{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .brand .tag{
+    font-size: 12px;
+    color: var(--muted);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .pill{
+    display:inline-flex;
+    min-width:0;
+    align-items:center;
+    gap:8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.10);
+  }
+  Y,111,235,.55); }
+
+    .boardWrap{
+    flex:1;
+    margin: 10px 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius: 22px;
+    background: linear-gradient(180deg, rgba(0,0,0,.40), rgba(20,10,34,.18));
+    border: 1px solid rgba(255,255,255,.10);
+    position:relative;
+    overflow:hidden;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  /* Grid board */
+  .board{
+    padding:10px;
+    display:grid;
+    grid-template-columns: repeat(var(--cols), var(--tile));
+    grid-template-rows: repeat(var(--rows), var(--tile));
+    gap: var(--gap);
+    position:relative;
+    width: max-content;
+    height: max-content;
+    margin: 0 auto;
+    box-sizing: content-box;
+  }
+
+  .cell{
+    width: var(--tile);
+    height: var(--tile);
+    border-radius: 22px;
+    position:relative;
+    overflow:hidden;
+    overscroll-behavior: none;
+    background:
+      radial-gradient(1100px 760px at 22% 12%, rgba(31,111,235,.20), transparent 60%),  /* Aegean blue glow */
+      radial-gradient(900px 700px at 86% 58%, rgba(212,175,55,.14), transparent 60%), /* gold sun */
+      radial-gradient(700px 560px at 52% 92%, rgba(15,35,70,.32), transparent 65%),   /* deep sea */
+      linear-gradient(180deg, var(--bg1), var(--bg2));
+    border: 1px solid rgba(255,255,255,.10);
+    box-shadow: 0 10px 24px rgba(0,0,0,.35);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .symbol{
+    width: 100%;
+    height: 100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transform: translateZ(0);
+    user-select:none;
+    position:relative;
+  }
+
+  .symbol svg{
+    width:100%;
+    height:100%;
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+  }
+
+  /* Custom candy icons (inline SVG) */
+  .symbol .candySvg{
+    width: calc(var(--tile) * 0.78);
+    height: calc(var(--tile) * 0.78);
+  }
+
+  .symbol .emo{
+    font-size: calc(var(--tile) * 0.72);
+    line-height: 1;
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+    transform: translateZ(0);
+    user-select:none;
+  }
+
+  /* Small label for scatter symbol so it reads as a feature, not a normal candy */
+  .scatterTag{
+    position:fixed;
+    top:6px;
+    right:6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 950;
+    letter-spacing: .3px;
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(255,255,255,.16);
+    color: rgba(255,255,255,.92);
+    box-shadow: 0 10px 18px rgba(0,0,0,.25);
+    pointer-events:none;
+  }
+
+  /* Spin / tumble animations */
+  .board.spinning .symbol{ filter: blur(.6px) brightness(1.02); }
+  .cell.pop{
+    animation: pop .38s ease-out both;
+  }
+  @keyframes pop{
+    0%{ transform: scale(1); }
+    55%{ transform: scale(1.15); }
+    100%{ transform: scale(.02); opacity:0; }
+  }
+
+  .cell.drop{
+    animation: drop .38s cubic-bezier(.2,.9,.2,1) both;
+  }
+  @keyframes drop{
+    from{ transform: translateY(-48px); opacity:.0; }
+    to{ transform: translateY(0); opacity:1; }
+  }
+
+  .cell.winGlow{
+    outline: 2px solid rgba(255,213,106,.75);
+    box-shadow: 0 0 0 4px rgba(255,213,106,.20), 0 18px 40px rgba(0,0,0,.45);
+  }
+
+  /* Side panel */
+  .panel{
+    border-radius: 24px;
+    padding: 10px;
+    background: linear-gradient(180deg, rgba(12,7,20,.78), rgba(0,0,0,.32));
+    border: 1px solid rgba(255,255,255,.10);
+    display:flex;
+    flex-direction:column;
+    gap: 12px;
+    min-width:0;
+  }
+
+  .statRow{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .card{
+    border-radius: 16px;
+    padding: 10px;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border: 1px solid rgba(255,255,255,.10);
+  }
+  .label{ font-size: 12px; color: var(--muted); letter-spacing:.25px; }
+  .value{
+    margin-top: 6px;
+    font-weight: 900;
+    font-size: 17px;
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    min-width:0;
+  }
+  .value small{ font-size:12px; color: var(--muted); font-weight:700; }
+
+  .controls{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .betBox{
+    display:grid;
+    grid-template-columns: 1fr 82px;
+    gap:10px;
+    align-items:stretch;
+  }
+  .betReadout{
+    border-radius: 18px;
+    padding: 10px;
+    background: rgba(0,0,0,.22);
+    border: 1px solid rgba(255,255,255,.10);
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    min-width:0;
+  }
+  .betReadout .amt{
+    font-size: 20px;
+    font-weight: 950;
+    letter-spacing:.2px;
+    margin-top: 4px;
+  }
+  .betBtns{
+    display:grid;
+    grid-template-rows: 1fr 1fr;
+    gap:10px;
+  }
+
+  button{
+    appearance:none;
+    border:none;
+    outline:none;
+    color:var(--text);
+    cursor:pointer;
+    border-radius: 18px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.22);
+    box-shadow: 0 10px 24px rgba(0,0,0,.25);
+    transition: transform .12s ease, filter .12s ease, background .12s ease;
+    font-weight: 900;
+    letter-spacing:.2px;
+    font-size: 14px;
+  }
+  button:active{ transform: translateY(1px) scale(.995); }
+  button:disabled{ opacity:.55; cursor:not-allowed; filter:saturate(.7); }
+
+  .miniBtn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding: 9px 8px;
+    min-width:0;
+    flex-wrap:wrap;
+  }
+
+  .btnIcon{ width:18px; height:18px; display:block; opacity:.95; flex:0 0 auto; }
+  .btnIcon.big{ width:20px; height:20px; }
+  .soundSlash{ display:none; }
+  #soundBtn.soundOff .soundSlash{ display:block; }
+
+  .iconStroke{ stroke:currentColor; stroke-width:2.4; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+  .iconFill{ fill:currentColor; opacity:.18; }
+  .btnLabel{ display:inline-block; }
+
+  .primary{
+    padding: 12px 12px;
+    font-size: 15px;
+    background: linear-gradient(180deg, rgba(212,175,55,.92), rgba(120,92,25,.55));
+    border: 1px solid rgba(255,255,255,.16);
+  }
+  .primary:hover{ filter:brightness(1.03); }
+  .secondary{
+    padding: 11px 12px;
+    background: linear-gradient(180deg, rgba(242,210,122,.60), rgba(242,210,122,.20));
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  .danger{
+    padding: 11px 12px;
+    background: linear-gradient(180deg, rgba(255,79,111,.75), rgba(255,79,111,.25));
+    border: 1px solid rgba(255,255,255,.14);
+  }
+
+  .row{
+    display:flex;
+    gap:10px;
+  }
+  .row > button{ flex:1; }
+
+  .small{
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+  }  .toast{
+    position:absolute;
+    left:50%;
+    top:14px;
+    transform: translateX(-50%);
+    z-index: 7;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: #f5c400;
+    color: #ffffff;
+    font-weight: 950;
+    letter-spacing:.2px;
+    font-size: 14px;
+    border: 1px solid rgba(0,0,0,.18);
+    box-shadow: 0 14px 40px rgba(0,0,0,.35);
+    opacity: 0;
+    pointer-events:none;
+  }
+
+  .toast.show{
+    opacity: 1;
+  }
+
+  /* Confetti canvas */
+  #fx{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:4;
+  }
+
+  /* Mobile: stack */
+  @media (max-width: 860px){
+    .game{
+      width: 720px;
+      height: 100%;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+    .panel{ flex-direction:row; flex-wrap:wrap; }
+    .panel > *{ flex: 1 1 220px; }
+    .controls{ width:100%; }
+  }
+
+  
+  /* Short screens: tighten spacing so everything fits without scrolling */
+  @media (max-height: 720px){
+    .game{ height: 100%; padding: 12px; gap: 12px; }
+    .brand{ padding: 10px 12px; }
+    .panel{ padding: 10px; gap: 10px; }
+    :root{ --gap: 6px; }
+  }
+  @media (max-height: 640px){
+    :root{ --tile: clamp(36px, 6.6vmin, 58px); }
+    .small{ display:none; }
+  }
+
+/* Tiny screens: use smaller base */
+  @media (max-width: 720px){
+    .small{ display:none; }
+  }
+
+  @media (max-width: 420px){
+    :root{ --tile: clamp(36px, 6.6vmin, 58px); --gap: 6px; }
+  }
+
+  /* Phone portrait: keep controls always visible (no scrolling) */
+  @media (max-width: 560px){
+    :root{
+      --tile: clamp(44px, 7.7vmin, 66px);
+      --gap: 6px;
+    }
+
+.game{
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      position:relative;
+    }
+
+    /* Make space for a bottom dock panel */
+    .left{ padding-bottom: calc(360px + env(safe-area-inset-bottom)); }
+
+    .brand h1{ font-size: 16px; }
+    .brand .tag .pill{ padding: 5px 8px; font-size: 11px; }
+    .brand{ gap: 10px; margin-bottom: 0; }
+
+    /* Header layout: keep the title centered and avoid pills overflowing on mobile */
+    .brandGrid{ grid-template-columns: 1fr; grid-template-rows: auto auto; gap: 8px; }
+    .brandLeft{ display:none; }
+    .brandCenter{ justify-content:center; }
+    .brandRight{ width:100%; justify-content:space-between; flex-wrap:nowrap; gap:8px; }
+    .brandRight .pill{ padding:5px 8px; font-size:12px; }
+    .hdrLeftCol{ gap:6px; }
+    .hdrRightCol{ gap:8px; }
+    .hdrCard{ padding:6px 10px; border-radius:999px; }
+    .hdrLabel{ font-size:10px; }
+    .hdrValue{ font-size:13px; max-width: 120px; }
+    .hdrHelpBtn{ width: 34px; flex: 0 0 auto; }
+    .brand .tag{ flex-wrap:wrap; gap:8px; }
+
+    /* Board tighter */
+    .boardWrap{ border-radius: 20px; }
+    .board{ padding: 8px; }
+    .cell{ border-radius: 18px; }
+
+    /* Bottom dock panel */
+    .panel{
+      position:fixed;
+      left: calc(12px + env(safe-area-inset-left));
+      right: calc(12px + env(safe-area-inset-right));
+      bottom: calc(10px + env(safe-area-inset-bottom));
+      z-index: 6;
+      padding: 10px;
+      border-radius: 22px;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(12,7,20,.88), rgba(0,0,0,.40));
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 20px 50px rgba(0,0,0,.45);
+      overflow:hidden;
+    }
+
+    /* Compress stats so controls fit */
+    .panel .statRow{ gap: 8px; }
+    .panel .card{ padding: 9px; border-radius: 14px; }
+    .panel .value{ font-size: 15px; }
+    .panel .label{ font-size: 11px; }
+
+    /* Stats moved to header; keep panel cards visible on mobile */
+    .panel .controls{ display:flex; }
+
+    .panel .statRow{ display:none !important; }
+    .panel > .card{ display:block !important; }
+
+    /* Controls compact layout */
+    .controls{ gap: 8px; }
+    .betBox{ grid-template-columns: 1fr 72px; gap: 8px; }
+    .betReadout{ padding: 9px; border-radius: 14px; }
+    .betReadout .amt{ font-size: 18px; }
+
+    #spinBtn{ padding: 12px; border-radius: 16px; }
+
+    .row{ gap: 8px; }
+    .miniBtn{ padding: 9px 8px; border-radius: 14px; }
+
+    /* Hide the tip text (already) */
+    .small{ display:none !important; }
+  }
+
+  /* Very short screens: shrink even more */
+  @media (max-height: 640px){
+    :root{ --tile: clamp(35px, 6.4vmin, 56px); }
+     .left{ padding-bottom: calc(340px + env(safe-area-inset-bottom)); }
+    .brand{ padding: 8px 10px; }
+    #spinBtn{ padding: 11px; }
+  }
+
+
+/* --- HUD controls (Sweet Bonanza inspired) --- */
+.controls{ display:flex; flex-direction:column; gap:10px; }
+
+.hudBar{
+  display:grid;
+  grid-template-columns: 1.15fr 1.2fr 1fr;
+  gap:10px;
+  align-items:stretch;
+}
+.buyBtn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-weight: 950;
+  border-radius: 18px;
+  padding: 10px 12px;
+  text-transform: uppercase;
+}
+.spinCluster{
+  display:grid;
+  grid-template-columns: 56px 1fr 56px;
+  gap:10px;
+  align-items:center;
+}
+.round{
+  border-radius: 999px;
+  font-size: 18px;
+  padding: 12px 10px;
+  line-height: 1;
+}
+.spinRound{
+  border-radius: 999px;
+  font-size: 22px;
+  padding: 12px 10px;
+  min-height: 46px;
+}
+
+.betPill{
+  border-radius: 18px;
+  padding: 10px 12px;
+  background: rgba(0,0,0,.22);
+  border: 1px solid rgba(255,255,255,.22);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-width:0;
+}
+.betPillTop{ font-size: 11px; color: var(--muted); letter-spacing:.25px; font-weight:900; }
+.betPillAmt{ font-size: 16px; font-weight: 950; margin-top: 4px; white-space:nowrap; }
+.betPillAmt #bet{ cursor:pointer; }
+.betPillAmt #bet:hover{ text-decoration: underline; }
+
+.hudRow{
+  display:grid;
+  grid-template-columns: 1fr .75fr .9fr .75fr 1fr;
+  gap:10px;
+}
+.hudRow > button{ border-radius: 16px; padding: 9px 8px; font-size: 12.5px; min-width:0; overflow:hidden; }
+.hudRow .btnIcon{ width:16px; height:16px; }
+
+@media (max-width: 860px){
+  .hudRow{ grid-template-columns: 1fr .75fr .9fr .75fr 1fr; }
+}
+@media (max-width: 560px){
+  .hudBar{ grid-template-columns: 1fr; }
+  .spinCluster{ grid-template-columns: 64px 1fr 64px; }
+  .spinRound{ font-size: 24px; padding: 14px 10px; }
+  .round{ font-size: 20px; padding: 14px 10px; }
+  .hudRow{ grid-template-columns: 1fr .75fr .9fr .75fr 1fr; }
+  .hudRow > button{ padding: 8px 7px; font-size: 12px; }
+  .hudRow .btnIcon{ width:15px; height:15px; }
+}
+
+@media (max-width: 420px){
+  .hudRow{ gap: 8px; grid-template-columns: repeat(5, 1fr); }
+  .hudRow > button{ padding: 7px 6px; font-size: 11px; }
+  .hudRow .btnIcon{ width:14px; height:14px; }
+  .hudRow .btnLabel{ display:none; }
+  .hudRow .betPickBtn .btnLabel{ display:inline-block; }
+}
+
+
+/* Make sure nothing scrolls */
+html, body { overflow:hidden; }
+
+
+.spinIcon{ width: 26px; height: 26px; display:block; margin: 0 auto; color: rgba(247,240,255,.95); }
+.spinRound{ display:flex; align-items:center; justify-content:center; }
+
+
+/* --- Bet selector modal --- */
+.moneyPill:active{ transform: translateY(1px); }
+.betModal{ position:fixed; inset:0; display:none; z-index:20; }
+.betModal.show{ display:block; }
+.betBackdrop{ position:fixed; inset:0; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.betSheet{ position:fixed; left:50%; top:50%; transform: translate(-50%,-50%); width: min(420px, calc(100vw - 28px)); border-radius: 22px; padding: 12px; background: linear-gradient(180deg, rgba(12,7,20,.92), rgba(0,0,0,.50)); border: 1px solid rgba(255,255,255,.22); box-shadow: 0 24px 60px rgba(0,0,0,.55); }
+.betHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding: 4px 2px 10px; }
+.betHeader .title{ font-weight: 950; letter-spacing: .3px; }
+.betGrid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.betChoice{ padding: 12px 10px; border-radius: 16px; font-size: 14px; font-weight: 950; letter-spacing:.2px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.22); box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+.betChoice:active{ transform: translateY(1px) scale(.995); }
+.betChoice.active{ outline: 2px solid rgba(212,175,55,.85); background: rgba(212,175,55,.20); }
+@media (max-width: 560px){
+  .betSheet{ top:auto; bottom: 14px; transform: translate(-50%,0); width: calc(100vw - 28px); }
+  .betGrid{ grid-template-columns: repeat(4, 1fr); }
+}
+
+
+/* Bet select modal */
+.betModal{ position:fixed; inset:0; display:none; z-index:20; }
+.betModal.show{ display:block; }
+.betBackdrop{ position:fixed; inset:0; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.betSheet{ position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(420px, calc(100vw - 28px)); border-radius:22px; padding:12px; background: linear-gradient(180deg, rgba(12,7,20,.92), rgba(0,0,0,.50)); border:1px solid rgba(255,255,255,.12); box-shadow: 0 24px 60px rgba(0,0,0,.55); }
+.betHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 2px 10px; }
+.betHeader .title{ font-weight:950; letter-spacing:.3px; }
+.betGrid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; }
+.betChoice{ padding:12px 10px; border-radius:16px; font-size:14px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.22); box-shadow: 0 10px 24px rgba(0,0,0,.20); }
+.betChoice.active{ outline: 2px solid rgba(212,175,55,.85); background: rgba(212,175,55,.20); }
+@media (max-width:560px){
+  .betSheet{ top:auto; bottom:14px; transform:translate(-50%,0); width: calc(100vw - 28px); }
+  .betGrid{ grid-template-columns: repeat(4, 1fr); }
+}
+
+
+  /* Header help (?) button */
+  .hdrHelpBtn{
+    appearance:none;
+    border:none;
+    outline:none;
+    cursor:pointer;
+    width: 34px;
+    height: 30px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius: 999px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(255,255,255,.10);
+    color: rgba(247,240,255,.95);
+    font-weight: 950;
+    font-size: 16px;
+    box-shadow: 0 10px 24px rgba(0,0,0,.20);
+    transition: transform .12s ease, filter .12s ease;
+  }
+  .hdrHelpBtn:active{ transform: translateY(1px) scale(.995); }
+
+  /* Multiplier bombs */
+  .multBomb{
+    width:100%;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    user-select:none;
+  }
+  .multBomb .emo{
+    font-size: calc(var(--tile) * 0.70);
+    line-height: 1;
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.35));
+  }
+  .multBomb .mTxt{
+    position:absolute;
+    bottom:6px;
+    right:6px;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 950;
+    letter-spacing: .2px;
+    background: rgba(0,0,0,.40);
+    border: 1px solid rgba(255,255,255,.16);
+    color: rgba(255,255,255,.94);
+  }
+
+  /* Paytable modal */
+  .payModal{ position:fixed; inset:0; display:none; z-index:30; }
+  .payModal.show{ display:block; }
+  .paySheet{
+    position:fixed;
+    left:50%;
+    top:50%;
+    transform: translate(-50%,-50%);
+    width: min(520px, calc(100vw - 28px));
+    border-radius: 22px;
+    padding: 12px;
+    background: linear-gradient(180deg, rgba(12,7,20,.94), rgba(0,0,0,.55));
+    border: 1px solid rgba(255,255,255,.22);
+    box-shadow: 0 24px 60px rgba(0,0,0,.55);
+    max-height: min(80dvh, 640px);
+    overflow:auto;
+  }
+  .payHeader{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 2px 10px; position:sticky; top:0; background: linear-gradient(180deg, rgba(12,7,20,.94), rgba(12,7,20,.70)); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .payHeader .title{ font-weight: 950; letter-spacing:.3px; }
+  .payGrid{ display:flex; flex-direction:column; gap: 10px; }
+  .payRow{
+    display:grid;
+    grid-template-columns: 56px 1fr;
+    gap: 10px;
+    align-items:center;
+    padding: 10px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.10);
+  }
+  .payIcon{ width:56px; height:56px; display:flex; align-items:center; justify-content:center; border-radius: 16px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.10); }
+  .payIcon .emo{ font-size: 34px; line-height: 1; }
+  .payVals{ display:flex; flex-wrap:wrap; gap: 8px; }
+  .payChip{ padding: 6px 9px; border-radius: 999px; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.10); font-size: 12px; font-weight: 900; color: rgba(247,240,255,.92); }
+  .payNote{ font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 8px; }
+
+  /* Safer viewport sizing on mobile */
+  .safe{ height:100svh; height:100dvh; }
+  .stage{ height:100svh; height:100dvh; }
+
+</style>
+</head>
+<body>
+<div class="safe">
+  <div class="stage" id="stage">
+
+    <div class="game" id="game">
+
+      <div class="left">
+        <div class="brand">
+          <div class="brandGrid">
+            <div class="brandLeft">
+            </div>
+            <div class="brandCenter">
+              <h1 id="gameTitle">AEGEAN FORTUNE</h1>
+            </div>
+            <div class="brandRight">
+              <div class="hdrLeftCol">
+                <div class="pill" style="font-weight:900;">MAX WIN: <span id="maxWinTop">€0.00</span></div>
+                <div class="hdrCard hdrLastWin">
+                  <div class="hdrLabel">Last Win</div>
+                  <div class="hdrValue"><span id="lastWin">€0.00</span></div>
+                </div>
+              </div>
+              <div class="hdrRightCol">
+                <div class="hdrRightStack">
+                  <div class="hdrCard hdrBalance" title="Balance">
+                    <div class="hdrLabel">Balance</div>
+                    <div class="hdrValue"><span id="balance">€100.00</span></div>
+                  </div>
+                  <div class="hdrCard hdrSpinWin" title="Total Win (this spin)">
+                    <div class="hdrLabel">Total Win</div>
+                    <div class="hdrValue"><span id="spinWin">€0.00</span></div>
+                  </div>
+                </div>
+                <button class="hdrHelpBtn" id="payBtn" title="Payouts">?</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="boardWrap">
+          <div id="jsNotice" style="
+            position:fixed; inset:18px; display:flex; align-items:center; justify-content:center;
+            text-align:center; padding:18px; border-radius:22px;
+            background: rgba(0,0,0,.30); border:1px dashed rgba(255,255,255,.22);
+            color: rgba(246,243,255,.90); font-weight:800; letter-spacing:.2px; z-index:3;
+          ">
+            <div>
+              <div style="font-size:18px; margin-bottom:8px;">JavaScript required</div>
+              <div style="font-size:13px; line-height:1.35; color:rgba(246,243,255,.75); font-weight:700;">
+                If you’re viewing this inside an in-app preview, scripts may be blocked.<br>
+                <b>Download</b> the file and open it in <b>Chrome / Safari</b> to play.
+              </div>
+              <noscript>
+                <div style="margin-top:10px; color:#ffd56a; font-size:12px;">
+                  JavaScript is disabled in this viewer.
+                </div>
+              </noscript>
+            </div>
+          </div>
+          <div class="toast" id="toast">WIN!</div>
+          <div class="board" id="board" aria-label="Slot grid"></div>
+        </div>
+
+        <div class="small">
+          Tip: Matches pay when <b>8+</b> of the same relic appear anywhere. Winning relics pop, the rest tumble down, and new relics drop in.
+        </div>
+      </div>
+
+      <aside class="panel">
+
+        
+
+        
+        <div class="controls" id="controls">
+          <!-- HUD bar (Sweet Bonanza-inspired layout) -->
+          <div class="hudBar" id="hudBar">
+            <button class="secondary buyBtn" id="buyBonusBtn"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true">
+  <path class="iconStroke" d="M20 12v10H4V12"/>
+  <path class="iconStroke" d="M2 7h20v5H2z"/>
+  <path class="iconStroke" d="M12 22V7"/>
+  <path class="iconStroke" d="M12 7H7.5a2.5 2.5 0 1 1 0-5C10 2 12 7 12 7z"/>
+  <path class="iconStroke" d="M12 7h4.5a2.5 2.5 0 1 0 0-5C14 2 12 7 12 7z"/>
+</svg><span class="btnLabel">Buy Bonus</span></button>
+
+            <div class="spinCluster" aria-label="Spin controls">
+              <button class="miniBtn round" id="betDown" title="Decrease bet"><svg viewBox="0 0 24 24" class="btnIcon big" aria-hidden="true"><path class="iconStroke" d="M5 12h14"/></svg></button>
+              <button class="primary spinRound" id="spinBtn" aria-label="Spin" title="Spin">
+                <svg viewBox="0 0 24 24" class="spinIcon" aria-hidden="true">
+                  <path class="iconStroke" d="M21 12a9 9 0 1 1-3-6.7"/>
+                  <path class="iconStroke" d="M21 3v6h-6"/>
+                </svg>
+              </button>
+              <button class="miniBtn round" id="betUp" title="Increase bet"><svg viewBox="0 0 24 24" class="btnIcon big" aria-hidden="true"><path class="iconStroke" d="M12 5v14"/><path class="iconStroke" d="M5 12h14"/></svg></button>
+            </div>
+          </div>
+
+          <div class="hudRow">
+            <button class="miniBtn" id="autoBtn" aria-pressed="false"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true">
+  <path class="iconStroke" d="M17 1l4 4-4 4"/>
+  <path class="iconStroke" d="M3 11V9a4 4 0 0 1 4-4h14"/>
+  <path class="iconStroke" d="M7 23l-4-4 4-4"/>
+  <path class="iconStroke" d="M21 13v2a4 4 0 0 1-4 4H3"/>
+</svg><span class="btnLabel">AUTO: OFF</span></button>
+            <button class="miniBtn" id="minBetBtn" title="Min bet"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true"><path class="iconStroke" d="M7 6l5 5 5-5"/><path class="iconStroke" d="M7 13l5 5 5-5"/></svg><span class="btnLabel">MIN</span></button>
+            <button class="miniBtn betPickBtn" id="betPickBtn" title="Select bet" style="font-weight:950;">
+              <svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true">
+                <path class="iconFill" d="M12 4c4.418 0 8 1.343 8 3s-3.582 3-8 3-8-1.343-8-3 3.582-3 8-3z"/>
+                <path class="iconStroke" d="M20 7v10c0 1.657-3.582 3-8 3s-8-1.343-8-3V7"/>
+                <path class="iconStroke" d="M20 12c0 1.657-3.582 3-8 3s-8-1.343-8-3"/>
+                <path class="iconStroke" d="M20 17c0 1.657-3.582 3-8 3s-8-1.343-8-3"/>
+              </svg>
+              <span class="btnLabel" id="bet">€10.00</span>
+            </button>
+            
+            
+            <button class="miniBtn" id="maxBetBtn" title="Max bet"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true"><path class="iconStroke" d="M7 18l5-5 5 5"/><path class="iconStroke" d="M7 11l5-5 5 5"/></svg><span class="btnLabel">MAX</span></button>
+<button class="miniBtn" id="soundBtn" aria-pressed="true" title="Toggle sound"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true">
+  <path class="iconStroke" d="M11 5 6 9H3v6h3l5 4z"/>
+  <path class="iconStroke" d="M15.5 8.5a4 4 0 0 1 0 7"/>
+  <path class="iconStroke" d="M17.7 6.3a7 7 0 0 1 0 11.4"/>
+  <path class="soundSlash iconStroke" d="M3 3l18 18"/>
+</svg><span class="btnLabel">SOUND: ON</span></button>
+          </div>
+
+          <div class="small">
+            Tip: Tap the <b>bet</b> button (or the top balance pill) to pick a bet. Jars (🏺) can trigger free spins.
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- Bet selector -->
+<div class="betModal" id="betModal" aria-hidden="true">
+  <div class="betBackdrop" data-bet-close></div>
+  <div class="betSheet" role="dialog" aria-modal="true" aria-labelledby="betTitle">
+    <div class="betHeader">
+      <div class="title" id="betTitle">Select Bet</div>
+      <button class="miniBtn" id="betCloseBtn" type="button" style="padding:8px 10px; border-radius:14px;"><svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true"><path class="iconStroke" d="M18 6L6 18"/><path class="iconStroke" d="M6 6l12 12"/></svg></button>
+    </div>
+    <div class="betGrid" id="betGrid"></div>
+  </div>
+</div>
+
+<!-- Paytable / prizes -->
+<div class="payModal" id="payModal" aria-hidden="true">
+  <div class="betBackdrop" data-pay-close></div>
+  <div class="paySheet" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+    <div class="payHeader">
+      <div class="title" id="payTitle">Prizes (based on current bet)</div>
+      <button class="miniBtn" id="payCloseBtn" type="button" style="padding:8px 10px; border-radius:14px;">
+        <svg viewBox="0 0 24 24" class="btnIcon" aria-hidden="true"><path class="iconStroke" d="M18 6L6 18"/><path class="iconStroke" d="M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="payGrid" id="payBody"></div>
+    <div class="payNote" id="payNote"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- Helpers ----------
+  // Show JS errors on-screen (helps when running on mobile)
+  window.addEventListener('error', (e) => {
+    try{
+      const t = document.getElementById('toast');
+      if(t){ t.textContent = 'Error: ' + (e.message || 'unknown'); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1800); }
+    }catch(_){ }
+  });
+
+  const $ = (sel, el=document) => el.querySelector(sel);
+  const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+  // Slow down animations a bit for a smoother, more readable experience
+  const ANIM_SLOW = 1.35;
+  const wait = (ms) => sleep(Math.round(ms * ANIM_SLOW));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const fmt = (n) => (Math.round(n * 100) / 100).toFixed(2);
+  const money = (n) => `€${fmt(n)}`;
+
+  function compactNumber(n){
+    const abs = Math.abs(n);
+    const trim = (s) => s.replace(/\.0$/, '');
+    if(abs < 1000) return fmt(n);
+    if(abs < 1e6) return trim((n/1e3).toFixed(1)) + 'K';
+    if(abs < 1e9) return trim((n/1e6).toFixed(1)) + 'M';
+    return trim((n/1e9).toFixed(1)) + 'B';
+  }
+  function compactEGP(n){
+    return '€' + (Math.abs(n) < 1000 ? fmt(n) : compactNumber(n));
+  }
+  const errText = (e) => (e && (e.message || e.toString())) ? (e.message || e.toString()) : 'unknown';
+
+  function setBtnLabelById(id, text){
+    const b = document.getElementById(id);
+    if(!b) return;
+    const s = b.querySelector('.btnLabel');
+    if(s) s.textContent = text;
+    else b.textContent = text;
+  }
+
+  // ---------- Sizing ----------
+  // Layout is fully responsive via CSS.
+  const stage = $('#stage');
+  const game = $('#game');
+
+  // ---------- Symbols (built-in SVG icons) ----------
+  // Each candy has: id, weight, base payout per 8 matches.
+  const CANDIES = [
+    { id:'wrap',    w: 18, pay8: 0.10 },  // 🍬
+    { id:'lolly',   w: 18, pay8: 0.10 },  // 🍭
+    { id:'choco',   w: 16, pay8: 0.14 },  // 🍫
+    { id:'donut',   w: 16, pay8: 0.14 },  // 🍩
+    { id:'cookie',  w: 12, pay8: 0.18 },  // 🍪
+    { id:'cupcake', w: 10, pay8: 0.24 },  // 🧁
+    { id:'cake',    w: 6,  pay8: 0.34 }   // 🍰
+  ];
+
+  const SCATTER_ID = 'scatter';
+  const MULT_VALUES = [2,3,4,5,6,8,10];
+
+  // Multis: 20% chance per tumble to drop 1 multiplier in the new symbols.
+  const MULT_DROP_CHANCE = 0.025; // realistic multiplier drop rate (during cascades)
+
+  // Scatters: low per-symbol chance in new drops.
+  const SCATTER_DROP_PER_SYMBOL = 0.010; // realistic scatter drop rate (during cascades)
+  const SCATTER_MAX_ON_BOARD = 4;
+
+  // Initial-settle feature rates (a bit higher than cascade drops, like many real slots)
+  const MULT_INIT_CHANCE = 0.025;
+  const SCATTER_INIT_PER_CELL = 0.010;
+
+  // Candy icons (free: embedded inline SVG, no external assets)
+  const ICONS = {
+    wrap: `<span class="emo">🌊</span>`,
+    lolly: `<span class="emo">🐬</span>`,
+    choco: `<span class="emo">⚓</span>`,
+    donut: `<span class="emo">🏛️</span>`,
+    cookie: `<span class="emo">🏺</span>`,
+    cupcake: `<span class="emo">🫒</span>`,
+    cake: `<span class="emo">⛵</span>`,
+    scatter: `<span class="emo">🔱</span>`
+  };
+
+  // Display names for the Aegean-themed symbols (used in the paytable)
+  const ICON_NAMES = {
+    wrap: 'Wave',
+    lolly: 'Dolphin',
+    choco: 'Anchor',
+    donut: 'Temple',
+    cookie: 'Amphora',
+    cupcake: 'Olive',
+    cake: 'Sail',
+    scatter: 'Trident'
+  };
+
+  function multBombHTML(v){
+    return `
+      <div class="multBomb" aria-label="Multiplier bomb x${v}">
+        <span class="emo">💣</span>
+        <span class="mTxt">x${v}</span>
+      </div>`;
+  }
+
+  // ---------- Sound (WebAudio) ----------
+  // Louder + nicer envelope. Audio is resumed on the first user gesture.
+  let soundOn = true;
+  let audioCtx = null;
+  try{ soundOn = localStorage.getItem('candy_sound') !== "0"; }catch(_){ }
+
+  function ensureAudio(){
+    try{
+      audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+      // Respect mute state: suspend when OFF, resume when ON
+      if(!soundOn){
+        if(audioCtx.state === 'running') audioCtx.suspend();
+        return;
+      }
+      if(audioCtx.state === 'suspended') audioCtx.resume();
+    }catch(_){ }
+  }
+
+  function setSound(on){
+    soundOn = !!on;
+    const sb = document.getElementById('soundBtn');
+    if(sb){
+      setBtnLabelById('soundBtn', soundOn ? 'SOUND: ON' : 'SOUND: OFF');
+      sb.setAttribute('aria-pressed', String(soundOn));
+      sb.classList.toggle('soundOff', !soundOn);
+    }
+    try{
+      if(audioCtx){
+        if(soundOn) audioCtx.resume();
+        else audioCtx.suspend();
+      }
+    }catch(_){ }
+    try{ localStorage.setItem('candy_sound', soundOn ? '1' : '0'); }catch(_){ }
+  }
+
+  // Resume audio on first gesture (mobile browsers) (mobile browsers)
+  window.addEventListener('pointerdown', ensureAudio, { once:true, passive:true });
+
+  const beep = (type='triangle', freq=520, dur=0.12, gain=0.28) => {
+    if(!soundOn) return;
+    try{
+      ensureAudio();
+      const t0 = audioCtx.currentTime;
+      const o = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t0);
+      // Envelope: quick attack + smooth release
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+
+      o.connect(g);
+      g.connect(audioCtx.destination);
+      o.start(t0);
+      o.stop(t0 + dur + 0.02);
+    }catch(_){}
+  };
+
+  // ---------- Game State ----------
+  const COLS = 6, ROWS = 6;
+  const boardEl = $('#board');
+
+  const BETS = [0.20,0.40,0.80,1,2,5,10,15,20,25,30,35,40,45,50];
+
+  const MAX_WIN_MULT = 5000; // displayed max win per bet
+  const maxWinForBet = () => bet * MAX_WIN_MULT;
+
+  let balance = 100;
+  let betIndex = Math.max(0, BETS.indexOf(10));
+  let bet = BETS[betIndex];
+  let lastWin = 0;
+  let spinWin = 0;
+  let isBusy = false;
+  let auto = false;
+
+  // Low-volatility feel: reduce long dry streaks with a soft (non-guaranteed) nudge
+  let deadStreak = 0;
+  let paidWinStreak = 0; // no more than 3 winning (paid) spins in a row
+
+  // Win chances
+  const BASE_WIN_CHANCE = 0.14; // harder base win rate
+  const BONUS_RATE_ADD  = 0.01; // small bump during bought bonus spins
+
+  // Bonus BUY ODYSSEY
+  let bonusMode = false;
+  let bonusRoundsLeft = 0;
+  const bonusMult = 1.5;
+
+  // grid stores symbol id for each cell
+  let grid = Array.from({length: ROWS}, () => Array.from({length: COLS}, () => null));
+
+  // Weighted random CANDY symbol (no specials)
+  const totalW = CANDIES.reduce((a,s)=>a+s.w,0);
+  function randCandy(){
+    let r = Math.random()*totalW;
+    for(const s of CANDIES){
+      r -= s.w;
+      if(r<=0) return s.id;
+    }
+    return CANDIES[0].id;
+  }
+
+  function countOnBoard(id){
+    let c=0;
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(grid[y][x]===id) c++;
+    return c;
+  }
+
+  function randMultiplierValue(){
+    // Weighted to favor smaller multipliers
+    const weights = MULT_VALUES.map(v => 1/(v**1.2));
+    const sum = weights.reduce((a,b)=>a+b,0);
+    let r = Math.random()*sum;
+    for(let i=0;i<MULT_VALUES.length;i++){
+      r -= weights[i];
+      if(r<=0) return MULT_VALUES[i];
+    }
+    return 2;
+  }
+
+  function maybePlaceScatter(arr){
+    // arr is list of symbols to drop (top to bottom)
+    if(countOnBoard(SCATTER_ID) >= SCATTER_MAX_ON_BOARD) return;
+    for(let i=0;i<arr.length;i++){
+      if(countOnBoard(SCATTER_ID) >= SCATTER_MAX_ON_BOARD) return;
+      if(Math.random() < SCATTER_DROP_PER_SYMBOL){
+        arr[i] = SCATTER_ID;
+      }
+    }
+  }
+
+  function maybePlaceOneMultiplier(arr){
+    if(arr.length<=0) return;
+    if(Math.random() >= MULT_DROP_CHANCE) return;
+    const idx = (Math.random()*arr.length)|0;
+    const v = randMultiplierValue();
+    arr[idx] = 'm' + v;
+  }
+
+  // Render grid to DOM
+  function render(full=false){
+    if(full){
+      boardEl.innerHTML = '';
+      for(let y=0;y<ROWS;y++){
+        for(let x=0;x<COLS;x++){
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+
+          const sym = document.createElement('div');
+          sym.className = 'symbol';
+          cell.appendChild(sym);
+          boardEl.appendChild(cell);
+        }
+      }
+    }
+    $$('.cell', boardEl).forEach(cell => {
+      const x = +cell.dataset.x;
+      const y = +cell.dataset.y;
+      const id = grid[y][x];
+      const sym = cell.firstElementChild;
+            if(!id){ sym.innerHTML = ''; }
+      else if(id === SCATTER_ID){ sym.innerHTML = ICONS.scatter; }
+      else if(/^m\d+$/.test(id)){ sym.innerHTML = multBombHTML(+id.slice(1)); }
+      else { sym.innerHTML = ICONS[id] || ICONS.wrap; }
+      cell.classList.remove('winGlow');
+    });
+  }
+
+  // Fill new board
+  function fillRandom(){
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        grid[y][x] = randCandy();
+      }
+    }
+  }
+
+  // Generate a grid with NO immediate wins (so losing spins are truly losing)
+  function generateNoWinGrid(){
+    for(let tries=0; tries<300; tries++){
+      fillRandom();
+      const {wins} = evaluate();
+      if(!wins.size) return;
+    }
+    fillRandom();
+  }
+
+  // Generate a grid with at least one immediate win (8+ anywhere)
+  function generateWinGrid(){
+    for(let tries=0; tries<220; tries++){
+      fillRandom();
+
+      // Prefer smaller, more common symbols so wins are usually modest
+      const low = CANDIES.filter(s => s.pay8 <= 0.18);
+      const pick = (Math.random() < 0.92
+        ? low[(Math.random()*low.length)|0]
+        : CANDIES[(Math.random()*CANDIES.length)|0]);
+
+      // Mostly 8-of-a-kind (rarely 9) to keep outcomes small
+      const targetCount = 8 + (Math.random() < 0.08 ? 1 : 0); // 8..9
+
+      const positions = [];
+      for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) positions.push([x,y]);
+      for(let i=positions.length-1;i>0;i--){
+        const j = (Math.random()*(i+1))|0;
+        [positions[i], positions[j]] = [positions[j], positions[i]];
+      }
+
+      for(let i=0;i<targetCount;i++){
+        const [x,y] = positions[i];
+        grid[y][x] = pick.id;
+      }
+
+      // Prevent accidental extra symbol wins on the same settle
+      killAnyWins(pick.id);
+      capSymbolCount(pick.id, 9);
+
+      const {wins} = evaluate();
+      if(wins.size) return;
+    }
+    // fallback
+    fillRandom();
+  }
+
+  // Detect wins: any symbol with count >=8 across entire grid
+
+  // Detect wins: any candy symbol with count >=8 across entire grid (scatters/multis do not count)
+  function evaluate(){
+    const buckets = new Map();
+    for(const s of CANDIES) buckets.set(s.id, []);
+
+    // Collect positions and multipliers
+    let multSum = 0;
+    const multPos = [];
+
+    for(let y=0;y<ROWS;y++){
+      for(let x=0;x<COLS;x++){
+        const id = grid[y][x];
+        if(!id) continue;
+        if(id === SCATTER_ID) continue;
+        if(/^m\d+$/.test(id)){
+          multSum += (+id.slice(1));
+          multPos.push([x,y]);
+          continue;
+        }
+        if(buckets.has(id)) buckets.get(id).push([x,y]);
+      }
+    }
+
+    const wins = new Map();
+    let total = 0;
+    for(const s of CANDIES){
+      const pos = buckets.get(s.id) || [];
+      if(pos.length >= 8){
+        wins.set(s.id, pos);
+        const n = pos.length;
+        const mult = s.pay8 * (1 + (n-8) * 0.12);
+        total += bet * mult;
+      }
+    }
+
+    const multiFactor = (multSum > 0) ? multSum : 1;
+    return {wins, total, multiFactor, multPos};
+  }
+
+
+  function capSymbolCount(symId, cap){
+    if(!symId) return;
+    const positions = [];
+    for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(grid[y][x]===symId) positions.push([x,y]);
+    if(positions.length <= cap) return;
+    for(let i=positions.length-1;i>0;i--){
+      const j = (Math.random()*(i+1))|0;
+      [positions[i], positions[j]] = [positions[j], positions[i]];
+    }
+    for(let i=cap;i<positions.length;i++){
+      const [x,y] = positions[i];
+      let r = randCandy();
+      while(r === symId) r = randCandy();
+      grid[y][x] = r;
+    }
+  }
+
+  // Ensures there are no 8+ wins for any symbol other than keepSym (if provided)
+  function killAnyWins(keepSym=null){
+    for(let iter=0; iter<240; iter++){
+      const counts = new Map();
+      for(const s of CANDIES) counts.set(s.id, 0);
+
+      for(let y=0;y<ROWS;y++){
+        for(let x=0;x<COLS;x++){
+          const id = grid[y][x];
+          if(!id) continue;
+          if(id === SCATTER_ID) continue;
+          if(/^m\d+$/.test(id)) continue;
+          if(counts.has(id)) counts.set(id, counts.get(id) + 1);
+        }
+      }
+
+      let bad = null;
+      for(const s of CANDIES){
+        if(keepSym && s.id === keepSym) continue;
+        if((counts.get(s.id) || 0) >= 8){ bad = s.id; break; }
+      }
+      if(!bad) return; // clean
+
+      // reduce bad symbol count down to 7
+      const need = (counts.get(bad) || 0) - 7;
+      if(need <= 0) return;
+
+      const pos = [];
+      for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(grid[y][x]===bad) pos.push([x,y]);
+      for(let i=pos.length-1;i>0;i--){
+        const j = (Math.random()*(i+1))|0;
+        [pos[i], pos[j]] = [pos[j], pos[i]];
+      }
+
+      let changed = 0;
+      for(const [x,y] of pos){
+        if(changed >= need) break;
+        let r = randCandy();
+        while(r === bad || (keepSym && r === keepSym)) r = randCandy();
+        grid[y][x] = r;
+        changed++;
+      }
+    }
+  }
+
+  function highlightWins(wins){
+    for(const pos of wins.values()){
+      for(const [x,y] of pos){
+        const cell = cellAt(x,y);
+        if(cell) cell.classList.add('winGlow');
+      }
+    }
+  }
+
+  function cellAt(x,y){
+    return boardEl.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+  }
+
+  async function popWins(wins, extraPositions=[]){
+    const popping = [];
+    const toPop = [];
+    for(const pos of wins.values()) for(const p of pos) toPop.push(p);
+    for(const p of extraPositions) toPop.push(p);
+
+    for(const [x,y] of toPop){
+      const cell = cellAt(x,y);
+      if(cell){
+        cell.classList.add('pop');
+        popping.push(cell);
+        grid[y][x] = null;
+      }
+    }
+    beep('triangle', 740, 0.07, 0.06);
+    await wait(280);
+    popping.forEach(c => c.classList.remove('pop','winGlow'));
+  }
+
+  async function tumble(){
+    // Drop existing candies down, fill nulls with new candies from top.
+    for(let x=0;x<COLS;x++){
+      const col = [];
+      for(let y=0;y<ROWS;y++){
+        if(grid[y][x] != null) col.push(grid[y][x]);
+      }
+      const missing = ROWS - col.length;
+      const newOnTop = Array.from({length: missing}, () => randCandy());
+      // Specials in new drops
+      maybePlaceScatter(newOnTop);
+      maybePlaceOneMultiplier(newOnTop);
+      const newCol = [...newOnTop, ...col];
+      for(let y=0;y<ROWS;y++){
+        grid[y][x] = newCol[y];
+      }
+    }
+
+    render(false);
+    $$('.cell', boardEl).forEach(c => c.classList.add('drop'));
+    beep('sine', 520, 0.06, 0.05);
+    await wait(280);
+    $$('.cell', boardEl).forEach(c => c.classList.remove('drop'));
+  }
+
+  function setToast(txt){
+    const toast = $('#toast');
+    toast.textContent = txt;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 800);
+  }
+
+  function updateUI(){
+    $('#balance').textContent = money(balance);
+    $('#bet').textContent = money(bet);
+    $('#lastWin').textContent = money(lastWin);
+    $('#spinWin').textContent = money(spinWin);
+    const hb = document.getElementById('headerBalance');
+    if(hb) hb.textContent = money(balance);
+    const mw = document.getElementById('maxWinTop');
+    if(mw) mw.textContent = compactEGP(maxWinForBet());
+    updateBonusBtn();
+    // Keep paytable synced to bet while open
+    if(payModal && payModal.classList.contains('show')) buildPaytable();
+  }
+
+  function bonusPrice(){
+    // Scales with bet (Sweet-Bonanza-like): 8x bet
+    return bet * 10;
+  }
+  function updateBonusBtn(){
+    const b = document.getElementById('buyBonusBtn');
+    if(!b) return;
+    if(bonusMode){
+      setBtnLabelById('buyBonusBtn', `BONUS SPINS LEFT: ${bonusRoundsLeft}`);
+      b.disabled = true;
+      return;
+    }
+    const price = bonusPrice();
+    setBtnLabelById('buyBonusBtn', `BUY ODYSSEY (${money(price)})`);
+    b.disabled = isBusy || balance < price;
+  }
+
+  function setBusy(v){
+    isBusy = v;
+    $('#spinBtn').disabled = v;
+    $('#betUp').disabled = v;
+    $('#betDown').disabled = v;
+    $('#minBetBtn').disabled = v;
+    $('#maxBetBtn').disabled = v;
+boardEl.classList.toggle('spinning', v);
+    updateBonusBtn();
+    // Keep paytable synced to bet while open
+    if(payModal && payModal.classList.contains('show')) buildPaytable();
+  }
+
+  async function spinOnce(opts={}){
+    if(isBusy) return;
+    // Make sure audio is unlocked for mobile (only if sound is ON)
+    if(soundOn) ensureAudio();
+
+    const isBonusSpin = !!bonusMode;
+
+    // Scatter-triggered free bonus spins (set during this spin)
+    let startBonusAfter = 0;
+
+    if(!isBonusSpin && balance < bet){
+      setToast('Not enough money');
+      beep('square', 160, 0.16, 0.22);
+      return;
+    }
+
+    setBusy(true);
+
+    try{
+      spinWin = 0;
+      lastWin = 0;
+      if(!isBonusSpin){
+        balance -= bet;
+      }
+      updateUI();
+      if(navigator.vibrate) navigator.vibrate(12);
+
+      // "Spin" animation: quick reshuffle + blur.
+      beep('triangle', 420, 0.10, 0.26);
+      for(let i=0;i<6;i++){
+        fillRandom();
+        render(false);
+        await wait(45);
+      }
+
+      // Decide win outcome (low-vol): higher base hit-rate + soft anti-dry-streak nudge (base game only)
+      const forceWin = !!opts.forceWin;
+      const baseChance = bonusMode ? (BASE_WIN_CHANCE + BONUS_RATE_ADD) : BASE_WIN_CHANCE;
+      const pity = (!bonusMode && deadStreak >= 20)
+        ? Math.min(0.03, 0.003 * (deadStreak - 19))
+        : 0;
+      const winChance = clamp(baseChance + pity, 0, 0.90);
+      // Rule: no more than 3 winning PAID spins in a row (bonus spins are exempt)
+      const streakBlock = (!bonusMode && !isBonusSpin && paidWinStreak >= 3);
+      const wantWin = (!streakBlock) && (forceWin || (Math.random() < winChance));
+
+      if(wantWin) generateWinGrid();
+      else generateNoWinGrid();
+
+      // Sprinkle specials on the settled grid (scatters/multis) without breaking a forced win
+      const avoid = new Set();
+      const ev0 = evaluate();
+      for(const pos of ev0.wins.values()) for(const [x,y] of pos) avoid.add(`${x},${y}`);
+
+      // Scatter sprinkle
+      const all = [];
+      for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) all.push([x,y]);
+      for(let i=all.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [all[i],all[j]]=[all[j],all[i]]; }
+
+      let sCount = countOnBoard(SCATTER_ID);
+      for(const [x,y] of all){
+        if(sCount >= SCATTER_MAX_ON_BOARD) break;
+        if(avoid.has(`${x},${y}`)) continue;
+        if(Math.random() < SCATTER_INIT_PER_CELL){ grid[y][x] = SCATTER_ID; sCount++; }
+      }
+
+      // Optional single multiplier on initial settle
+      if(Math.random() < MULT_INIT_CHANCE){
+        for(const [x,y] of all){
+          if(avoid.has(`${x},${y}`)) continue;
+          if(grid[y][x] === SCATTER_ID) continue;
+          grid[y][x] = 'm' + randMultiplierValue();
+          break;
+        }
+      }
+
+      render(false);
+      await wait(140);
+
+      // Check scatters for FREE bonus entry (3 scatters => 10 spins, 4 scatters => 15 spins)
+      if(!bonusMode){
+        const scatterPos = [];
+        for(let y=0;y<ROWS;y++) for(let x=0;x<COLS;x++) if(grid[y][x]===SCATTER_ID) scatterPos.push([x,y]);
+        if(scatterPos.length >= 4) startBonusAfter = 15;
+        else if(scatterPos.length >= 3) startBonusAfter = 10;
+
+        if(startBonusAfter){
+          // Remove scatters so the spin can resolve normally
+          setToast(`SCATTER BONUS! +${startBonusAfter} FREE SPINS`);
+          beep('triangle', 980, 0.12, 0.28);
+          await popWins(new Map(), scatterPos);
+          await tumble();
+          await wait(120);
+        }
+      }
+
+      // Resolve tumbles
+      let chain = 0;
+      while(true){
+        const {wins, total, multiFactor, multPos} = evaluate();
+        if(!wins.size) break;
+
+        chain++;
+        highlightWins(wins);
+        let stepWin = total * (bonusMode ? bonusMult : 1) * multiFactor;
+        // Cap by max win per bet
+        const cap = maxWinForBet();
+        if(spinWin + stepWin > cap) stepWin = Math.max(0, cap - spinWin);
+        spinWin += stepWin;
+        updateUI();
+
+        setToast(chain === 1 ? `WIN +${money(stepWin)}` : `TUMBLE x${chain} +${money(stepWin)}`);
+        if(stepWin >= bet * 2.2) { if(navigator.vibrate) navigator.vibrate([20,30,20]); }
+        beep('triangle', 660 + chain*60, 0.10, 0.26);
+
+        await wait(220);
+        await popWins(wins, multPos);
+        await tumble();
+        await wait(120);
+        if(!bonusMode && !isBonusSpin && chain >= 2){
+          // stop long cascade chains on paid spins to keep win rate/volatility low
+          killAnyWins(null);
+          render(false);
+          await wait(80);
+        }
+      }
+
+      lastWin = spinWin;
+      balance += spinWin;
+      updateUI();
+
+      if(spinWin > 0){
+        setToast(`TOTAL WIN ${money(spinWin)}`);
+        beep('sine', 880, 0.12, 0.22);
+        beep('sine', 660, 0.14, 0.20);
+      }else{
+        setToast('No win');
+        beep('square', 220, 0.10, 0.18);
+      }
+
+      // Update dry-streak counter (only for paid/base spins; ignore bonus spins)
+      if(!isBonusSpin){
+        if(spinWin > 0) deadStreak = 0;
+        else deadStreak = Math.min(50, deadStreak + 1);
+      }
+
+      // Update win-streak counter for the 3-in-a-row rule (paid spins only)
+      if(!isBonusSpin){
+        if(spinWin > 0) paidWinStreak = Math.min(99, paidWinStreak + 1);
+        else paidWinStreak = 0;
+      }
+
+    }catch(e){
+      // Recover from unexpected errors so the UI doesn't get stuck
+      setToast('Error: ' + errText(e));
+      try{ console.error(e); }catch(_){}
+      beep('square', 140, 0.18, 0.22);
+    }finally{
+      setBusy(false);
+    }
+
+
+    // Start FREE bonus (from scatters) after the triggering spin finishes
+    if(startBonusAfter > 0 && !bonusMode){
+      bonusMode = true;
+      bonusRoundsLeft = startBonusAfter;
+      // Turn off AUTO so it doesn't conflict
+      auto = false;
+      const ab = document.getElementById('autoBtn');
+      if(ab){ setBtnLabelById('autoBtn','AUTO: OFF'); ab.setAttribute('aria-pressed','false'); }
+      updateBonusBtn();
+      setToast(`FREE BONUS START! ${startBonusAfter} SPINS`);
+      beep('triangle', 920, 0.14, 0.28);
+      await wait(220);
+      return spinOnce();
+    }
+
+    // Bonus: auto-run bought bonus spins (10 total) with countdown
+    if(bonusMode){
+      bonusRoundsLeft = Math.max(0, bonusRoundsLeft - 1);
+      updateBonusBtn();
+      if(bonusRoundsLeft > 0){
+        await wait(520);
+        return spinOnce();
+      }else{
+        bonusMode = false;
+        updateBonusBtn();
+        setToast('BONUS END');
+        beep('triangle', 620, 0.12, 0.24);
+      }
+    }
+
+    // Auto mode: spin again with a short delay
+    if(auto){
+      await wait(450);
+      if(auto) spinOnce();
+    }
+  }
+
+  // Bet selector (tap the money pill)
+  const betModal = document.getElementById('betModal');
+  const betGrid = document.getElementById('betGrid');
+
+  function updateBetChoiceActive(){
+    if(!betGrid) return;
+    betGrid.querySelectorAll('.betChoice').forEach(btn => {
+      btn.classList.toggle('active', (+btn.dataset.idx) === betIndex);
+    });
+  }
+
+  function buildBetGridOnce(){
+    if(!betGrid || betGrid.dataset.built) return;
+    betGrid.innerHTML = BETS.map((b, i) => (
+      `<button type="button" class="betChoice" data-idx="${i}">${money(b)}</button>`
+    )).join('');
+    betGrid.dataset.built = '1';
+
+    betGrid.addEventListener('click', (e) => {
+      const btn = e.target.closest('.betChoice');
+      if(!btn) return;
+      const idx = +btn.dataset.idx;
+      if(!Number.isFinite(idx)) return;
+      betIndex = clamp(idx, 0, BETS.length - 1);
+      bet = BETS[betIndex];
+      updateUI();
+      updateBetChoiceActive();
+      beep('sine', 680, 0.06, 0.05);
+      closeBetModal();
+    });
+  }
+
+  function openBetModal(){
+    if(!betModal) return;
+    buildBetGridOnce();
+    updateBetChoiceActive();
+    betModal.classList.add('show');
+    betModal.setAttribute('aria-hidden','false');
+  }
+
+  function closeBetModal(){
+    if(!betModal) return;
+    betModal.classList.remove('show');
+    betModal.setAttribute('aria-hidden','true');
+  }
+
+  const moneyBtn = document.getElementById('moneyBtn');
+  if(moneyBtn){
+    moneyBtn.addEventListener('click', () => {
+      if(isBusy) return;
+      openBetModal();
+    });
+  }
+
+  const betPickBtn = document.getElementById('betPickBtn');
+  if(betPickBtn){
+    betPickBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if(isBusy) return;
+      openBetModal();
+    });
+  }
+
+  // Also open the bet picker
+  // Also open the bet picker when the user taps the bet button
+  const betAmt = document.getElementById('bet');
+  if(betAmt){
+    betAmt.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if(isBusy) return;
+      openBetModal();
+    });
+  }
+
+  const betCloseBtn = document.getElementById('betCloseBtn');
+  if(betCloseBtn) betCloseBtn.addEventListener('click', closeBetModal);
+  document.querySelectorAll('[data-bet-close]').forEach(el => el.addEventListener('click', closeBetModal));
+  window.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeBetModal(); });
+
+
+  // ---------- Paytable (prize list) ----------
+  const payModal = document.getElementById('payModal');
+  const payBody = document.getElementById('payBody');
+  const payNote = document.getElementById('payNote');
+
+  function payoutForCount(pay8, count){
+    // Same formula as the game uses for wins (8+ anywhere)
+    const mult = pay8 * (1 + (count - 8) * 0.12);
+    return bet * mult;
+  }
+
+  function buildPaytable(){
+    if(!payBody) return;
+    const counts = [8,9,10,12,15];
+
+    payBody.innerHTML = CANDIES.map(s => {
+      const icon = (ICONS[s.id] || ICONS.wrap).replace(/<span class=\"scatterTag\">[\s\S]*?<\/span>/g,'');
+      const chips = counts.map(c => {
+        const val = payoutForCount(s.pay8, c);
+        return `<span class="payChip">${c} = ${money(val)}</span>`;
+      }).join('');
+      return `
+        <div class="payRow">
+          <div class="payIcon">${icon}</div>
+          <div>
+            <div style="font-weight:950; letter-spacing:.2px; margin-bottom:6px;">${(ICON_NAMES[s.id] || s.id).toUpperCase()}</div>
+            <div class="payVals">${chips}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    if(payNote){
+      payNote.innerHTML = `
+        <div><b>Rules</b></div>
+        <div style="margin-top:6px;">• Wins pay when <b>8+</b> of the same symbol appear anywhere.</div>
+        <div>• Jars (🏺) trigger free spins: <b>3 = 10</b> spins, <b>4 = 15</b> spins (no direct cash value).</div>
+        <div>• <b>Bomb multipliers</b> (💣 x2..x25) apply to that tumble's win by multiplying it.</div>
+        <div style="margin-top:6px;">Current bet: <b>${money(bet)}</b> • Max win shown: <b>${compactEGP(maxWinForBet())}</b></div>
+      `;
+    }
+  }
+
+  function openPayModal(){
+    if(!payModal) return;
+    buildPaytable();
+    payModal.classList.add('show');
+    payModal.setAttribute('aria-hidden','false');
+    beep('sine', 720, 0.06, 0.05);
+  }
+  function closePayModal(){
+    if(!payModal) return;
+    payModal.classList.remove('show');
+    payModal.setAttribute('aria-hidden','true');
+  }
+
+  const payBtn = document.getElementById('payBtn');
+  if(payBtn){
+    payBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if(isBusy) return;
+      openPayModal();
+    });
+  }
+  const payCloseBtn = document.getElementById('payCloseBtn');
+  if(payCloseBtn) payCloseBtn.addEventListener('click', closePayModal);
+  document.querySelectorAll('[data-pay-close]').forEach(el => el.addEventListener('click', closePayModal));
+
+// ---------- Inputs ----------
+  $('#spinBtn').addEventListener('click', () => spinOnce());
+  $('#betUp').addEventListener('click', () => {
+    betIndex = clamp(betIndex + 1, 0, BETS.length - 1);
+    bet = BETS[betIndex];
+    updateUI();
+    updateBetChoiceActive();
+    beep('sine', 620, 0.04, 0.03);
+  });
+  $('#betDown').addEventListener('click', () => {
+    betIndex = clamp(betIndex - 1, 0, BETS.length - 1);
+    bet = BETS[betIndex];
+    updateUI();
+    updateBetChoiceActive();
+    beep('sine', 520, 0.04, 0.03);
+  });
+  $('#minBetBtn').addEventListener('click', () => {
+    betIndex = 0;
+    bet = BETS[betIndex];
+    updateUI();
+    updateBetChoiceActive();
+    beep('triangle', 420, 0.06, 0.05);
+  });
+
+  $('#maxBetBtn').addEventListener('click', () => {
+    betIndex = BETS.length - 1;
+    bet = BETS[betIndex];
+    updateUI();
+    updateBetChoiceActive();
+    beep('triangle', 720, 0.06, 0.05);
+  });
+$('#autoBtn').addEventListener('click', async () => {
+    auto = !auto;
+    setBtnLabelById('autoBtn', auto ? 'AUTO: ON' : 'AUTO: OFF');
+    $('#autoBtn').setAttribute('aria-pressed', String(auto));
+    beep('sine', auto ? 760 : 340, 0.06, 0.05);
+    if(auto && !isBusy) spinOnce();
+  });
+  $('#soundBtn').addEventListener('click', () => {
+    const turningOn = !soundOn;
+    setSound(turningOn);
+    if(turningOn) beep('sine', 640, 0.06, 0.05);
+  });
+
+  // Sync UI with stored sound setting
+  setSound(soundOn);
+
+  const buyBtn = document.getElementById('buyBonusBtn');
+  if(buyBtn){
+    buyBtn.addEventListener('click', async () => {
+      if(isBusy) return;
+      const price = bonusPrice();
+      if(balance < price){
+        setToast('Not enough money for bonus');
+        beep('square', 180, 0.16, 0.22);
+        return;
+      }
+      // Pay once, then run bonus spins without charging bet each spin
+      balance -= price;
+      bonusMode = true;
+      bonusRoundsLeft = 10; // 10 auto spins
+      // Turn off AUTO so it doesn't conflict with the bought bonus sequence
+      auto = false;
+      const ab = document.getElementById('autoBtn');
+      if(ab){
+        setBtnLabelById('autoBtn','AUTO: OFF');
+        ab.setAttribute('aria-pressed','false');
+      }
+      spinWin = 0;
+      lastWin = 0;
+      updateUI();
+      setToast('BONUS START! 10 SPINS');
+      beep('triangle', 920, 0.14, 0.28);
+      if(navigator.vibrate) navigator.vibrate([20,30,20]);
+      await wait(220);
+      spinOnce();
+    });
+  }
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if(e.key === ' '){
+      e.preventDefault();
+      spinOnce();
+    }
+    if(e.key === 'ArrowUp') $('#betUp').click();
+    if(e.key === 'ArrowDown') $('#betDown').click();
+  });
+
+  // ---------- Init ----------
+  // Hide JS notice (shown only in script-blocking previews)
+  const _n = document.getElementById('jsNotice');
+  if(_n) _n.style.display = 'none';
+
+  fillRandom();
+  render(true);
+  updateUI();
+  updateBonusBtn();
+})();
+</script>
+</body>
+</html>
