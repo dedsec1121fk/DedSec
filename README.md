@@ -235,13 +235,6 @@ These scripts are **training simulations** intended to help you recognize social
 
 > For full descriptions and save locations, check the website tools catalog.
 
-## 🔧 Mods
-
-This category has been **merged into the main toolkit categories** (especially **Other Tools**).  
-If you’re looking for customization scripts like loading screens, check **Other Tools** and the website tools catalog.
-
-> Website catalog: https://ded-sec.space/Pages/learn-about-the-tools.html
-
 
 ## 🎮 Games
 
