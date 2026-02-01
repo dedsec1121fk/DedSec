@@ -88,6 +88,36 @@ def load_language_preference():
             return None
     return None
 
+
+# --- Persistent Menu Autostart Config ---
+# Stored in the same Language.json for simplicity/backwards-compatibility.
+def save_menu_autostart_preference(enabled: bool):
+    """Saves whether the menu should auto-start when Termux opens."""
+    try:
+        data = {}
+        if os.path.exists(LANGUAGE_JSON_PATH):
+            with open(LANGUAGE_JSON_PATH, "r") as f:
+                try:
+                    data = json.load(f)
+                except json.JSONDecodeError:
+                    data = {}
+        data['menu_autostart'] = bool(enabled)
+        with open(LANGUAGE_JSON_PATH, "w") as f:
+            json.dump(data, f, indent=4)
+    except Exception:
+        pass
+
+def load_menu_autostart_preference() -> bool:
+    """Loads the menu auto-start preference. Defaults to True."""
+    if os.path.exists(LANGUAGE_JSON_PATH):
+        try:
+            with open(LANGUAGE_JSON_PATH, "r") as f:
+                data = json.load(f)
+                return bool(data.get('menu_autostart', True))
+        except Exception:
+            return True
+    return True
+
 def enforce_language_folder_visibility():
     """
     Checks the saved language preference and ensures the Greek folder 
@@ -118,6 +148,8 @@ GREEK_STRINGS = {
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
+    "Enable Menu Auto-Start": "Ενεργοποίηση Αυτόματης Εκκίνησης Μενού",
+    "Disable Menu Auto-Start": "Απενεργοποίηση Αυτόματης Εκκίνησης Μενού",
     "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα",
     "Credits": "Συντελεστές",
     "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec",
@@ -151,6 +183,8 @@ GREEK_STRINGS = {
     "No menu style selected. Returning to settings menu...": "Δεν επιλέχθηκε στυλ μενού. Επιστρέφοντας στο μενού ρυθμίσεων...",
     "Menu style changed to": "Το στυλ μενού άλλαξε σε",
     "Bash configuration updated.": "Η διαμόρφωση του Bash ενημερώθηκε.",
+    "Menu auto-start enabled.": "Η αυτόματη εκκίνηση του μενού ενεργοποιήθηκε.",
+    "Menu auto-start disabled.": "Η αυτόματη εκκίνηση του μενού απενεργοποιήθηκε.",
     "Please restart Termux for changes to take full effect.": "Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως οι αλλαγές.",
     "Language set to": "Η γλώσσα ορίστηκε σε",
     "Directory": "Ο φάκελος",
@@ -203,17 +237,17 @@ GREEK_STRINGS = {
 # Translation Helpers
 # ------------------------------
 def get_current_language_path():
-    """Detects the currently configured startup path from bash.bashrc."""
+    """Detects the currently configured DedSec language path from bash.bashrc."""
     try:
         with open(BASHRC_PATH, "r") as f:
             lines = f.readlines()
     except Exception:
-        return ENGLISH_BASE_PATH # Default
+        return ENGLISH_BASE_PATH  # Default
 
     start_marker = BASHRC_START_MARKER
     end_marker = BASHRC_END_MARKER
     in_block = False
-    
+
     for line in lines:
         if start_marker in line:
             in_block = True
@@ -221,13 +255,14 @@ def get_current_language_path():
         if end_marker in line:
             in_block = False
             break
-        
-        if in_block and line.strip().startswith('cd '):
-            match = re.search(r'cd\s+"([^"]+)"', line)
+
+        # Works for both the startup line and alias lines like: alias e='cd "..." && python3 ...'
+        if in_block:
+            match = re.search(r'cd\s+\"([^\"]+)\"', line)
             if match:
                 return match.group(1).strip()
-                
-    return ENGLISH_BASE_PATH # Default
+
+    return ENGLISH_BASE_PATH  # Default
 
 def get_current_display_language():
     global CURRENT_DISPLAY_LANGUAGE
@@ -600,6 +635,11 @@ def cleanup_bashrc():
         return False
 
 def update_bashrc(current_language_path, current_style):
+    """Writes/refreshes the DedSec block inside bash.bashrc.
+
+    - If menu auto-start is enabled, the menu runs automatically when Termux opens.
+    - If disabled, the auto-start line is removed, but aliases remain so you can start it manually.
+    """
     try:
         with open(BASHRC_PATH, "r") as f:
             lines = f.readlines()
@@ -609,9 +649,8 @@ def update_bashrc(current_language_path, current_style):
 
     filtered_lines = []
     regex_pattern = re.compile(r"(cd\s+.*DedSec/Scripts.*python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd\s+.*DedSec/Scripts.*)")
-    
-    in_marked_block = False
 
+    in_marked_block = False
     for line in lines:
         if BASHRC_START_MARKER in line:
             in_marked_block = True
@@ -619,36 +658,47 @@ def update_bashrc(current_language_path, current_style):
         if BASHRC_END_MARKER in line:
             in_marked_block = False
             continue
-        
+
         if in_marked_block:
             continue
-            
+
         if not regex_pattern.search(line):
             filtered_lines.append(line)
 
-    # The new startup command (auto-runs on Termux start)
-    # Style can be list, grid, or number
+    # Commands
     new_startup = f"cd \"{current_language_path}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}\n"
-    
-    alias_to_add = ""
+
+    # Manual-start alias should be based on the current language:
+    # - English mode -> use alias 'e'
+    # - Greek mode   -> use alias 'g'
+    # (No universal 'm' alias, as requested.)
+    alias_lang = ""
     if current_language_path == ENGLISH_BASE_PATH:
-        alias_to_add = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
     elif current_language_path == GREEK_PATH_FULL:
-        alias_to_add = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+
+    autostart_enabled = load_menu_autostart_preference()
 
     filtered_lines.append("\n" + BASHRC_START_MARKER + "\n")
-    filtered_lines.append(new_startup)
-    
-    if alias_to_add:
-        filtered_lines.append(alias_to_add)
-        
+    if autostart_enabled:
+        filtered_lines.append(new_startup)
+    else:
+        filtered_lines.append("# (DedSec Menu auto-start disabled)\n")
+
+    # Provide a manual-start alias based on current language (e or g)
+    if alias_lang:
+        filtered_lines.append(alias_lang)
+
     filtered_lines.append(BASHRC_END_MARKER + "\n")
-    
+
     try:
         with open(BASHRC_PATH, "w") as f:
             f.writelines(filtered_lines)
     except Exception as e:
         print(f"Error writing to {BASHRC_PATH}: {e}")
+
+
 
 def get_current_menu_style():
     """Detects the current menu style setting from bash.bashrc."""
@@ -715,6 +765,30 @@ def change_menu_style():
     
     print(f"\n[+] {_('Menu style changed to')} {style.capitalize()} {_('Style')}. {_('Bash configuration updated.')}")
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
+# ------------------------------
+# Toggle Menu Auto-Start
+# ------------------------------
+
+def get_menu_autostart_label():
+    return _("Disable Menu Auto-Start") if load_menu_autostart_preference() else _("Enable Menu Auto-Start")
+
+def toggle_menu_autostart():
+    enabled = load_menu_autostart_preference()
+    new_enabled = not enabled
+    save_menu_autostart_preference(new_enabled)
+
+    current_path = get_current_language_path()
+    current_style = get_current_menu_style()
+    update_bashrc(current_path, current_style)
+
+    if new_enabled:
+        print(f"\n[+] {_('Menu auto-start enabled.')} {_('Bash configuration updated.')}")
+    else:
+        print(f"\n[+] {_('Menu auto-start disabled.')} {_('Bash configuration updated.')}")
+
+    print(f"[{_('Please restart Termux for changes to take full effect')}]")
+
+
 
 # ------------------------------
 # Choose Language
@@ -1338,6 +1412,7 @@ def run_settings_list_menu():
             _("Update Packages & Modules"),
             _("Change Prompt"),
             _("Change Menu Style"),
+            get_menu_autostart_label(),
             _("Choose Language/Επιλέξτε Γλώσσα"),
             _("Credits"),
             _("Uninstall DedSec Project"),
@@ -1516,6 +1591,7 @@ def run_settings_grid_menu():
         _("Update Packages & Modules"),
         _("Change Prompt"),
         _("Change Menu Style"),
+        get_menu_autostart_label(),
         _("Choose Language/Επιλέξτε Γλώσσα"),
         _("Credits"),
         _("Uninstall DedSec Project"),
@@ -1532,6 +1608,7 @@ def run_settings_number_menu():
         _("Update Packages & Modules"),
         _("Change Prompt"),
         _("Change Menu Style"),
+        get_menu_autostart_label(),
         _("Choose Language/Επιλέξτε Γλώσσα"),
         _("Credits"),
         _("Uninstall DedSec Project"),
@@ -1556,7 +1633,7 @@ def run_settings_number_menu():
             continue
         
         if choice == 0:
-            return 8  # Exit option
+            return 9  # Exit option
         
         if 1 <= choice <= len(menu_options):
             return choice - 1
@@ -1596,14 +1673,16 @@ def main():
         elif selected == 4:
             change_menu_style()
         elif selected == 5:
-            change_language()
+            toggle_menu_autostart()
         elif selected == 6:
-            show_credits()
+            change_language()
         elif selected == 7:
+            show_credits()
+        elif selected == 8:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 8:
+        elif selected == 9:
             print(_("Exiting..."))
             break
         
