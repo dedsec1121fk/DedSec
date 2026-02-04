@@ -111,7 +111,7 @@ After installation, access the settings menu to:
 
 The toolkit is organized into the following categories and tools:
 
-- **Developer Base:** 7 tools
+- **Developer Base:** 8 tools
 - **Network Tools:** 10 tools
 - **Other Tools:** 5 tools
 - **Games:** 5 tools
@@ -119,7 +119,7 @@ The toolkit is organized into the following categories and tools:
 - **Social Media Fake Pages:** 25 tools
 - **No Category:** 2 tools
 
-**Total listed on tools page:** 71 tools
+**Total listed on tools page:** 72 tools
 ## 🧑‍💻 Developer Base
 
 1. **File Converter**: A powerful file converter supporting 40+ formats.
@@ -140,7 +140,10 @@ The toolkit is organized into the following categories and tools:
 6. **Smart Notes**: Terminal note-taking app with reminders.
     * *Save Location ~/.smart_notes.json*
 
-7. **Tree Explorer**: File-system explorer for Termux: browse folders, search files, find duplicates by hash, and clean empty directories with safe prompts.
+7. **Dead Switch**: Syncs your `~/storage/downloads/Dead Switch/` folder to a GitHub repository with safety controls (create-only-new uploads, overwrite sync, and a one-click kill switch to wipe/delete the repo). Includes visibility toggle (public/private) and optional Termux:API notification buttons.
+    * *Save Location ~/storage/downloads/Dead Switch/*
+
+8. **Tree Explorer**: File-system explorer for Termux: browse folders, search files, find duplicates by hash, and clean empty directories with safe prompts.
     * *Save Location Scan folders created in current directory (scan_[target]_[date])*
 
 
