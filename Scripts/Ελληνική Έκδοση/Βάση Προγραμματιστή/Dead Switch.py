@@ -1,23 +1,3 @@
-#!/usr/bin/env python3
-# Dead Switch.py — Termux (no root)
-#
-# Syncs /storage/emulated/0/Download/Dead Switch to a GitHub repo (PUBLIC).
-# Upload batching:
-# - Each push/commit batch uploads at most 20MB total.
-# - Files > 20MB are skipped (GitHub/file-limit safety).
-# - If you have more than 20MB total to upload, it will upload in multiple batches automatically.
-#
-# Λειτουργίες:
-# 1) Create Switch      -> uploads ONLY NEW files (won't overwrite existing repo paths)
-# 2) Overwrite Repo     -> uploads/overwrites files (still batched)
-# 3) Kill Switch        -> wipes repo then deletes it
-# 4) Notification       -> creates a Termux notification with two actions:
-#                          "Create Switch" and "Kill Switch"
-#
-# Authentication:
-# - Uses GitHub CLI (gh) device/web login (modern).
-# - gh saves login in Termux HOME (~/.config/gh), so login persists even if you delete this script.
-
 import os
 import sys
 import json
