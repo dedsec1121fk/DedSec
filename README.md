@@ -161,7 +161,7 @@ The toolkit is organized into the following categories and tools:
 4. **Digital Footprint Finder**: Ultra-low false positive OSINT tool that scans 270+ platforms to find a target's digital footprint.
     * *Save Location Results are saved in: ~/storage/downloads/Digital Footprint Finder/[username]_v12.txt*
 
-5. **Fox's Connections**: Secure chat/file-sharing server.
+5. **Connections.py**: Secure chat/file-sharing server.
     * *Save Location Downloads to `~/Downloads/DedSec's Database`.*
 
 6. **Link Shield**: Security-focused URL inspector: follows redirects, checks HTTPS/SSL, flags suspicious domains/patterns, and generates a risk report before you open a link.
