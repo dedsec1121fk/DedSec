@@ -19,22 +19,25 @@ echo "Termux package installation complete. Continuing to Python setup..."
 echo "2. Upgrading pip, setuptools, and wheel..."
 
 # Upgrade pip and required build dependencies.
-pip install --upgrade pip setuptools wheel --break-system-packages
+python -m pip install --upgrade pip setuptools wheel --break-system-packages
 
 # --- 3. Python Package Installation ---
 echo "3. Installing the target Python dependencies..."
 
 # Python packages list from Settings.py (including psutil and pillow)
-PYTHON_PACKAGES="blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
+PYTHON_PACKAGES="blessed bs4 flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
 
 # Install all packages.
-pip install $PYTHON_PACKAGES --break-system-packages
+python -m pip install $PYTHON_PACKAGES --break-system-packages
 
 if [ $? -eq 0 ]; then
     echo "SUCCESS: All Python dependencies installed successfully! 🎉"
 else
     echo "WARNING: Python package installation had errors (see log above). Attempting to proceed."
 fi
+
+echo "3b. Installing flask and cryptography last..."
+python -m pip install --upgrade flask cryptography --break-system-packages
 
 # --- 4. Execution Logic ---
 # Path is relative to the current directory (which is assumed to be 'DedSec').
@@ -56,7 +59,7 @@ if [ $EXEC_STATUS -ne 0 ]; then
     echo "Execution failed or script was not found (Exit Code: $EXEC_STATUS). Installing 'requests' package."
     
     # Run the fallback command
-    pip install requests --break-system-packages
+    python -m pip install requests --break-system-packages
     
     # Second attempt to run the script
     echo "Retrying script execution..."
