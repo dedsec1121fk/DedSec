@@ -158,8 +158,8 @@ The toolkit is organized into the following categories and tools:
 3. **DedSec's Network**: An advanced, non-root network toolkit optimized for speed and stability.
     * *Save Location Reports and logs are saved in: ~/DedSec's Network*
 
-4. **Digital Footprint Finder**: Ultra-low false positive OSINT tool that scans 270+ platforms to find a target's digital footprint.
-    * *Save Location Results are saved in: ~/storage/downloads/Digital Footprint Finder/[username]_v12.txt*
+4. **Digital Footprint Finder**: Conservative OSINT username scanner with pack-based coverage (core→mega incl. optional Sherlock DB), multi-signal verification to reduce false positives, and FOUND vs POSSIBLE results with optional DuckDuckGo dorking; can export TXT/JSON/CSV/HTML reports.
+    * *Save Location Results are saved in: ~/storage/downloads/Digital Footprint Finder/[username]_[YYYYMMDD_HHMMSS].txt (plus optional .json/.csv/.html) — falls back to /sdcard/Download when Termux storage isn’t available*
 
 5. **Connections.py**: Secure chat/file-sharing server with real-time messaging, file sharing (up to 50GB), and WebRTC video calls. Unified application combining Butterfly Chat and DedSec's Database with a single secret-key authentication system, integrated file management, and Cloudflare tunneling. Use only on systems you own or have explicit permission to test.
     * *Save Location Downloads to `~/Downloads/DedSec's Database`.*
