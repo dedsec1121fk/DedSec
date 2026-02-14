@@ -149,8 +149,8 @@ The toolkit is organized into the following categories and tools:
 
 ## 🔧 Network Tools
 
-1. **Bug Hunter**: Advanced vulnerability scanner and reconnaissance tool (Bug Hunter V3).
-    * *Save Location Scan folders created in current directory (scan_[target]_[date])*
+1. **Bug Hunter**: Bug Hunter (no-root) — an authorized web security recon & misconfiguration scanner. Performs DNS (SPF/DMARC/CAA), TLS/cert expiry checks, security header & cookie-flag audits, tech fingerprinting, CORS/HTTP methods checks, sensitive file discovery, crawling, and JavaScript endpoint/secret analysis. Exports JSON/CSV/HTML/PDF reports.
+    * *Save Location Reports are saved in the output folder (default: bughunter_out/): report.json, report.csv, report.html (and report.pdf if enabled)*
 
 2. **Dark**: A specialized Dark Web OSINT tool and crawler designed for Tor network analysis.
     * *Save Location Results are saved in: /sdcard/Download/DarkNet (or ~/DarkNet if storage is inaccessible)*
