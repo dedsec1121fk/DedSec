@@ -1,7 +1,20 @@
 # ----------------------------------------------------------------------
-# Digital_Footprint_Finder_v12.py - Ultra-Low False Positives & 270+ Sites
-# Optimized for Termux & Standard Python Environments
+# Digital Footprint Finder
+# Goal: best practical results with conservative true-positive detection.
+# - Much larger coverage via packs + optional Sherlock DB (hundreds of sites)
+# - Lower false-positives with multi-signal scoring (title/meta/canonical/text)
+# - Better stability on mobile (HEAD-first, size-limited downloads, retries)
+# - Anti-bot / JS-shell detection -> POSSIBLE (never falsely FOUND)
+# - Per-domain concurrency limiting (reduces rate-limit blocks)
+# - Local extensibility: load & export site lists as JSON
+# - Optional HTML report (+ TXT/JSON/CSV)
+#
+# IMPORTANT / RESPONSIBLE USE
+# Use this for self-audits or consent-based checks. Many sites restrict automation.
+# This tool does NOT bypass logins, CAPTCHAs, paywalls, or anti-bot protections.
 # ----------------------------------------------------------------------
+
+from __future__ import annotations
 
 import sys
 import os
@@ -12,423 +25,1536 @@ import argparse
 import random
 import json
 import re
+import html as html_escape
+from dataclasses import dataclass
+from typing import Optional, Dict, List, Tuple
+from urllib.parse import urlparse, parse_qs, unquote
 
-# --- CRASH-PROOF DEPENDENCY CHECK ---
-def check_and_install_deps():
-    required_packages = ['requests', 'colorama', 'bs4', 'lxml'] 
+
+# ----------------------------------------------------------------------
+# CRASH-PROOF DEPENDENCY CHECK (Termux-friendly)
+# ----------------------------------------------------------------------
+
+def check_and_install_deps() -> None:
+    """Ensure runtime dependencies exist (Termux-friendly)."""
+    required_pip = ["requests", "colorama", "beautifulsoup4", "lxml"]
     try:
-        import requests
-        import colorama
-        import bs4
-    except ImportError:
+        import requests  # noqa: F401
+        import colorama  # noqa: F401
+        import bs4       # noqa: F401
+        import lxml      # noqa: F401
+    except Exception:
         print("\n[STATUS] Installing required dependencies (requests, colorama, beautifulsoup4, lxml)...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install"] + required_packages)
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade"] + required_pip)
             print("[SUCCESS] Dependencies installed. Restarting script...")
-            os.execv(sys.executable, ['python'] + sys.argv)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
         except Exception as e:
             print(f"[ERROR] Could not install dependencies: {e}")
             sys.exit(1)
 
+
 check_and_install_deps()
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from colorama import Fore, Style, init
 from bs4 import BeautifulSoup
 
 init(autoreset=True)
 
-# --- CONFIGURATION ---
 
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/113.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (Linux; Android 13; SM-S908B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Mobile Safari/537.36'
+# ----------------------------------------------------------------------
+# Networking / Heuristics
+# ----------------------------------------------------------------------
+
+USER_AGENTS: List[str] = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1",
+    "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36",
 ]
 
-# --- FALSE POSITIVE REDUCTION CONFIG ---
-# Keywords in HTML that indicate the profile does NOT exist.
-GLOBAL_ERROR_INDICATORS = [
+# Common phrases indicating missing users/pages (multi-language light set).
+GLOBAL_ERROR_INDICATORS: List[str] = [
     "user not found", "page not found", "404 not found", "this account does not exist",
-    "account suspended", "profile not found", "user has been suspended", "sorry, this page isn't available",
-    "the page you requested cannot be found", "this user is not available", "account deactivated",
-    "doesn't exist", "nothing here", "error 404", "we could not find", "content unavailable",
-    "account removed", "no such user", "page doesn’t exist", "bad gateway", "internal server error",
-    "profile unavailable", "user is inactive", "account closed", "member not found", 
-    "no user with that username", "cannot find the user"
+    "account suspended", "profile not found", "user has been suspended",
+    "sorry, this page isn't available", "the page you requested cannot be found",
+    "this user is not available", "account deactivated", "doesn't exist",
+    "nothing here", "error 404", "we could not find", "content unavailable",
+    "account removed", "no such user", "page doesn't exist", "member not found",
+    "no user with that username", "cannot find the user", "not found", "page unavailable",
+    "δεν βρέθηκε", "δεν υπάρχει", "δεν βρέθηκε η σελίδα", "δεν υπάρχει αυτός ο χρήστης",
+    "usuario no encontrado", "página no encontrada", "utilisateur introuvable", "seite nicht gefunden",
 ]
 
-# If the Final URL contains these, it's a redirect to a generic page (False Positive).
-SUSPICIOUS_REDIRECT_KEYWORDS = [
-    "login", "signin", "search", "home", "error", "404", "accounts/login", 
-    "register", "signup", "auth", "help", "support", "notfound", "undefined"
+# Anti-bot / challenge pages (treated as POSSIBLE).
+ANTIBOT_INDICATORS: List[str] = [
+    "just a moment", "checking your browser", "attention required", "cf-error-code",
+    "cloudflare", "captcha", "verify you are human", "ddos protection",
+    "access denied", "request blocked", "bot detection", "please enable cookies",
 ]
 
-# If the Page Title is EXACTLY one of these, it's usually a generic landing page.
-GENERIC_TITLES = [
-    "login", "sign in", "page not found", "404", "error", "search", "home", 
-    "instagram", "twitter", "facebook", "tiktok", "youtube", "twitch", "profile"
+# Redirect paths that often indicate you're not on a profile.
+SUSPICIOUS_REDIRECT_PATH_KEYWORDS: List[str] = [
+    "login", "signin", "sign-in", "register", "signup", "sign-up", "auth",
+    "help", "support", "error", "notfound", "search", "session", "password",
 ]
 
-# ----------------------------------------------------------------------
-# API CHECK FUNCTIONS
-# ----------------------------------------------------------------------
+# Very generic titles often seen on landing/login pages.
+GENERIC_TITLES: List[str] = ["login", "sign in", "page not found", "404", "error", "search", "home"]
 
-def check_github_api(username):
-    url = f"https://api.github.com/users/{username}"
-    try:
-        r = requests.get(url, timeout=5)
-        if r.status_code == 200:
-            data = r.json()
-            return True, data.get('html_url'), f"Name: {data.get('name')}"
-    except:
-        pass
-    return False, None, None
+# Status codes that mean "we cannot be sure" (blocked/rate-limited/auth required).
+UNCERTAIN_STATUS = {401, 403, 429}
 
-def check_gravatar_api(username):
-    url = f"https://en.gravatar.com/{username}.json"
-    try:
-        r = requests.get(url, timeout=5, headers={'User-Agent': random.choice(USER_AGENTS)})
-        if r.status_code == 200:
-            data = r.json()
-            profile_url = data['entry'][0]['profileUrl']
-            return True, profile_url, "Gravatar Profile"
-    except:
-        pass
-    return False, None, None
+# Default maximum HTML to download per site (bytes).
+DEFAULT_MAX_HTML_BYTES = 250_000  # 250 KB
+
+# Sherlock maintained site database (downloaded only when using --pack sherlock/mega)
+SHERLOCK_DATA_URL = "https://raw.githubusercontent.com/sherlock-project/sherlock/master/sherlock_project/resources/data.json"
+
 
 # ----------------------------------------------------------------------
-# SEARCH ENGINE DORKING
+# Site specifications & packs
 # ----------------------------------------------------------------------
 
-def dork_search(username):
-    print(f"\n{Fore.YELLOW}[*] Running Search Engine Dork for '{username}'...{Style.RESET_ALL}")
-    query = f'"{username}"' 
-    url = f"https://html.duckduckgo.com/html/?q={query}"
-    headers = {'User-Agent': random.choice(USER_AGENTS)}
-    found_links = []
-    
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            results = soup.find_all('a', class_='result__a')
-            for res in results[:10]: 
-                link = res['href']
-                title = res.get_text()
-                if "duckduckgo" not in link and "search" not in link:
-                    found_links.append((title, link))
-    except Exception as e:
-        print(f"{Fore.RED}[!] Dorking failed: {e}{Style.RESET_ALL}")
-        
-    return found_links
+@dataclass(frozen=True)
+class SiteSpec:
+    """A conservative spec for username-based profile checking."""
 
-# ----------------------------------------------------------------------
-# SITE DATABASE (270+ Sites)
-# ----------------------------------------------------------------------
+    url: str
+    check_str: Optional[str] = None          # negative indicator in HTML
+    error_url: Optional[str] = None          # negative final-url indicator (Sherlock response_url)
+    category: str = "General"
+    reliability: str = "normal"             # normal | low
+    notes: str = ""
+    positive_hint: Optional[str] = None      # optional positive regex hint
 
-SITES = {
-    # --- SOCIAL & MEDIA ---
-    "Twitter (Nitter)": {"url": "https://nitter.net/{}", "check_str": "Profile not found"},
-    "Instagram": {"url": "https://www.instagram.com/{}/", "check_str": "Page Not Found"},
-    "Facebook": {"url": "https://www.facebook.com/{}", "check_str": "content isn't available"},
-    "YouTube": {"url": "https://www.youtube.com/@{}", "check_str": "404 Not Found"}, 
-    "TikTok": {"url": "https://www.tiktok.com/@{}", "check_str": "Couldn't find this account"},
-    "Pinterest": {"url": "https://www.pinterest.com/{}/", "check_str": "We couldn't find that page"},
-    "Snapchat": {"url": "https://www.snapchat.com/add/{}", "check_str": "content could not be found"},
-    "Tumblr": {"url": "https://{}.tumblr.com/", "check_str": "There's nothing here"},
-    "Flickr": {"url": "https://www.flickr.com/people/{}", "check_str": "404"},
-    "Medium": {"url": "https://medium.com/@{}", "check_str": "404"},
-    "Vimeo": {"url": "https://vimeo.com/{}", "check_str": "404 Not Found"},
-    "SoundCloud": {"url": "https://soundcloud.com/{}", "check_str": "We can't find that user"},
-    "Spotify": {"url": "https://open.spotify.com/user/{}", "check_str": "Page not found"},
-    "Mixcloud": {"url": "https://www.mixcloud.com/{}", "check_str": "Page Not Found"},
-    "Twitch": {"url": "https://m.twitch.tv/{}", "check_str": "content is unavailable"},
-    "Mastodon": {"url": "https://mastodon.social/@{}", "check_str": "404"},
-    "VK": {"url": "https://vk.com/{}", "check_str": "page not found"},
-    "Ask.fm": {"url": "https://ask.fm/{}", "check_str": "Well, this is awkward"},
-    "Reddit": {"url": "https://www.reddit.com/user/{}", "check_str": "nobody on Reddit goes by that name"},
-    "Imgur": {"url": "https://imgur.com/user/{}", "check_str": "404"},
-    
-    # --- CODING & TECH ---
-    "GitHub": {"url": "https://github.com/{}", "check_str": "404"},
-    "GitLab": {"url": "https://gitlab.com/{}", "check_str": "Page Not Found"},
-    "BitBucket": {"url": "https://bitbucket.org/{}", "check_str": "Resource not found"},
-    "Replit": {"url": "https://replit.com/@{}", "check_str": "404"},
-    "CodePen": {"url": "https://codepen.io/{}", "check_str": "404"},
-    "StackOverflow": {"url": "https://stackoverflow.com/users/{}", "check_str": "Page not found"},
-    "Dev.to": {"url": "https://dev.to/{}", "check_str": "404"},
-    "Docker Hub": {"url": "https://hub.docker.com/u/{}", "check_str": "404"},
-    "PyPI": {"url": "https://pypi.org/user/{}", "check_str": "404"},
-    "NPM": {"url": "https://www.npmjs.com/~{}", "check_str": "404"},
-    "HackerOne": {"url": "https://hackerone.com/{}", "check_str": "Page not found"},
-    "BugCrowd": {"url": "https://bugcrowd.com/{}", "check_str": "404"},
-    "LeetCode": {"url": "https://leetcode.com/{}", "check_str": "page not found"},
-    "Kaggle": {"url": "https://www.kaggle.com/{}", "check_str": "404"},
-    "TradingView": {"url": "https://www.tradingview.com/u/{}", "check_str": "404"},
-    "ProductHunt": {"url": "https://www.producthunt.com/@{}", "check_str": "Page Not Found"},
-    "Gumroad": {"url": "https://gumroad.com/{}", "check_str": "Page not found"},
-    "SourceForge": {"url": "https://sourceforge.net/u/{}/profile", "check_str": "Error 404"},
-    "Keybase": {"url": "https://keybase.io/{}", "check_str": "404"},
-    
-    # --- GAMING ---
-    "Steam": {"url": "https://steamcommunity.com/id/{}", "check_str": "The specified profile could not be found"},
-    "Roblox": {"url": "https://www.roblox.com/user.aspx?username={}", "check_str": "Page cannot be found"},
-    "Minecraft (NameMC)": {"url": "https://namemc.com/profile/{}", "check_str": "404"},
-    "Osu!": {"url": "https://osu.ppy.sh/users/{}", "check_str": "User not found"},
-    "Speedrun": {"url": "https://www.speedrun.com/user/{}", "check_str": "404"},
-    "Chess.com": {"url": "https://www.chess.com/member/{}", "check_str": "Page not found"},
-    "Lichess": {"url": "https://lichess.org/@/{}", "check_str": "Page not found"},
-    
-    # --- PREVIOUSLY ADDED (Preserved) ---
-    "Behance": {"url": "https://www.behance.net/{}", "check_str": "We can't find that page"},
-    "Dribbble": {"url": "https://dribbble.com/{}", "check_str": "404"},
-    "ArtStation": {"url": "https://www.artstation.com/{}", "check_str": "404"},
-    "DeviantArt": {"url": "https://www.deviantart.com/{}", "check_str": "404 Not Found"},
-    "Bandcamp": {"url": "https://bandcamp.com/{}", "check_str": "404"},
-    "Unsplash": {"url": "https://unsplash.com/@{}", "check_str": "404"},
-    "VSCO": {"url": "https://vsco.co/{}", "check_str": "404"},
-    "WordPress": {"url": "https://{}.wordpress.com/", "check_str": "doesn’t exist"},
-    "Blogger": {"url": "https://{}.blogspot.com/", "check_str": "Blog not found"},
-    "Patreon": {"url": "https://www.patreon.com/{}", "check_str": "404"},
-    "Linktree": {"url": "https://linktr.ee/{}", "check_str": "The page you’re looking for doesn’t exist"},
-    "Wikipedia": {"url": "https://en.wikipedia.org/wiki/User:{}", "check_str": "User account \"{}\" does not exist"},
-    
-    # --- NEW ADDITIONS (50+ NEW SITES) ---
-    "PayPal": {"url": "https://www.paypal.com/paypalme/{}", "check_str": "We can't find this profile"},
-    "Xbox Gamertag": {"url": "https://xboxgamertag.com/search/{}", "check_str": "not found"},
-    "PSN Profiles": {"url": "https://psnprofiles.com/{}", "check_str": "could not be found"},
-    "Disqus": {"url": "https://disqus.com/by/{}", "check_str": "404"},
-    "Slack": {"url": "https://{}.slack.com", "check_str": "There is no workspace"},
-    "OkCupid": {"url": "https://www.okcupid.com/profile/{}", "check_str": "404"},
-    "Tinder": {"url": "https://tinder.com/@{}", "check_str": "404"},
-    "Bumble": {"url": "https://bumble.com/@{}", "check_str": "404"},
-    "Venmo": {"url": "https://venmo.com/u/{}", "check_str": "404"},
-    "Cash App": {"url": "https://cash.app/${}", "check_str": "404"},
-    "About.me": {"url": "https://about.me/{}", "check_str": "404"},
-    "Giphy": {"url": "https://giphy.com/{}", "check_str": "404"},
-    "Tenor": {"url": "https://tenor.com/users/{}", "check_str": "404"},
-    "GeeksforGeeks": {"url": "https://auth.geeksforgeeks.org/user/{}/profile", "check_str": "404"},
-    "Codewars": {"url": "https://www.codewars.com/users/{}", "check_str": "404"},
-    "HackerRank": {"url": "https://www.hackerrank.com/{}", "check_str": "404"},
-    "CodeChef": {"url": "https://www.codechef.com/users/{}", "check_str": "404"},
-    "TopCoder": {"url": "https://www.topcoder.com/members/{}", "check_str": "404"},
-    "Last.fm": {"url": "https://www.last.fm/user/{}", "check_str": "404"},
-    "Trakt": {"url": "https://trakt.tv/users/{}", "check_str": "404"},
-    "Letterboxd": {"url": "https://letterboxd.com/{}", "check_str": "Not Found"},
-    "MyAnimeList": {"url": "https://myanimelist.net/profile/{}", "check_str": "404"},
-    "AniList": {"url": "https://anilist.co/user/{}", "check_str": "404"},
-    "Crunchyroll": {"url": "https://www.crunchyroll.com/user/{}", "check_str": "404"},
-    "Minds": {"url": "https://www.minds.com/{}", "check_str": "404"},
-    "Gab": {"url": "https://gab.com/{}", "check_str": "404"},
-    "Parler": {"url": "https://parler.com/user/{}", "check_str": "404"},
-    "Gettr": {"url": "https://gettr.com/user/{}", "check_str": "404"},
-    "Truth Social": {"url": "https://truthsocial.com/@{}", "check_str": "404"},
-    "Rumble": {"url": "https://rumble.com/user/{}", "check_str": "404"},
-    "DailyMotion": {"url": "https://www.dailymotion.com/{}", "check_str": "404"},
-    "ReverbNation": {"url": "https://www.reverbnation.com/{}", "check_str": "404"},
-    "BandLab": {"url": "https://www.bandlab.com/{}", "check_str": "404"},
-    "Smule": {"url": "https://www.smule.com/{}", "check_str": "404"},
-    "StarMaker": {"url": "https://m.starmakerstudios.com/user/{}", "check_str": "404"},
-    "Fandom": {"url": "https://community.fandom.com/wiki/User:{}", "check_str": "does not exist"},
-    "Wikia": {"url": "https://{}.fandom.com", "check_str": "404"},
-    "Pastebin": {"url": "https://pastebin.com/u/{}", "check_str": "Not Found"},
-    "Wattpad": {"url": "https://www.wattpad.com/user/{}", "check_str": "User not found"},
-    "Archive.org": {"url": "https://archive.org/details/@{}", "check_str": "404"},
-    "OpenSea": {"url": "https://opensea.io/{}", "check_str": "404"},
-    "Rarible": {"url": "https://rarible.com/{}", "check_str": "404"},
-    "Foundation": {"url": "https://foundation.app/@{}", "check_str": "404"},
-    "KnownOrigin": {"url": "https://knownorigin.io/{}", "check_str": "404"},
-    "Polywork": {"url": "https://www.polywork.com/{}", "check_str": "404"},
-    "PeerList": {"url": "https://peerlist.io/{}", "check_str": "404"},
-    "Hashnode": {"url": "https://hashnode.com/@{}", "check_str": "404"},
-    "Substack": {"url": "https://{}.substack.com", "check_str": "404"},
-    "Ghost": {"url": "https://{}.ghost.io", "check_str": "404"},
-    "Carrd": {"url": "https://{}.carrd.co", "check_str": "404"},
-    "Wix": {"url": "https://{}.wixsite.com/website", "check_str": "404"},
-    "Weebly": {"url": "https://{}.weebly.com", "check_str": "404"},
-    "Jimdo": {"url": "https://{}.jimdosite.com", "check_str": "404"},
-    "Yola": {"url": "https://{}.yolasite.com", "check_str": "404"},
-    "Strikingly": {"url": "https://{}.mystrikingly.com", "check_str": "404"},
-    "Houzz": {"url": "https://www.houzz.com/user/{}", "check_str": "404"},
-    "Angi": {"url": "https://www.angi.com/companylist/{}", "check_str": "404"},
-    "Yelp": {"url": "https://www.yelp.com/user_details?userid={}", "check_str": "404"},
-    "Glassdoor": {"url": "https://www.glassdoor.com/member/profile/index.htm", "check_str": "Sign In"}, # Tricky
-    "Freelancer": {"url": "https://www.freelancer.com/u/{}", "check_str": "404"},
-    "Upwork": {"url": "https://www.upwork.com/freelancers/~{}", "check_str": "404"},
-    "Guru": {"url": "https://www.guru.com/freelancers/{}", "check_str": "404"},
-    "PeoplePerHour": {"url": "https://www.peopleperhour.com/freelancer/{}", "check_str": "404"},
-    "Toptal": {"url": "https://www.toptal.com/resume/{}", "check_str": "404"},
-    "Chess.com": {"url": "https://www.chess.com/member/{}", "check_str": "Page not found"},
-    "Lichess": {"url": "https://lichess.org/@/{}", "check_str": "Page not found"},
-    "WarriorForum": {"url": "https://www.warriorforum.com/members/{}.html", "check_str": "404"},
-    "BlackHatWorld": {"url": "https://www.blackhatworld.com/members/{}/", "check_str": "404"},
+
+# --- CORE: high-value, relatively stable patterns ---
+CORE_SITES: Dict[str, SiteSpec] = {
+    # Social / community
+    "Reddit": SiteSpec("https://www.reddit.com/user/{}", "nobody on Reddit goes by that name", category="Social"),
+    "Mastodon (mastodon.social)": SiteSpec("https://mastodon.social/@{}", "404", category="Fediverse", reliability="low"),
+    "Pixelfed (pixelfed.social)": SiteSpec("https://pixelfed.social/{}", "404", category="Fediverse", reliability="low"),
+    "Lemmy (lemmy.world)": SiteSpec("https://lemmy.world/u/{}", "404", category="Fediverse", reliability="low"),
+
+    # Tech
+    "GitHub": SiteSpec("https://github.com/{}", "404", category="Tech", positive_hint=r"https?://github\\.com/{}"),
+    "GitLab": SiteSpec("https://gitlab.com/{}", "Page Not Found", category="Tech"),
+    "Codeberg": SiteSpec("https://codeberg.org/{}", "404", category="Tech"),
+    "SourceHut": SiteSpec("https://sr.ht/~{}/", "404", category="Tech"),
+    "Dev.to": SiteSpec("https://dev.to/{}", "404", category="Tech"),
+    "CodePen": SiteSpec("https://codepen.io/{}", "404", category="Tech"),
+    "Replit": SiteSpec("https://replit.com/@{}", "404", category="Tech"),
+
+    # Blogs / link-in-bio
+    "Linktree": SiteSpec("https://linktr.ee/{}", "doesn't exist", category="Blogs"),
+    "Carrd": SiteSpec("https://{}.carrd.co/", "404", category="Blogs", reliability="low"),
+    "WordPress": SiteSpec("https://{}.wordpress.com/", "doesn't exist", category="Blogs"),
+    "Blogger": SiteSpec("https://{}.blogspot.com/", "Blog not found", category="Blogs"),
+    "GitHub Pages": SiteSpec("https://{}.github.io/", None, category="Blogs", reliability="low"),
+    "GitLab Pages": SiteSpec("https://{}.gitlab.io/", None, category="Blogs", reliability="low"),
+    "Neocities": SiteSpec("https://{}.neocities.org/", "Not Found", category="Blogs", reliability="low"),
+
+    # Media / creators
+    "SoundCloud": SiteSpec("https://soundcloud.com/{}", "We can't find that user", category="Media"),
+    "Letterboxd": SiteSpec("https://letterboxd.com/{}/", "404", category="Media"),
+    "MyAnimeList": SiteSpec("https://myanimelist.net/profile/{}", "404", category="Media"),
+    "AniList": SiteSpec("https://anilist.co/user/{}/", "404", category="Media"),
+
+    # Gaming
+    "Steam": SiteSpec("https://steamcommunity.com/id/{}", "The specified profile could not be found", category="Gaming"),
+    "Chess.com": SiteSpec("https://www.chess.com/member/{}", "Page not found", category="Gaming"),
+    "Lichess": SiteSpec("https://lichess.org/@/{}", "Page not found", category="Gaming"),
+
+    # Forums
+    "Hacker News": SiteSpec("https://news.ycombinator.com/user?id={}", "No such user", category="Forums"),
+    "Lobsters": SiteSpec("https://lobste.rs/~{}", "Not found", category="Forums"),
 }
 
-def analyze_site(site_name, url_template, username, verbose=False):
-    url = url_template.format(username)
-    check_str = SITES[site_name].get("check_str")
+
+EXTENDED_SITES: Dict[str, SiteSpec] = {}
+FORUM_SITES: Dict[str, SiteSpec] = {}
+FEDIVERSE_SITES: Dict[str, SiteSpec] = {}
+
+
+def _add_site(dst: Dict[str, SiteSpec], name: str, spec: SiteSpec) -> None:
+    if name in CORE_SITES or name in EXTENDED_SITES or name in FORUM_SITES or name in FEDIVERSE_SITES:
+        return
+    dst[name] = spec
+
+
+def add_extended_sites() -> None:
+    """Add a large collection of common username-based URL patterns."""
+
+    # Link-in-bio / landing pages
+    for name, url, chk, rel in [
+        ("About.me", "https://about.me/{}", "404", "normal"),
+        ("AllMyLinks", "https://allmylinks.com/{}", "Page not found", "normal"),
+        ("Beacons", "https://beacons.ai/{}", "404", "normal"),
+        ("Bio.site", "https://bio.site/{}", "404", "normal"),
+        ("Campsite", "https://campsite.bio/{}", "404", "normal"),
+        ("Koji", "https://koji.to/{}", "404", "normal"),
+        ("Lnk.Bio", "https://lnk.bio/{}", "404", "normal"),
+        ("Solo.to", "https://solo.to/{}", "404", "normal"),
+        ("Taplink", "https://taplink.cc/{}", "404", "normal"),
+        ("Milkshake", "https://milkshake.app/{}", "404", "normal"),
+        ("LinkPop", "https://linkpop.com/{}", "404", "normal"),
+        ("Stan Store", "https://stan.store/{}", "404", "low"),
+        ("Snipfeed", "https://snipfeed.co/{}", "404", "low"),
+        ("Komi", "https://komi.io/{}", "404", "low"),
+        ("bio.fm", "https://bio.fm/{}", "404", "low"),
+        ("ContactInBio", "https://contactinbio.com/{}", "404", "low"),
+        ("Linkfly", "https://linkfly.to/{}", "404", "low"),
+        ("Linkr.bio", "https://linkr.bio/{}", "404", "low"),
+        ("Tap.bio", "https://tap.bio/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Blogs", reliability=rel))
+
+    # Social networks / comms (many are bot-sensitive)
+    for name, url, chk, rel, notes in [
+        ("X", "https://x.com/{}", "This account doesn't exist", "low", "Often blocks automation"),
+        ("Threads", "https://www.threads.net/@{}", "Sorry, this page isn't available", "low", "JS/login heavy"),
+        ("TikTok (alt)", "https://www.tiktok.com/@{}", "Couldn't find this account", "low", "Bot sensitive"),
+        ("Instagram (alt)", "https://www.instagram.com/{}/", "Page Not Found", "low", "Bot sensitive"),
+        ("Twitch (mobile)", "https://m.twitch.tv/{}", "content is unavailable", "low", "Bot sensitive"),
+        ("Pinterest (alt)", "https://www.pinterest.com/{}/", "We couldn't find that page", "normal", ""),
+        ("Tumblr (alt)", "https://{}.tumblr.com/", "There's nothing here", "normal", ""),
+        ("VK", "https://vk.com/{}", "page not found", "low", "May block"),
+        ("Telegram", "https://t.me/{}", "If you have <strong>Telegram</strong>", "low", "Some users private"),
+        ("Discord (discadia)", "https://discadia.com/user/{}", "404", "low", "Third-party directory"),
+        ("Bluesky", "https://bsky.app/profile/{}.bsky.social", "404", "low", "Handle varies by domain"),
+        ("Substack", "https://{}.substack.com/", "There is nothing here", "low", "Subdomain based"),
+        ("Ko-fi", "https://ko-fi.com/{}", "404", "low", "Payments (skip with --safe)"),
+        ("Patreon", "https://www.patreon.com/{}", "404", "low", "Payments (skip with --safe)"),
+        ("BuyMeACoffee", "https://www.buymeacoffee.com/{}", "404", "low", "Payments (skip with --safe)"),
+    ]:
+        cat = "Payments" if "Payments" in notes else "Social"
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category=cat, reliability=rel, notes=notes))
+
+    # Dev / tech
+    for name, url, chk, rel in [
+        ("Bitbucket", "https://bitbucket.org/{}", "Resource not found", "normal"),
+        ("HackerRank", "https://www.hackerrank.com/{}", "404", "normal"),
+        ("Codeforces", "https://codeforces.com/profile/{}", "404", "normal"),
+        ("CodeChef", "https://www.codechef.com/users/{}", "404", "normal"),
+        ("AtCoder", "https://atcoder.jp/users/{}", "404", "normal"),
+        ("Exercism", "https://exercism.org/profiles/{}", "404", "normal"),
+        ("FreeCodeCamp", "https://www.freecodecamp.org/{}", "404", "normal"),
+        ("Kaggle", "https://www.kaggle.com/{}", "404", "normal"),
+        ("LeetCode", "https://leetcode.com/{}", "page not found", "low"),
+        ("HackerOne", "https://hackerone.com/{}", "Page not found", "normal"),
+        ("Bugcrowd", "https://bugcrowd.com/{}", "404", "normal"),
+        ("CTFtime", "https://ctftime.org/user/{}", "404", "low"),
+        ("TryHackMe", "https://tryhackme.com/p/{}", "404", "low"),
+        ("Docker Hub", "https://hub.docker.com/u/{}", "404", "normal"),
+        ("NPM", "https://www.npmjs.com/~{}", "404", "normal"),
+        ("PyPI", "https://pypi.org/user/{}", "404", "low"),
+        ("Packagist", "https://packagist.org/users/{}", "404", "normal"),
+        ("Rubygems", "https://rubygems.org/profiles/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Tech", reliability=rel))
+
+    # Media / portfolio
+    for name, url, chk, rel in [
+        ("YouTube (legacy)", "https://www.youtube.com/{}", "404", "low"),
+        ("Vimeo", "https://vimeo.com/{}", "404", "normal"),
+        ("Twitch (alt)", "https://www.twitch.tv/{}", "Sorry. Unless you've got a time machine", "low"),
+        ("Bandcamp", "https://{}.bandcamp.com/", "404", "low"),
+        ("Last.fm", "https://www.last.fm/user/{}", "User not found", "normal"),
+        ("Trakt (alt)", "https://trakt.tv/users/{}", "404", "normal"),
+        ("Unsplash", "https://unsplash.com/@{}", "404", "normal"),
+        ("Pexels", "https://www.pexels.com/@{}", "404", "normal"),
+        ("Pixabay", "https://pixabay.com/users/{}/", "404", "normal"),
+        ("Behance", "https://www.behance.net/{}", "We can't find that page", "normal"),
+        ("Dribbble", "https://dribbble.com/{}", "404", "normal"),
+        ("ArtStation", "https://www.artstation.com/{}", "404", "normal"),
+        ("DeviantArt", "https://www.deviantart.com/{}", "404", "normal"),
+        ("Wattpad", "https://www.wattpad.com/user/{}", "User not found", "normal"),
+        ("AO3", "https://archiveofourown.org/users/{}", "404", "normal"),
+        ("Instructables", "https://www.instructables.com/member/{}", "404", "normal"),
+        ("Thingiverse", "https://www.thingiverse.com/{}/about", "404", "normal"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Media", reliability=rel))
+
+    # Marketplaces
+    for name, url, chk, rel in [
+        ("Itch.io", "https://{}.itch.io/", "404", "normal"),
+        ("Etsy", "https://www.etsy.com/people/{}", "404", "normal"),
+        ("eBay", "https://www.ebay.com/usr/{}", "404", "normal"),
+        ("Depop", "https://www.depop.com/{}", "404", "normal"),
+        ("Poshmark", "https://poshmark.com/closet/{}", "404", "normal"),
+        ("Fiverr", "https://www.fiverr.com/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Marketplaces", reliability=rel))
+
+
+
+
+    # Reference / wiki / directories / misc (high ROI)
+    for name, url, chk, rel, cat, notes in [
+        ("Wikipedia (EN)", "https://en.wikipedia.org/wiki/User:{}", "There is currently no text in this page", "normal", "Community", ""),
+        ("Wikidata", "https://www.wikidata.org/wiki/User:{}", "Wikidata does not have a page with this exact title", "normal", "Community", ""),
+        ("Fandom (Community)", "https://community.fandom.com/wiki/User:{}", "There is currently no text in this page", "normal", "Community", ""),
+        ("Fandom (Generic)", "https://{}.fandom.com/wiki/User:{}", "There is currently no text in this page", "low", "Community", "Wiki host varies"),
+        ("Imgur", "https://imgur.com/user/{}", "404", "normal", "Media", ""),
+        ("Gist (GitHub)", "https://gist.github.com/{}", "Not Found", "normal", "Tech", ""),
+        ("Medium", "https://medium.com/@{}", "404", "low", "Blogs", "Often JS-heavy"),
+        ("Hashnode", "https://hashnode.com/@{}", "404", "low", "Blogs", ""),
+        ("Product Hunt", "https://www.producthunt.com/@{}", "404", "low", "Tech", ""),
+        ("TradingView", "https://www.tradingview.com/u/{}", "Page not found", "low", "Finance", ""),
+        ("Speaker Deck", "https://speakerdeck.com/{}", "404", "normal", "Tech", ""),
+        ("SlideShare", "https://www.slideshare.net/{}", "404", "low", "Tech", ""),
+        ("Mixcloud", "https://www.mixcloud.com/{}/", "404", "normal", "Media", ""),
+        ("OpenSea", "https://opensea.io/{}", "404", "low", "Marketplaces", "Wallet/profile may differ"),
+        ("Gumroad (subdomain)", "https://{}.gumroad.com", "404", "low", "Marketplaces", ""),
+        ("Gumroad (path)", "https://gumroad.com/{}", "404", "low", "Marketplaces", ""),
+        ("Open Collective", "https://opencollective.com/{}", "404", "normal", "Community", ""),
+        ("Kick", "https://kick.com/{}", "404", "low", "Social", ""),
+        ("Flickr (people)", "https://www.flickr.com/people/{}/", "404", "normal", "Media", ""),
+        ("Flickr (photos)", "https://www.flickr.com/photos/{}/", "404", "normal", "Media", ""),
+        ("Pastebin (alt)", "https://pastebin.com/u/{}", "Not Found", "normal", "Community", ""),
+        ("Archive.org (profile)", "https://archive.org/details/@{}", "404", "low", "Community", ""),
+        ("OpenStreetMap (alt)", "https://www.openstreetmap.org/user/{}", "Page not found", "normal", "Community", ""),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category=cat, reliability=rel, notes=notes))
+
+
+    # More platforms (expanded)
+    # Social / professional / identity
+    for name, url, chk, rel, cat, notes in [
+        ("LinkedIn", "https://www.linkedin.com/in/{}/", "Profile Not Found", "low", "Social", "Often blocks automation / requires login"),
+        ("Snapchat", "https://www.snapchat.com/add/{}", "Sorry, this page isn't available", "low", "Social", "May be JS-heavy"),
+        ("Minds", "https://www.minds.com/{}/", "404", "low", "Social", ""),
+        ("Peerlist", "https://peerlist.io/{}", "404", "low", "Social", "Developer profiles"),
+        ("Polywork", "https://www.polywork.com/{}", "404", "low", "Social", "Professional profiles"),
+        ("Quora", "https://www.quora.com/profile/{}", "Page not found", "low", "Social", "Often name-based; may not match usernames"),
+        ("Meetup", "https://www.meetup.com/members/{}", "404", "low", "Social", "Numeric IDs common"),
+        ("Disqus", "https://disqus.com/by/{}/", "404", "low", "Community", "Commenting profiles"),
+        ("Trello", "https://trello.com/{}", "Page not found", "low", "Productivity", "Public boards/users vary"),
+        ("Keybase", "https://keybase.io/{}", "Not found", "low", "Community", "Service availability may vary"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category=cat, reliability=rel, notes=notes))
+
+    # Education / learning
+    for name, url, chk, rel in [
+        ("Duolingo", "https://www.duolingo.com/profile/{}", "404", "low"),
+        ("Codecademy", "https://www.codecademy.com/profiles/{}", "404", "low"),
+        ("Scratch", "https://scratch.mit.edu/users/{}/", "404", "normal"),
+        ("Khan Academy", "https://www.khanacademy.org/profile/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Education", reliability=rel))
+
+    # More dev / tech
+    for name, url, chk, rel, notes in [
+        ("Hugging Face", "https://huggingface.co/{}", "404", "normal", ""),
+        ("StackBlitz", "https://stackblitz.com/@{}", "404", "low", ""),
+        ("Glitch", "https://glitch.com/@{}", "404", "low", ""),
+        ("JSFiddle", "https://jsfiddle.net/user/{}/", "404", "low", ""),
+        ("CodeSandbox", "https://codesandbox.io/u/{}", "404", "low", ""),
+        ("Launchpad", "https://launchpad.net/~{}", "404", "normal", ""),
+        ("Read the Docs", "https://readthedocs.org/profiles/{}/", "404", "low", "Some users private"),
+        ("Gitea.com", "https://gitea.com/{}", "404", "normal", ""),
+        ("GitLab (freedesktop)", "https://gitlab.freedesktop.org/{}", "404", "normal", ""),
+        ("GitLab (GNOME)", "https://gitlab.gnome.org/{}", "404", "normal", ""),
+        ("KDE Invent", "https://invent.kde.org/{}", "404", "normal", ""),
+        ("OpenHub", "https://www.openhub.net/accounts/{}", "404", "low", ""),
+        ("StackShare", "https://stackshare.io/{}", "404", "low", ""),
+        ("OpenProcessing", "https://openprocessing.org/user/{}", "404", "low", ""),
+        ("Modrinth", "https://modrinth.com/user/{}", "404", "normal", "Modding profiles"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Tech", reliability=rel, notes=notes))
+
+    # More media / creators
+    for name, url, chk, rel in [
+        ("500px", "https://500px.com/{}", "404", "low"),
+        ("Sketchfab", "https://sketchfab.com/{}", "404", "normal"),
+        ("Newgrounds", "https://{}.newgrounds.com/", "404", "low"),
+        ("Dailymotion", "https://www.dailymotion.com/{}", "404", "low"),
+        ("Issuu", "https://issuu.com/{}", "404", "low"),
+        ("Scribd", "https://www.scribd.com/{}", "404", "low"),
+        ("BandLab", "https://www.bandlab.com/{}", "404", "low"),
+        ("Audiomack", "https://audiomack.com/{}", "404", "low"),
+        ("BeatStars", "https://www.beatstars.com/{}", "404", "low"),
+        ("ReverbNation", "https://www.reverbnation.com/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Media", reliability=rel))
+
+    # More gaming
+    for name, url, chk, rel in [
+        ("Speedrun.com", "https://www.speedrun.com/users/{}", "404", "normal"),
+        ("Game Jolt", "https://gamejolt.com/@{}", "404", "low"),
+        ("Mod DB", "https://www.moddb.com/members/{}", "404", "normal"),
+        ("GOG (community)", "https://www.gog.com/u/{}", "404", "low"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Gaming", reliability=rel))
+
+    # More marketplaces
+    for name, url, chk, rel in [
+        ("Grailed", "https://www.grailed.com/{}", "404", "low"),
+        ("Reverb (shop)", "https://reverb.com/shop/{}", "404", "low"),
+        ("Ko-fi (alt)", "https://ko-fi.com/{}", "404", "low"),
+        ("Liberapay", "https://liberapay.com/{}/", "404", "low"),
+        ("Payhip", "https://payhip.com/{}", "404", "low"),
+    ]:
+        cat = "Payments" if name in {"Liberapay", "Payhip", "Ko-fi (alt)"} else "Marketplaces"
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category=cat, reliability=rel))
+
+    # More wikis / community user pages
+    for name, url, chk in [
+        ("MediaWiki", "https://www.mediawiki.org/wiki/User:{}", "There is currently no text in this page"),
+        ("Miraheze (Meta)", "https://meta.miraheze.org/wiki/User:{}", "There is currently no text in this page"),
+        ("Wiktionary (EN)", "https://en.wiktionary.org/wiki/User:{}", "There is currently no text in this page"),
+        ("Wikibooks (EN)", "https://en.wikibooks.org/wiki/User:{}", "There is currently no text in this page"),
+    ]:
+        _add_site(EXTENDED_SITES, name, SiteSpec(url, chk, category="Community", reliability="low"))
+
+
+add_extended_sites()
+
+
+# --- Forums pack: Discourse communities (/u/{user}/summary) ---
+DISCOURSE_HOSTS = [
+    "meta.discourse.org", "discuss.python.org", "discourse.mozilla.org", "discourse.ubuntu.com",
+    "discussion.fedoraproject.org", "forums.docker.com", "community.cloudflare.com", "community.grafana.com",
+    "community.home-assistant.io", "community.letsencrypt.org", "community.bitwarden.com",
+    "forums.plex.tv", "forums.unrealengine.com", "discuss.hashicorp.com", "discuss.elastic.co",
+    "discuss.kubernetes.io", "discuss.gradle.org", "discuss.pytorch.org", "discuss.tensorflow.org",
+    "discuss.streamlit.io", "community.atlassian.com", "community.shopify.com", "community.adobe.com",
+    "community.autodesk.com", "community.tableau.com", "community.zendesk.com", "community.salesforce.com",
+    "community.zoom.com", "community.roku.com", "community.nvidia.com", "community.intel.com",
+    "community.amd.com", "community.vivaldi.net", "community.brave.com",
+    "forum.manjaro.org", "forums.opensuse.org", "forums.freebsd.org", "forum.proxmox.com",
+    "forum.opnsense.org", "forum.mikrotik.com", "discuss.linuxcontainers.org", "discuss.privacyguides.net",
+    "forum.torproject.net", "community.digitalocean.com", "community.linode.com",
+    "community.signalusers.org", "community.wire.com", "community.ui.com", "community.mattermost.com",
+    # extra open-source communities
+    "discuss.rust-lang.org", "discuss.rubyonrails.org", "community.blender.org", "community.joplinapp.org",
+    "community.obsproject.com", "community.netdata.cloud", "community.openvpn.net", "community.fly.io",
+    # more communities
+    "forum.snapcraft.io", "community.openhab.org", "community.traefik.io", "forum.level1techs.com", "discuss.huggingface.co", "discuss.haskell.org", "discuss.ocaml.org", "discuss.haproxy.org", "discuss.zeromq.org", "discuss.helm.sh", "discuss.cilium.io", "discuss.dapr.io", "discuss.envoyproxy.io", "discuss.istio.io", "community.postman.com", "community.algolia.com", "community.databricks.com", "community.mongodb.com", "community.neo4j.com", "community.sonarsource.com", "community.splunk.com", "community.influxdata.com", "community.gohugo.io", "community.gitea.io", "community.n8n.io", "forum.fairphone.com", "discuss.kde.org", "community.syncthing.net", "community.gnome.org", "forums.ankiweb.net", "forum.djangoproject.com", "talk.yunohost.org", "discuss.caprover.com", "discourse.pi-hole.net", "community.nodered.org", "community.openwrt.org", "discuss.openedx.org",
+    "forum.obsidian.md",
+    "discourse.julialang.org",
+    "discuss.grapheneos.org",
+    "community.openvpn.net",
+    "forum.arduino.cc",
+    "community.riot.im",
+    "community.matrix.org",
+    "community.zerotier.com",
+    "discuss.swift.org",
+    "forums.swift.org",
+    "community.pulumi.com",
+    "discuss.astro.build",
+    "community.prusa3d.com",
+    "community.ansible.com",
+    "discuss.lensfun.org",
+    "community.ohmyposh.dev",
+    "forum.nim-lang.org",
+    "discuss.golang.org",
+    "discuss.python.org",
+    "discourse.mcneel.com",
+    "community.nitrokey.com",
+    "community.gamedev.tv",
+    "discuss.krita.org",
+    "community.zephyrproject.org",
+    "community.synology.com",
+    "forums.plex.tv",
+    "forums.ankiweb.net",
+    "community.spiceworks.com",
+    "discuss.tryton.org",
+
+]
+
+
+def add_forums() -> None:
+    for host in sorted(set(DISCOURSE_HOSTS)):
+        name = f"Forum ({host})"
+        url = f"https://{host}/u/{{}}/summary"
+        _add_site(FORUM_SITES, name, SiteSpec(url, None, category="Forums", reliability="low", notes="Discourse-style forum"))
+
+
+add_forums()
+
+
+# --- Fediverse pack: instance-based profiles (expanded) ---
+MASTODON_INSTANCES = [
+    "mastodon.social", "fosstodon.org", "hachyderm.io", "mastodon.world", "mstdn.social",
+    "infosec.exchange", "techhub.social", "mastodon.online", "mastodon.cloud", "mastodon.art",
+    "toots.social", "mathstodon.xyz", "scholar.social", "androiddev.social", "social.vivaldi.net",
+    "mastodon.uno", "mastodon.app", "mastodon.green", "mastodon.ie", "mastodon.nz",
+    "mastodon.scot", "indieweb.social", "mas.to", "mastodon.nl", "mastodon.sdf.org",
+    "chaos.social", "social.tchncs.de", "metalhead.club", "front-end.social", "kolektiva.social",
+    "mastodon.cat", "mastodon.es", "mastodon.it", "mastodon.fr", "mastodon.de", "mstdn.jp",
+    "mastodon.lol", "mastodon.energy", "mastodon.gamedev.place", "mastodon.au", "c.im",
+    "mastodon.boston", "mastodon.berlin", "mastodon.paris", "mastodon.gay",
+    # extra instances
+    "journa.host", "mastodon.education", "mastodon.science", "mastodon.top", "mastodon.pro",
+    "mastodon.dev", "social.sdf.org", "mastodon.technology", "mstdn.party", "social.treehouse.systems",
+    # more instances
+    "social.opensource.org", "mastodon.gnome.org", "social.fossdroid.com", "mastodon.iftas.org", "social.linux.pizza", "social.freedombox.org", "social.nixos.org", "mastodon.africa", "mastodon.pt", "mastodon.se", "mastodon.no", "mastodon.pl",
+    "mastodon.xyz",
+    "mastodon.instance.social",
+    "masto.ai",
+    "masto.nu",
+    "mastodon.frl",
+    "mastodon.juggler.jp",
+    "mstdn.io",
+    "octodon.social",
+    "mastodon.im",
+    "mastodon.sandwich.net",
+    "masto.pt",
+    "mastodon.ro",
+    "mastodon.fi",
+    "mastodon.is",
+
+]
+
+PIXELFED_INSTANCES = [
+    "pixelfed.social", "pixelfed.de", "pixelfed.eu", "pixelfed.uno", "pixelfed.art",
+    "pixelfed.fr", "pixelfed.nl", "pixelfed.tokyo", "pixelfed.cloud", "pixelfed.cz",
+    "pixelfed.au", "pixelfed.co.za",    "pixelfed.rocks",
+    "pixelfed.dk",
+    "pixelfed.ie",
+    "pixelfed.es",
+    "pixelfed.it",
+
+]
+
+LEMMY_INSTANCES = [
+    "lemmy.world", "lemmy.ml", "beehaw.org", "sh.itjust.works", "lemmy.ca", "programming.dev",
+    "lemm.ee", "lemmy.one", "lemmy.dbzer0.com", "sopuli.xyz", "feddit.de",
+    "feddit.uk", "feddit.it", "lemmy.today", "lemmy.eco", "lemmy.fmhy.net",
+    "lemmygrad.ml",    "lemmy.kya.moe",
+    "lemmynsfw.com",
+    "lemmy.zip",
+    "lemmy.sdf.org",
+    "lemmy.blahaj.zone",
+
+]
+
+KBIN_INSTANCES = ["kbin.social", "kbin.life", "kbin.earth"]
+MISSKEY_INSTANCES = ["misskey.io", "misskey.social", "misskey.de", "misskey.design", "misskey.tokyo", "misskey.dev"]
+PEERTUBE_INSTANCES = ["tilvids.com", "framatube.org", "peertube.social", "peertube.tv", "video.ploud.jp", "video.linux.it"]
+
+
+def add_fediverse() -> None:
+    for inst in sorted(set(MASTODON_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"Mastodon ({inst})", SiteSpec(f"https://{inst}/@{{}}", "404", category="Fediverse", reliability="low"))
+    for inst in sorted(set(PIXELFED_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"Pixelfed ({inst})", SiteSpec(f"https://{inst}/{{}}", "404", category="Fediverse", reliability="low"))
+    for inst in sorted(set(LEMMY_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"Lemmy ({inst})", SiteSpec(f"https://{inst}/u/{{}}", "404", category="Fediverse", reliability="low"))
+    for inst in sorted(set(KBIN_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"kbin ({inst})", SiteSpec(f"https://{inst}/u/{{}}", "404", category="Fediverse", reliability="low"))
+    for inst in sorted(set(MISSKEY_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"Misskey ({inst})", SiteSpec(f"https://{inst}/@{{}}", "404", category="Fediverse", reliability="low"))
+    for inst in sorted(set(PEERTUBE_INSTANCES)):
+        _add_site(FEDIVERSE_SITES, f"PeerTube ({inst})", SiteSpec(f"https://{inst}/accounts/{{}}", "404", category="Fediverse", reliability="low"))
+
+
+add_fediverse()
+
+
+PACKS: Dict[str, Dict[str, SiteSpec]] = {
+    "core": CORE_SITES,
+    "extended": EXTENDED_SITES,
+    "forums": FORUM_SITES,
+    "fediverse": FEDIVERSE_SITES,
+}
+
+
+def build_sites(pack: str) -> Dict[str, SiteSpec]:
+    """Build the active site dict for a selected pack."""
+    pack = (pack or "").strip().lower()
+    if pack == "everything":
+        merged: Dict[str, SiteSpec] = {}
+        for p in ("core", "extended", "forums", "fediverse"):
+            merged.update(PACKS[p])
+        return merged
+    if pack in PACKS:
+        return dict(PACKS[pack])
+    # default fallback
+    merged = dict(CORE_SITES)
+    merged.update(EXTENDED_SITES)
+    merged.update(FORUM_SITES)
+    merged.update(FEDIVERSE_SITES)
+    return merged
+
+
+# ----------------------------------------------------------------------
+# Optional local site extension (JSON)
+# ----------------------------------------------------------------------
+
+def load_extra_sites_json(path: str) -> Dict[str, SiteSpec]:
+    """Load user-supplied site specs from JSON."""
+    extra: Dict[str, SiteSpec] = {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return extra
+        for name, obj in data.items():
+            if not isinstance(name, str) or not isinstance(obj, dict):
+                continue
+            url = str(obj.get("url", "")).strip()
+            if "{}" not in url or not url.startswith(("http://", "https://")):
+                continue
+            extra[name.strip()] = SiteSpec(
+                url=url,
+                check_str=(obj.get("check_str") or None),
+                error_url=(obj.get("error_url") or None),
+                category=str(obj.get("category", "General")),
+                reliability=str(obj.get("reliability", "normal")),
+                notes=str(obj.get("notes", "")),
+                positive_hint=(obj.get("positive_hint") or None),
+            )
+    except Exception:
+        return extra
+    return extra
+
+
+def export_sites_json(path: str, sites: Dict[str, SiteSpec]) -> None:
+    payload: Dict[str, dict] = {}
+    for name, spec in sorted(sites.items(), key=lambda x: x[0].lower()):
+        payload[name] = {
+            "url": spec.url,
+            "check_str": spec.check_str,
+            "error_url": spec.error_url,
+            "category": spec.category,
+            "reliability": spec.reliability,
+            "notes": spec.notes,
+            "positive_hint": spec.positive_hint,
+        }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+# ----------------------------------------------------------------------
+# Sherlock loader (cached)
+# ----------------------------------------------------------------------
+
+def load_sherlock_sites(session: requests.Session, cache_path: str, refresh: bool, include_nsfw: bool) -> Dict[str, SiteSpec]:
+    """Download Sherlock's data.json and convert to SiteSpec."""
+    data_text: Optional[str] = None
+
+    if (not refresh) and os.path.exists(cache_path):
+        try:
+            with open(cache_path, "r", encoding="utf-8") as f:
+                data_text = f.read()
+        except Exception:
+            data_text = None
+
+    if data_text is None:
+        print(f"{Fore.BLUE}[*] Downloading Sherlock site database...{Style.RESET_ALL}")
+        try:
+            r = session.get(SHERLOCK_DATA_URL, timeout=(6.0, 30.0), headers={"User-Agent": random.choice(USER_AGENTS)})
+            r.raise_for_status()
+            data_text = r.text
+            try:
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    f.write(data_text)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"{Fore.RED}[!] Could not download Sherlock DB: {e}{Style.RESET_ALL}")
+            if os.path.exists(cache_path):
+                try:
+                    with open(cache_path, "r", encoding="utf-8") as f:
+                        data_text = f.read()
+                except Exception:
+                    return {}
+            else:
+                return {}
+
+    try:
+        data = json.loads(data_text)
+    except Exception:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+
+    out: Dict[str, SiteSpec] = {}
+
+    for site_name, obj in data.items():
+        if not isinstance(site_name, str) or site_name.startswith("$"):
+            continue
+        if not isinstance(obj, dict):
+            continue
+        if bool(obj.get("isNSFW", False)) and not include_nsfw:
+            continue
+
+        url = str(obj.get("url", "")).strip()
+        if not url.startswith(("http://", "https://")) or "{}" not in url:
+            continue
+
+        error_type = str(obj.get("errorType", "")).strip().lower()
+        error_msg = obj.get("errorMsg")
+        error_url = obj.get("errorUrl") or None
+
+        check_str: Optional[str] = None
+        if error_type == "message":
+            if isinstance(error_msg, list) and error_msg:
+                check_str = str(error_msg[0])
+            elif isinstance(error_msg, str):
+                check_str = error_msg
+        elif error_type == "response_url":
+            # handled via error_url comparison
+            pass
+        else:
+            error_url = None
+
+        # Sherlock sites are frequently automation-sensitive: mark low reliability by default.
+        out[f"Sherlock: {site_name}"] = SiteSpec(
+            url=url,
+            check_str=check_str,
+            error_url=error_url,
+            category="Sherlock",
+            reliability="low",
+            notes=f"Sherlock errorType={error_type or 'unknown'}",
+        )
+
+    return out
+
+
+# ----------------------------------------------------------------------
+# API checks (fast, high-confidence)
+# ----------------------------------------------------------------------
+
+def check_github_api(session: requests.Session, username: str, timeout: Tuple[float, float]) -> Tuple[bool, Optional[str], Optional[str]]:
+    url = f"https://api.github.com/users/{username}"
+    try:
+        r = session.get(url, timeout=timeout)
+        if r.status_code == 200:
+            data = r.json()
+            return True, data.get("html_url"), f"Name: {data.get('name')}"
+    except Exception:
+        pass
+    return False, None, None
+
+
+def check_gravatar_api(session: requests.Session, username: str, timeout: Tuple[float, float]) -> Tuple[bool, Optional[str], Optional[str]]:
+    url = f"https://en.gravatar.com/{username}.json"
+    try:
+        r = session.get(url, timeout=timeout, headers={"User-Agent": random.choice(USER_AGENTS)})
+        if r.status_code == 200:
+            data = r.json()
+            profile_url = data.get("entry", [{}])[0].get("profileUrl")
+            if profile_url:
+                return True, profile_url, "Gravatar Profile"
+    except Exception:
+        pass
+    return False, None, None
+
+
+# ----------------------------------------------------------------------
+# DuckDuckGo HTML dork search (best-effort)
+# ----------------------------------------------------------------------
+
+def _extract_ddg_real_url(href: str) -> str:
+    try:
+        u = urlparse(href)
+        qs = parse_qs(u.query)
+        if "uddg" in qs:
+            return unquote(qs["uddg"][0])
+    except Exception:
+        pass
+    return href
+
+
+def dork_search(session: requests.Session, username: str, timeout: Tuple[float, float], top_n: int = 10) -> List[Tuple[str, str]]:
+    print(f"\n{Fore.YELLOW}[*] Search engine check (DuckDuckGo HTML) for '{username}'...{Style.RESET_ALL}")
+    query = f'"{username}"'
+    url = f"https://html.duckduckgo.com/html/?q={query}"
+    headers = {"User-Agent": random.choice(USER_AGENTS)}
+    found_links: List[Tuple[str, str]] = []
+
+    try:
+        resp = session.get(url, headers=headers, timeout=timeout)
+        if resp.status_code == 200:
+            soup = BeautifulSoup(resp.text, "html.parser")
+            results = soup.find_all("a", class_="result__a")
+            for res in results[:max(1, min(int(top_n), 30))]:
+                link = res.get("href") or ""
+                title = (res.get_text() or "").strip()
+                if not link:
+                    continue
+                real = _extract_ddg_real_url(link)
+                if "duckduckgo" not in real and "search" not in real:
+                    found_links.append((title, real))
+        else:
+            print(f"{Fore.RED}[!] Dorking returned HTTP {resp.status_code}{Style.RESET_ALL}")
+    except Exception as e:
+        print(f"{Fore.RED}[!] Dorking failed: {e}{Style.RESET_ALL}")
+
+    return found_links
+
+
+# ----------------------------------------------------------------------
+# Core scanning logic
+# ----------------------------------------------------------------------
+
+@dataclass
+class ScanResult:
+    site: str
+    category: str
+    input_url: str
+    final_url: str
+    status: int
+    confidence: str  # FOUND | POSSIBLE
+    reason: str
+
+
+def build_session() -> requests.Session:
+    """Create a requests session with pooled retries."""
+    session = requests.Session()
+    retry = Retry(
+        total=2,
+        connect=2,
+        read=2,
+        backoff_factor=0.55,
+        status_forcelist=[429, 500, 502, 503, 504],
+        allowed_methods=["GET", "HEAD"],
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=80, pool_maxsize=80)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
+def safe_filename(name: str) -> str:
+    name = name.strip()
+    name = re.sub(r"[^a-zA-Z0-9._-]+", "_", name)
+    return name[:64] if name else "user"
+
+
+def _norm_url(u: str) -> str:
+    try:
+        p = urlparse(u)
+        return f"{p.scheme}://{p.netloc}{p.path}".rstrip("/")
+    except Exception:
+        return u.rstrip("/")
+
+
+def extract_title_fast(html: str) -> str:
+    m = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
+    if not m:
+        return ""
+    return re.sub(r"\s+", " ", m.group(1)).strip()
+
+
+def extract_meta_fast(html: str, prop: str) -> str:
+    pattern = rf'<meta[^>]+(?:property|name)\s*=\s*["\']{re.escape(prop)}["\'][^>]+content\s*=\s*["\']([^"\']+)["\']'
+    m = re.search(pattern, html, flags=re.IGNORECASE)
+    return (m.group(1).strip() if m else "")
+
+
+def extract_canonical_fast(html: str) -> str:
+    m = re.search(r'<link[^>]+rel\s*=\s*["\']canonical["\'][^>]+href\s*=\s*["\']([^"\']+)["\']', html, flags=re.I)
+    return (m.group(1).strip() if m else "")
+
+
+def looks_like_login_or_generic(final_url: str) -> bool:
+    try:
+        u = urlparse(final_url)
+        path_q = (u.path + "?" + (u.query or "")).lower()
+        return any(k in path_q for k in SUSPICIOUS_REDIRECT_PATH_KEYWORDS)
+    except Exception:
+        return False
+
+
+def looks_like_antibot(html_lower: str, title_lower: str) -> bool:
+    hay = (title_lower + " " + html_lower)[:25000]
+    return any(k in hay for k in ANTIBOT_INDICATORS)
+
+
+def looks_like_js_shell(html_lower: str) -> bool:
+    hints = [
+        "enable javascript", "you need to enable javascript",
+        "id=\"__next\"", "id=\"root\"", "data-reactroot",
+        "<noscript>",
+    ]
+    return any(h in html_lower for h in hints)
+
+
+def bounded_fetch_text(resp: requests.Response, max_bytes: int) -> str:
+    """Read up to max_bytes from a streaming response."""
+    try:
+        content = b""
+        for chunk in resp.iter_content(chunk_size=16384):
+            if not chunk:
+                break
+            content += chunk
+            if len(content) >= max_bytes:
+                break
+        try:
+            return content.decode(resp.encoding or "utf-8", errors="ignore")
+        except Exception:
+            return content.decode("utf-8", errors="ignore")
+    except Exception:
+        try:
+            return (resp.text or "")[:max_bytes]
+        except Exception:
+            return ""
+
+
+def contains_user_token(text_lower: str, user_lower: str) -> bool:
+    """Word-ish boundary match for usernames (reduces substring false positives)."""
+    if not user_lower:
+        return False
+    pattern = rf"(?i)(^|[^a-z0-9_]){re.escape(user_lower)}([^a-z0-9_]|$)"
+    return re.search(pattern, text_lower) is not None
+
+
+
+def compute_url_signal(final_url: str, username: str) -> Tuple[int, List[str]]:
+    """Lightweight URL-based signal. Helps avoid misses when pages are minimal."""
+    user_l = (username or "").lower().lstrip("@")
+    signals: List[str] = []
+    score = 0
+    if not user_l or not final_url:
+        return 0, signals
+    try:
+        u = urlparse(final_url)
+        host = (u.netloc or "").lower().split(":")[0]
+        parts = [p for p in host.split(".") if p]
+        if parts and parts[0] == user_l and len(parts) >= 2:
+            signals.append("subdomain")
+            score += 2
+
+        path = (u.path or "").lower()
+        segs = [seg for seg in path.split("/") if seg]
+        for seg in segs[:8]:
+            if seg == user_l or seg == f"@{user_l}" or seg == f"~{user_l}":
+                signals.append("path")
+                score += 1
+                break
+            if seg.startswith("@") and seg[1:] == user_l:
+                signals.append("path")
+                score += 1
+                break
+
+        q = (u.query or "").lower()
+        if any(k in q for k in [f"user={user_l}", f"username={user_l}", f"handle={user_l}"]):
+            signals.append("query")
+            score += 1
+    except Exception:
+        pass
+    return score, signals
+
+def compute_signal_score(html: str, username: str, spec: SiteSpec) -> Tuple[int, List[str]]:
+    """Return (score, signals). Higher score => more confident match."""
+    user_l = username.lower()
+    signals: List[str] = []
+    score = 0
+
+    title = extract_title_fast(html)
+    title_l = title.lower().strip()
+
+    # Title is a strong signal
+    if title_l and (contains_user_token(title_l, user_l) or f"@{user_l}" in title_l):
+        signals.append("title")
+        score += 3
+
+    og_title = extract_meta_fast(html, "og:title").lower()
+    tw_title = extract_meta_fast(html, "twitter:title").lower()
+    if og_title and (contains_user_token(og_title, user_l) or f"@{user_l}" in og_title):
+        signals.append("og:title")
+        score += 2
+    if tw_title and (contains_user_token(tw_title, user_l) or f"@{user_l}" in tw_title):
+        signals.append("twitter:title")
+        score += 2
+
+    canonical = extract_canonical_fast(html).lower()
+    og_url = extract_meta_fast(html, "og:url").lower()
+    if canonical and user_l in canonical:
+        signals.append("canonical")
+        score += 2
+    if og_url and user_l in og_url:
+        signals.append("og:url")
+        score += 2
+
+    # Optional positive regex hint
+    if spec.positive_hint:
+        try:
+            patt = spec.positive_hint.replace("{}", re.escape(username))
+            if re.search(patt, html, flags=re.I):
+                signals.append("positive_hint")
+                score += 2
+        except Exception:
+            pass
+
+    # Visible text signal (more expensive)
+    if score < 4:
+        try:
+            soup = BeautifulSoup(html, "lxml")
+            for tag in soup(["script", "style", "noscript"]):
+                tag.extract()
+            text_l = soup.get_text(" ", strip=True).lower()
+            if contains_user_token(text_l, user_l) or f"@{user_l}" in text_l:
+                signals.append("visible_text")
+                score += 2
+        except Exception:
+            pass
+
+    return score, signals
+
+
+class DomainLimiter:
+    """Limit concurrent requests per domain (helps reduce blocks)."""
+
+    def __init__(self, per_domain: int) -> None:
+        self.per_domain = max(1, int(per_domain))
+        self._locks: Dict[str, concurrent.futures.thread.Lock] = {}
+        self._sems: Dict[str, "threading.Semaphore"] = {}
+
+    def _get_sem(self, domain: str):
+        import threading
+        if domain not in self._sems:
+            self._sems[domain] = threading.Semaphore(self.per_domain)
+        return self._sems[domain]
+
+    def acquire(self, url: str):
+        import threading
+        dom = ""
+        try:
+            dom = urlparse(url).netloc.lower()
+        except Exception:
+            dom = ""
+        if not dom:
+            dom = "_"
+        sem = self._get_sem(dom)
+        sem.acquire()
+        return (dom, sem)
+
+    def release(self, token) -> None:
+        try:
+            _, sem = token
+            sem.release()
+        except Exception:
+            pass
+
+
+def analyze_site(
+    session: requests.Session,
+    limiter: DomainLimiter,
+    site_name: str,
+    spec: SiteSpec,
+    username: str,
+    timeout: Tuple[float, float],
+    jitter: Tuple[float, float],
+    max_html_bytes: int,
+    verbose: bool = False,
+) -> Optional[ScanResult]:
+    input_url = spec.url.format(username)
+
     headers = {
-        'User-Agent': random.choice(USER_AGENTS), 
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
     }
 
+    if jitter[1] > 0:
+        time.sleep(random.uniform(jitter[0], jitter[1]))
+
+    token = limiter.acquire(input_url)
     try:
-        # Request with redirection enabled
-        r = requests.get(url, headers=headers, timeout=12, allow_redirects=True)
-        
-        # 1. IMMEDIATE STATUS CODE CHECKS
-        if r.status_code in [404, 410, 500, 502, 503]: 
-            return None
+        # HEAD-first (cheap)
+        try:
+            hr = session.head(input_url, headers=headers, timeout=timeout, allow_redirects=True)
+            hs = int(getattr(hr, "status_code", 0) or 0)
+            hu = getattr(hr, "url", input_url) or input_url
 
-        # 2. URL STRUCTURE ANALYSIS
-        final_url_lower = r.url.lower()
-        
-        # Redirected to a completely different domain? (e.g., domain parking)
-        original_domain = url.split("/")[2].replace("www.", "")
-        final_domain = r.url.split("/")[2].replace("www.", "")
-        if original_domain not in final_domain and "login" in final_domain:
-            return None
-
-        # Redirected to generic paths
-        if any(keyword in final_url_lower for keyword in SUSPICIOUS_REDIRECT_KEYWORDS):
-            return None
-
-        # Redirected to root (e.g. site.com/user -> site.com/)
-        if r.url.rstrip('/') == f"https://{original_domain}" or r.url.rstrip('/') == f"http://{original_domain}":
-            return None
-
-        # 3. CONTENT ANALYSIS
-        soup = BeautifulSoup(r.text, 'lxml') # Changed to lxml for speed
-        page_text = soup.get_text().lower()
-        page_title = soup.title.string.strip().lower() if soup.title else ""
-        
-        # Global Error Indicators
-        if any(err in page_text for err in GLOBAL_ERROR_INDICATORS):
-            return None
-        
-        # Site-Specific Error Indicator
-        if check_str and check_str.lower() in page_text: 
-            return None
-
-        # 4. SMART TITLE VERIFICATION (CRITICAL FOR REDUCING FPS)
-        # If the title is just the Site Name (e.g. "Instagram"), it's likely a login/error page.
-        # A valid profile usually has "Username - Site" or "Name (@username) | Site"
-        
-        # Check if title is generic
-        if page_title in GENERIC_TITLES:
-            return None
-        
-        # Check if title is literally just the site name
-        if page_title == site_name.lower():
-            return None
-            
-        # 5. META TAG INSPECTION
-        # Check OpenGraph/Twitter tags. Valid profiles usually populate these.
-        meta_title = soup.find("meta", property="og:title") or soup.find("meta", property="twitter:title")
-        if meta_title:
-            content = meta_title.get("content", "").lower()
-            if "login" in content or "sign up" in content or "error" in content:
+            if hs in (404, 410):
                 return None
-
-        # 6. LOGIN FORM DETECTION
-        # If there is a password field AND the username is NOT in the title/h1, it's a login trap.
-        if soup.find("input", {"type": "password"}):
-            h1 = soup.find("h1")
-            h1_text = h1.get_text().lower() if h1 else ""
-            if username.lower() not in page_title and username.lower() not in h1_text:
+            if hs in UNCERTAIN_STATUS:
+                return ScanResult(site_name, spec.category, input_url, hu, hs, "POSSIBLE", f"HTTP {hs} (blocked/rate-limited)")
+            if looks_like_login_or_generic(hu) and spec.reliability != "low":
                 return None
+        except Exception:
+            pass
 
-        return url
-    except Exception as e:
-        if verbose: print(f"{Fore.RED}Error checking {site_name}: {e}{Style.RESET_ALL}")
-        return None
+        # GET (streamed)
+        try:
+            gr = session.get(input_url, headers=headers, timeout=timeout, allow_redirects=True, stream=True)
+        except Exception as e:
+            if verbose:
+                print(f"{Fore.RED}Error checking {site_name}: {e}{Style.RESET_ALL}")
+            return ScanResult(site_name, spec.category, input_url, input_url, 0, "POSSIBLE", "Network error / blocked")
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("username", nargs='?')
-    parser.add_argument("-v", "--verbose", action="store_true")
-    args = parser.parse_args()
+        status = int(getattr(gr, "status_code", 0) or 0)
+        final_url = getattr(gr, "url", input_url) or input_url
 
-    print(f"\n{Fore.CYAN}Digital Footprint Finder v12 (True-Positive Optimization){Style.RESET_ALL}")
-    
-    if not args.username:
-        username = input(f"{Fore.GREEN}Enter username: {Fore.WHITE}").strip()
-    else:
-        username = args.username.strip()
-
-    if not username: sys.exit("Username required.")
-
-    found_list = []
-    
-    # API Checks
-    print(f"\n{Fore.BLUE}[*] Checking APIs...{Style.RESET_ALL}")
-    gh_exists, gh_url, gh_info = check_github_api(username)
-    if gh_exists: 
-        print(f"{Fore.GREEN}[+] GitHub: {Fore.WHITE}{gh_url}")
-        found_list.append(("GitHub", gh_url))
-        
-    gr_exists, gr_url, _ = check_gravatar_api(username)
-    if gr_exists:
-        print(f"{Fore.GREEN}[+] Gravatar: {Fore.WHITE}{gr_url}")
-        found_list.append(("Gravatar", gr_url))
-
-    # Site Scrape
-    print(f"\n{Fore.BLUE}[*] Scanning 270+ Platforms (Threaded)...{Style.RESET_ALL}")
-    
-    site_keys = list(SITES.keys())
-    random.shuffle(site_keys) # Prevent hitting same host concurrently
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=25) as executor:
-        future_to_site = {executor.submit(analyze_site, s, SITES[s]['url'], username, args.verbose): s for s in site_keys}
-        for future in concurrent.futures.as_completed(future_to_site):
-            site = future_to_site[future]
+        # Sherlock response_url negative
+        if spec.error_url:
             try:
-                if res := future.result():
-                    print(f"{Fore.GREEN}[+] {site.ljust(20)}: {Fore.WHITE}{res}")
-                    found_list.append((site, res))
-            except: pass
+                if _norm_url(final_url) == _norm_url(str(spec.error_url)):
+                    return None
+            except Exception:
+                pass
 
-    # Dorking
-    dork_results = dork_search(username)
-    
-    # --- SAVE LOGIC ---
-    base_dir = os.path.join(os.path.expanduser('~'), 'storage', 'downloads')
+        if status in (404, 410):
+            return None
+        if status in UNCERTAIN_STATUS:
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", f"HTTP {status} (blocked/rate-limited)")
+        if status >= 500:
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", f"HTTP {status} (server error)")
+
+        if looks_like_login_or_generic(final_url):
+            if spec.reliability == "low":
+                return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", "Redirected to generic/login-like page")
+            return None
+
+        ctype = (gr.headers.get("Content-Type") or "").lower()
+        if ctype and ("text/html" not in ctype and "application/xhtml" not in ctype and "application/json" not in ctype):
+            # Some profiles return JSON or non-HTML; keep conservative
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", f"Non-HTML content-type: {ctype.split(';')[0]}")
+
+        html = bounded_fetch_text(gr, max_html_bytes)
+        html_lower = html.lower()
+        title_lower = extract_title_fast(html).lower().strip()
+
+        if looks_like_antibot(html_lower, title_lower):
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", "Anti-bot/challenge page")
+
+        if any(err in html_lower for err in GLOBAL_ERROR_INDICATORS):
+            return None
+
+        if spec.check_str:
+            try:
+                chk = spec.check_str.format(username).lower() if "{}" in spec.check_str else str(spec.check_str).lower()
+                if chk and chk in html_lower:
+                    return None
+            except Exception:
+                pass
+
+        if title_lower in GENERIC_TITLES and spec.reliability != "low":
+            return None
+
+        if looks_like_js_shell(html_lower) and spec.reliability == "low":
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", "JS-heavy shell page")
+
+        score, signals = compute_signal_score(html, username, spec)
+        u_score, u_signals = compute_url_signal(final_url, username)
+        if u_score:
+            score += u_score
+            signals.extend(u_signals)
+
+        # Thresholds tuned for conservative detection
+        if spec.reliability == "low":
+            if score >= 6:
+                return ScanResult(site_name, spec.category, input_url, final_url, status, "FOUND", f"Strong signals: {', '.join(signals)}")
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", "Weak signals (site often blocks automation)")
+
+        if score >= 5:
+            return ScanResult(site_name, spec.category, input_url, final_url, status, "FOUND", f"Strong signals: {', '.join(signals)}")
+
+        return ScanResult(site_name, spec.category, input_url, final_url, status, "POSSIBLE", "No strong profile signals")
+
+    finally:
+        limiter.release(token)
+
+
+# ----------------------------------------------------------------------
+# Output / Saving
+# ----------------------------------------------------------------------
+
+def get_save_dir() -> str:
+    """Prefer Termux downloads folder when available."""
+    base_dir = os.path.join(os.path.expanduser("~"), "storage", "downloads")
     if not os.path.exists(base_dir):
         if os.path.exists("/sdcard/Download"):
-             base_dir = "/sdcard/Download"
+            base_dir = "/sdcard/Download"
+        elif os.path.exists(os.path.expanduser("~")):
+            base_dir = os.path.expanduser("~")
         else:
-             base_dir = os.path.expanduser('~') 
-
-    save_dir = os.path.join(base_dir, 'Digital Footprint Finder')
+            base_dir = "."
+    save_dir = os.path.join(base_dir, "Digital Footprint Finder")
     try:
         os.makedirs(save_dir, exist_ok=True)
-    except Exception as e:
-        save_dir = "." 
-    
-    filename = os.path.join(save_dir, f"{username}_v12.txt")
-    
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(f"Footprint Report for: {username}\n")
-        f.write("="*40 + "\n\n")
-        f.write("DIRECT MATCHES:\n")
-        for site, url in found_list:
-            f.write(f"- {site}: {url}\n")
-        f.write("\nSEARCH RESULTS:\n")
+    except Exception:
+        save_dir = "."
+    return save_dir
+
+
+def print_result(res: ScanResult) -> None:
+    if res.confidence == "FOUND":
+        color = Fore.GREEN
+        tag = "[+]"
+    else:
+        color = Fore.YELLOW
+        tag = "[?]"
+    print(f"{color}{tag} {res.site.ljust(34)}{Style.RESET_ALL}: {Fore.WHITE}{res.final_url}{Style.RESET_ALL}")
+
+
+def dedup(results: List[ScanResult]) -> List[ScanResult]:
+    seen = set()
+    out = []
+    for r in results:
+        key = (r.site.lower(), _norm_url(r.final_url).lower())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def group_by_category(results: List[ScanResult]) -> Dict[str, List[ScanResult]]:
+    out: Dict[str, List[ScanResult]] = {}
+    for r in results:
+        out.setdefault(r.category, []).append(r)
+    for k in out:
+        out[k].sort(key=lambda x: x.site.lower())
+    return dict(sorted(out.items(), key=lambda x: x[0].lower()))
+
+
+def save_html_report(path: str, username: str, found: List[ScanResult], possible: List[ScanResult], dorks: List[Tuple[str, str]], meta: dict) -> None:
+    def esc(s: str) -> str:
+        return html_escape.escape(s, quote=True)
+
+    def section(title: str, items: List[ScanResult]) -> str:
+        rows = []
+        for r in items:
+            rows.append(
+                f"<tr><td>{esc(r.category)}</td><td>{esc(r.site)}</td><td><a href='{esc(r.final_url)}' target='_blank' rel='noreferrer'>{esc(r.final_url)}</a></td><td>{r.status}</td><td>{esc(r.reason)}</td></tr>"
+            )
+        if not rows:
+            rows.append(f"<tr><td colspan='5'><em>None</em></td></tr>")
+        return (
+            f"<h2>{esc(title)} ({len(items)})</h2>\n"
+            "<table>\n<tr><th>Category</th><th>Site</th><th>URL</th><th>HTTP</th><th>Reason</th></tr>\n"
+            + "\n".join(rows)
+            + "\n</table>\n"
+        )
+
+    dork_rows = []
+    for t, u in dorks:
+        dork_rows.append(f"<li><a href='{esc(u)}' target='_blank' rel='noreferrer'>{esc(t or u)}</a></li>")
+    if not dork_rows:
+        dork_rows.append("<li><em>None</em></li>")
+
+    style = """
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:24px;}
+    h1{margin-bottom:0.2rem;}
+    .meta{color:#555;margin-bottom:1.2rem;}
+    table{border-collapse:collapse;width:100%;margin:10px 0 24px 0;}
+    th,td{border:1px solid #ddd;padding:8px;vertical-align:top;}
+    th{background:#f3f3f3;text-align:left;}
+    .chip{display:inline-block;padding:2px 8px;border-radius:999px;background:#eee;margin-right:6px;font-size:12px;}
+    """
+
+    html_doc = f"""<!doctype html>
+<html><head><meta charset='utf-8'><title>Digital Footprint Finder - {esc(username)}</title>
+<style>{style}</style></head>
+<body>
+<h1>Digital Footprint Finder</h1>
+<div class='meta'>
+  <span class='chip'>Username: <strong>{esc(username)}</strong></span>
+  <span class='chip'>Generated: {esc(meta.get('generated',''))}</span>
+  <span class='chip'>Pack: {esc(meta.get('pack',''))}</span>
+  <span class='chip'>Sites scanned: {esc(str(meta.get('scanned',0)))}</span>
+  <span class='chip'>Safe mode: {esc(str(meta.get('safe',False)))}</span>
+</div>
+{section('FOUND (higher confidence)', found)}
+{section('POSSIBLE (blocked/JS/login/weak signals)', possible)}
+<h2>Search engine results (DuckDuckGo HTML)</h2>
+<ul>\n{''.join(dork_rows)}\n</ul>
+<p style='color:#666'>Note: This tool does not bypass protections. Many sites block automated checks.</p>
+</body></html>"""
+
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(html_doc)
+
+
+# ----------------------------------------------------------------------
+# Main
+# ----------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Digital Footprint Finder - conservative username presence checks across many platforms."
+    )
+    parser.add_argument("username", nargs="?", help="Username to scan")
+    parser.add_argument("--pack", default="mega",
+                        help="Site pack: core | extended | forums | fediverse | everything | sherlock | mega (default: mega)")
+    parser.add_argument("--sherlock-refresh", action="store_true", help="Force re-download Sherlock DB (when using sherlock/mega)")
+    parser.add_argument("--include-nsfw", action="store_true", help="Include NSFW Sherlock sites (NOT recommended)")
+    parser.add_argument("--max-sites", type=int, default=0, help="Limit number of scanned sites (0 = no limit)")
+    parser.add_argument("--extra-sites", default="", help="Load additional sites from JSON file (see --export-sites)")
+    parser.add_argument("--export-sites", default="", help="Export the *active* site list (after pack/extra merge) to JSON and exit")
+    parser.add_argument("--list-packs", action="store_true", help="List packs and exit")
+    parser.add_argument("--stats", action="store_true", help="Show category stats before scanning")
+        # Default: show POSSIBLE live. Use --no-show-possible to hide (Python 3.9+).
+    try:
+        _BoolOpt = argparse.BooleanOptionalAction
+    except AttributeError:
+        _BoolOpt = None
+    if _BoolOpt:
+        parser.add_argument("--show-possible", action=_BoolOpt, default=True,
+                            help="Print POSSIBLE results live (default: on). Use --no-show-possible to hide.")
+    else:
+        # Fallback for older Python: default on, allow --hide-possible
+        parser.add_argument("--show-possible", action="store_true", default=True,
+                            help="Print POSSIBLE results live (default: on)")
+        parser.add_argument("--hide-possible", action="store_false", dest="show_possible",
+                            help="Hide POSSIBLE live output")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show network/parse errors")
+    parser.add_argument("-t", "--threads", type=int, default=18, help="Max worker threads (default: 18)")
+    parser.add_argument("--domain-limit", type=int, default=2, help="Max concurrent requests per domain (default: 2)")
+    parser.add_argument("--timeout", type=float, default=12.0, help="Request timeout seconds (default: 12)")
+    parser.add_argument("--connect-timeout", type=float, default=5.0, help="Connect timeout seconds (default: 5)")
+    parser.add_argument("--max-html-kb", type=int, default=int(DEFAULT_MAX_HTML_BYTES/1000), help="Max HTML KB downloaded per site (default: 250)")
+    parser.add_argument("--no-dork", action="store_true", help="Disable search engine check")
+    parser.add_argument("--dork-top", type=int, default=10, help="How many search results to include (default: 10)")
+    parser.add_argument("--no-apis", action="store_true", help="Disable API checks (GitHub/Gravatar)")
+    parser.add_argument("--safe", action="store_true",
+                        help="Skip categories more likely to be sensitive/blocked (Payments, Dating, NSFW)")
+    parser.add_argument("--json", action="store_true", help="Also save JSON alongside the TXT report")
+    parser.add_argument("--csv", action="store_true", help="Also save CSV alongside the TXT report")
+    parser.add_argument("--html", action="store_true", help="Also save an HTML report alongside the TXT report")
+    parser.add_argument("--jitter", type=float, default=0.18,
+                        help="Max random delay (seconds) before each request (default: 0.18)")
+    args = parser.parse_args()
+
+    # Listing packs
+    if args.list_packs:
+        print("Packs:")
+        for name in ["core", "extended", "forums", "fediverse", "everything"]:
+            sites = build_sites(name)
+            print(f"- {name}: {len(sites)} sites")
+        print("- sherlock: Sherlock DB (download on demand / cached)")
+        print("- mega: everything + Sherlock DB")
+        return
+
+    print(f"\n{Fore.CYAN}Digital Footprint Finder{Style.RESET_ALL}  "
+          f"{Fore.WHITE}(conservative true-positive detection){Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}Note:{Style.RESET_ALL} Use only for usernames you own or have permission to check.\n")
+
+    username = (args.username or input(f"{Fore.GREEN}Enter username: {Fore.WHITE}")).strip()
+    username = username.lstrip("@").strip()
+    if not username:
+        sys.exit("Username required.")
+
+    threads = max(1, min(int(args.threads), 64))
+    timeout = (float(args.connect_timeout), float(args.timeout))
+    jitter = (0.0, max(0.0, float(args.jitter)))
+    max_html_bytes = max(50_000, min(int(args.max_html_kb) * 1000, 2_000_000))
+
+    session = build_session()
+    limiter = DomainLimiter(per_domain=int(args.domain_limit))
+
+    # Build active site list (pack + optional Sherlock + optional extra-sites)
+    pack = (args.pack or "everything").strip().lower()
+    save_dir = get_save_dir()
+    sherlock_cache = os.path.join(save_dir, "sherlock_data.json")
+
+    sites: Dict[str, SiteSpec] = {}
+
+    if pack == "mega":
+        sites.update(build_sites("everything"))
+        sites.update(load_sherlock_sites(session, sherlock_cache, bool(args.sherlock_refresh), bool(args.include_nsfw and (not args.safe))))
+    elif pack == "sherlock":
+        sites.update(load_sherlock_sites(session, sherlock_cache, bool(args.sherlock_refresh), bool(args.include_nsfw and (not args.safe))))
+    else:
+        sites.update(build_sites(pack))
+
+    if args.extra_sites:
+        sites.update(load_extra_sites_json(args.extra_sites))
+
+    # Export current active list
+    if args.export_sites:
+        export_sites_json(args.export_sites, sites)
+        print(f"Exported {len(sites)} sites -> {args.export_sites}")
+        return
+
+    # Filter for safe mode
+    def should_skip(spec: SiteSpec) -> bool:
+        if not args.safe:
+            return False
+        return spec.category in {"Payments", "Dating", "NSFW"}
+
+    items = [(k, v) for k, v in sites.items() if not should_skip(v)]
+    random.shuffle(items)
+    if args.max_sites and int(args.max_sites) > 0:
+        items = items[:max(1, int(args.max_sites))]
+
+    if args.stats:
+        cat_counts: Dict[str, int] = {}
+        for _, spec in items:
+            cat_counts[spec.category] = cat_counts.get(spec.category, 0) + 1
+        print(f"{Fore.BLUE}[*] Category counts:{Style.RESET_ALL}")
+        for cat, n in sorted(cat_counts.items(), key=lambda x: (-x[1], x[0].lower())):
+            print(f"  - {cat}: {n}")
+
+    found: List[ScanResult] = []
+    possible: List[ScanResult] = []
+
+    # API Checks
+    if not args.no_apis:
+        print(f"{Fore.BLUE}[*] Checking APIs...{Style.RESET_ALL}")
+        gh_exists, gh_url, _ = check_github_api(session, username, timeout)
+        if gh_exists and gh_url:
+            r = ScanResult("GitHub (API)", "Tech", f"https://api.github.com/users/{username}", gh_url, 200, "FOUND", "GitHub API match")
+            print_result(r)
+            found.append(r)
+
+        gr_exists, gr_url, _ = check_gravatar_api(session, username, timeout)
+        if gr_exists and gr_url:
+            r = ScanResult("Gravatar (API)", "General", f"https://en.gravatar.com/{username}.json", gr_url, 200, "FOUND", "Gravatar JSON match")
+            print_result(r)
+            found.append(r)
+
+    # Site checks
+    print(f"\n{Fore.BLUE}[*] Scanning {len(items)} platforms (threaded)...{Style.RESET_ALL}")
+    print(f"{Fore.WHITE}Tip:{Style.RESET_ALL} defaults are --pack mega and --show-possible. Use --pack core/extended/everything to reduce scope; use --no-show-possible to hide POSSIBLE.\n")
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
+        futures = []
+        for site_name, spec in items:
+            futures.append(executor.submit(
+                analyze_site,
+                session,
+                limiter,
+                site_name,
+                spec,
+                username,
+                timeout,
+                jitter,
+                max_html_bytes,
+                args.verbose,
+            ))
+
+        for fut in concurrent.futures.as_completed(futures):
+            try:
+                res = fut.result()
+                if not res:
+                    continue
+                if res.confidence == "FOUND":
+                    print_result(res)
+                    found.append(res)
+                else:
+                    if args.show_possible:
+                        print_result(res)
+                    possible.append(res)
+            except Exception as e:
+                if args.verbose:
+                    print(f"{Fore.RED}[!] Worker error: {e}{Style.RESET_ALL}")
+
+    # Dorking
+    dork_results: List[Tuple[str, str]] = []
+    if not args.no_dork:
+        dork_results = dork_search(session, username, timeout, top_n=int(args.dork_top))
+
+    found = dedup(found)
+    possible = dedup(possible)
+
+    # Save
+    safe_user = safe_filename(username)
+    ts = time.strftime("%Y%m%d_%H%M%S")
+    txt_path = os.path.join(save_dir, f"{safe_user}_{ts}.txt")
+    json_path = os.path.join(save_dir, f"{safe_user}_{ts}.json")
+    csv_path = os.path.join(save_dir, f"{safe_user}_{ts}.csv")
+    html_path = os.path.join(save_dir, f"{safe_user}_{ts}.html")
+
+    with open(txt_path, "w", encoding="utf-8") as f:
+        f.write("Digital Footprint Finder Report\n")
+        f.write(f"Username: {username}\n")
+        f.write(f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"Pack: {pack}\n")
+        f.write(f"Sites scanned: {len(items)}\n")
+        f.write(f"Safe mode: {bool(args.safe)}\n")
+        f.write("=" * 70 + "\n\n")
+
+        f.write("FOUND (higher confidence)\n")
+        f.write("-" * 70 + "\n")
+        if found:
+            for r in found:
+                f.write(f"- [{r.category}] {r.site}: {r.final_url}  (HTTP {r.status}; {r.reason})\n")
+        else:
+            f.write("No high-confidence matches.\n")
+
+        f.write("\nPOSSIBLE (blocked/JS/login/weak signals)\n")
+        f.write("-" * 70 + "\n")
+        if possible:
+            for r in possible:
+                f.write(f"- [{r.category}] {r.site}: {r.final_url}  (HTTP {r.status}; {r.reason})\n")
+        else:
+            f.write("No possible matches.\n")
+
+        f.write("\nSEARCH ENGINE RESULTS (DuckDuckGo HTML)\n")
+        f.write("-" * 70 + "\n")
         if dork_results:
             for title, link in dork_results:
                 f.write(f"- {title}: {link}\n")
         else:
-            f.write("No search results found.\n")
+            f.write("No search results (or disabled).\n")
 
-    print("\n" + "="*60)
-    print(f"{Fore.GREEN}Scan Complete.")
-    print(f"File Saved: {Fore.CYAN}{filename}{Style.RESET_ALL}")
-    print("="*60)
+        f.write("\nNOTES\n")
+        f.write("-" * 70 + "\n")
+        f.write("• FOUND requires strong signals (title/meta/canonical/text).\n")
+        f.write("• POSSIBLE means blocked, JS-heavy, login required, or weak signals.\n")
+        f.write("• Use --pack mega for maximum coverage (includes Sherlock DB).\n")
+
+    if args.json:
+        payload = {
+            "tool": "Digital Footprint Finder",
+            "username": username,
+            "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "pack": pack,
+            "safe": bool(args.safe),
+            "scanned": len(items),
+            "found": [r.__dict__ for r in found],
+            "possible": [r.__dict__ for r in possible],
+            "dork_results": [{"title": t, "url": u} for t, u in dork_results],
+        }
+        try:
+            with open(json_path, "w", encoding="utf-8") as jf:
+                json.dump(payload, jf, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    if args.csv:
+        try:
+            import csv
+            with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+                w = csv.writer(cf)
+                w.writerow(["confidence", "category", "site", "final_url", "status", "reason"])
+                for r in found:
+                    w.writerow([r.confidence, r.category, r.site, r.final_url, r.status, r.reason])
+                for r in possible:
+                    w.writerow([r.confidence, r.category, r.site, r.final_url, r.status, r.reason])
+        except Exception:
+            pass
+
+    if args.html:
+        try:
+            meta = {
+                "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "pack": pack,
+                "scanned": len(items),
+                "safe": bool(args.safe),
+            }
+            save_html_report(html_path, username, found, possible, dork_results, meta)
+        except Exception:
+            pass
+
+    print("\n" + "=" * 70)
+    print(f"{Fore.GREEN}Scan Complete.{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Saved TXT:{Style.RESET_ALL} {txt_path}")
+    if args.json:
+        print(f"{Fore.CYAN}Saved JSON:{Style.RESET_ALL} {json_path}")
+    if args.csv:
+        print(f"{Fore.CYAN}Saved CSV:{Style.RESET_ALL} {csv_path}")
+    if args.html:
+        print(f"{Fore.CYAN}Saved HTML:{Style.RESET_ALL} {html_path}")
+    print("=" * 70)
+
 
 if __name__ == "__main__":
     main()
