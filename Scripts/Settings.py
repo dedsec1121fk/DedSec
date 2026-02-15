@@ -543,7 +543,7 @@ def show_credits():
 Creator:dedsec1121fk
 Art Artist:Christina Chatzidimitriou
 Technical Help:lamprouil, UKI_hunter, gr3ysec
-Promoter: Optimus Prime
+Promoters: Optimus Prime, Sal Scar
 =======================================
 """
     print(credits)
