@@ -300,7 +300,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Artwork:** Christina Chatzidimitriou
 * **Technical Help:** lamprouil, UKI_hunter, gr3ysec
-* **Promoters:** Optimus Prime, Sal Scar
+* **Promoters:** Sal Scar
 
 ---
 
