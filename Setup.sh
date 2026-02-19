@@ -1,79 +1,107 @@
 #!/data/data/com.termux/files/usr/bin/bash
+set -e
 
-# --- 1. Termux Environment Setup and Core Packages ---
-echo "1. Setting up storage, updating, and installing core packages..."
+# DedSec / Termux full dependency installer
+# Installs Termux packages + Python modules required by everything in ./Scripts
 
-# Enable storage access and perform updates
-termux-setup-storage
+echo "[1/6] Termux storage + updates"
+termux-setup-storage || true
 pkg update -y && pkg upgrade -y
 
-# List of essential packages (including tor as specified in Settings.py)
-CORE_PACKAGES="aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor"
+echo "[2/6] Installing core Termux packages"
+# Notes:
+# - python-cryptography is installed via pkg (recommended on Termux)
+# - CairoSVG often needs cairo/pango/gdk-pixbuf runtime libs
+# - rarfile may need an unrar backend (unrar/bsdtar). We install unrar if available.
+CORE_PACKAGES="\
+  aapt clang cloudflared curl ffmpeg fzf git jq nano ncurses nodejs openssh openssl openssl-tool \
+  proot python rust termux-api unzip wget zip tor \
+  libffi libxml2 libxslt \
+  cairo pango gdk-pixbuf \
+  unrar\
+"
 
-# Install Termux packages. '|| true' ensures the script continues on package failure.
-pkg install -y $CORE_PACKAGES || true
+# Python-related Termux packages (use pkg when possible to avoid build issues)
+PY_PKG_PACKAGES="\
+  python-cryptography \
+  python-lxml \
+  python-pillow \
+  python-numpy \
+  python-pandas \
+  python-psutil\
+"
 
-echo "Termux package installation complete. Continuing to Python setup..."
+# Continue even if some packages don't exist on the user's repo/mirror
+pkg install -y $CORE_PACKAGES $PY_PKG_PACKAGES || true
 
-# --- 2. Python Package Setup ---
-echo "2. Upgrading pip, setuptools, and wheel..."
-
-# Upgrade pip and required build dependencies.
+echo "[3/6] Upgrading pip tooling"
 python -m pip install --upgrade pip setuptools wheel --break-system-packages
 
-# --- 3. Python Package Installation ---
-echo "3. Installing the target Python dependencies..."
+echo "[4/6] Installing Python modules used across all Scripts"
+# Pinned as names (no versions) so it stays compatible with Termux.
+# (We prefer real distribution names; e.g. beautifulsoup4 not 'bs4'.)
+PYTHON_PACKAGES="\
+  blessed \
+  beautifulsoup4 \
+  cairosvg \
+  colorama \
+  dnspython \
+  ebooklib \
+  exifread \
+  flask \
+  flask-socketio \
+  geopy \
+  lxml \
+  markdown \
+  mutagen \
+  numpy \
+  odfpy \
+  openpyxl \
+  pandas \
+  phonenumbers \
+  playwright \
+  psd-tools \
+  psutil \
+  py7zr \
+  pycountry \
+  pycryptodome \
+  python-docx \
+  python-dotenv \
+  python-pptx \
+  pytz \
+  qrcode \
+  rarfile \
+  reportlab \
+  requests \
+  rich \
+  striprtf \
+  tldextract \
+  urllib3 \
+  validators \
+  websocket-client \
+  werkzeug \
+  zxcvbn \
+  pillow\
+"
 
-# Python packages list from Settings.py (including psutil and pillow)
-PYTHON_PACKAGES="blessed bs4 flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
+# Install all Python packages (continue on failures so the rest still installs)
+python -m pip install --upgrade $PYTHON_PACKAGES --break-system-packages || true
 
-# Install all packages.
-python -m pip install $PYTHON_PACKAGES --break-system-packages
+echo "[5/6] Ensuring cryptography is present (Termux package)"
+# Avoid pip-building cryptography on Termux. Prefer the Termux package.
+pkg install -y python-cryptography || true
 
-if [ $? -eq 0 ]; then
-    echo "SUCCESS: All Python dependencies installed successfully! 🎉"
-else
-    echo "WARNING: Python package installation had errors (see log above). Attempting to proceed."
-fi
+echo "[6/6] Optional: Playwright browser install (may not be supported on all Termux builds)"
+python -m playwright install chromium || true
 
-echo "3b. Installing flask and cryptography last..."
-python -m pip install --upgrade flask cryptography --break-system-packages
-
-# --- 4. Execution Logic ---
-# Path is relative to the current directory (which is assumed to be 'DedSec').
+# --- Run Settings.py (kept from your original Setup.sh logic) ---
 SCRIPT_PATH="./Scripts/Settings.py"
+echo "\nAttempting to run: $SCRIPT_PATH"
 
-echo "4. Attempting to run $SCRIPT_PATH..."
-
-# First attempt to run the script
 if [ -f "$SCRIPT_PATH" ]; then
-    python "$SCRIPT_PATH"
-    EXEC_STATUS=$?
+  python "$SCRIPT_PATH" || true
 else
-    echo "ERROR: Script file not found at $SCRIPT_PATH. Cannot execute."
-    EXEC_STATUS=1 # Set status to error if file is missing
+  echo "WARNING: $SCRIPT_PATH not found (run this setup from the project root that contains ./Scripts)."
 fi
 
-# Check if the execution failed (status non-zero)
-if [ $EXEC_STATUS -ne 0 ]; then
-    echo "Execution failed or script was not found (Exit Code: $EXEC_STATUS). Installing 'requests' package."
-    
-    # Run the fallback command
-    python -m pip install requests --break-system-packages
-    
-    # Second attempt to run the script
-    echo "Retrying script execution..."
-    
-    if [ -f "$SCRIPT_PATH" ]; then
-        python "$SCRIPT_PATH"
-        if [ $? -eq 0 ]; then
-            echo "SUCCESS: Script ran successfully after installing 'requests'."
-        else
-            echo "FINAL ERROR: Script failed again after installing 'requests'."
-        fi
-    else
-        echo "FINAL ERROR: Script file not found after installation attempt."
-    fi
-else
-    echo "SUCCESS: Script ran successfully on the first attempt."
-fi
+echo "\nDone. If any specific module still errors at runtime, paste the traceback and I’ll patch Setup.sh accordingly."
