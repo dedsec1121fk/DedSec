@@ -4,7 +4,7 @@ Bug Hunter (no-root) — an authorized web security recon & misconfiguration sca
 
 Design goals (v4):
 - Capable by default; you can switch to safer/passive behavior with --safe-mode and --no-dirb.
-- No runtime auto-install. Clear dependency hints instead.
+- Optional runtime auto-install for required dependencies (can be disabled).
 - Bounded async concurrency (no massive task lists).
 - Actionable reporting (JSON/CSV/HTML/PDF), de-duplicated findings, scope summary.
 - Works without root (connect-based port checks; no raw sockets).
@@ -34,6 +34,7 @@ import random
 import re
 import socket
 import ssl
+import subprocess
 import sys
 import textwrap
 from collections import Counter, deque
@@ -56,6 +57,51 @@ rich = _try_import("rich")
 bs4 = _try_import("bs4")
 dns = _try_import("dns")  # dnspython
 reportlab = _try_import("reportlab")
+
+
+def _pip_install(pkg: str, logger: Optional[logging.Logger] = None) -> bool:
+    """Best-effort install via current Python interpreter."""
+    cmd = [sys.executable, "-m", "pip", "install", "-U", pkg]
+    try:
+        msg = f"Installing missing dependency: {pkg} ..."
+        (logger.info if logger else print)(msg)
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if proc.returncode == 0:
+            (logger.info if logger else print)(f"Installed: {pkg}")
+            return True
+        (logger.error if logger else print)(f"Failed to install {pkg}. pip output:\n{proc.stdout}")
+        return False
+    except Exception as e:
+        (logger.error if logger else print)(f"Failed to install {pkg}: {e}")
+        return False
+
+
+def ensure_required_dependencies(auto_install: bool = True) -> bool:
+    """Ensure required runtime deps exist; optionally install missing ones."""
+    global httpx
+    if httpx is not None:
+        return True
+
+    missing = ["httpx"]
+    if not auto_install:
+        print("Missing dependencies:\n  - httpx (required)", file=sys.stderr)
+        print("\nInstall:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+        return False
+
+    print("Missing dependencies detected:", file=sys.stderr)
+    for m in missing:
+        print(f"  - {m} (required)", file=sys.stderr)
+
+    ok = _pip_install("httpx")
+    if not ok:
+        print("\nInstall manually:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+        return False
+
+    httpx = _try_import("httpx")
+    if httpx is None:
+        print("Installed httpx but could not import it in current process. Re-run the script.", file=sys.stderr)
+        return False
+    return True
 
 
 # ---------------- Logging ----------------
@@ -485,11 +531,11 @@ class BugHunter:
         # Additional records via dnspython if available
         if dns:
             try:
-                import dns.resolver  # type: ignore
+                import dns.resolver as dns_resolver  # type: ignore
 
                 def _txt(name: str) -> List[str]:
                     try:
-                        answers = dns.resolver.resolve(name, "TXT")
+                        answers = dns_resolver.resolve(name, "TXT")
                         txts = []
                         for r in answers:
                             # dnspython returns bytes segments; join
@@ -526,7 +572,7 @@ class BugHunter:
 
                 # CAA
                 try:
-                    caa = dns.resolver.resolve(self.hostname, "CAA")
+                    caa = dns_resolver.resolve(self.hostname, "CAA")
                     _ = list(caa)  # if exists, fine
                 except Exception:
                     self.add_finding(Finding(
@@ -1464,13 +1510,8 @@ async def main_async(args: argparse.Namespace) -> int:
 def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
 
-    # Friendly dependency hints (no auto-install)
-    missing: List[str] = []
-    if httpx is None:
-        missing.append("httpx (required)")
-    if missing:
-        print("Missing dependencies:\n  - " + "\n  - ".join(missing), file=sys.stderr)
-        print("\nInstall:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+    # Ensure required deps (auto-install missing ones if possible)
+    if not ensure_required_dependencies(auto_install=True):
         return 2
 
     try:
