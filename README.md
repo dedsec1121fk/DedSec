@@ -298,9 +298,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 ### Credits
 
 * **Creator:** dedsec1121fk
-* **Artwork:** Christina Chatzidimitriou
-* **Technical Help:** lamprouil, UKI_hunter, gr3ysec
-* **Promoters:** Sal Scar
+* **Art Artists:** Christina Chatzidimitriou
+* **Technical Help:** lamprouil, UKI_hunter
+* **Testers:** Sal Scar, Javier
+* **Social Media Management:** gr3ysec
 
 ---
 
