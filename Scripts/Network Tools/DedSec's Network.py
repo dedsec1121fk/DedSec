@@ -400,14 +400,122 @@ class AdvancedNetworkTools:
         except: pass
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
+    def _safe_input(self, prompt):
+        """Input wrapper that lets user cancel without crashing the app."""
+        try:
+            return input(prompt)
+        except (KeyboardInterrupt, EOFError):
+            print(f"\n{Fore.YELLOW}↩ Returning to menu...{Style.RESET_ALL}")
+            return None
+
+    def _print_whois_result(self, w):
+        """Pretty-print WHOIS result from python-whois dict/object."""
+        def _fmt(v):
+            if isinstance(v, (list, tuple, set)):
+                vals = [str(x) for x in v if x not in (None, '')]
+                return ', '.join(vals) if vals else 'N/A'
+            return str(v) if v not in (None, '') else 'N/A'
+
+        registrar = getattr(w, 'registrar', None) if not isinstance(w, dict) else w.get('registrar')
+        whois_server = getattr(w, 'whois_server', None) if not isinstance(w, dict) else w.get('whois_server')
+        creation_date = getattr(w, 'creation_date', None) if not isinstance(w, dict) else w.get('creation_date')
+        expiration_date = getattr(w, 'expiration_date', None) if not isinstance(w, dict) else w.get('expiration_date')
+        updated_date = getattr(w, 'updated_date', None) if not isinstance(w, dict) else w.get('updated_date')
+        emails = getattr(w, 'emails', None) if not isinstance(w, dict) else w.get('emails')
+        name_servers = getattr(w, 'name_servers', None) if not isinstance(w, dict) else w.get('name_servers')
+        status = getattr(w, 'status', None) if not isinstance(w, dict) else w.get('status')
+
+        print(f"\n{Fore.GREEN}✅ WHOIS RESULTS{Style.RESET_ALL}")
+        print(f"Registrar      : {_fmt(registrar)}")
+        print(f"WHOIS Server   : {_fmt(whois_server)}")
+        print(f"Created        : {_fmt(creation_date)}")
+        print(f"Updated        : {_fmt(updated_date)}")
+        print(f"Expires        : {_fmt(expiration_date)}")
+        print(f"Emails         : {_fmt(emails)}")
+        print(f"Name Servers   : {_fmt(name_servers)}")
+        print(f"Status         : {_fmt(status)}")
+
+    def _whois_fallback_subprocess(self, domain):
+        """Fallback to system `whois` command (useful on Termux if python-whois fails)."""
+        try:
+            result = subprocess.run(
+                ['whois', domain],
+                capture_output=True,
+                text=True,
+                timeout=20
+            )
+            output = (result.stdout or '').strip()
+            err = (result.stderr or '').strip()
+            if not output and err:
+                print(f"{Fore.RED}❌ WHOIS command error: {err}{Style.RESET_ALL}")
+                return False
+            if not output:
+                print(f"{Fore.RED}❌ No WHOIS output received.{Style.RESET_ALL}")
+                return False
+
+            print(f"\n{Fore.GREEN}✅ WHOIS RESULTS (system whois fallback){Style.RESET_ALL}")
+            lines = output.splitlines()
+            for line in lines[:80]:
+                print(line)
+            if len(lines) > 80:
+                print(f"{Fore.YELLOW}... output truncated ({len(lines)-80} more lines) ...{Style.RESET_ALL}")
+            return True
+        except FileNotFoundError:
+            print(f"{Fore.YELLOW}⚠️ System 'whois' command not found. Install it in Termux with: pkg install whois{Style.RESET_ALL}")
+            return False
+        except subprocess.TimeoutExpired:
+            print(f"{Fore.RED}❌ WHOIS request timed out (20s). Try again or check network.{Style.RESET_ALL}")
+            return False
+        except Exception as e:
+            print(f"{Fore.RED}❌ Fallback WHOIS failed: {e}{Style.RESET_ALL}")
+            return False
+
     def get_whois_info(self):
         print(f"\n{Fore.CYAN}👤 WHOIS LOOKUP{Style.RESET_ALL}")
-        if not WHOIS_AVAILABLE: return
-        domain = input("Domain: ").strip()
-        try:
-            w = whois.whois(domain)
-            print(f"Registrar: {w.registrar}\nEmails: {w.emails}")
-        except: pass
+        print(f"{Fore.YELLOW}Tip:{Style.RESET_ALL} Type {Fore.WHITE}0{Style.RESET_ALL} / {Fore.WHITE}back{Style.RESET_ALL} / {Fore.WHITE}exit{Style.RESET_ALL} to return to menu.")
+
+        domain_in = self._safe_input("Domain: ")
+        if domain_in is None:
+            return
+        domain = domain_in.strip()
+        if domain.lower() in ('0', 'b', 'back', 'exit', 'q', 'quit', ''):
+            return
+
+        if '://' in domain:
+            try:
+                domain = urlparse(domain).netloc or domain
+            except Exception:
+                pass
+        domain = domain.split('/')[0].strip().lower()
+
+        if not domain:
+            print(f"{Fore.RED}❌ Invalid domain.{Style.RESET_ALL}")
+            input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
+            return
+
+        success = False
+
+        if WHOIS_AVAILABLE:
+            try:
+                print(f"{Fore.CYAN}[*] Querying WHOIS for {domain}...{Style.RESET_ALL}")
+                w = whois.whois(domain)
+                if w:
+                    self._print_whois_result(w)
+                    success = True
+                else:
+                    print(f"{Fore.YELLOW}⚠️ Empty WHOIS response from python-whois.{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠️ python-whois failed: {e}{Style.RESET_ALL}")
+        else:
+            print(f"{Fore.YELLOW}⚠️ python-whois not installed, trying system fallback...{Style.RESET_ALL}")
+
+        if not success:
+            success = self._whois_fallback_subprocess(domain)
+
+        if not success:
+            print(f"{Fore.RED}❌ WHOIS lookup failed for: {domain}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Tips:{Style.RESET_ALL} Check internet, use a domain (not IP), or install dependencies with --install")
+
         input(f"\n{Fore.YELLOW}Press Enter...{Style.RESET_ALL}")
 
     def get_dns_records(self):
