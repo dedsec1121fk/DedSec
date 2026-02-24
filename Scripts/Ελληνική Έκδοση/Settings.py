@@ -542,8 +542,9 @@ def show_credits():
 =======================================
 Creator:dedsec1121fk
 Art Artist:Christina Chatzidimitriou
-Technical Help:lamprouil, UKI_hunter, gr3ysec
-Promoters: Sal Scar
+Technical Help:lamprouil, UKI_hunter
+Testers: Sal Scar, Javier
+Social Media Management: gr3ysec
 =======================================
 """
     print(credits)
