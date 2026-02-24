@@ -1,1741 +1,1571 @@
 #!/usr/bin/env python3
+"""
+Bug Hunter (no-root) — an authorized web security recon & misconfiguration scanner.
 
-import os, sys, json, time, re, socket, subprocess, random, threading, hashlib
-import asyncio, aiofiles, aiodns, concurrent.futures
-import curses, ssl, urllib3
-from dataclasses import dataclass, asdict, field
-from urllib.parse import urlparse, urljoin, parse_qs, urlencode, urlunparse, parse_qsl
-from datetime import datetime, timedelta
-from typing import List, Dict, Set, Optional
+Στόχοι σχεδίασης (v4):
+- Πλήρες από προεπιλογή· μπορείς να αλλάξεις σε ασφαλέστερη/παθητική λειτουργία με --safe-mode και --no-dirb.
+- Προαιρετική αυτόματη εγκατάσταση εξαρτήσεων κατά την εκτέλεση (μπορεί να απενεργοποιηθεί).
+- Περιορισμένη async παραλληλία (χωρίς τεράστιες λίστες εργασιών).
+- Χρήσιμες αναφορές (JSON/CSV/HTML/PDF), απο-διπλοποιημένα ευρήματα, σύνοψη scope.
+- Λειτουργεί χωρίς root (έλεγχοι θυρών με connect· χωρίς raw sockets).
+
+ΑΠΟΠΟΙΗΣΗ ΕΥΘΥΝΗΣ
+Χρησιμοποίησέ το μόνο σε στόχους που σου ανήκουν ή για τους οποίους έχεις ρητή άδεια ελέγχου.
+
+Εξαρτήσεις
+Απαραίτητο:  httpx
+Προαιρετικά (συνιστώνται): rich, beautifulsoup4, dnspython, reportlab
+
+Εγκατάσταση:
+  python3 -m pip install -U httpx rich beautifulsoup4 dnspython reportlab
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import csv
+import hashlib
+import ipaddress
+import json
+import logging
+import os
+import random
+import re
+import socket
+import ssl
+import subprocess
+import sys
+import textwrap
+from collections import Counter, deque
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-import xml.etree.ElementTree as ET
+from typing import Any, Deque, Dict, Iterable, List, Optional, Set, Tuple
+from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl
 
-# ---------------- Αυτόματη εγκατάσταση εξαρτήσεων ----------------
-REQUIRED = ["httpx", "rich", "dnspython", "beautifulsoup4", "jinja2", "requests",
-            "pyopenssl", "cryptography", "colorama", "tqdm", "termcolor", "yaml",
-            "python-whois", "shodan", "censys", "waybackpy"]
+# ---------------- Optional imports ----------------
 
-def ensure_deps():
-    missing = []
-    for p in REQUIRED:
+def _try_import(name: str):
+    try:
+        return __import__(name)
+    except Exception:
+        return None
+
+httpx = _try_import("httpx")
+rich = _try_import("rich")
+bs4 = _try_import("bs4")
+dns = _try_import("dns")  # dnspython
+reportlab = _try_import("reportlab")
+
+
+def _pip_install(pkg: str, logger: Optional[logging.Logger] = None) -> bool:
+    """Προσπάθεια εγκατάστασης μέσω του τρέχοντος Python interpreter."""
+    cmd = [sys.executable, "-m", "pip", "install", "-U", pkg]
+    try:
+        msg = f"Εγκατάσταση ελλείπουσας εξάρτησης: {pkg} ..."
+        (logger.info if logger else print)(msg)
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if proc.returncode == 0:
+            (logger.info if logger else print)(f"Εγκαταστάθηκε: {pkg}")
+            return True
+        (logger.error if logger else print)(f"Αποτυχία εγκατάστασης {pkg}. έξοδος pip:\n{proc.stdout}")
+        return False
+    except Exception as e:
+        (logger.error if logger else print)(f"Αποτυχία εγκατάστασης {pkg}: {e}")
+        return False
+
+
+def ensure_required_dependencies(auto_install: bool = True) -> bool:
+    """Βεβαιώνεται ότι υπάρχουν οι απαιτούμενες εξαρτήσεις runtime· προαιρετικά τις εγκαθιστά."""
+    global httpx
+    if httpx is not None:
+        return True
+
+    missing = ["httpx"]
+    if not auto_install:
+        print("Missing dependencies:\n  - httpx (required)", file=sys.stderr)
+        print("\nInstall:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+        return False
+
+    print("Εντοπίστηκαν ελλείπουσες εξαρτήσεις:", file=sys.stderr)
+    for m in missing:
+        print(f"  - {m} (απαραίτητο)", file=sys.stderr)
+
+    ok = _pip_install("httpx")
+    if not ok:
+        print("\nInstall manually:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+        return False
+
+    httpx = _try_import("httpx")
+    if httpx is None:
+        print("Το httpx εγκαταστάθηκε αλλά δεν μπόρεσε να γίνει import στο τρέχον process. Ξανατρέξε το script.", file=sys.stderr)
+        return False
+    return True
+
+
+# ---------------- Logging ----------------
+
+class _PlainFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        base = super().format(record)
+        return base.replace("\n", " ").strip()
+
+def setup_logger(debug: bool) -> logging.Logger:
+    logger = logging.getLogger("bug_hunter")
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
+    logger.handlers.clear()
+
+    if rich:
         try:
-            if p == "dnspython": __import__("dns")
-            elif p == "beautifulsoup4": __import__("bs4")
-            elif p == "python-whois": __import__("whois")
-            elif p == "waybackpy": __import__("waybackpy")
-            else: __import__(p)
-        except ImportError:
-            missing.append(p)
-    if missing:
-        print(f"[*] Εγκατάσταση ελλειπόντων εξαρτήσεων: {', '.join(missing)}")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-U"] + missing)
-
-ensure_deps()
-
-import httpx
-import dns.resolver
-import requests
-from bs4 import BeautifulSoup
-from rich.console import Console
-from rich.table import Table
-from rich.prompt import Prompt, IntPrompt, Confirm
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn
-from rich.layout import Layout
-from rich.live import Live
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.text import Text
-from rich.syntax import Syntax
-from colorama import init, Fore, Back, Style
-
-console = Console()
-init(autoreset=True)
-
-# ---------------- Βελτιωμένη Διαμόρφωση & Payloads ----------------
-
-# Εκτεταμένα τεχνολογικά αποτυπώματα με εκδόσεις
-TECH_SIGS = {
-    "WordPress": {
-        "body": ["wp-content", "wp-includes", "wp-json", "/wp-admin/"],
-        "headers": ["x-powered-by: wordpress", "x-wp-total"],
-        "version_regex": r"wordpress (\d+\.\d+(?:\.\d+)?)|wp-(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Django": {
-        "body": ["csrfmiddlewaretoken", "Django", "csrf_token"],
-        "headers": ["x-frame-options: DENY", "server: WSGIServer"],
-        "version_regex": r"django/(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Laravel": {
-        "body": ["laravel_session", "mix/"],
-        "headers": ["x-powered-by: laravel"],
-        "version_regex": r"laravel (\d+\.\d+(?:\.\d+)?)"
-    },
-    "React": {
-        "body": ["react-dom", "data-reactroot", "__reactInternalInstance"],
-        "headers": [],
-        "version_regex": r"react@(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Vue.js": {
-        "body": ["data-v-", "vue.min.js", "__vue__"],
-        "headers": [],
-        "version_regex": r"vue@(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Apache": {
-        "body": [],
-        "headers": ["server: apache", "apache"],
-        "version_regex": r"apache/(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Nginx": {
-        "body": [],
-        "headers": ["server: nginx"],
-        "version_regex": r"nginx/(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Node.js": {
-        "body": [],
-        "headers": ["x-powered-by: express"],
-        "version_regex": r"node/(\d+\.\d+(?:\.\d+)?)"
-    },
-    "Joomla": {
-        "body": ["joomla", "media/jui/", "templates/system/"],
-        "headers": ["x-content-encoded-by: joomla"],
-        "version_regex": r"joomla! (\d+\.\d+(?:\.\d+)?)"
-    },
-    "Drupal": {
-        "body": ["drupal", "sites/all/", "/core/"],
-        "headers": ["x-generator: drupal"],
-        "version_regex": r"drupal (\d+\.\d+(?:\.\d+)?)"
-    }
-}
-
-# Εκτεταμένη ανίχνευση Subdomain Takeover
-TAKEOVER_SIGS = {
-    "GitHub Pages": ["There is no GitHub Pages site here", "404 File not found"],
-    "Heroku": ["Heroku | No such app", "herokucdn.com/error-pages/no-such-app.html"],
-    "AWS S3": ["NoSuchBucket", "The specified bucket does not exist"],
-    "Azure": ["Azure App Service", "The resource you are looking for has been removed"],
-    "Zendesk": ["Help Center Closed", "This help center no longer exists"],
-    "Shopify": ["Sorry, this shop is currently unavailable"],
-    "Google Cloud": ["The requested URL was not found on this server"],
-    "DigitalOcean": ["Domain uses DO name servers with no records in DO."],
-    "Fastly": ["Fastly error: unknown domain"],
-    "Cloudflare": ["cloudflare.com", "Error 1001"]
-}
-
-# Εκτεταμένη λίστα θυρών με ανίχνευση υπηρεσιών
-COMMON_PORTS = {
-    21: "FTP",
-    22: "SSH",
-    23: "Telnet",
-    25: "SMTP",
-    53: "DNS",
-    80: "HTTP",
-    110: "POP3",
-    111: "RPC",
-    135: "MSRPC",
-    139: "NetBIOS",
-    143: "IMAP",
-    443: "HTTPS",
-    445: "SMB",
-    993: "IMAPS",
-    995: "POP3S",
-    1433: "MSSQL",
-    1521: "Oracle",
-    2049: "NFS",
-    3306: "MySQL",
-    3389: "RDP",
-    5432: "PostgreSQL",
-    5900: "VNC",
-    5985: "WinRM",
-    6379: "Redis",
-    8000: "HTTP Alt",
-    8080: "HTTP Proxy",
-    8443: "HTTPS Alt",
-    9000: "Hadoop",
-    9200: "Elasticsearch",
-    27017: "MongoDB",
-    28017: "MongoDB HTTP"
-}
-
-ΕΥΑΙΣΘΗΤΑ_ΑΡΧΕΙΑ = [
-    # Αρχεία διαμόρφωσης
-    "/.env", "/.env.local", "/.env.production", "/.env.development",
-    "/config.json", "/config.php", "/configuration.php", "/config.yml",
-    "/config.yaml", "/settings.py", "/web.config", "/application.ini",
-    
-    # Έλεγχος εκδόσεων
-    "/.git/config", "/.git/HEAD", "/.git/logs/HEAD", "/.git/index",
-    "/.svn/entries", "/.hg/store/00manifest.i",
-    
-    # Αρχεία αντιγράφων ασφαλείας
-    "/backup.sql", "/database.sql", "/dump.sql", "/backup.zip",
-    "/backup.tar.gz", "/backup.rar", "/site.bak", "/www.rar",
-    
-    # Αρχεία καταγραφής
-    "/logs/access.log", "/error.log", "/debug.log", "/trace.log",
-    
-    # Διασυνδέσεις διαχείρισης
-    "/admin/", "/administrator/", "/wp-admin/", "/manager/",
-    "/login/", "/cpanel/", "/webmail/", "/phpmyadmin/",
-    
-    # Σημεία πρόσβασης API
-    "/api/", "/graphql", "/rest/", "/v1/", "/v2/", "/swagger/",
-    "/docs/", "/openapi.json", "/api-docs/",
-    
-    # Διάφορα
-    "/phpinfo.php", "/test.php", "/info.php", "/server-status",
-    "/.DS_Store", "/thumbs.db", "/crossdomain.xml", "/clientaccesspolicy.xml",
-    "/sitemap.xml", "/robots.txt", "/humans.txt"
-]
-
-# Βελτιωμένα μοτίβα μυστικών με καλύτερη επικύρωση
-SECRET_REGEX = {
-    "Κλειδί Google API": r"AIza[0-9A-Za-z\-_]{35}",
-    "Google OAuth": r"ya29\.[0-9A-Za-z\-_]+",
-    "Κλειδί Πρόσβασης AWS": r"AKIA[0-9A-Z]{16}",
-    "Μυστικό Κλειδί AWS": r"(?i)aws_secret_access_key[=:]\s*['\"]?([A-Za-z0-9\/+=]{40})['\"]?",
-    "Κλειδί API Stripe": r"(?i)stripe_(?:api|secret|private)_key[=:]\s*['\"]?(sk_(?:live|test)_[0-9a-zA-Z]{24})['\"]?",
-    "Token Slack": r"xox[baprs]-([0-9a-zA-Z]{10,48})",
-    "Token GitHub": r"ghp_[a-zA-Z0-9]{36}",
-    "GitHub OAuth": r"github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}",
-    "JWT": r"eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}",
-    "Ιδιωτικό Κλειδί SSH": r"-----BEGIN (?:RSA|DSA|EC|OPENSSH) PRIVATE KEY-----",
-    "Ιδιωτικό Κλειδί PGP": r"-----BEGIN PGP PRIVATE KEY BLOCK-----",
-    "Token Πρόσβασης Facebook": r"EAACEdEose0cBA[0-9A-Za-z]+",
-    "Κλειδί API Twitter": r"(?i)twitter_api_(?:key|secret)[=:]\s*['\"]?([a-zA-Z0-9]{25,50})['\"]?",
-    "Μυστικό Πελάτη LinkedIn": r"(?i)linkedin_client_secret[=:]\s*['\"]?([a-zA-Z0-9]{16})['\"]?",
-    "Κλειδί API Mailgun": r"key-[0-9a-f]{32}",
-    "Κλειδί API Twilio": r"SK[0-9a-fA-F]{32}",
-    "Token Πρόσβασης Square": r"sq0atp-[0-9A-Za-z\-_]{22}",
-    "Μυστικό Βάσης Δεδομένων Firebase": r"(?i)firebase_database_secret[=:]\s*['\"]?([a-zA-Z0-9]{40})['\"]?"
-}
-
-# Επικεφαλίδες για έλεγχο ασφαλιστικών παραμετροποιήσεων
-SECURITY_HEADERS = [
-    "Content-Security-Policy",
-    "X-Frame-Options",
-    "X-Content-Type-Options",
-    "X-XSS-Protection",
-    "Strict-Transport-Security",
-    "Referrer-Policy",
-    "Permissions-Policy",
-    "Cache-Control"
-]
-
-# Κοινά μοτίβα ευπαθειών
-VULN_PATTERNS = {
-    "SQL Injection": [
-        r"(?i)sql syntax.*mysql",
-        r"(?i)warning.*mysql",
-        r"(?i)unclosed quotation mark",
-        r"(?i)you have an error in your sql syntax"
-    ],
-    "XSS": [
-        r"<script>.*</script>",
-        r"alert\(.*\)",
-        r"onerror=.*",
-        r"javascript:"
-    ],
-    "Path Traversal": [
-        r"\.\./\.\./",
-        r"etc/passwd",
-        r"windows/win\.ini"
-    ],
-    "Command Injection": [
-        r"(?i)(?:cmd|sh|bash|powershell)\.exe",
-        r"(?i)(?:ping|nslookup|whoami)\s",
-        r"\$\{IFS\}",
-        r";\s*(?:ls|cat|id)"
-    ]
-}
-
-# ---------------- Μοντέλα ----------------
-@dataclass
-class Εύρημα:
-    κατηγορία: str
-    σοβαρότητα: str  # Κρίσιμη, Υψηλή, Μέτρια, Χαμηλή, Πληροφορία
-    url: str
-    λεπτομέρειες: str = ""
-    χρονική_σήμανση: str = ""
-    βεβαιότητα: str = "Μέτρια"  # Χαμηλή, Μέτρια, Υψηλή
-    απόδειξη_εκμετάλλευσης: str = ""
-    αποκατάσταση: str = ""
-    
-    def __post_init__(self):
-        self.χρονική_σήμανση = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-@dataclass
-class Τεχνολογία:
-    όνομα: str
-    έκδοση: str = ""
-    βεβαιότητα: int = 0
-    τοποθεσίες: List[str] = field(default_factory=list)
-
-# ---------------- Εκτεταμένος Σαρωτής ----------------
-class ΣύνθετοςΣαρωτής:
-    def __init__(self, στόχος: str, κατάλογος_εξόδου: str, διαμόρφωση: dict):
-        self.στόχος = στόχος if στόχος.startswith("http") else "https://" + στόχος
-        parsed = urlparse(self.στόχος)
-        self.τομέας = parsed.netloc
-        self.βασική_url = f"{parsed.scheme}://{parsed.netloc}"
-        self.κατάλογος_εξόδου = κατάλογος_εξόδου
-        self.διαμόρφωση = διαμόρφωση
-        
-        self.ευρήματα = []
-        self.τεχνολογίες = []
-        self.js_σημεία_πρόσβασης = set()
-        self.ανοιχτές_θύρες = []
-        self.υποτομείς = set()
-        self.διερευνημένα_url = set()
-        self.ευαίσθητα_αρχεία = []
-        self.ευρεθέντα_μυστικά = []
-        
-        # Βελτιστοποίηση απόδοσης
-        self.όρια = httpx.Limits(
-            max_connections=διαμόρφωση.get('concurrency', 50),
-            max_keepalive_connections=20
-        )
-        self.επικεφαλίδες = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.5",
-            "Accept-Encoding": "gzip, deflate",
-            "Connection": "keep-alive",
-            "Upgrade-Insecure-Requests": "1"
-        }
-        
-        # Δημιουργία δομής εξόδου
-        os.makedirs(self.κατάλογος_εξόδου, exist_ok=True)
-        os.makedirs(os.path.join(self.κατάλογος_εξόδου, "screenshots"), exist_ok=True)
-        os.makedirs(os.path.join(self.κατάλογος_εξόδου, "data"), exist_ok=True)
-        
-        # Αρχικοποίηση μετρητών
-        self.στατιστικά = {
-            "αποστολές_αιτήσεων": 0,
-            "απαντήσεις_που_λήφθηκαν": 0,
-            "λάθη": 0,
-            "χρόνος_εκκίνησης": datetime.now()
-        }
-
-    def καταγραφή(self, εύρημα: Εύρημα):
-        """Καταγραφή ευρημάτων με μορφοποίηση rich"""
-        self.ευρήματα.append(asdict(εύρημα))
-        
-        # Χρωματικός κωδικοποίηση για κονσόλα
-        χάρτης_χρωμάτων = {
-            "Κρίσιμη": "red",
-            "Υψηλή": "orange1",
-            "Μέτρια": "yellow",
-            "Χαμηλή": "green",
-            "Πληροφορία": "blue"
-        }
-        
-        console.print(f"[{χάρτης_χρωμάτων.get(εύρημα.σοβαρότητα, 'white')}][{εύρημα.σοβαρότητα}][/{χάρτης_χρωμάτων.get(εύρημα.σοβαρότητα, 'white')}] "
-                     f"{εύρημα.κατηγορία}: {εύρημα.url}")
-        if εύρημα.λεπτομέρειες:
-            console.print(f"   Λεπτομέρειες: {εύρημα.λεπτομέρειες}")
-        
-        # Καταγραφή σε αρχείο
-        αρχείο_καταγραφής = os.path.join(self.κατάλογος_εξόδου, "ευρήματα.jsonl")
-        with open(αρχείο_καταγραφής, "a", encoding="utf-8") as f:
-            f.write(json.dumps(asdict(εύρημα), ensure_ascii=False) + "\n")
-        
-        # Επίσης καταγραφή σε CSV για ευκολότερη ανάλυση
-        αρχείο_csv = os.path.join(self.κατάλογος_εξόδου, "ευρήματα.csv")
-        if not os.path.exists(αρχείο_csv):
-            with open(αρχείο_csv, "w", encoding="utf-8") as f:
-                f.write("χρονική_σήμανση,σοβαρότητα,κατηγορία,url,λεπτομέρειες,βεβαιότητα\n")
-        
-        with open(αρχείο_csv, "a", encoding="utf-8") as f:
-            f.write(f"{εύρημα.χρονική_σήμανση},{εύρημα.σοβαρότητα},{εύρημα.κατηγορία},{εύρημα.url},{εύρημα.λεπτομέρειες},{εύρημα.βεβαιότητα}\n")
-
-    # --- Βελτιωμένες Ενότητες ---
-
-    async def έλεγχος_ασφαλιστικών_επικεφαλίδων(self, client, url, headers):
-        """Έλεγχος για ελλειπόμενες ασφαλιστικές επικεφαλίδες"""
-        ελλείπουσες = []
-        for επικεφαλίδα in SECURITY_HEADERS:
-            if επικεφαλίδα not in headers:
-                ελλείπουσες.append(επικεφαλίδα)
-        
-        if ελλείπουσες:
-            self.καταγραφή(Εύρημα(
-                "Ελλείπουσες_Ασφαλιστικές_Επικεφαλίδες", "Μέτρια", url,
-                f"Ελλείπουσες επικεφαλίδες: {', '.join(ελλείπουσες)}",
-                αποκατάσταση="Εφαρμόστε τις ελλείπουσες ασφαλιστικές επικεφαλίδες"
-            ))
-
-    async def ανίχνευση_στοίβας_τεχνολογιών(self, client, url, κείμενο, headers):
-        """Βελτιωμένη ανίχνευση τεχνολογιών με αναγνώριση εκδόσεων"""
-        ανιχνευμένες = []
-        h_str = json.dumps(dict(headers)).lower()
-        
-        for τεχνολογία, υπογραφές in TECH_SIGS.items():
-            τεχνολογία_βρέθηκε = False
-            έκδοση = ""
-            
-            # Έλεγχος επικεφαλίδων
-            for h in υπογραφές.get('headers', []):
-                if h.lower() in h_str:
-                    τεχνολογία_βρέθηκε = True
-            
-            # Έλεγχος σώματος
-            for b in υπογραφές.get('body', []):
-                if b in κείμενο:
-                    τεχνολογία_βρέθηκε = True
-            
-            # Εξαγωγή έκδοσης εάν είναι δυνατή
-            if τεχνολογία_βρέθηκε and 'version_regex' in υπογραφές:
-                ταίριασμα = re.findall(υπογραφές['version_regex'], κείμενο, re.IGNORECASE)
-                if ταίριασμα:
-                    έκδοση = ταίριασμα[0][0] if isinstance(ταιριασμα[0], tuple) else ταίριασμα[0]
-            
-            if τεχνολογία_βρέθηκε:
-                ανιχνευμένες.append((τεχνολογία, έκδοση))
-        
-        # Αποθήκευση τεχνολογιών
-        for τεχνολογία, έκδοση in ανιχνευμένες:
-            self.τεχνολογίες.append({
-                "όνομα": τεχνολογία,
-                "έκδοση": έκδοση,
-                "βεβαιότητα": "Υψηλή" if έκδοση else "Μέτρια"
-            })
-        
-        if ανιχνευμένες:
-            τεχνολογία_συμβολοσειρά = ", ".join([f"{t} {v}" if v else t for t, v in ανιχνευμένες])
-            self.καταγραφή(Εύρημα("Στοίβα_Τεχνολογιών", "Πληροφορία", url, f"Ανιχνεύθηκε: {τεχνολογία_συμβολοσειρά}"))
-
-    async def βελτιωμένη_σάρωση_θυρών(self):
-        """Βελτιωμένη σάρωση θυρών με ανίχνευση υπηρεσιών και λήψη banner"""
-        ανοιχτές_θύρες = []
-        
-        async def έλεγχος_θύρας(θύρα):
-            try:
-                reader, writer = await asyncio.wait_for(
-                    asyncio.open_connection(self.τομέας, θύρα),
-                    timeout=2.0
-                )
-                
-                # Προσπάθεια λήψης banner
-                writer.write(b"\r\n\r\n")
-                await writer.drain()
-                try:
-                    banner = await asyncio.wait_for(reader.read(1024), timeout=1.0)
-                    banner = banner.decode('utf-8', errors='ignore').strip()
-                except:
-                    banner = ""
-                
-                υπηρεσία = COMMON_PORTS.get(θύρα, "Άγνωστη")
-                ανοιχτές_θύρες.append({
-                    "θύρα": θύρα,
-                    "υπηρεσία": υπηρεσία,
-                    "banner": banner[:100] if banner else ""
-                })
-                
-                writer.close()
-                await writer.wait_closed()
-                
-                # Καταγραφή ευρήματος
-                if banner:
-                    self.καταγραφή(Εύρημα(
-                        "Ανοιχτή_Θύρα", "Χαμηλή", f"{self.τομέας}:{θύρα}",
-                        f"Υπηρεσία: {υπηρεσία}, Banner: {banner[:50]}..."
-                    ))
-                else:
-                    self.καταγραφή(Εύρημα(
-                        "Ανοιχτή_Θύρα", "Πληροφορία", f"{self.τομέας}:{θύρα}",
-                        f"Υπηρεσία: {υπηρεσία}"
-                    ))
-                    
-            except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
-                pass
-            except Exception as e:
-                pass
-        
-        # Σάρωση κοινών θυρών
-        θύρες = list(COMMON_PORTS.keys())
-        
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Σάρωση θυρών...", total=len(θύρες))
-            
-            # Επεξεργασία σε ομάδες για ταχύτητα
-            μέγεθος_ομάδας = 100
-            for i in range(0, len(θύρες), μέγεθος_ομάδας):
-                ομάδα = θύρες[i:i + μέγεθος_ομάδας]
-                await asyncio.gather(*[έλεγχος_θύρας(p) for p in ομάδα])
-                progress.update(task, advance=len(ομάδα))
-        
-        self.ανοιχτές_θύρες = ανοιχτές_θύρες
-        return ανοιχτές_θύρες
-
-    async def έλεγχος_ανάληψης_υποτομέα(self):
-        """Βελτιωμένη ανίχνευση ανάληψης υποτομέα"""
-        try:
-            resolver = dns.resolver.Resolver()
-            resolver.nameservers = ['8.8.8.8', '1.1.1.1']  # Χρήση αξιόπιστων DNS
-            
-            try:
-                answers = resolver.resolve(self.τομέας, 'CNAME')
-                for answer in answers:
-                    cname = str(answer.target).rstrip('.')
-                    
-                    # Έλεγχος αν το CNAME δείχνει σε γνωστές ευάλωτες υπηρεσίες
-                    ευάλωτοι_τομείς = [
-                        'github.io', 'herokuapp.com', 'aws.amazon.com',
-                        'azurewebsites.net', 'cloudapp.net', 's3.amazonaws.com'
-                    ]
-                    
-                    if any(ευάλωτος_τομέας in cname for ευάλωτος_τομέας in ευάλωτοι_τομείς):
-                        # Δοκιμή του τομέα
-                        async with httpx.AsyncClient(verify=False, timeout=10) as client:
-                            try:
-                                resp = await client.get(self.στόχος)
-                                resp_text = resp.text.lower()
-                                
-                                for παρόχος, αποτυπώματα in TAKEOVER_SIGS.items():
-                                    for αποτύπωμα in αποτυπώματα:
-                                        if αποτύπωμα.lower() in resp_text:
-                                            self.καταγραφή(Εύρημα(
-                                                "Ανάληψη_Υποτομέα", "Κρίσιμη", self.στόχος,
-                                                f"Πάροχος: {παρόχος}, CNAME: {cname}",
-                                                απόδειξη_εκμετάλλευσης=f"Το CNAME δείχνει στο {cname} που είναι ευάλωτο σε ανάληψη",
-                                                αποκατάσταση=f"Αφαιρέστε την εγγραφή CNAME ή διεκδικήστε την υπηρεσία"
-                                            ))
-                                            return
-                            except Exception:
-                                pass
-                                
-            except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
-                pass
-                
-        except Exception as e:
-            pass
-
-    async def εξαγωγή_js_σημείων_πρόσβασης(self, client, url, html_περιεχόμενο):
-        """Βελτιωμένη ανάλυση JS με ανάλυση AST (απλοποιημένη)"""
-        soup = BeautifulSoup(html_περιεχόμενο, 'html.parser')
-        
-        # Εύρεση όλων των ετικετών script
-        scripts = soup.find_all('script')
-        
-        for script in scripts:
-            src = script.get('src')
-            if src:
-                js_url = urljoin(url, src)
-                try:
-                    response = await client.get(js_url)
-                    if response.status_code == 200:
-                        js_περιεχόμενο = response.text
-                        
-                        # Εξαγωγή σημείων πρόσβασης με διάφορα μοτίβα
-                        μοτίβα = [
-                            r'(?:["\'])(\/[a-zA-Z0-9_\-\.\/]+\.(?:json|api|rest|graphql))["\']',
-                            r'(?:url|endpoint|api)[:=]\s*["\']([^"\']+)["\']',
-                            r'fetch\(["\']([^"\']+)["\']',
-                            r'axios\.(?:get|post|put|delete)\(["\']([^"\']+)["\']',
-                            r'\.ajax\([^{]*url:\s*["\']([^"\']+)["\']'
-                        ]
-                        
-                        όλα_τα_σημεία_πρόσβασης = set()
-                        for μοτίβο in μοτίβα:
-                            ταίριασμα = re.findall(μοτίβο, js_περιεχόμενο, re.IGNORECASE)
-                            for match in ταίριασμα:
-                                if isinstance(match, tuple):
-                                    match = match[0]
-                                if match.startswith('/') or match.startswith('http'):
-                                    πλήρη_url = urljoin(js_url, match)
-                                    όλα_τα_σημεία_πρόσβασης.add(πλήρη_url)
-                        
-                        # Φιλτράρισμα ενδιαφέροντων σημείων πρόσβασης
-                        ενδιαφέροντα = [ep for ep in όλα_τα_σημεία_πρόσβασης if any(
-                            λέξη_κλειδί in ep.lower() for λέξη_κλειδί in 
-                            ['api', 'admin', 'auth', 'token', 'user', 'account', 'config']
-                        )]
-                        
-                        if ενδιαφέροντα:
-                            self.js_σημεία_πρόσβασης.update(ενδιαφέροντα)
-                            δείγμα = list(ενδιαφέροντα)[:3]
-                            self.καταγραφή(Εύρημα(
-                                "Διαρροή_JS_Σημείου_Πρόσβασης", "Χαμηλή", js_url,
-                                f"Βρέθηκαν {len(ενδιαφέροντα)} σημεία πρόσβασης. Δείγμα: {', '.join(δείγμα)}"
-                            ))
-                            
-                except Exception:
-                    continue
-
-    async def αναζήτηση_ιστοτόπου(self, client, αρχικό_url, μέγιστο_βάθος=2):
-        """Βελτιωμένη αναζήτηση ιστοτόπου με έλεγχο βάθους"""
-        επισκεφθέντα = set()
-        προς_επίσκεψη = [(αρχικό_url, 0)]
-        
-        while προς_επίσκεψη:
-            τρέχον_url, βάθος = προς_επίσκεψη.pop(0)
-            
-            if τρέχον_url in επισκεφθέντα or βάθος > μέγιστο_βάθος:
-                continue
-            
-            επισκεφθέντα.add(τρέχον_url)
-            
-            try:
-                response = await client.get(τρέχον_url)
-                self.στατιστικά["απαντήσεις_που_λήφθηκαν"] += 1
-                
-                if response.status_code == 200:
-                    # Εξαγωγή συνδέσμων
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    for link in soup.find_all('a', href=True):
-                        href = link['href']
-                        πλήρες_url = urljoin(τρέχον_url, href)
-                        
-                        # Ακολουθούν μόνο σύνδεσμοι ίδιου τομέα
-                        if self.τομέας in πλήρες_url and πλήρες_url not in επισκεφθέντα:
-                            προς_επίσκεψη.append((πλήρες_url, βάθος + 1))
-                            
-                    # Έλεγχος για φόρμες
-                    φόρμες = soup.find_all('form')
-                    if φόρμες:
-                        self.καταγραφή(Εύρημα(
-                            "Βρέθηκαν_Φόρμες", "Πληροφορία", τρέχον_url,
-                            f"Βρέθηκαν {len(φόρμες)} φόρμες. Ελέγξτε για ευπάθειες XSS/CSRF"
-                        ))
-                        
-            except Exception:
-                continue
-        
-        self.διερευνημένα_url.update(επισκεφθέντα)
-        return επισκεφθέντα
-
-    async def έλεγχος_για_ευπάθειες(self, client, url, κείμενο, headers):
-        """Έλεγχος για κοινά μοτίβα ευπάθειας"""
-        
-        # Μοτίβα SQL Injection σε απόκριση
-        for τύπος_ευπάθειας, μοτίβα in VULN_PATTERNS.items():
-            for μοτίβο in μοτίβα:
-                if re.search(μοτίβο, κείμενο, re.IGNORECASE):
-                    self.καταγραφή(Εύρημα(
-                        f"Πιθανό_{τύπος_ευπάθειας}", "Μέτρια", url,
-                        f"Ταιριασμένο μοτίβο: {μοτίβο[:50]}...",
-                        αποκατάσταση=f"Εφαρμόστε κατάλληλη επικύρωση εισόδου και κωδικοποίηση εξόδου"
-                    ))
-        
-        # Έλεγχος για λειτουργία debug
-        λέξεις_κλειδιά_debug = ['debug', 'development', 'testing', 'staging']
-        if any(λέξη_κλειδί in κείμενο.lower() for λέξη_κλειδί in λέξεις_κλειδιά_debug):
-            self.καταγραφή(Εύρημα(
-                "Λειτουργία_Debug", "Χαμηλή", url,
-                "Εντοπίστηκε λειτουργία debug ή ανάπτυξης",
-                αποκατάσταση="Απενεργοποιήστε τη λειτουργία debug σε παραγωγή"
-            ))
-
-    async def βίαιη_επίθεση_καταλόγων(self, client):
-        """Βίαιη επίθεση καταλόγων με κοινή λίστα λέξεων"""
-        λίστα_λέξεων = [
-            "admin", "login", "wp-admin", "administrator", "dashboard",
-            "api", "v1", "v2", "graphql", "rest", "swagger",
-            "config", "settings", "env", "backup", "dump",
-            "test", "dev", "stage", "prod", "demo",
-            "uploads", "files", "images", "assets", "static",
-            "phpmyadmin", "mysql", "pma", "sql",
-            ".git", ".svn", ".hg", ".env", "robots.txt"
-        ]
-        
-        επεκτάσεις = ["", ".php", ".html", ".jsp", ".asp", ".aspx", ".py", ".rb"]
-        
-        ευρεθέντες_κατάλογοι = []
-        
-        async def έλεγχος_καταλόγου(διαδρομή):
-            πλήρες_url = urljoin(self.στόχος, διαδρομή)
-            try:
-                resp = await client.get(πλήρες_url)
-                if resp.status_code in [200, 301, 302, 403]:
-                    if resp.status_code == 200:
-                        ευρεθέντες_κατάλογοι.append(πλήρες_url)
-                        self.καταγραφή(Εύρημα(
-                            "Βρέθηκε_Κατάλογος", "Πληροφορία", πλήρες_url,
-                            f"Κατάσταση: {resp.status_code}, Μέγεθος: {len(resp.text)} bytes"
-                        ))
-                    elif resp.status_code == 403:
-                        self.καταγραφή(Εύρημα(
-                            "Απαγορευμένος_Κατάλογος", "Χαμηλή", πλήρες_url,
-                            "Απαγορεύεται η πρόσβαση (403) - πιθανή κακή διαμόρφωση"
-                        ))
-            except Exception:
-                pass
-        
-        # Δημιουργία όλων των διαδρομών προς έλεγχο
-        εργασίες = []
-        for λέξη in λίστα_λέξεων:
-            for επέκταση in επεκτάσεις:
-                εργασίες.append(έλεγχος_καταλόγου(f"/{λέξη}{επέκταση}"))
-                # Επίσης έλεγχος με τελικό slash
-                εργασίες.append(έλεγχος_καταλόγου(f"/{λέξη}{επέκταση}/"))
-        
-        # Εκτέλεση σε ομάδες
-        μέγεθος_ομάδας = 50
-        for i in range(0, len(εργασίες), μέγεθος_ομάδας):
-            ομάδα = εργασίες[i:i + μέγεθος_ομάδας]
-            await asyncio.gather(*ομάδα)
-            await asyncio.sleep(0.1)  # Περιορισμός ρυθμού
-        
-        return ευρεθέντες_κατάλογοι
-
-    async def έλεγχος_ευαίσθητων_αρχείων(self, client):
-        """Έλεγχος για έκθεση ευαίσθητων αρχείων"""
-        ευάλωτα_αρχεία = []
-        
-        async def έλεγχος_αρχείου(διαδρομή_αρχείου):
-            πλήρες_url = urljoin(self.στόχος, διαδρομή_αρχείου)
-            try:
-                resp = await client.get(πλήρες_url, follow_redirects=True)
-                
-                if resp.status_code == 200:
-                    περιεχόμενο = resp.text
-                    μέγεθος = len(resp.content)
-                    
-                    # Παράβλεψη εάν είναι πολύ μικρό (μπορεί να είναι σελίδα σφάλματος)
-                    if μέγεθος < 100:
-                        return
-                    
-                    # Έλεγχος για συγκεκριμένους τύπους αρχείων
-                    if διαδρομή_αρχείου.endswith('.env') or '/.env' in διαδρομή_αρχείου:
-                        self.καταγραφή(Εύρημα(
-                            "Εκτεθειμένο_Αρχείο_Env", "Υψηλή", πλήρες_url,
-                            f"Εκτεθειμένο αρχείο περιβάλλοντος ({μέγεθος} bytes)",
-                            αποκατάσταση="Αφαιρέστε το αρχείο .env από τη ρίζα ιστού ή περιορίστε την πρόσβαση"
-                        ))
-                        ευάλωτα_αρχεία.append(πλήρες_url)
-                        
-                        # Εξαγωγή πιθανών μυστικών
-                        for όνομα_μυστικού, μοτίβο in SECRET_REGEX.items():
-                            ταίριασμα = re.findall(μοτίβο, περιεχόμενο)
-                            if ταίριασμα:
-                                for match in ταίριασμα[:3]:  # Περιορισμός εξόδου
-                                    self.καταγραφή(Εύρημα(
-                                        "Διαρροή_Μυστικού", "Κρίσιμη", πλήρες_url,
-                                        f"{όνομα_μυστικού}: {match[:50]}...",
-                                        αποκατάσταση="Περιστρέψτε αμέσως όλα τα εκτεθειμένα κλειδιά"
-                                    ))
-                    
-                    elif διαδρομή_αρχείου.endswith('.git/config'):
-                        self.καταγραφή(Εύρημα(
-                            "Εκτεθειμένο_Config_Git", "Υψηλή", πλήρες_url,
-                            "Εκτεθειμένο αρχείο διαμόρφωσης Git",
-                            αποκατάσταση="Αφαιρέστε τον κατάλογο .git από τη ρίζα ιστού"
-                        ))
-                        
-                    elif διαδρομή_αρχείου.endswith('phpinfo.php'):
-                        self.καταγραφή(Εύρημα(
-                            "Εκτεθειμένο_PHPInfo", "Μέτρια", πλήρες_url,
-                            "Εκτεθειμένη σελίδα PHPInfo - αποκαλύπτει τη διαμόρφωση του διακομιστή",
-                            αποκατάσταση="Αφαιρέστε το phpinfo.php από παραγωγή"
-                        ))
-                        
-                    elif 'backup' in διαδρομή_αρχείου.lower() or 'dump' in διαδρομή_αρχείου.lower():
-                        self.καταγραφή(Εύρημα(
-                            "Εκτεθειμένο_Αρχείο_Αντιγράφου", "Υψηλή", πλήρες_url,
-                            f"Εκτεθειμένο αρχείο αντιγράφου ασφαλείας ({μέγεθος} bytes)",
-                            αποκατάσταση="Αφαιρέστε αρχεία αντιγράφων από προσβάσιμες τοποθεσίες ιστού"
-                        ))
-                        
-            except Exception:
-                pass
-        
-        # Έλεγχος όλων των ευαίσθητων διαδρομών
-        εργασίες = [έλεγχος_αρχείου(διαδρομή) for διαδρομή in ΕΥΑΙΣΘΗΤΑ_ΑΡΧΕΙΑ]
-        
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Έλεγχος ευαίσθητων αρχείων...", total=len(εργασίες))
-            
-            # Επεξεργασία σε ομάδες
-            μέγεθος_ομάδας = 20
-            for i in range(0, len(εργασίες), μέγεθος_ομάδας):
-                ομάδα = εργασίες[i:i + μέγεθος_ομάδας]
-                await asyncio.gather(*ομάδα)
-                progress.update(task, advance=len(ομάδα))
-        
-        return ευάλωτα_αρχεία
-
-    async def έλεγχος_cors(self, client, url):
-        """Έλεγχος για κακές διαμορφώσεις CORS"""
-        try:
-            # Δοκιμή με αυθαίρετη προέλευση
-            δοκιμαστικές_επικεφαλίδες = self.επικεφαλίδες.copy()
-            δοκιμαστικές_επικεφαλίδες["Origin"] = "https://evil.com"
-            
-            response = await client.get(url, headers=δοκιμαστικές_επικεφαλίδες)
-            
-            acao = response.headers.get("Access-Control-Allow-Origin")
-            acac = response.headers.get("Access-Control-Allow-Credentials", "").lower()
-            
-            if acao == "*" and acac == "true":
-                self.καταγραφή(Εύρημα(
-                    "Κακή_Διαμόρφωση_CORS", "Υψηλή", url,
-                    "Το CORS επιτρέπει διαπιστευτήρια με μπαλαντέρ προέλευση",
-                    αποκατάσταση="Περιορίστε τις προελεύσεις CORS και αποφύγετε τη χρήση διαπιστευτηρίων με μπαλαντέρ"
-                ))
-            elif acao == "*":
-                self.καταγραφή(Εύρημα(
-                    "Κακή_Διαμόρφωση_CORS", "Μέτρια", url,
-                    "Το CORS χρησιμοποιεί μπαλαντέρ προέλευση",
-                    αποκατάσταση="Χρησιμοποιήστε συγκεκριμένες προελεύσεις αντί για μπαλαντέρ"
-                ))
-            elif "evil.com" in str(acao):
-                self.καταγραφή(Εύρημα(
-                    "Κακή_Διαμόρφωση_CORS", "Κρίσιμη", url,
-                    f"Εντοπίστηκε αντανάκλαση προέλευσης: {acao}",
-                    αποκατάσταση="Επικυρώστε σωστά τις προελεύσεις CORS"
-                ))
-                    
+            from rich.logging import RichHandler
+            handler = RichHandler(rich_tracebacks=debug, show_time=False, show_level=True, show_path=False)
+            fmt = logging.Formatter("%(message)s")
+            handler.setFormatter(fmt)
+            logger.addHandler(handler)
+            return logger
         except Exception:
             pass
 
-    async def έλεγχος_μεθόδων_http(self, client, url):
-        """Έλεγχος για επικίνδυνες μεθόδους HTTP"""
-        επικίνδυνες_μέθοδοι = ["PUT", "DELETE", "TRACE", "CONNECT"]
-        
-        for μέθοδος in επικίνδυνες_μέθοδοι:
+    handler = logging.StreamHandler()
+    handler.setFormatter(_PlainFormatter("%(levelname)s: %(message)s"))
+    logger.addHandler(handler)
+    return logger
+
+
+# ---------------- Data models ----------------
+
+SEV_ORDER = {"Critical": 4, "High": 3, "Medium": 2, "Low": 1, "Info": 0}
+
+@dataclass(frozen=True)
+class Finding:
+    category: str
+    severity: str
+    url: str
+    details: str
+    evidence: str = ""
+    remediation: str = ""
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def key(self) -> str:
+        # Κλειδί απο-διπλοποίησης: σταθερό μεταξύ εκτελέσεων εκτός από το timestamp
+        h = hashlib.sha256()
+        h.update(self.category.encode())
+        h.update(self.severity.encode())
+        h.update(self.url.encode())
+        h.update(self.details.encode())
+        h.update(self.evidence.encode())
+        return h.hexdigest()
+
+@dataclass
+class Technology:
+    name: str
+    version: str = ""
+    confidence: int = 50
+    source: str = ""
+
+@dataclass
+class ScopeInfo:
+    target: str
+    base_url: str
+    hostname: str
+    port: Optional[int]
+    scheme: str
+    resolved_ips: List[str] = field(default_factory=list)
+    start_utc: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    end_utc: str = ""
+
+@dataclass
+class ScanStats:
+    http_requests: int = 0
+    http_errors: int = 0
+    bytes_downloaded: int = 0
+    status_counts: Counter = field(default_factory=Counter)
+    rate_limited: int = 0
+
+
+# ---------------- Helpers ----------------
+
+CSV_INJECTION_PREFIXES = ("=", "+", "-", "@")
+
+def csv_safe(s: Any) -> str:
+    """Μετριασμός CSV formula injection & μετατροπή σε string."""
+    if s is None:
+        return ""
+    out = str(s)
+    if out.startswith(CSV_INJECTION_PREFIXES):
+        return "'" + out
+    return out
+
+def now_utc() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+def normalize_url(url: str) -> str:
+    # Remove fragment; keep query
+    p = urlparse(url)
+    return urlunparse((p.scheme, p.netloc, p.path or "/", p.params, p.query, ""))
+
+def first_nonempty_group(m: re.Match) -> str:
+    for g in m.groups():
+        if g:
+            return g
+    return m.group(0) or ""
+
+
+# ---------------- Signatures / patterns ----------------
+
+SEC_HEADERS = {
+    "strict-transport-security": ("HSTS", "Add HSTS with a long max-age and includeSubDomains; preload if appropriate."),
+    "content-security-policy": ("CSP", "Define a restrictive Content-Security-Policy to reduce XSS risk."),
+    "x-frame-options": ("Clickjacking", "Set X-Frame-Options (DENY or SAMEORIGIN) or use CSP frame-ancestors."),
+    "x-content-type-options": ("MIME Sniffing", "Set X-Content-Type-Options: nosniff."),
+    "referrer-policy": ("Referrer Policy", "Set a Referrer-Policy appropriate for the site."),
+    "permissions-policy": ("Permissions Policy", "Use Permissions-Policy to restrict powerful features."),
+    "cross-origin-opener-policy": ("COOP", "Consider COOP to isolate browsing context and mitigate XS leaks."),
+    "cross-origin-resource-policy": ("CORP", "Consider CORP to restrict resource loading across origins."),
+    "cross-origin-embedder-policy": ("COEP", "Consider COEP when feasible to enable cross-origin isolation."),
+}
+
+
+SEV_LABELS_EL = {
+    "critical": "Κρίσιμο",
+    "high": "Υψηλό",
+    "medium": "Μεσαίο",
+    "low": "Χαμηλό",
+    "info": "Πληροφοριακό",
+}
+
+CATEGORY_LABELS_EL = {
+    "CAA_Missing": "Απουσία εγγραφής CAA",
+    "CORS_Misconfig": "Λανθασμένη ρύθμιση CORS",
+    "CORS_Reflects_Origin": "CORS αντανακλά το Origin",
+    "CORS_Wildcard": "CORS με wildcard (*)",
+    "Cookie_Flags_Missing": "Λείπουν flags cookie",
+    "DNS_Resolution_Failed": "Αποτυχία επίλυσης DNS",
+    "Directory_Bruteforce_Skipped": "Παράλειψη directory bruteforce",
+    "Directory_Listing": "Ενεργό directory listing",
+    "Email_DMARC_Missing": "Απουσία DMARC",
+    "Email_SPF_Missing": "Απουσία SPF",
+    "HTTP_Methods_Allowed": "Επιτρεπόμενες μέθοδοι HTTP",
+    "Interesting_Path": "Ενδιαφέρουσα διαδρομή",
+    "JS_Endpoints_Discovered": "Εντοπίστηκαν endpoints σε JS",
+    "Missing_Security_Header": "Απουσία header ασφαλείας",
+    "Open_Ports": "Ανοιχτές θύρες",
+    "Possible_Secret_Leak": "Πιθανή διαρροή μυστικού",
+    "Potential_Risky_HTTP_Method": "Πιθανώς επικίνδυνη μέθοδος HTTP",
+    "Sensitive_File_Exposed": "Έκθεση ευαίσθητου αρχείου",
+    "Sensitive_Path_Redirect": "Ανακατεύθυνση ευαίσθητης διαδρομής",
+    "TLS_Certificate_Expiry": "Λήξη πιστοποιητικού TLS",
+    "TLS_Handshake_Failed": "Αποτυχία TLS handshake",
+    "TLS_Info": "Πληροφορίες TLS",
+    "Target_Unreachable": "Μη προσβάσιμος στόχος",
+    "Tech_Detected": "Εντοπισμένη τεχνολογία",
+    "Wayback_URLs": "URL από Wayback",
+}
+
+def tr_sev_el(v: str) -> str:
+    return SEV_LABELS_EL.get((v or '').lower(), v or '')
+
+def tr_cat_el(v: str) -> str:
+    return CATEGORY_LABELS_EL.get(v or '', v or '')
+
+COOKIE_FLAG_REMEDIATION = {
+    "Secure": "Mark cookies as Secure so they're only sent over HTTPS.",
+    "HttpOnly": "Mark cookies as HttpOnly to reduce XSS cookie theft risk.",
+    "SameSite": "Set SameSite (Lax/Strict/None) to reduce CSRF risk; if None, also require Secure."
+}
+
+TECH_SIGS = [
+    # (name, regex, source)
+    ("nginx", re.compile(r"\bnginx(?:/([\d.]+))?\b", re.I), "header"),
+    ("apache", re.compile(r"\bapache(?:/([\d.]+))?\b", re.I), "header"),
+    ("cloudflare", re.compile(r"\bcloudflare\b", re.I), "header"),
+    ("iis", re.compile(r"\bmicrosoft-iis(?:/([\d.]+))?\b", re.I), "header"),
+    ("php", re.compile(r"\bphp(?:/([\d.]+))?\b", re.I), "header"),
+    ("express", re.compile(r"\bexpress\b", re.I), "header"),
+    ("wordpress", re.compile(r"wp-content|wp-includes|<meta[^>]+name=['\"]generator['\"][^>]+wordpress\s*([\d.]+)?", re.I), "body"),
+    ("drupal", re.compile(r"\bdrupal\b|sites/all|sites/default", re.I), "body"),
+    ("joomla", re.compile(r"\bjoomla\b|/components/com_", re.I), "body"),
+]
+
+VULN_PATTERNS: Dict[str, List[re.Pattern]] = {
+    "SQL_Error_Disclosure": [
+        re.compile(r"you have an error in your sql syntax", re.I),
+        re.compile(r"unclosed quotation mark after the character string", re.I),
+        re.compile(r"pg_query\(\):", re.I),
+        re.compile(r"mysql_fetch", re.I),
+    ],
+    "Stack_Trace_Disclosure": [
+        re.compile(r"traceback \(most recent call last\):", re.I),
+        re.compile(r"system\.nullreferenceexception", re.I),
+        re.compile(r"org\.springframework\.", re.I),
+        re.compile(r"at\s+[\w.$]+\([\w.]+:\d+\)", re.I),
+    ],
+    "Debug_Keywords": [
+        re.compile(r"\bdebug\b|\bdevelopment\b|\bstaging\b", re.I),
+    ],
+}
+
+SECRET_PATTERNS: Dict[str, re.Pattern] = {
+    "AWS_Access_Key": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    "AWS_Secret_Key": re.compile(r"\b(?<![A-Za-z0-9/+=])[A-Za-z0-9/+=]{40}(?![A-Za-z0-9/+=])\b"),
+    "Google_API_Key": re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b"),
+    "Stripe_Live_Key": re.compile(r"\bsk_live_[0-9a-zA-Z]{24,}\b"),
+    "Private_Key_Block": re.compile(r"-----BEGIN (?:RSA|EC|DSA|OPENSSH) PRIVATE KEY-----"),
+}
+
+COMMON_SENSITIVE = [
+    ".env", ".env.local", ".git/config", ".svn/entries", "composer.json", "composer.lock",
+    "package.json", "yarn.lock", "pnpm-lock.yaml",
+    "config.php", "wp-config.php", "settings.php",
+    "web.config", "appsettings.json", "appsettings.Production.json",
+    "phpinfo.php", "info.php", "server-status", "server-info",
+    "backup.zip", "backup.tar.gz", "db.sql", "dump.sql",
+    "swagger.json", "openapi.json",
+    ".well-known/security.txt", "security.txt",
+    "robots.txt", "sitemap.xml",
+]
+
+DEFAULT_PORTS = [
+    21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 465, 587, 993, 995,
+    1433, 1521, 2049, 2375, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9000
+]
+
+DEFAULT_DIR_WORDLIST = [
+    "admin", "login", "administrator", "dashboard", "cpanel", "api", "graphql", "v1", "v2",
+    "swagger", "openapi", "docs", "doc", "internal", "private",
+    ".git", ".svn", ".env", "backup", "backups", "old", "dev", "test", "staging",
+    "uploads", "upload", "static", "assets", "images", "js", "css"
+]
+
+
+# ---------------- Scanner ----------------
+
+class BugHunter:
+    def __init__(
+        self,
+        target: str,
+        out_dir: Path,
+        *,
+        concurrency: int = 30,
+        timeout: float = 12.0,
+        user_agent: str = "BugHunter/4 (authorized-testing)",
+        rate_limit_rps: float = 0.0,
+        debug: bool = False,
+        unsafe_active_tests: bool = False,
+    ) -> None:
+        if httpx is None:
+            raise RuntimeError("Λείπει η εξάρτηση: httpx. Εγκατάσταση με: python3 -m pip install -U httpx")
+
+        self.logger = setup_logger(debug)
+        self.debug = debug
+        self.unsafe_active_tests = unsafe_active_tests
+
+        self.target = target if target.startswith(("http://", "https://")) else "https://" + target
+        parsed = urlparse(self.target)
+
+        # Correct parsing: hostname is without port; netloc may include port.
+        self.scheme = parsed.scheme or "https"
+        self.hostname = parsed.hostname or parsed.netloc.split(":")[0]
+        self.port = parsed.port
+        self.base_url = f"{self.scheme}://{parsed.netloc}" if parsed.netloc else f"{self.scheme}://{self.hostname}"
+        self.base_url = self.base_url.rstrip("/")
+
+        self.out_dir = out_dir
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+
+        self.concurrency = max(1, int(concurrency))
+        self.timeout = float(timeout)
+        self.user_agent = user_agent
+        self.rate_limit_rps = float(rate_limit_rps) if rate_limit_rps else 0.0
+        self._rate_lock = asyncio.Lock()
+        self._last_req_ts = 0.0
+
+        self.sem = asyncio.Semaphore(self.concurrency)
+
+        self.scope = ScopeInfo(
+            target=self.target,
+            base_url=self.base_url,
+            hostname=self.hostname,
+            port=self.port,
+            scheme=self.scheme,
+        )
+        self.stats = ScanStats()
+        self._findings: Dict[str, Finding] = {}
+        self.technologies: Dict[str, Technology] = {}
+        self.discovered_urls: Set[str] = set()
+        self.discovered_js: Set[str] = set()
+        self.discovered_endpoints: Set[str] = set()
+        self.open_ports: List[int] = []
+
+        self._client: Optional["httpx.AsyncClient"] = None
+
+    # ---------- core plumbing ----------
+
+    async def _throttle(self) -> None:
+        if self.rate_limit_rps <= 0:
+            return
+        async with self._rate_lock:
+            now = asyncio.get_running_loop().time()
+            min_gap = 1.0 / self.rate_limit_rps
+            wait = (self._last_req_ts + min_gap) - now
+            if wait > 0:
+                await asyncio.sleep(wait)
+            self._last_req_ts = asyncio.get_running_loop().time()
+
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Optional[Dict[str, str]] = None,
+        follow_redirects: bool = True,
+    ) -> Optional["httpx.Response"]:
+        assert self._client is not None
+        url = normalize_url(url)
+        hdrs = {"User-Agent": self.user_agent, "Accept": "*/*"}
+        if headers:
+            hdrs.update(headers)
+
+        async with self.sem:
+            await self._throttle()
             try:
-                response = await client.request(μέθοδος, url, timeout=5)
-                if response.status_code in [200, 201, 204]:
-                    self.καταγραφή(Εύρημα(
-                        "Επικίνδυνη_Μέθοδος_HTTP", "Μέτρια", url,
-                        f"Επιτρέπεται η μέθοδος {μέθοδος}",
-                        αποκατάσταση="Απενεργοποιήστε τις μη απαραίτητες μεθόδους HTTP"
-                    ))
+                r = await self._client.request(method, url, headers=hdrs, follow_redirects=follow_redirects)
+                self.stats.http_requests += 1
+                self.stats.status_counts[str(r.status_code)] += 1
+                if r.status_code == 429:
+                    self.stats.rate_limited += 1
+                # r.content triggers download; only count bytes when accessed
+                return r
+            except Exception as e:
+                self.stats.http_errors += 1
+                if self.debug:
+                    self.logger.exception(f"HTTP {method} failed: {url} ({e})")
+                else:
+                    self.logger.debug(f"HTTP {method} failed: {url} ({e})")
+                return None
+
+    def add_finding(self, finding: Finding) -> None:
+        # Normalize severity
+        sev = finding.severity.capitalize()
+        if sev not in SEV_ORDER:
+            sev = "Info"
+        finding = Finding(
+            category=finding.category,
+            severity=sev,
+            url=normalize_url(finding.url),
+            details=finding.details.strip(),
+            evidence=finding.evidence.strip(),
+            remediation=finding.remediation.strip(),
+            timestamp=finding.timestamp,
+        )
+        self._findings.setdefault(finding.key(), finding)
+
+    def add_tech(self, name: str, version: str = "", confidence: int = 50, source: str = "") -> None:
+        key = name.lower()
+        existing = self.technologies.get(key)
+        if existing:
+            # keep highest confidence; prefer version if new has it
+            if confidence > existing.confidence:
+                existing.confidence = confidence
+            if version and (not existing.version):
+                existing.version = version
+            if source and (not existing.source):
+                existing.source = source
+        else:
+            self.technologies[key] = Technology(name=name, version=version, confidence=confidence, source=source)
+
+    # ---------- parsing & discovery ----------
+
+    def _same_host(self, url: str) -> bool:
+        try:
+            p = urlparse(url)
+            if not p.netloc:
+                return True
+            return (p.hostname or "").lower() == self.hostname.lower()
+        except Exception:
+            return False
+
+    def _extract_links(self, html: str, base: str) -> Set[str]:
+        links: Set[str] = set()
+
+        if bs4:
+            try:
+                from bs4 import BeautifulSoup  # type: ignore
+                soup = BeautifulSoup(html, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    links.add(urljoin(base, a["href"]))
+                for s in soup.find_all("script", src=True):
+                    src = urljoin(base, s["src"])
+                    links.add(src)
+                for l in soup.find_all("link", href=True):
+                    links.add(urljoin(base, l["href"]))
+                return links
             except Exception:
+                pass
+
+        # Fallback: regex-based extraction
+        for m in re.finditer(r"""(?:href|src)=['"]([^'"]+)['"]""", html, flags=re.I):
+            links.add(urljoin(base, m.group(1)))
+        return links
+
+    def _extract_js_urls(self, html: str, base: str) -> Set[str]:
+        out: Set[str] = set()
+        if bs4:
+            try:
+                from bs4 import BeautifulSoup  # type: ignore
+                soup = BeautifulSoup(html, "html.parser")
+                for s in soup.find_all("script", src=True):
+                    out.add(urljoin(base, s["src"]))
+                return out
+            except Exception:
+                pass
+        for m in re.finditer(r"""<script[^>]+src=['"]([^'"]+)['"]""", html, flags=re.I):
+            out.add(urljoin(base, m.group(1)))
+        return out
+
+    def _extract_endpoints_from_js(self, js_text: str) -> Set[str]:
+        # Extract absolute URLs and common API-like paths.
+        endpoints: Set[str] = set()
+
+        # Absolute URLs
+        for m in re.finditer(r"""https?://[^\s'"]+""", js_text):
+            endpoints.add(m.group(0))
+
+        # Relative paths that look like endpoints
+        for m in re.finditer(r"""['"](/(?:api|graphql|v1|v2|admin|internal|private|auth)[^'"]*)['"]""", js_text, flags=re.I):
+            endpoints.add(urljoin(self.base_url + "/", m.group(1)))
+
+        return endpoints
+
+    def _scan_secrets(self, blob: str, where: str) -> None:
+        for name, pat in SECRET_PATTERNS.items():
+            if pat.search(blob):
+                self.add_finding(Finding(
+                    category="Possible_Secret_Leak",
+                    severity="High" if name in ("Private_Key_Block",) else "Medium",
+                    url=where,
+                    details=f"Pattern matched: {name}",
+                    evidence=(pat.search(blob).group(0)[:80] if pat.search(blob) else ""),
+                    remediation="Remove secrets from client-facing files; rotate/revoke exposed credentials; add secret scanning to CI."
+                ))
+
+    # ---------- individual checks ----------
+
+    async def resolve_dns(self) -> None:
+        ips: Set[str] = set()
+
+        # Basic A/AAAA via socket (works without dnspython)
+        try:
+            for family, _, _, _, sockaddr in socket.getaddrinfo(self.hostname, None):
+                if family == socket.AF_INET:
+                    ips.add(sockaddr[0])
+                elif family == socket.AF_INET6:
+                    ips.add(sockaddr[0])
+        except Exception as e:
+            self.add_finding(Finding(
+                category="DNS_Resolution_Failed",
+                severity="Low",
+                url=self.base_url,
+                details=f"Failed to resolve hostname: {e}",
+                remediation="Check DNS records and availability."
+            ))
+
+        # Additional records via dnspython if available
+        if dns:
+            try:
+                import dns.resolver as dns_resolver  # type: ignore
+
+                def _txt(name: str) -> List[str]:
+                    try:
+                        answers = dns_resolver.resolve(name, "TXT")
+                        txts = []
+                        for r in answers:
+                            # dnspython returns bytes segments; join
+                            segs = []
+                            for s in getattr(r, "strings", []):
+                                segs.append(s.decode(errors="ignore") if isinstance(s, (bytes, bytearray)) else str(s))
+                            if segs:
+                                txts.append("".join(segs))
+                            else:
+                                txts.append(str(r))
+                        return txts
+                    except Exception:
+                        return []
+
+                # SPF / DMARC (TXT records)
+                spf = [t for t in _txt(self.hostname) if "v=spf1" in t.lower()]
+                if not spf:
+                    self.add_finding(Finding(
+                        category="Email_SPF_Missing",
+                        severity="Info",
+                        url=self.hostname,
+                        details="No SPF record detected (v=spf1) on apex/host.",
+                        remediation="Publish an SPF record if the domain sends email; verify alignment with your mail providers."
+                    ))
+                dmarc = _txt(f"_dmarc.{self.hostname}")
+                if not any("v=dmarc1" in t.lower() for t in dmarc):
+                    self.add_finding(Finding(
+                        category="Email_DMARC_Missing",
+                        severity="Info",
+                        url=self.hostname,
+                        details="No DMARC record detected at _dmarc.",
+                        remediation="Publish a DMARC policy (start with p=none) to improve spoofing resistance."
+                    ))
+
+                # CAA
+                try:
+                    caa = dns_resolver.resolve(self.hostname, "CAA")
+                    _ = list(caa)  # if exists, fine
+                except Exception:
+                    self.add_finding(Finding(
+                        category="CAA_Missing",
+                        severity="Info",
+                        url=self.hostname,
+                        details="No CAA record detected.",
+                        remediation="Consider publishing CAA to restrict which CAs can issue certificates for the domain."
+                    ))
+
+            except Exception as e:
+                self.logger.debug(f"DNS extra checks skipped: {e}")
+
+        self.scope.resolved_ips = sorted(ips)
+
+    async def tls_analysis(self) -> None:
+        if self.scheme != "https":
+            return
+        host = self.hostname
+        port = self.port or 443
+
+        def _probe() -> Dict[str, Any]:
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+            with socket.create_connection((host, port), timeout=self.timeout) as sock:
+                with ctx.wrap_socket(sock, server_hostname=host) as ssock:
+                    cert = ssock.getpeercert()
+                    cipher = ssock.cipher()
+                    version = ssock.version()
+            return {"cert": cert, "cipher": cipher, "tls_version": version}
+
+        try:
+            info = await asyncio.to_thread(_probe)
+        except Exception as e:
+            self.add_finding(Finding(
+                category="TLS_Handshake_Failed",
+                severity="Low",
+                url=f"{host}:{port}",
+                details=f"TLS connection failed: {e}",
+                remediation="Check certificate validity and TLS configuration."
+            ))
+            return
+
+        tls_ver = info.get("tls_version", "")
+        cipher = info.get("cipher", ("", "", ""))[0]
+        self.add_finding(Finding(
+            category="TLS_Info",
+            severity="Info",
+            url=f"{host}:{port}",
+            details=f"Negotiated {tls_ver} with cipher {cipher}",
+        ))
+
+        cert = info.get("cert") or {}
+        # Expiration check
+        try:
+            not_after = cert.get("notAfter")
+            # Format like 'Jun  1 12:00:00 2026 GMT'
+            exp = datetime.strptime(not_after, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
+            days = (exp - datetime.now(timezone.utc)).days
+            if days < 0:
+                sev = "High"
+                det = f"Certificate expired {abs(days)} days ago (expired on {exp.date()})"
+            elif days <= 14:
+                sev = "Medium"
+                det = f"Certificate expires soon ({days} days left, on {exp.date()})"
+            else:
+                sev = "Info"
+                det = f"Certificate valid until {exp.date()} ({days} days left)"
+            self.add_finding(Finding(
+                category="TLS_Certificate_Expiry",
+                severity=sev,
+                url=f"{host}:{port}",
+                details=det,
+                remediation="Renew and deploy a valid certificate before expiration; automate renewals where possible."
+            ))
+        except Exception:
+            pass
+
+    async def fetch_baseline(self) -> Tuple[Optional[str], Dict[str, str], List[str], str]:
+        """Fetch / and return (body, headers, set-cookie, final_url)."""
+        r = await self._request("GET", self.base_url + "/")
+        if not r:
+            return None, {}, [], self.base_url + "/"
+
+        final_url = str(r.url)
+        headers = {k.lower(): v for k, v in r.headers.items()}
+        cookies = r.headers.get_list("set-cookie") if hasattr(r.headers, "get_list") else ([r.headers.get("set-cookie")] if r.headers.get("set-cookie") else [])
+        body = ""
+        try:
+            body = r.text or ""
+            self.stats.bytes_downloaded += len(r.content or b"")
+        except Exception:
+            body = ""
+        return body, headers, [c for c in cookies if c], final_url
+
+    async def check_security_headers(self, headers: Dict[str, str], url: str) -> None:
+        for key, (title, remediation) in SEC_HEADERS.items():
+            if key not in headers:
+                self.add_finding(Finding(
+                    category="Missing_Security_Header",
+                    severity="Low" if key in ("referrer-policy", "permissions-policy", "cross-origin-resource-policy", "cross-origin-opener-policy", "cross-origin-embedder-policy") else "Medium",
+                    url=url,
+                    details=f"Missing header: {key} ({title})",
+                    remediation=remediation
+                ))
+
+        # Cookie flags
+        # We can't reliably parse all cookies without a library; do a best-effort for Set-Cookie header strings.
+        set_cookies = headers.get("set-cookie", "")
+        if set_cookies:
+            # Split on comma only when it looks like multiple cookies; best-effort
+            parts = re.split(r",(?=[^;]+?=)", set_cookies)
+            for c in parts:
+                c_l = c.lower()
+                missing: List[str] = []
+                if "secure" not in c_l and self.scheme == "https":
+                    missing.append("Secure")
+                if "httponly" not in c_l:
+                    missing.append("HttpOnly")
+                if "samesite" not in c_l:
+                    missing.append("SameSite")
+                if missing:
+                    self.add_finding(Finding(
+                        category="Cookie_Flags_Missing",
+                        severity="Low",
+                        url=url,
+                        details=f"Cookie missing flags: {', '.join(missing)}",
+                        evidence=c.strip()[:200],
+                        remediation=" ".join(COOKIE_FLAG_REMEDIATION[m] for m in missing if m in COOKIE_FLAG_REMEDIATION)
+                    ))
+
+    async def detect_tech(self, headers: Dict[str, str], body: str, url: str) -> None:
+        # Correct header matching: build "key: value" lines and search
+        header_lines = "\n".join([f"{k}: {v}" for k, v in headers.items()]).lower()
+        body_l = (body or "").lower()
+
+        for name, pat, src in TECH_SIGS:
+            hay = header_lines if src == "header" else body_l
+            m = pat.search(hay)
+            if m:
+                ver = ""
+                if m.lastindex:
+                    ver = first_nonempty_group(m)
+                self.add_tech(name=name, version=ver or "", confidence=80 if src == "header" else 70, source=src)
+        # Hint from headers
+        if "x-powered-by" in headers:
+            self.add_tech(headers["x-powered-by"].split()[0], source="header", confidence=60)
+
+        # Store a finding for tech summary (Info)
+        if self.technologies:
+            tech_list = ", ".join(
+                sorted({f"{t.name}{('/' + t.version) if t.version else ''}" for t in self.technologies.values()})
+            )
+            self.add_finding(Finding(
+                category="Tech_Detected",
+                severity="Info",
+                url=url,
+                details=f"Detected: {tech_list}"
+            ))
+
+    async def check_vuln_patterns(self, url: str, body: str) -> None:
+        if not body:
+            return
+        for vname, patterns in VULN_PATTERNS.items():
+            for pat in patterns:
+                if pat.search(body):
+                    sev = "Medium" if vname != "Debug_Keywords" else "Low"
+                    self.add_finding(Finding(
+                        category=vname,
+                        severity=sev,
+                        url=url,
+                        details=f"Response contains indicators of {vname.replace('_', ' ')}",
+                        evidence=pat.pattern[:120],
+                        remediation="Review error handling and disable verbose debug output in production."
+                    ))
+                    break
+
+    async def check_cors(self, url: str) -> None:
+        # Non-destructive: send Origin header and evaluate response.
+        origin = f"https://{''.join(random.choice('abcdefghijklmnopqrstuvwxyz') for _ in range(10))}.example"
+        r = await self._request("GET", url, headers={"Origin": origin})
+        if not r:
+            return
+        aco = r.headers.get("access-control-allow-origin", "")
+        acc = r.headers.get("access-control-allow-credentials", "")
+
+        if aco == "*":
+            if acc.lower() == "true":
+                self.add_finding(Finding(
+                    category="CORS_Misconfig",
+                    severity="High",
+                    url=url,
+                    details="Access-Control-Allow-Origin is '*' while Allow-Credentials is true.",
+                    remediation="Do not combine '*' with credentials. Reflect/allow only trusted origins or disable credentials."
+                ))
+            else:
+                self.add_finding(Finding(
+                    category="CORS_Wildcard",
+                    severity="Low",
+                    url=url,
+                    details="Access-Control-Allow-Origin is '*'.",
+                    remediation="Consider restricting CORS to trusted origins if the resource is sensitive."
+                ))
+        elif aco and aco.strip() == origin:
+            self.add_finding(Finding(
+                category="CORS_Reflects_Origin",
+                severity="Medium",
+                url=url,
+                details="CORS appears to reflect arbitrary Origin.",
+                evidence=f"Origin: {origin} -> ACAO: {aco}",
+                remediation="Validate Origin against an allowlist; avoid reflecting arbitrary Origin values."
+            ))
+
+    async def check_http_methods(self, url: str) -> None:
+        # Always do OPTIONS. Active probing (TRACE/PUT/DELETE/CONNECT) is controlled by --safe-mode.
+        r = await self._request("OPTIONS", url)
+        if r and "allow" in r.headers:
+            allow = r.headers.get("allow", "")
+            self.add_finding(Finding(
+                category="HTTP_Methods_Allowed",
+                severity="Info",
+                url=url,
+                details=f"Allow: {allow}"
+            ))
+
+        if not self.unsafe_active_tests:
+            return
+
+        # Active probing (still non-destructive in intent; can be risky on misconfigured servers)
+        for m in ["TRACE", "PUT", "DELETE", "CONNECT"]:
+            rr = await self._request(m, url, follow_redirects=False)
+            if rr and rr.status_code < 500 and rr.status_code not in (404, 405):
+                self.add_finding(Finding(
+                    category="Potential_Risky_HTTP_Method",
+                    severity="Medium",
+                    url=url,
+                    details=f"{m} returned status {rr.status_code}",
+                    remediation="Disable unnecessary HTTP methods on edge/proxy/app servers."
+                ))
+
+    async def check_sensitive_files(self) -> None:
+        async def _check(path: str) -> None:
+            url = urljoin(self.base_url + "/", path.lstrip("/"))
+            r = await self._request("GET", url, follow_redirects=False)
+            if not r:
+                return
+            if r.status_code in (200, 206):
+                # Basic heuristic: avoid flagging common public files too strongly
+                sev = "High" if any(x in path for x in (".env", ".git", "wp-config", "appsettings")) else "Medium"
+                self.add_finding(Finding(
+                    category="Sensitive_File_Exposed",
+                    severity=sev,
+                    url=url,
+                    details=f"Accessible sensitive path: {path} (HTTP {r.status_code})",
+                    remediation="Remove from web root; deny access at web server; move secrets to env/secret store."
+                ))
+                try:
+                    body = r.text[:20000]
+                    self._scan_secrets(body, url)
+                except Exception:
+                    pass
+            elif r.status_code in (301, 302, 307, 308):
+                loc = r.headers.get("location", "")
+                if loc and ("login" in loc.lower() or "signin" in loc.lower()):
+                    self.add_finding(Finding(
+                        category="Sensitive_Path_Redirect",
+                        severity="Info",
+                        url=url,
+                        details=f"{path} redirects to {loc}",
+                    ))
+
+        await self._run_stream(_check, COMMON_SENSITIVE)
+
+    async def port_scan(self, ports: List[int]) -> None:
+        # Connect scan without root. Keep concurrency bounded.
+        host = self.hostname
+
+        async def _check_port(p: int) -> None:
+            try:
+                async with self.sem:
+                    fut = asyncio.open_connection(host, p)
+                    reader, writer = await asyncio.wait_for(fut, timeout=self.timeout)
+                    writer.close()
+                    try:
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
+                    self.open_ports.append(p)
+            except Exception:
+                return
+
+        await self._run_stream(_check_port, ports)
+        self.open_ports.sort()
+        if self.open_ports:
+            self.add_finding(Finding(
+                category="Open_Ports",
+                severity="Info",
+                url=host,
+                details=f"Open TCP ports (connect scan): {', '.join(map(str, self.open_ports))}",
+                remediation="Close or firewall non-essential services; ensure management ports require strong auth."
+            ))
+
+    async def directory_bruteforce(self, wordlist: List[str]) -> None:
+        # Controlled by --safe-mode (active probes off) and --no-dirb.
+        if not self.unsafe_active_tests:
+            self.add_finding(Finding(
+                category="Directory_Bruteforce_Skipped",
+                severity="Info",
+                url=self.base_url,
+                details="Directory brute-force is disabled in safe mode (remove --safe-mode to enable active probes)."
+            ))
+            return
+
+        async def _check(seg: str) -> None:
+            url = urljoin(self.base_url + "/", seg.strip("/") + "/")
+            r = await self._request("GET", url, follow_redirects=False)
+            if not r:
+                return
+            if r.status_code in (200, 204, 301, 302, 307, 308, 401, 403):
+                sev = "Low"
+                if r.status_code == 200 and ("index of /" in (r.text or "").lower()):
+                    sev = "Medium"
+                    self.add_finding(Finding(
+                        category="Directory_Listing",
+                        severity=sev,
+                        url=url,
+                        details="Possible directory listing detected (Index of /).",
+                        remediation="Disable directory listing on the web server."
+                    ))
+                self.add_finding(Finding(
+                    category="Interesting_Path",
+                    severity=sev,
+                    url=url,
+                    details=f"Potentially interesting path discovered (HTTP {r.status_code})"
+                ))
+
+        await self._run_stream(_check, wordlist)
+
+    async def crawl(self, depth: int = 2, max_pages: int = 200) -> None:
+        # Depth-limited BFS. Uses deque for O(1) pops.
+        seen: Set[str] = set()
+        q: Deque[Tuple[str, int]] = deque()
+        start = self.base_url + "/"
+        q.append((start, 0))
+        seen.add(normalize_url(start))
+
+        while q and len(seen) <= max_pages:
+            url, d = q.popleft()
+            if d > depth:
+                continue
+            r = await self._request("GET", url)
+            if not r:
                 continue
 
-    # --- Κύριος Οργανωτής Σάρωσης ---
-    async def ολοκληρωμένη_σάρωση(self):
-        """Οργάνωση όλων των ενοτήτων σάρωσης"""
-        
-        console.print(Panel(f"[bold cyan]Εκκίνηση Ολοκληρωμένης Σάρωσης[/bold cyan]\n"
-                          f"Στόχος: [green]{self.στόχος}[/green]\n"
-                          f"Τομέας: [green]{self.τομέας}[/green]\n"
-                          f"Έξοδος: [green]{self.κατάλογος_εξόδου}[/green]",
-                          title="Bug Hunter V3"))
-        
-        async with httpx.AsyncClient(
-            verify=False,  # Προειδοποίηση: Απενεργοποιημένη επαλήθευση SSL για δοκιμές
-            limits=self.όρια,
-            headers=self.επικεφαλίδες,
-            timeout=30.0,
-            follow_redirects=True
-        ) as client:
-            
-            # Αρχική αίτηση
-            try:
-                αρχική_απάντηση = await client.get(self.στόχος)
-                self.στατιστικά["αποστολές_αιτήσεων"] += 1
-                
-                console.print(f"[green]✓[/green] Συνδέθηκε στον στόχο. Κατάσταση: {αρχική_απάντηση.status_code}")
-                
-            except Exception as e:
-                console.print(f"[red]✗[/red] Δεν ήταν δυνατή η σύνδεση με {self.στόχος}: {e}")
-                return
-            
-            # Εκτέλεση όλων των ενοτήτων σάρωσης
-            ενότητες = []
-            
-            if self.διαμόρφωση.get('tech_detect', True):
-                ενότητες.append(self.ανίχνευση_στοίβας_τεχνολογιών(client, self.στόχος, αρχική_απάντηση.text, αρχική_απάντηση.headers))
-            
-            if self.διαμόρφωση.get('security_headers', True):
-                ενότητες.append(self.έλεγχος_ασφαλιστικών_επικεφαλίδων(client, self.στόχος, αρχική_απάντηση.headers))
-            
-            if self.διαμόρφωση.get('cors_check', True):
-                ενότητες.append(self.έλεγχος_cors(client, self.στόχος))
-            
-            if self.διαμόρφωση.get('http_methods', True):
-                ενότητες.append(self.έλεγχος_μεθόδων_http(client, self.στόχος))
-            
-            if self.διαμόρφωση.get('vuln_check', True):
-                ενότητες.append(self.έλεγχος_για_ευπάθειες(client, self.στόχος, αρχική_απάντηση.text, αρχική_απάντηση.headers))
-            
-            # Εκτέλεση αρχικών ενοτήτων
-            if ενότητες:
-                await asyncio.gather(*ενότητες)
-            
-            # Εκτέλεση εντατικών σαρώσεων διαδοχικά
-            if self.διαμόρφωση.get('port_scan', True):
-                console.print("\n[cyan][*][/cyan] Εκκίνηση σάρωσης θυρών...")
-                await self.βελτιωμένη_σάρωση_θυρών()
-            
-            if self.διαμόρφωση.get('takeover_check', True):
-                console.print("[cyan][*][/cyan] Έλεγχος για ανάληψη υποτομέα...")
-                await self.έλεγχος_ανάληψης_υποτομέα()
-            
-            if self.διαμόρφωση.get('js_analyze', True):
-                console.print("[cyan][*][/cyan] Ανάλυση αρχείων JavaScript...")
-                await self.εξαγωγή_js_σημείων_πρόσβασης(client, self.στόχος, αρχική_απάντηση.text)
-            
-            if self.διαμόρφωση.get('sensitive_files', True):
-                console.print("[cyan][*][/cyan] Έλεγχος για ευαίσθητα αρχεία...")
-                await self.έλεγχος_ευαίσθητων_αρχείων(client)
-            
-            if self.διαμόρφωση.get('directory_brute', True):
-                console.print("[cyan][*][/cyan] Εκτέλεση βίαιης επίθεσης καταλόγων...")
-                await self.βίαιη_επίθεση_καταλόγων(client)
-            
-            if self.διαμόρφωση.get('crawl', True) and self.διαμόρφωση.get('crawl_depth', 1) > 0:
-                console.print(f"[cyan][*][/cyan] Αναζήτηση (βάθος: {self.διαμόρφωση.get('crawl_depth', 1)})...")
-                await self.αναζήτηση_ιστοτόπου(client, self.στόχος, max_depth=self.διαμόρφωση.get('crawl_depth', 1))
-        
-        # Δημιουργία αναφοράς
-        self.δημιουργία_βελτιωμένης_αναφοράς()
+            ct = r.headers.get("content-type", "")
+            if "text/html" not in ct.lower():
+                continue
 
-    # --- Βελτιωμένη Αναφορά ---
-    def δημιουργία_βελτιωμένης_αναφοράς(self):
-        """Δημιουργία ολοκληρωμένης αναφοράς HTML"""
-        
-        # Υπολογισμός στατιστικών σάρωσης
-        διάρκεια_σάρωσης = datetime.now() - self.στατιστικά["χρόνος_εκκίνησης"]
-        
-        # Καταμέτρηση σοβαροτήτων
-        καταμέτρηση_σοβαροτήτων = {}
-        for εύρημα in self.ευρήματα:
-            σοβαρότητα = εύρημα.get('σοβαρότητα', 'Πληροφορία')
-            καταμέτρηση_σοβαροτήτων[σοβαρότητα] = καταμέτρηση_σοβαροτήτων.get(σοβαρότητα, 0) + 1
-        
-        # Κατανομή κατηγοριών
-        καταμέτρηση_κατηγοριών = {}
-        for εύρημα in self.ευρήματα:
-            κατηγορία = εύρημα.get('κατηγορία', 'Άγνωστη')
-            καταμέτρηση_κατηγοριών[κατηγορία] = καταμέτρηση_κατηγοριών.get(κατηγορία, 0) + 1
-        
-        # Πρότυπο HTML
-        html_template = """
-<!DOCTYPE html>
-<html lang="el">
+            try:
+                body = r.text or ""
+                self.stats.bytes_downloaded += len(r.content or b"")
+            except Exception:
+                body = ""
+
+            self.discovered_urls.add(url)
+
+            # Basic vulns / secrets in pages
+            await self.check_vuln_patterns(url, body)
+            self._scan_secrets(body, url)
+
+            links = self._extract_links(body, url)
+            for link in links:
+                link = normalize_url(link)
+                if not self._same_host(link):
+                    continue
+                if link not in seen:
+                    seen.add(link)
+                    if d + 1 <= depth:
+                        q.append((link, d + 1))
+
+            # Capture JS sources for later
+            for jsu in self._extract_js_urls(body, url):
+                jsu = normalize_url(jsu)
+                if self._same_host(jsu):
+                    self.discovered_js.add(jsu)
+
+        if self.discovered_urls:
+            self.add_finding(Finding(
+                category="Crawl_Σύνοψη",
+                severity="Info",
+                url=self.base_url,
+                details=f"Crawled {len(self.discovered_urls)} HTML pages (depth={depth}, max_pages={max_pages})."
+            ))
+
+    async def analyze_js(self, max_files: int = 50) -> None:
+        js_list = list(self.discovered_js)[:max_files]
+        if not js_list:
+            return
+
+        async def _fetch(js_url: str) -> None:
+            r = await self._request("GET", js_url)
+            if not r:
+                return
+            ct = r.headers.get("content-type", "")
+            if "javascript" not in ct.lower() and not js_url.lower().endswith((".js", ".mjs")):
+                return
+            try:
+                txt = r.text or ""
+                self.stats.bytes_downloaded += len(r.content or b"")
+            except Exception:
+                return
+
+            self._scan_secrets(txt, js_url)
+
+            endpoints = self._extract_endpoints_from_js(txt)
+            for ep in endpoints:
+                ep_n = normalize_url(ep)
+                self.discovered_endpoints.add(ep_n)
+
+        await self._run_stream(_fetch, js_list)
+
+        if self.discovered_endpoints:
+            self.add_finding(Finding(
+                category="JS_Endpoints_Discovered",
+                severity="Info",
+                url=self.base_url,
+                details=f"Discovered {len(self.discovered_endpoints)} endpoints/URLs from JavaScript.",
+            ))
+
+    async def passive_wayback(self, limit: int = 200) -> None:
+        # Passive recon: list known URLs from the Wayback Machine (CDX API).
+        # Opt-in? This does not touch the target directly but calls an external service.
+        # We'll do it only if user enables unsafe_active_tests OR explicit module.
+        # (Still safe to run; respecting privacy/scope is on user.)
+        if not self.unsafe_active_tests:
+            return
+
+        cdx = "https://web.archive.org/cdx/search/cdx"
+        params = {
+            "url": self.hostname + "/*",
+            "output": "json",
+            "fl": "original",
+            "collapse": "urlkey",
+            "filter": "statuscode:200",
+            "limit": str(limit),
+        }
+        qs = "&".join(f"{k}={httpx.QueryParams({k:v})[k]}" for k, v in params.items())
+        url = f"{cdx}?{qs}"
+
+        r = await self._request("GET", url)
+        if not r:
+            return
+        try:
+            data = r.json()
+            if isinstance(data, list) and len(data) > 1:
+                urls = [row[0] for row in data[1:] if row and isinstance(row, list)]
+                # Keep only same host
+                urls = [normalize_url(u) for u in urls if self._same_host(u)]
+                for u in urls:
+                    self.discovered_urls.add(u)
+                self.add_finding(Finding(
+                    category="Wayback_URLs",
+                    severity="Info",
+                    url=self.hostname,
+                    details=f"Retrieved {len(urls)} unique URLs from Wayback Machine (limit={limit})."
+                ))
+        except Exception as e:
+            self.logger.debug(f"Wayback parse failed: {e}")
+
+    # ---------- bounded streaming runner ----------
+
+    async def _run_stream(self, fn, items: Iterable[Any]) -> None:
+        # Streaming task runner: keeps bounded number of tasks to reduce memory.
+        pending: Set[asyncio.Task] = set()
+        max_pending = max(10, self.concurrency * 2)
+
+        async def _wrap(it):
+            try:
+                await fn(it)
+            except Exception as e:
+                if self.debug:
+                    self.logger.exception(f"Task failed for {it}: {e}")
+                else:
+                    self.logger.debug(f"Task failed for {it}: {e}")
+
+        for it in items:
+            pending.add(asyncio.create_task(_wrap(it)))
+            if len(pending) >= max_pending:
+                done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+                _ = done  # just drain
+
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
+    # ---------- orchestrator ----------
+
+    async def scan(
+        self,
+        *,
+        do_ports: bool = True,
+        ports: Optional[List[int]] = None,
+        do_dns: bool = True,
+        do_tls: bool = True,
+        do_headers: bool = True,
+        do_tech: bool = True,
+        do_cors: bool = True,
+        do_methods: bool = True,
+        do_sensitive: bool = True,
+        do_crawl: bool = True,
+        crawl_depth: int = 2,
+        max_pages: int = 200,
+        do_js: bool = True,
+        do_dirb: bool = False,
+        dir_wordlist: Optional[List[str]] = None,
+        do_wayback: bool = False,
+    ) -> None:
+        limits = httpx.Limits(max_connections=self.concurrency, max_keepalive_connections=max(10, self.concurrency // 2))
+        timeout = httpx.Timeout(self.timeout)
+        async with httpx.AsyncClient(limits=limits, timeout=timeout, verify=True) as client:
+            self._client = client
+
+            self.logger.info(f"Στόχος: {self.base_url}  (host={self.hostname}, port={self.port or 'προεπιλογή'})")
+            if not self.unsafe_active_tests:
+                self.logger.info("Ενεργό safe mode: τα active probes είναι απενεργοποιημένα (αφαίρεσε το --safe-mode για επανενεργοποίηση).")
+
+            if do_dns:
+                await self.resolve_dns()
+
+            # Baseline
+            body, headers, setcookies, final = await self.fetch_baseline()
+            if body is None:
+                self.add_finding(Finding(
+                    category="Target_Unreachable",
+                    severity="High",
+                    url=self.base_url,
+                    details="Αποτυχία λήψης της βασικής σελίδας.",
+                    remediation="Επιβεβαίωσε ότι ο στόχος είναι προσβάσιμος και ότι έχεις άδεια ελέγχου."
+                ))
+            else:
+                if do_headers:
+                    await self.check_security_headers(headers, final)
+                if do_tech:
+                    await self.detect_tech(headers, body, final)
+                await self.check_vuln_patterns(final, body)
+                self._scan_secrets(body, final)
+
+                # quick endpoint discovery (passive, on-target)
+                for p in ("robots.txt", "sitemap.xml", ".well-known/security.txt", "security.txt"):
+                    self.discovered_urls.add(urljoin(self.base_url + "/", p))
+
+            if do_tls:
+                await self.tls_analysis()
+
+            if do_ports and self.hostname:
+                await self.port_scan(ports or DEFAULT_PORTS)
+
+            if do_cors:
+                await self.check_cors(final)
+
+            if do_methods:
+                await self.check_http_methods(final)
+
+            if do_sensitive:
+                await self.check_sensitive_files()
+
+            if do_crawl:
+                await self.crawl(depth=crawl_depth, max_pages=max_pages)
+
+            if do_js:
+                await self.analyze_js()
+
+            if do_dirb:
+                await self.directory_bruteforce(dir_wordlist or DEFAULT_DIR_WORDLIST)
+
+            if do_wayback:
+                await self.passive_wayback()
+
+            self._client = None
+            self.scope.end_utc = now_utc()
+
+    # ---------- exports ----------
+
+    def findings(self) -> List[Finding]:
+        fs = list(self._findings.values())
+        fs.sort(key=lambda f: (-SEV_ORDER.get(f.severity, 0), f.category, f.url))
+        return fs
+
+    def _summary(self) -> Dict[str, Any]:
+        fs = self.findings()
+        by_sev = Counter(f.severity for f in fs)
+        by_cat = Counter(f.category for f in fs)
+        return {
+            "scope": asdict(self.scope),
+            "stats": {
+                "http_requests": self.stats.http_requests,
+                "http_errors": self.stats.http_errors,
+                "bytes_downloaded": self.stats.bytes_downloaded,
+                "status_counts": dict(self.stats.status_counts),
+                "rate_limited_429": self.stats.rate_limited,
+            },
+            "counts": {
+                "total_findings": len(fs),
+                "by_severity": dict(by_sev),
+                "top_categories": by_cat.most_common(10),
+            },
+            "open_ports": self.open_ports,
+            "technologies": [asdict(t) for t in sorted(self.technologies.values(), key=lambda x: (-x.confidence, x.name.lower()))],
+            "discovered": {
+                "urls": sorted(self.discovered_urls)[:1000],
+                "js_files": sorted(self.discovered_js)[:500],
+                "endpoints": sorted(self.discovered_endpoints)[:1000],
+            }
+        }
+
+    def export_json(self) -> Path:
+        out = self.out_dir / "report.json"
+        payload = self._summary()
+        payload["findings"] = [asdict(f) for f in self.findings()]
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return out
+
+    def export_csv(self) -> Path:
+        out = self.out_dir / "report.csv"
+        with out.open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+            w.writerow(["χρόνος", "σοβαρότητα", "κατηγορία", "url", "λεπτομέρειες", "τεκμήριο", "αποκατάσταση"])
+            for fd in self.findings():
+                w.writerow([
+                    csv_safe(fd.timestamp),
+                    csv_safe(tr_sev_el(fd.severity)),
+                    csv_safe(tr_cat_el(fd.category)),
+                    csv_safe(fd.url),
+                    csv_safe(fd.details),
+                    csv_safe(fd.evidence),
+                    csv_safe(fd.remediation),
+                ])
+        return out
+
+    def export_html(self) -> Path:
+        out = self.out_dir / "report.html"
+        data = self._summary()
+        findings = [asdict(f) for f in self.findings()]
+
+        # Simple self-contained HTML (no jinja dependency)
+        def esc(s: str) -> str:
+            return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+        rows = []
+        for fnd in findings:
+            rows.append(
+                f"<tr>"
+                f"<td>{esc(fnd['timestamp'])}</td>"
+                f"<td class='sev sev-{esc(fnd['severity']).lower()}'>{esc(tr_sev_el(fnd['severity']))}</td>"
+                f"<td>{esc(tr_cat_el(fnd['category']))}</td>"
+                f"<td><a href='{esc(fnd['url'])}' target='_blank' rel='noreferrer'>{esc(fnd['url'])}</a></td>"
+                f"<td>{esc(fnd['details'])}</td>"
+                f"</tr>"
+            )
+        html = f"""<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Αναφορά Bug Hunter - {{ στόχος }}</title>
-    <style>
-        :root {
-            --κρίσιμη: #dc3545;
-            --υψηλή: #fd7e14;
-            --μέτρια: #ffc107;
-            --χαμηλή: #28a745;
-            --πληροφορία: #17a2b8;
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            background: white; 
-            padding: 30px; 
-            border-radius: 15px; 
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
-        }
-        .container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 5px;
-            background: linear-gradient(90deg, var(--κρίσιμη), var(--υψηλή), var(--μέτρια), var(--χαμηλή), var(--πληροφορία));
-        }
-        .header { 
-            text-align: center; 
-            margin-bottom: 40px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #eee;
-        }
-        .header h1 { 
-            color: #333; 
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
-        .header .subtitle {
-            color: #666;
-            font-size: 1.1em;
-        }
-        .stats-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-            gap: 20px; 
-            margin-bottom: 40px;
-        }
-        .stat-card {
-            background: #f8f9fa;
-            padding: 25px;
-            border-radius: 10px;
-            text-align: center;
-            border: 1px solid #e9ecef;
-            transition: transform 0.3s, box-shadow 0.3s;
-        }
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
-        .stat-number { 
-            font-size: 3em; 
-            font-weight: bold; 
-            display: block;
-            margin-bottom: 10px;
-        }
-        .stat-label { 
-            color: #666; 
-            font-size: 1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .severity-card.Κρίσιμη { border-top: 4px solid var(--κρίσιμη); }
-        .severity-card.Υψηλή { border-top: 4px solid var(--υψηλή); }
-        .severity-card.Μέτρια { border-top: 4px solid var(--μέτρια); }
-        .severity-card.Χαμηλή { border-top: 4px solid var(--χαμηλή); }
-        .severity-card.Πληροφορία { border-top: 4px solid var(--πληροφορία); }
-        .severity-count.Κρίσιμη { color: var(--κρίσιμη); }
-        .severity-count.Υψηλή { color: var(--υψηλή); }
-        .severity-count.Μέτρια { color: var(--μέτρια); }
-        .severity-count.Χαμηλή { color: var(--χαμηλή); }
-        .severity-count.Πληροφορία { color: var(--πληροφορία); }
-        .summary-section { 
-            background: #f8f9fa; 
-            padding: 25px; 
-            border-radius: 10px; 
-            margin-bottom: 40px;
-        }
-        .summary-section h3 { margin-bottom: 20px; color: #333; }
-        .tech-list { display: flex; flex-wrap: wrap; gap: 10px; }
-        .tech-tag { 
-            background: #e9ecef; 
-            padding: 8px 15px; 
-            border-radius: 20px; 
-            font-size: 0.9em;
-        }
-        .tech-tag.version { background: #d4edda; color: #155724; }
-        table { 
-            width: 100%; 
-            border-collapse: separate; 
-            border-spacing: 0;
-            margin-top: 20px;
-        }
-        th { 
-            background: #f1f3f4; 
-            padding: 15px; 
-            text-align: left; 
-            font-weight: 600;
-            color: #333;
-            border-bottom: 2px solid #dee2e6;
-        }
-        td { 
-            padding: 15px; 
-            border-bottom: 1px solid #eee;
-            vertical-align: top;
-        }
-        tr:hover { background: #f8f9fa; }
-        .severity-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 15px;
-            font-size: 0.85em;
-            font-weight: 600;
-            color: white;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .severity-badge.Κρίσιμη { background: var(--κρίσιμη); }
-        .severity-badge.Υψηλή { background: var(--υψηλή); }
-        .severity-badge.Μέτρια { background: var(--μέτρια); }
-        .severity-badge.Χαμηλή { background: var(--χαμηλή); }
-        .severity-badge.Πληροφορία { background: var(--πληροφορία); }
-        .details-popup {
-            cursor: pointer;
-            color: #007bff;
-            text-decoration: underline dotted;
-        }
-        .popup-content {
-            display: none;
-            position: absolute;
-            background: white;
-            border: 1px solid #ccc;
-            padding: 15px;
-            border-radius: 5px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            z-index: 1000;
-            max-width: 400px;
-        }
-        .timestamp { color: #666; font-size: 0.9em; }
-        .export-buttons { 
-            text-align: center; 
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
-        .btn { 
-            display: inline-block; 
-            padding: 10px 25px; 
-            margin: 0 10px; 
-            background: #007bff; 
-            color: white; 
-            text-decoration: none; 
-            border-radius: 5px; 
-            transition: background 0.3s;
-        }
-        .btn:hover { background: #0056b3; }
-        .btn-json { background: #6f42c1; }
-        .btn-json:hover { background: #563d7c; }
-        .btn-csv { background: #28a745; }
-        .btn-csv:hover { background: #1e7e34; }
-        .port-list { 
-            display: flex; 
-            flex-wrap: wrap; 
-            gap: 10px; 
-            margin-top: 10px;
-        }
-        .port-item { 
-            background: #e9ecef; 
-            padding: 8px 15px; 
-            border-radius: 5px;
-            font-family: monospace;
-        }
-        .risk-meter {
-            height: 10px;
-            background: #e9ecef;
-            border-radius: 5px;
-            margin: 20px 0;
-            overflow: hidden;
-        }
-        .risk-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--χαμηλή), var(--μέτρια), var(--υψηλή), var(--κρίσιμη));
-            width: {{ ποσοστό_κινδύνου }}%;
-        }
-        @media (max-width: 768px) {
-            .container { padding: 15px; }
-            .stats-grid { grid-template-columns: 1fr; }
-            table { font-size: 0.9em; }
-        }
-    </style>
-    <script>
-        function showDetails(id) {
-            var popup = document.getElementById('details-' + id);
-            popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
-        }
-        function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(function() {
-                alert('Αντιγράφηκε στο πρόχειρο!');
-            });
-        }
-        function filterTable(severity) {
-            var rows = document.querySelectorAll('#findings-table tr');
-            rows.forEach(function(row, index) {
-                if (index === 0) return; // Παράβλεψη κεφαλίδας
-                if (severity === 'all' || row.querySelector('.severity-badge').classList.contains(severity)) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    </script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Αναφορά Bug Hunter</title>
+<style>
+body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }}
+h1 {{ margin: 0 0 8px 0; }}
+.small {{ color: #666; }}
+.card {{ border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }}
+table {{ width: 100%; border-collapse: collapse; margin-top: 12px; }}
+th, td {{ border-bottom: 1px solid #eee; padding: 10px; text-align: left; vertical-align: top; }}
+th {{ background: #fafafa; position: sticky; top: 0; }}
+.sev {{ font-weight: 700; }}
+.sev-critical {{ color: #7a0012; }}
+.sev-high {{ color: #b10000; }}
+.sev-medium {{ color: #c26d00; }}
+.sev-low {{ color: #1f5b99; }}
+.sev-info {{ color: #444; }}
+input {{ padding: 8px; width: 360px; max-width: 100%; border-radius: 10px; border: 1px solid #ccc; }}
+.badge {{ display:inline-block; padding: 2px 8px; border-radius: 999px; background:#f2f2f2; margin-right:6px; }}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>🐛 Αναφορά Bug Hunter</h1>
-            <div class="subtitle">
-                <strong>Στόχος:</strong> {{ στόχος }}<br>
-                <strong>Ημερομηνία Σάρωσης:</strong> {{ ημερομηνία_σάρωσης }}<br>
-                <strong>Διάρκεια:</strong> {{ διάρκεια }}
-            </div>
-        </div>
-        
-        <div class="risk-meter">
-            <div class="risk-fill"></div>
-        </div>
-        
-        <div class="stats-grid">
-            <div class="stat-card">
-                <span class="stat-number">{{ πλήθος_ευρημάτων }}</span>
-                <span class="stat-label">Σύνολο Ευρημάτων</span>
-            </div>
-            <div class="stat-card severity-card Κρίσιμη">
-                <span class="stat-number severity-count Κρίσιμη">{{ καταμέτρηση_σοβαροτήτων.Κρίσιμη or 0 }}</span>
-                <span class="stat-label">Κρίσιμα</span>
-            </div>
-            <div class="stat-card severity-card Υψηλή">
-                <span class="stat-number severity-count Υψηλή">{{ καταμέτρηση_σοβαροτήτων.Υψηλή or 0 }}</span>
-                <span class="stat-label">Υψηλά</span>
-            </div>
-            <div class="stat-card severity-card Μέτρια">
-                <span class="stat-number severity-count Μέτρια">{{ καταμέτρηση_σοβαροτήτων.Μέτρια or 0 }}</span>
-                <span class="stat-label">Μέτρια</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">{{ τεχνολογίες|length }}</span>
-                <span class="stat-label">Τεχνολογίες</span>
-            </div>
-            <div class="stat-card">
-                <span class="stat-number">{{ ανοιχτές_θύρες|length }}</span>
-                <span class="stat-label">Ανοιχτές Θύρες</span>
-            </div>
-        </div>
-        
-        <div class="summary-section">
-            <h3>🎯 Περίληψη Στόχου</h3>
-            <p><strong>Τομέας:</strong> {{ τομέας }}</p>
-            <p><strong>Διαμόρφωση Σάρωσης:</strong> {{ σύνοψη_διαμόρφωσης }}</p>
-            
-            <h3>🔧 Ανιχνευμένες Τεχνολογίες</h3>
-            <div class="tech-list">
-                {% for τεχνολογία in τεχνολογίες %}
-                <div class="tech-tag {% if τεχνολογία.έκδοση %}version{% endif %}">
-                    {{ τεχνολογία.όνομα }}{% if τεχνολογία.έκδοση %} ({{ τεχνολογία.έκδοση }}){% endif %}
-                </div>
-                {% endfor %}
-            </div>
-            
-            <h3>🔓 Ανοιχτές Θύρες</h3>
-            <div class="port-list">
-                {% for θύρα in ανοιχτές_θύρες %}
-                <div class="port-item" title="{{ θύρα.banner }}">
-                    {{ θύρα.θύρα }} ({{ θύρα.υπηρεσία }})
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-        
-        <div style="margin: 30px 0;">
-            <button onclick="filterTable('all')" class="btn">Όλα</button>
-            <button onclick="filterTable('Κρίσιμη')" class="btn" style="background: var(--κρίσιμη);">Κρίσιμα</button>
-            <button onclick="filterTable('Υψηλή')" class="btn" style="background: var(--υψηλή);">Υψηλά</button>
-            <button onclick="filterTable('Μέτρια')" class="btn" style="background: var(--μέτρια);">Μέτρια</button>
-            <button onclick="filterTable('Χαμηλή')" class="btn" style="background: var(--χαμηλή);">Χαμηλά</button>
-        </div>
-        
-        <h3>📋 Ευρήματα</h3>
-        <table id="findings-table">
-            <thead>
-                <tr>
-                    <th>Σοβαρότητα</th>
-                    <th>Κατηγορία</th>
-                    <th>URL</th>
-                    <th>Λεπτομέρειες</th>
-                    <th>Χρόνος</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for ε in ευρήματα %}
-                <tr>
-                    <td><span class="severity-badge {{ ε.σοβαρότητα }}">{{ ε.σοβαρότητα }}</span></td>
-                    <td>{{ ε.κατηγορία }}</td>
-                    <td>
-                        <a href="{{ ε.url }}" target="_blank">{{ ε.url|truncate(40) }}</a>
-                        {% if ε.βεβαιότητα != 'Μέτρια' %}
-                        <br><small>Βεβαιότητα: {{ ε.βεβαιότητα }}</small>
-                        {% endif %}
-                    </td>
-                    <td>
-                        {{ ε.λεπτομέρειες|truncate(60) }}
-                        {% if ε.λεπτομέρειες|length > 60 %}
-                        <span class="details-popup" onclick="showDetails('{{ loop.index }}')">[...]</span>
-                        <div id="details-{{ loop.index }}" class="popup-content">
-                            <strong>Λεπτομέρειες:</strong><br>{{ ε.λεπτομέρειες }}<br><br>
-                            {% if ε.απόδειξη_εκμετάλλευσης %}
-                            <strong>Απόδειξη Εκμετάλλευσης:</strong><br>{{ ε.απόδειξη_εκμετάλλευσης }}<br>
-                            {% endif %}
-                            {% if ε.αποκατάσταση %}
-                            <strong>Αποκατάσταση:</strong><br>{{ ε.αποκατάσταση }}
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </td>
-                    <td class="timestamp">{{ ε.χρονική_σήμανση }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        
-        <div class="export-buttons">
-            <a href="ευρήματα.json" class="btn btn-json">Εξαγωγή JSON</a>
-            <a href="ευρήματα.csv" class="btn btn-csv">Εξαγωγή CSV</a>
-            <a href="αναφορά.pdf" class="btn">Δημιουργία PDF</a>
-        </div>
-        
-        <div style="margin-top: 40px; text-align: center; color: #666; font-size: 0.9em;">
-            <p>Δημιουργήθηκε από το Bug Hunter V3 | Εργαλείο Αξιολόγησης Ασφαλείας</p>
-            <p>Μόνο για εξουσιοδοτημένο έλεγχο. Η αναφορά περιέχει ευαίσθητες πληροφορίες.</p>
-        </div>
-    </div>
+<h1>🐛 Αναφορά Bug Hunter</h1>
+<div class="small">Δημιουργήθηκε: {esc(data['scope']['end_utc'] or now_utc())} (UTC) — Στόχος: {esc(data['scope']['base_url'])}</div>
+
+<div class="card">
+<b>Εμβέλεια</b><br>
+<span class="badge">Host: {esc(data['scope']['hostname'])}</span>
+<span class="badge">IPs: {esc(", ".join(data['scope']['resolved_ips']))}</span>
+<span class="badge">Ανοιχτές θύρες: {esc(", ".join(map(str, data.get('open_ports', []))))}</span>
+<div class="small" style="margin-top:8px">
+HTTP αιτήματα: {data['stats']['http_requests']} — Σφάλματα: {data['stats']['http_errors']} — 429s: {data['stats']['rate_limited_429']}
+</div>
+</div>
+
+<div class="card">
+<b>Ευρήματα</b> (σύνολο: {len(findings)})<br>
+<input id="q" placeholder="Φίλτρο… (severity/category/url/κείμενο)" oninput="filter()">
+<table id="t">
+<thead>
+<tr><th>Ώρα (UTC)</th><th>Σοβαρότητα</th><th>Κατηγορία</th><th>URL</th><th>Λεπτομέρειες</th></tr>
+</thead>
+<tbody>
+{''.join(rows)}
+</tbody>
+</table>
+</div>
+
+<div class="card">
+<b>Αρχεία εξόδου</b><br>
+<ul>
+  <li>JSON: report.json</li>
+  <li>CSV: report.csv</li>
+  <li>PDF: report.pdf</li>
+</ul>
+</div>
+
+<script>
+function filter(){{
+  const q = document.getElementById('q').value.toLowerCase();
+  const rows = document.querySelectorAll('#t tbody tr');
+  for (const r of rows){{
+    const txt = r.innerText.toLowerCase();
+    r.style.display = txt.includes(q) ? '' : 'none';
+  }}
+}}
+</script>
 </body>
-</html>
-"""
-        
-        from jinja2 import Template
-        
-        # Υπολογισμός ποσοστού κινδύνου (απλή ευριστική)
-        βαθμολογία_κινδύνου = 0
-        for εύρημα in self.ευρήματα:
-            if εύρημα['σοβαρότητα'] == 'Κρίσιμη':
-                βαθμολογία_κινδύνου += 10
-            elif εύρημα['σοβαρότητα'] == 'Υψηλή':
-                βαθμολογία_κινδύνου += 5
-            elif εύρημα['σοβαρότητα'] == 'Μέτρια':
-                βαθμολογία_κινδύνου += 2
-            elif εύρημα['σοβαρότητα'] == 'Χαμηλή':
-                βαθμολογία_κινδύνου += 1
-        
-        ποσοστό_κινδύνου = min(βαθμολογία_κινδύνου, 100)
-        
-        # Προετοιμασία δεδομένων για το πρότυπο
-        σύνοψη_διαμόρφωσης = []
-        if self.διαμόρφωση.get('port_scan'):
-            σύνοψη_διαμόρφωσης.append("Σάρωση Θυρών")
-        if self.διαμόρφωση.get('js_analyze'):
-            σύνοψη_διαμόρφωσης.append("Ανάλυση JS")
-        if self.διαμόρφωση.get('takeover_check'):
-            σύνοψη_διαμόρφωσης.append("Ανάληψη Υποτομέα")
-        if self.διαμόρφωση.get('crawl'):
-            σύνοψη_διαμόρφωσης.append(f"Αναζήτηση (βάθος={self.διαμόρφωση.get('crawl_depth', 1)})")
-        
-        t = Template(html_template)
-        έξοδος = t.render(
-            στόχος=self.στόχος,
-            τομέας=self.τομέας,
-            ημερομηνία_σάρωσης=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            διάρκεια=str(διάρκεια_σάρωσης).split('.')[0],
-            ευρήματα=self.ευρήματα,
-            πλήθος_ευρημάτων=len(self.ευρήματα),
-            καταμέτρηση_σοβαροτήτων=καταμέτρηση_σοβαροτήτων,
-            τεχνολογίες=self.τεχνολογίες,
-            ανοιχτές_θύρες=self.ανοιχτές_θύρες,
-            ποσοστό_κινδύνου=ποσοστό_κινδύνου,
-            σύνοψη_διαμόρφωσης=", ".join(σύνοψη_διαμόρφωσης) if σύνοψη_διαμόρφωσης else "Προκαθορισμένη"
-        )
-        
-        αρχείο_αναφοράς = os.path.join(self.κατάλογος_εξόδου, "αναφορά.html")
-        with open(αρχείο_αναφοράς, "w", encoding="utf-8") as f:
-            f.write(έξοδος)
-        
-        # Επίσης αποθήκευση ακατέργαστων ευρημάτων ως JSON
-        with open(os.path.join(self.κατάλογος_εξόδου, "ευρήματα.json"), "w", encoding="utf-8") as f:
-            json.dump({
-                "στόχος": self.στόχος,
-                "ημερομηνία_σάρωσης": datetime.now().isoformat(),
-                "διάρκεια": str(διάρκεια_σάρωσης),
-                "ευρήματα": self.ευρήματα,
-                "τεχνολογίες": self.τεχνολογίες,
-                "ανοιχτές_θύρες": self.ανοιχτές_θύρες,
-                "στατιστικά": self.στατιστικά
-            }, f, indent=2, default=str)
-        
-        console.print(f"\n[green]✓[/green] Δημιουργήθηκε αναφορά HTML: [underline]{αρχείο_αναφοράς}[/underline]")
-        console.print(f"[green]✓[/green] Διαθέσιμη εξαγωγή JSON: [underline]{os.path.join(self.κατάλογος_εξόδου, 'ευρήματα.json')}[/underline]")
-        
-        return αρχείο_αναφοράς
+</html>"""
+        out.write_text(html, encoding="utf-8")
+        return out
 
-# ---------------- Βελτιωμένο GUI ----------------
-def βελτιωμένο_ui_curses(stdscr):
-    """Βελτιωμένο curses περιβάλλον με καλύτερη εμπειρία χρήστη"""
-    curses.curs_set(0)
-    curses.start_color()
-    curses.use_default_colors()
-    
-    # Ορισμός χρωματικών ζευγών
-    curses.init_pair(1, curses.COLOR_CYAN, -1)
-    curses.init_pair(2, curses.COLOR_BLACK, curses.COLOR_CYAN)
-    curses.init_pair(3, curses.COLOR_GREEN, -1)
-    curses.init_pair(4, curses.COLOR_YELLOW, -1)
-    curses.init_pair(5, curses.COLOR_RED, -1)
-    curses.init_pair(6, curses.COLOR_MAGENTA, -1)
-    
-    CYAN = curses.color_pair(1)
-    CYAN_REV = curses.color_pair(2)
-    GREEN = curses.color_pair(3)
-    YELLOW = curses.color_pair(4)
-    RED = curses.color_pair(5)
-    MAGENTA = curses.color_pair(6)
-    
-    διαμόρφωση = {
-        "target": "",
-        "concurrency": 50,
-        "port_scan": True,
-        "js_analyze": True,
-        "takeover_check": True,
-        "sensitive_files": True,
-        "directory_brute": True,
-        "crawl": True,
-        "crawl_depth": 2,
-        "tech_detect": True,
-        "security_headers": True,
-        "cors_check": True,
-        "http_methods": True,
-        "vuln_check": True
-    }
-    
-    στοιχεία_μενού = [
-        ("URL Στόχου", "target", "str"),
-        ("Ταυτόχρονες Συνδέσεις", "concurrency", "toggle", [25, 50, 100]),
-        ("Σάρωση Θυρών", "port_scan", "bool"),
-        ("Ανάλυση JS", "js_analyze", "bool"),
-        ("Έλεγχος Ανάληψης Υποτομέα", "takeover_check", "bool"),
-        ("Ευαίσθητα Αρχεία", "sensitive_files", "bool"),
-        ("Βίαιη Επίθεση Καταλόγων", "directory_brute", "bool"),
-        ("Αναζήτηση Ιστοτόπου", "crawl", "bool"),
-        ("Βάθος Αναζήτησης", "crawl_depth", "toggle", [1, 2, 3]),
-        ("Ανίχνευση Τεχνολογιών", "tech_detect", "bool"),
-        ("Ασφαλιστικές Επικεφαλίδες", "security_headers", "bool"),
-        ("Έλεγχος CORS", "cors_check", "bool"),
-        ("Μέθοδοι HTTP", "http_methods", "bool"),
-        ("Έλεγχοι Ευπάθειας", "vuln_check", "bool"),
-        ("[ ΕΚΚΙΝΗΣΗ ΟΛΟΚΛΗΡΩΜΕΝΗΣ ΣΑΡΩΣΗΣ ]", "start", "action"),
-        ("[ ΓΡΗΓΟΡΗ ΣΑΡΩΣΗ (Συνιστάται) ]", "quick", "action"),
-        ("[ ΦΟΡΤΩΣΗ ΔΙΑΜΟΡΦΩΣΗΣ ]", "load", "action"),
-        ("[ ΑΠΟΘΗΚΕΥΣΗ ΔΙΑΜΟΡΦΩΣΗΣ ]", "save", "action"),
-        ("[ ΕΞΟΔΟΣ ]", "exit", "action")
-    ]
-    
-    τρέχουσα_σειρά = 0
-    σελίδα_διαμόρφωσης = 0
-    στοιχεία_ανά_σελίδα = 15
-    
-    while True:
-        stdscr.clear()
-        height, width = stdscr.getmaxyx()
-        
-        # Τίτλος
-        τίτλος = " BUG HUNTER ULTIMATE V3 "
-        υπότιτλος = " Σύνθετος Σαρωτής Ευπαθειών "
-        stdscr.attron(CYAN | curses.A_BOLD)
-        stdscr.addstr(1, width//2 - len(τίτλος)//2, τίτλος)
-        stdscr.addstr(2, width//2 - len(υπότιτλος)//2, υπότιτλος)
-        stdscr.attroff(CYAN | curses.A_BOLD)
-        
-        # Σχεδίαση μενού με σελιδοποίηση
-        αρχικός_δείκτης = σελίδα_διαμόρφωσης * στοιχεία_ανά_σελίδα
-        τελικός_δείκτης = min(αρχικός_δείκτης + στοιχεία_ανά_σελίδα, len(στοιχεία_μενού))
-        
-        for idx in range(αρχικός_δείκτης, τελικός_δείκτης):
-            στοιχείο, κλειδί, τύπος_στοιχείου, *επιπλέον = στοιχεία_μενού[idx]
-            y = 5 + (idx - αρχικός_δείκτης)
-            
-            # Προετοιμασία τιμής εμφάνισης
-            if τύπος_στοιχείου == "str":
-                τιμή = διαμόρφωση[κλειδί] if διαμόρφωση[κλειδί] else "<δεν ορίστηκε>"
-            elif τύπος_στοιχείου == "bool":
-                τιμή = "✓ ΕΝΕΡΓΟΠΟΙΗΜΕΝΟ" if διαμόρφωση[κλειδί] else "✗ ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟ"
-            elif τύπος_στοιχείου == "toggle":
-                επιλογές = επιπλέον[0]
-                τρέχουσα_τιμή = διαμόρφωση[κλειδί]
-                if τρέχουσα_τιμή in επιλογές:
-                    τρέχων_δείκτης = επιλογές.index(τρέχουσα_τιμή)
-                    τιμή = f"{τρέχουσα_τιμή} ({τρέχων_δείκτης+1}/{len(επιλογές)})"
-                else:
-                    τιμή = str(τρέχουσα_τιμή)
-            elif τύπος_στοιχείου == "action":
-                τιμή = ""
-            else:
-                τιμή = str(διαμόρφωση.get(κλειδί, ""))
-            
-            # Περικοπή εάν είναι πολύ μεγάλο
-            εμφάνιση = f"{στοιχείο:30} {τιμή}"
-            if len(εμφάνιση) > width - 10:
-                εμφάνιση = εμφάνιση[:width - 13] + "..."
-            
-            x = width//2 - len(εμφάνιση)//2
-            
-            if idx == τρέχουσα_σειρά:
-                stdscr.attron(CYAN_REV)
-                stdscr.addstr(y, x, εμφάνιση)
-                stdscr.attroff(CYAN_REV)
-            else:
-                # Χρωματικός κωδικός κατά τύπο
-                if τύπος_στοιχείου == "action":
-                    if "ΕΚΚΙΝΗΣΗ" in στοιχείο or "ΣΑΡΩΣΗ" in στοιχείο:
-                        stdscr.attron(GREEN | curses.A_BOLD)
-                    elif "ΕΞΟΔΟΣ" in στοιχείο:
-                        stdscr.attron(RED | curses.A_BOLD)
-                    else:
-                        stdscr.attron(MAGENTA)
-                stdscr.addstr(y, x, εμφάνιση)
-                if τύπος_στοιχείου == "action":
-                    if "ΕΚΚΙΝΗΣΗ" in στοιχείο or "ΣΑΡΩΣΗ" in στοιχείο:
-                        stdscr.attroff(GREEN | curses.A_BOLD)
-                    elif "ΕΞΟΔΟΣ" in στοιχείο:
-                        stdscr.attroff(RED | curses.A_BOLD)
-                    else:
-                        stdscr.attroff(MAGENTA)
-        
-        # Δείκτης σελίδας
-        συνολικές_σελίδες = (len(στοιχεία_μενού) + στοιχεία_ανά_σελίδα - 1) // στοιχεία_ανά_σελίδα
-        if συνολικές_σελίδες > 1:
-            πληροφορία_σελίδας = f" Σελίδα {σελίδα_διαμόρφωσης + 1}/{συνολικές_σελίδες} "
-            stdscr.addstr(height - 3, width//2 - len(πληροφορία_σελίδας)//2, πληροφορία_σελίδας, curses.A_REVERSE)
-        
-        # Κείμενο βοήθειας
-        κείμενο_βοήθειας = "↑↓: Πλοήγηση  Enter: Επιλογή  Space: Εναλλαγή  q: Έξοδος  s: Έναρξη"
-        stdscr.addstr(height - 2, width//2 - len(κείμενο_βοήθειας)//2, κείμενο_βοήθειας, curses.A_DIM)
-        
-        key = stdscr.getch()
-        
-        if key == curses.KEY_UP and τρέχουσα_σειρά > 0:
-            τρέχουσα_σειρά -= 1
-            if τρέχουσα_σειρά < αρχικός_δείκτης:
-                σελίδα_διαμόρφωσης = max(0, σελίδα_διαμόρφωσης - 1)
-        elif key == curses.KEY_DOWN and τρέχουσα_σειρά < len(στοιχεία_μενού) - 1:
-            τρέχουσα_σειρά += 1
-            if τρέχουσα_σειρά >= τελικός_δείκτης:
-                σελίδα_διαμόρφωσης = min(συνολικές_σελίδες - 1, σελίδα_διαμόρφωσης + 1)
-        elif key in [10, 13]:  # Enter
-            στοιχείο, κλειδί, τύπος_στοιχείου, *επιπλέον = στοιχεία_μενού[τρέχουσα_σειρά]
-            
-            if τύπος_στοιχείου == "str":
-                curses.echo()
-                stdscr.addstr(height - 5, width//2 - 10, " " * 50)
-                stdscr.addstr(height - 5, width//2 - 10, f"{στοιχείο}: ")
-                stdscr.refresh()
-                input_str = stdscr.getstr(height - 5, width//2 - 10 + len(στοιχείο) + 2, 100)
-                διαμόρφωση[κλειδί] = input_str.decode('utf-8').strip()
-                curses.noecho()
-            elif τύπος_στοιχείου == "bool":
-                διαμόρφωση[κλειδί] = not διαμόρφωση[κλειδί]
-            elif τύπος_στοιχείου == "toggle":
-                επιλογές = επιπλέον[0]
-                τρέχουσα_τιμή = διαμόρφωση[κλειδί]
-                if τρέχουσα_τιμή in επιλογές:
-                    τρέχων_δείκτης = επιλογές.index(τρέχουσα_τιμή)
-                    διαμόρφωση[κλειδί] = επιλογές[(τρέχων_δείκτης + 1) % len(επιλογές)]
-                else:
-                    διαμόρφωση[κλειδί] = επιλογές[0]
-            elif τύπος_στοιχείου == "action":
-                if κλειδί == "start":
-                    if διαμόρφωση["target"]:
-                        break
-                    else:
-                        # Εμφάνιση σφάλματος
-                        stdscr.addstr(height - 5, width//2 - 15, "Παρακαλώ ορίστε πρώτα τον στόχο URL!", RED | curses.A_BOLD)
-                        stdscr.getch()
-                elif κλειδί == "quick":
-                    # Ορισμός προκαθορισμένων ρυθμίσεων γρήγορης σάρωσης
-                    διαμόρφωση.update({
-                        "concurrency": 50,
-                        "port_scan": True,
-                        "js_analyze": True,
-                        "sensitive_files": True,
-                        "crawl": True,
-                        "crawl_depth": 1,
-                        "tech_detect": True
-                    })
-                    if διαμόρφωση["target"]:
-                        break
-                elif κλειδί == "load":
-                    # Φόρτωση διαμόρφωσης από αρχείο
-                    try:
-                        curses.echo()
-                        stdscr.addstr(height - 5, width//2 - 15, "Αρχείο διαμόρφωσης: ")
-                        file_path = stdscr.getstr(height - 5, width//2 - 2, 100).decode('utf-8')
-                        if os.path.exists(file_path):
-                            with open(file_path, 'r') as f:
-                                loaded = json.load(f)
-                                διαμόρφωση.update(loaded)
-                        curses.noecho()
-                    except:
-                        pass
-                elif κλειδί == "save":
-                    # Αποθήκευση διαμόρφωσης σε αρχείο
-                    try:
-                        curses.echo()
-                        stdscr.addstr(height - 5, width//2 - 15, "Αποθήκευση σε: ")
-                        file_path = stdscr.getstr(height - 5, width//2 - 7, 100).decode('utf-8')
-                        with open(file_path, 'w') as f:
-                            json.dump(διαμόρφωση, f, indent=2)
-                        curses.noecho()
-                    except:
-                        pass
-                elif κλειδί == "exit":
-                    sys.exit(0)
-        elif key == 32:  # Space
-            # Εναλλαγή boolean στοιχείων
-            στοιχείο, κλειδί, τύπος_στοιχείου, *επιπλέον = στοιχεία_μενού[τρέχουσα_σειρά]
-            if τύπος_στοιχείου == "bool":
-                διαμόρφωση[κλειδί] = not διαμόρφωση[κλειδί]
-        elif key in [81, 113]:  # Q or q
-            if Confirm.ask("Έξοδος από το Bug Hunter?"):
-                sys.exit(0)
-    
-    return διαμόρφωση
+    def export_pdf(self) -> Optional[Path]:
+        if reportlab is None:
+            self.logger.info("Παράλειψη εξαγωγής PDF (εγκατέστησε reportlab για ενεργοποίηση).")
+            return None
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.units import inch
+            from reportlab.pdfgen import canvas
+        except Exception:
+            self.logger.info("Παράλειψη εξαγωγής PDF (αποτυχία import του reportlab).")
+            return None
 
-def γρήγορη_λειτουργία_cli():
-    """Γρήγορο περιβάλλον γραμμής εντολών"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Bug Hunter Ultimate V3")
-    parser.add_argument("στόχος", help="URL ή τομέας στόχου")
-    parser.add_argument("-o", "--output", help="Κατάλογος εξόδου")
-    parser.add_argument("--quick", action="store_true", help="Λειτουργία γρήγορης σάρωσης")
-    parser.add_argument("--full", action="store_true", help="Πλήρης ολοκληρωμένη σάρωση")
-    parser.add_argument("--no-port-scan", action="store_true", help="Απενεργοποίηση σάρωσης θυρών")
-    parser.add_argument("--concurrency", type=int, default=50, help="Ταυτόχρονες συνδέσεις")
-    parser.add_argument("--save-config", help="Αποθήκευση διαμόρφωσης σε αρχείο")
-    parser.add_argument("--load-config", help="Φόρτωση διαμόρφωσης από αρχείο")
-    
-    args = parser.parse_args()
-    
-    # Προκαθορισμένη διαμόρφωση
-    διαμόρφωση = {
-        "target": args.στόχος,
-        "concurrency": args.concurrency,
-        "port_scan": not args.no_port_scan,
-        "js_analyze": True,
-        "takeover_check": True,
-        "sensitive_files": True,
-        "directory_brute": not args.quick,
-        "crawl": True,
-        "crawl_depth": 1 if args.quick else 2,
-        "tech_detect": True,
-        "security_headers": True,
-        "cors_check": True,
-        "http_methods": not args.quick,
-        "vuln_check": True
-    }
-    
+        out = self.out_dir / "report.pdf"
+        c = canvas.Canvas(str(out), pagesize=letter)
+        w, h = letter
+
+        def draw_wrapped(x, y, text, width_chars=95, leading=12):
+            lines = []
+            for para in str(text).splitlines():
+                lines.extend(textwrap.wrap(para, width=width_chars) or [""])
+            for line in lines:
+                nonlocal_y[0] -= leading
+                if nonlocal_y[0] < 72:
+                    c.showPage()
+                    nonlocal_y[0] = h - 72
+                    c.setFont("Helvetica", 10)
+                c.drawString(x, nonlocal_y[0], line)
+
+        c.setTitle("Αναφορά Bug Hunter")
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(72, h - 72, "Αναφορά Bug Hunter")
+        c.setFont("Helvetica", 10)
+        c.drawString(72, h - 90, f"Στόχος: {self.scope.base_url}")
+        c.drawString(72, h - 104, f"Δημιουργήθηκε: {self.scope.end_utc or now_utc()} (UTC)")
+        c.drawString(72, h - 118, f"Host: {self.scope.hostname}  IPs: {', '.join(self.scope.resolved_ips)}")
+        c.drawString(72, h - 132, f"Ανοιχτές θύρες: {', '.join(map(str, self.open_ports))}")
+
+        nonlocal_y = [h - 156]
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(72, nonlocal_y[0], "Σύνοψη")
+        c.setFont("Helvetica", 10)
+        nonlocal_y[0] -= 14
+        summary = self._summary()
+        draw_wrapped(72, nonlocal_y[0], f"HTTP αιτήματα: {summary['stats']['http_requests']}, errors: {summary['stats']['http_errors']}, 429s: {summary['stats']['rate_limited_429']}")
+        draw_wrapped(72, nonlocal_y[0], f"Σύνολο ευρημάτων: {summary['counts']['total_findings']}  Ανά σοβαρότητα: {{tr_sev_el(k): v for k, v in summary['counts']['by_severity'].items()}}")
+
+        nonlocal_y[0] -= 8
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(72, nonlocal_y[0], "Ευρήματα (ταξινόμηση ανά σοβαρότητα)")
+        c.setFont("Helvetica", 9)
+        nonlocal_y[0] -= 12
+
+        for fnd in self.findings():
+            draw_wrapped(72, nonlocal_y[0], f"[{tr_sev_el(fnd.severity)}] {tr_cat_el(fnd.category)} — {fnd.url}", width_chars=110, leading=11)
+            if fnd.details:
+                draw_wrapped(90, nonlocal_y[0], f"Λεπτομέρειες: {fnd.details}", width_chars=105, leading=11)
+            if fnd.remediation:
+                draw_wrapped(90, nonlocal_y[0], f"Διόρθωση: {fnd.remediation}", width_chars=105, leading=11)
+            nonlocal_y[0] -= 6
+
+        c.save()
+        return out
+
+
+# ---------------- CLI ----------------
+
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="Bug Hunter (χωρίς root) — εξουσιοδοτημένο recon & scanner κακών ρυθμίσεων",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    p.add_argument("target", help="URL στόχου ή hostname (θεωρείται https αν λείπει scheme)")
+    p.add_argument("-o", "--output", default="bughunter_out", help="Κατάλογος εξόδου")
+    p.add_argument("--quick", action="store_true", help="Γρήγορη σάρωση (μικρότερο βάθος, λιγότερα probes)")
+    p.add_argument("--full", action="store_true", help="Πλήρης σάρωση (βαθύτερο crawl, περισσότερη ανακάλυψη)")
+    p.add_argument("--timeout", type=float, default=12.0, help="Timeout HTTP/TCP σε δευτερόλεπτα")
+    p.add_argument("-c", "--concurrency", type=int, default=30, help="Μέγιστες ταυτόχρονες εργασίες")
+    p.add_argument("--rate", type=float, default=0.0, help="Προαιρετικό rate limit (αιτήματα ανά δευτ., 0=off)")
+    p.add_argument("--user-agent", default="BugHunter/4 (authorized-testing)", help="Κεφαλίδα User-Agent")
+    p.add_argument("--no-port-scan", action="store_true", help="Απενεργοποίηση connect-based σάρωσης θυρών")
+    p.add_argument("--ports", default="", help="Θύρες για σάρωση χωρισμένες με κόμμα (κενό=προεπιλογή)")
+    p.add_argument("--crawl-depth", type=int, default=2, help="Βάθος crawl (0 απενεργοποιεί το crawling)")
+    p.add_argument("--max-pages", type=int, default=200, help="Μέγιστος αριθμός σελίδων για crawl")
+    p.add_argument("--no-js", action="store_true", help="Απενεργοποίηση ανάλυσης JS")
+    p.add_argument("--no-dns", action="store_true", help="Απενεργοποίηση ελέγχων DNS")
+    p.add_argument("--no-tls", action="store_true", help="Απενεργοποίηση ελέγχων TLS")
+    p.add_argument("--no-sensitive", action="store_true", help="Απενεργοποίηση ελέγχων ευαίσθητων αρχείων")
+    p.add_argument("--no-cors", action="store_true", help="Απενεργοποίηση ελέγχου CORS")
+    p.add_argument("--no-methods", action="store_true", help="Απενεργοποίηση ελέγχου HTTP methods")
+    # Enabled by default; use --no-dirb to disable.
+    dirb_group = p.add_mutually_exclusive_group()
+    dirb_group.add_argument("--dirb", dest="dirb", action="store_true", help="Ενεργοποίηση directory brute-force")
+    dirb_group.add_argument("--no-dirb", dest="dirb", action="store_false", help="Απενεργοποίηση directory brute-force")
+    p.add_argument("--dirb-wordlist", default="", help="Προαιρετικό custom wordlist αρχείο για dirb")
+    # Enabled by default; use --no-wayback to disable.
+    wb_group = p.add_mutually_exclusive_group()
+    wb_group.add_argument("--wayback", dest="wayback", action="store_true", help="Ενεργοποίηση παθητικής ανακάλυψης URL από Wayback (εξωτερική υπηρεσία)")
+    wb_group.add_argument("--no-wayback", dest="wayback", action="store_false", help="Απενεργοποίηση ανακάλυψης URL από Wayback")
+
+    # Active probes are enabled by default; use --safe-mode to disable.
+    active_group = p.add_mutually_exclusive_group()
+    active_group.add_argument("--unsafe-active-tests", dest="unsafe_active_tests", action="store_true",
+                              help="Ενεργοποίηση active probes (dirb, probing επικίνδυνων methods)")
+    active_group.add_argument("--safe-mode", dest="unsafe_active_tests", action="store_false",
+                              help="Απενεργοποίηση active probes (ασφαλέστερη/παθητική συμπεριφορά)")
+    p.add_argument("--debug", action="store_true", help="Αναλυτικό debug logging")
+    p.set_defaults(dirb=True, wayback=True, unsafe_active_tests=True)
+    return p.parse_args(argv)
+
+
+def read_wordlist(path: str) -> List[str]:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(path)
+    out: List[str] = []
+    for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+        s = line.strip()
+        if s and not s.startswith("#"):
+            out.append(s)
+    return out
+
+
+async def main_async(args: argparse.Namespace) -> int:
+    out_dir = Path(args.output)
+    hunter = BugHunter(
+        args.target,
+        out_dir,
+        concurrency=args.concurrency,
+        timeout=args.timeout,
+        user_agent=args.user_agent,
+        rate_limit_rps=args.rate,
+        debug=args.debug,
+        unsafe_active_tests=args.unsafe_active_tests,
+    )
+
+    # Profiles
+    crawl_depth = args.crawl_depth
+    max_pages = args.max_pages
+    ports = None
+
+    if args.quick:
+        crawl_depth = min(crawl_depth, 1)
+        max_pages = min(max_pages, 80)
     if args.full:
-        διαμόρφωση.update({
-            "crawl_depth": 3,
-            "directory_brute": True,
-            "concurrency": 100
-        })
-    
-    if args.load_config and os.path.exists(args.load_config):
-        with open(args.load_config, 'r') as f:
-            loaded = json.load(f)
-            διαμόρφωση.update(loaded)
-    
-    if args.save_config:
-        with open(args.save_config, 'w') as f:
-            json.dump(διαμόρφωση, f, indent=2)
-    
-    return διαμόρφωση
+        crawl_depth = max(crawl_depth, 3)
+        max_pages = max(max_pages, 400)
+        if args.concurrency < 50:
+            hunter.concurrency = 50  # mild bump
+            hunter.sem = asyncio.Semaphore(hunter.concurrency)
 
-# ---------------- Κύρια Είσοδος ----------------
-if __name__ == "__main__":
+    if args.ports.strip():
+        try:
+            ports = [int(x.strip()) for x in args.ports.split(",") if x.strip()]
+        except Exception:
+            raise ValueError("Μη έγκυρο --ports. Χρησιμοποίησε ακέραιες τιμές χωρισμένες με κόμμα, π.χ. 80,443,8080")
+
+    dir_wordlist = DEFAULT_DIR_WORDLIST
+    if args.dirb_wordlist:
+        dir_wordlist = read_wordlist(args.dirb_wordlist)
+
+    await hunter.scan(
+        do_ports=not args.no_port_scan,
+        ports=ports,
+        do_dns=not args.no_dns,
+        do_tls=not args.no_tls,
+        do_headers=True,
+        do_tech=True,
+        do_cors=not args.no_cors,
+        do_methods=not args.no_methods,
+        do_sensitive=not args.no_sensitive,
+        do_crawl=(crawl_depth > 0),
+        crawl_depth=crawl_depth,
+        max_pages=max_pages,
+        do_js=not args.no_js,
+        do_dirb=args.dirb,
+        dir_wordlist=dir_wordlist,
+        do_wayback=args.wayback,
+    )
+
+    # Exports
+    j = hunter.export_json()
+    c = hunter.export_csv()
+    h = hunter.export_html()
+    p = hunter.export_pdf()
+
+    logger = hunter.logger
+    logger.info(f"Γράφτηκε: {j}")
+    logger.info(f"Γράφτηκε: {c}")
+    logger.info(f"Γράφτηκε: {h}")
+    if p:
+        logger.info(f"Γράφτηκε: {p}")
+
+    # Console summary
+    fs = hunter.findings()
+    sev_counts = Counter(f.severity for f in fs)
+    top = ", ".join([f"{k}={sev_counts.get(k,0)}" for k in ["Critical","High","Medium","Low","Info"]])
+    logger.info(f"Ευρήματα: {len(fs)} ({top})")
+    return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    args = parse_args(argv)
+
+    # Ensure required deps (auto-install missing ones if possible)
+    if not ensure_required_dependencies(auto_install=True):
+        return 2
+
     try:
-        console.print(Panel.fit(
-            "[bold cyan]🐛 BUG HUNTER ULTIMATE V3[/bold cyan]\n"
-            "[yellow]Σύνθετος Σαρωτής Ευπαθειών[/yellow]\n"
-            "[dim]Μόνο για εξουσιοδοτημένο έλεγχο ασφαλείας[/dim]",
-            title="Καλωσήρθατε",
-            border_style="cyan"
-        ))
-        
-        # Ανάλυση γραμμής εντολών ή εκκίνηση UI
-        if len(sys.argv) > 1:
-            διαμόρφωση = γρήγορη_λειτουργία_cli()
-        else:
-            console.print("\n[cyan]Επιλέξτε λειτουργία περιβάλλοντος:[/cyan]")
-            console.print("1. Διαδραστικό Τερματικό UI (Συνιστάται)")
-            console.print("2. Γρήγορη Λειτουργία CLI")
-            console.print("3. Φόρτωση από αρχείο διαμόρφωσης")
-            
-            επιλογή = Prompt.ask("Επιλογή", choices=["1", "2", "3"], default="1")
-            
-            if επιλογή == "1":
-                διαμόρφωση = curses.wrapper(βελτιωμένο_ui_curses)
-            elif επιλογή == "2":
-                στόχος = Prompt.ask("URL Στόχου")
-                διαμόρφωση = {
-                    "target": στόχος,
-                    "concurrency": 50,
-                    "port_scan": True,
-                    "js_analyze": True,
-                    "takeover_check": True,
-                    "sensitive_files": True,
-                    "directory_brute": True,
-                    "crawl": True,
-                    "crawl_depth": 2,
-                    "tech_detect": True,
-                    "security_headers": True,
-                    "cors_check": True,
-                    "http_methods": True,
-                    "vuln_check": True
-                }
-            elif επιλογή == "3":
-                αρχείο_διαμόρφωσης = Prompt.ask("Διαδρομή αρχείου διαμόρφωσης")
-                with open(αρχείο_διαμόρφωσης, 'r') as f:
-                    διαμόρφωση = json.load(f)
-        
-        # Ρύθμιση καταλόγου εξόδου
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        ασφαλής_στόχος = re.sub(r"[^\w\-]", "_", διαμόρφωση['target'][:30])
-        if διαμόρφωση.get('output'):
-            διαδρομή_εξόδου = διαμόρφωση['output']
-        else:
-            διαδρομή_εξόδου = os.path.join(os.getcwd(), f"σάρωση_{ασφαλής_στόχος}_{ts}")
-        
-        # Δημιουργία σαρωτή και εκτέλεση
-        σαρωτής = ΣύνθετοςΣαρωτής(διαμόρφωση['target'], διαδρομή_εξόδου, διαμόρφωση)
-        
-        console.rule("[bold cyan]Εκκίνηση Σάρωσης[/bold cyan]")
-        console.print(f"Στόχος: [green]{διαμόρφωση['target']}[/green]")
-        console.print(f"Έξοδος: [underline]{διαδρομή_εξόδου}[/underline]")
-        console.print(f"Λειτουργία: [yellow]{'Γρήγορη' if διαμόρφωση.get('crawl_depth', 2) == 1 else 'Ολοκληρωμένη'}[/yellow]")
-        console.rule()
-        
-        # Εκτέλεση της σάρωσης
-        asyncio.run(σαρωτής.ολοκληρωμένη_σάρωση())
-        
-        # Περίληψη
-        console.rule("[bold green]Ολοκλήρωση Σάρωσης[/bold green]")
-        
-        # Εμφάνιση πίνακα περίληψης
-        if σαρωτής.ευρήματα:
-            table = Table(title="Περίληψη Σάρωσης")
-            table.add_column("Σοβαρότητα", style="bold")
-            table.add_column("Πλήθος", justify="right")
-            table.add_column("Παράδειγμα", style="dim")
-            
-            ομάδες_σοβαροτήτων = {}
-            for εύρημα in σαρωτής.ευρήματα:
-                σοβαρότητα = εύρημα['σοβαρότητα']
-                if σοβαρότητα not in ομάδες_σοβαροτήτων:
-                    ομάδες_σοβαροτήτων[σοβαρότητα] = []
-                ομάδες_σοβαροτήτων[σοβαρότητα].append(εύρημα)
-            
-            for σοβαρότητα in ["Κρίσιμη", "Υψηλή", "Μέτρια", "Χαμηλή", "Πληροφορία"]:
-                if σοβαρότητα in ομάδες_σοβαροτήτων:
-                    πλήθος = len(ομάδες_σοβαροτήτων[σοβαρότητα])
-                    παράδειγμα = ομάδες_σοβαροτήτων[σοβαρότητα][0]['κατηγορία'][:30]
-                    
-                    χρώμα = {
-                        "Κρίσιμη": "red",
-                        "Υψηλή": "orange1",
-                        "Μέτρια": "yellow",
-                        "Χαμηλή": "green",
-                        "Πληροφορία": "blue"
-                    }.get(σοβαρότητα, "white")
-                    
-                    table.add_row(
-                        f"[{χρώμα}]{σοβαρότητα}[/{χρώμα}]",
-                        str(πλήθος),
-                        παράδειγμα
-                    )
-            
-            console.print(table)
-        
-        console.print(f"\n[green]Δημιουργήθηκαν αναφορές στο:[/green] [underline]{διαδρομή_εξόδου}[/underline]")
-        console.print(f"[yellow]Συνολικά ευρήματα:[/yellow] {len(σαρωτής.ευρήματα)}")
-        console.print(f"[yellow]Ανιχνεύθηκαν τεχνολογίες:[/yellow] {len(σαρωτής.τεχνολογίες)}")
-        console.print(f"[yellow]Βρέθηκαν ανοιχτές θύρες:[/yellow] {len(σαρωτής.ανοιχτές_θύρες)}")
-        
-        if any(f['σοβαρότητα'] == 'Κρίσιμη' for f in σαρωτής.ευρήματα):
-            console.print("\n[bold red]⚠  ΕΝΤΟΠΙΣΤΗΚΑΝ ΚΡΙΣΙΜΑ ΕΥΡΗΜΑΤΑ! Απαιτείται άμεση δράση![/bold red]")
-        
+        return asyncio.run(main_async(args))
     except KeyboardInterrupt:
-        console.print("\n[yellow][!] Η σάρωση διακόπηκε από τον χρήστη.[/yellow]")
+        print("\nΔιακόπηκε.", file=sys.stderr)
+        return 130
     except Exception as e:
-        console.print(f"[red][!] Σφάλμα: {e}[/red]")
-        if Confirm.ask("Εμφάνιση λεπτομερούς ιχνογραφήματος;"):
-            console.print_exception()
-    finally:
-        console.print("\n[dim]Το Bug Hunter ολοκληρώθηκε. Θυμηθείτε: Με μεγάλη δύναμη έρχεται και μεγάλη ευθύνη.[/dim]")
+        print(f"Σφάλμα: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
