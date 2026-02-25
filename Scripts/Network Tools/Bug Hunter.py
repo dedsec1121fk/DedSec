@@ -200,6 +200,15 @@ def csv_safe(s: Any) -> str:
 def now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+def normalize_severity_label(value: str, default: str = "Info") -> str:
+    if not value:
+        return default
+    s = str(value).strip().capitalize()
+    return s if s in SEV_ORDER else default
+
+def severity_meets_threshold(severity: str, minimum: str) -> bool:
+    return SEV_ORDER.get(normalize_severity_label(severity), 0) >= SEV_ORDER.get(normalize_severity_label(minimum), 0)
+
 def normalize_url(url: str) -> str:
     # Remove fragment; keep query
     p = urlparse(url)
@@ -310,6 +319,11 @@ class BugHunter:
         rate_limit_rps: float = 0.0,
         debug: bool = False,
         unsafe_active_tests: bool = False,
+        live_mode: bool = False,
+        stream_jsonl: bool = False,
+        live_min_severity: str = "Info",
+        live_stats_interval: float = 0.0,
+        checkpoint_every: int = 0,
     ) -> None:
         if httpx is None:
             raise RuntimeError("Missing dependency: httpx. Install with: python3 -m pip install -U httpx")
@@ -317,6 +331,20 @@ class BugHunter:
         self.logger = setup_logger(debug)
         self.debug = debug
         self.unsafe_active_tests = unsafe_active_tests
+
+        # Real-time finding pipeline (optional)
+        self.live_mode = bool(live_mode)
+        self.stream_jsonl = bool(stream_jsonl)
+        self.live_min_severity = normalize_severity_label(live_min_severity, default="Info")
+        self.live_stats_interval = max(0.0, float(live_stats_interval or 0.0))
+        self.checkpoint_every = max(0, int(checkpoint_every or 0))
+        self._finding_queue: Optional[asyncio.Queue] = None
+        self._live_task: Optional[asyncio.Task] = None
+        self._stats_task: Optional[asyncio.Task] = None
+        self._stream_fp = None
+        self._live_stop_event = asyncio.Event()
+        self._live_events_dropped = 0
+        self._live_processed_count = 0
 
         self.target = target if target.startswith(("http://", "https://")) else "https://" + target
         parsed = urlparse(self.target)
@@ -404,9 +432,7 @@ class BugHunter:
 
     def add_finding(self, finding: Finding) -> None:
         # Normalize severity
-        sev = finding.severity.capitalize()
-        if sev not in SEV_ORDER:
-            sev = "Info"
+        sev = normalize_severity_label(finding.severity, default="Info")
         finding = Finding(
             category=finding.category,
             severity=sev,
@@ -416,7 +442,148 @@ class BugHunter:
             remediation=finding.remediation.strip(),
             timestamp=finding.timestamp,
         )
-        self._findings.setdefault(finding.key(), finding)
+
+        k = finding.key()
+        if k in self._findings:
+            return
+        self._findings[k] = finding
+
+        if self._finding_queue is not None:
+            try:
+                self._finding_queue.put_nowait(finding)
+            except asyncio.QueueFull:
+                self._live_events_dropped += 1
+
+    def _format_live_finding(self, f: Finding) -> str:
+        details = (f.details or "").replace("\n", " ").strip()
+        if len(details) > 220:
+            details = details[:217] + "..."
+        return f"[LIVE][{f.severity}] {f.category} @ {f.url} :: {details}"
+
+    def _write_partial_checkpoint(self) -> Optional[Path]:
+        if not self.checkpoint_every:
+            return None
+        out = self.out_dir / "report.partial.json"
+        try:
+            payload = self._summary()
+            payload["findings"] = [asdict(f) for f in self.findings()]
+            payload["meta"] = {
+                "partial": True,
+                "generated_utc": now_utc(),
+                "live_queue_events_dropped": self._live_events_dropped,
+            }
+            out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            return out
+        except Exception as e:
+            self.logger.debug(f"Live checkpoint write failed: {e}")
+            return None
+
+    async def _live_finding_consumer(self) -> None:
+        assert self._finding_queue is not None
+        while True:
+            item = await self._finding_queue.get()
+            if item is None:
+                break
+
+            # Stream to console (severity-filtered)
+            if self.live_mode and severity_meets_threshold(item.severity, self.live_min_severity):
+                self.logger.info(self._format_live_finding(item))
+
+            # Stream to JSONL (all findings)
+            if self._stream_fp is not None:
+                rec = asdict(item)
+                rec["_event"] = "finding"
+                self._stream_fp.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                self._stream_fp.flush()
+
+            self._live_processed_count += 1
+            if self.checkpoint_every and (self._live_processed_count % self.checkpoint_every == 0):
+                cp = self._write_partial_checkpoint()
+                if cp is not None:
+                    self.logger.info(f"[LIVE] checkpoint updated: {cp}")
+
+    async def _live_stats_ticker(self) -> None:
+        if self.live_stats_interval <= 0:
+            return
+        while True:
+            try:
+                await asyncio.wait_for(self._live_stop_event.wait(), timeout=self.live_stats_interval)
+                break
+            except asyncio.TimeoutError:
+                pass
+
+            sev_counts = Counter(f.severity for f in self._findings.values())
+            top = ", ".join([f"{k}={sev_counts.get(k,0)}" for k in ["Critical", "High", "Medium", "Low", "Info"]])
+            self.logger.info(
+                f"[LIVE][STATS] findings={len(self._findings)} ({top}) "
+                f"req={self.stats.http_requests} err={self.stats.http_errors} 429={self.stats.rate_limited} "
+                f"urls={len(self.discovered_urls)} js={len(self.discovered_js)} endpoints={len(self.discovered_endpoints)}"
+            )
+
+    async def _start_live_pipeline(self) -> None:
+        enabled = self.live_mode or self.stream_jsonl or (self.live_stats_interval > 0) or (self.checkpoint_every > 0)
+        if not enabled:
+            return
+
+        self._live_stop_event = asyncio.Event()
+        self._finding_queue = asyncio.Queue(maxsize=max(1000, self.concurrency * 50))
+        self._live_events_dropped = 0
+        self._live_processed_count = 0
+
+        if self.stream_jsonl:
+            stream_path = self.out_dir / "findings.jsonl"
+            self._stream_fp = stream_path.open("w", encoding="utf-8")
+            self._stream_fp.write(json.dumps({
+                "_event": "scan_started",
+                "target": self.base_url,
+                "started_utc": now_utc(),
+                "live_min_severity": self.live_min_severity,
+            }, ensure_ascii=False) + "\n")
+            self._stream_fp.flush()
+            self.logger.info(f"Live JSONL stream enabled: {stream_path}")
+
+        self._live_task = asyncio.create_task(self._live_finding_consumer())
+        if self.live_stats_interval > 0:
+            self._stats_task = asyncio.create_task(self._live_stats_ticker())
+
+        if self.live_mode:
+            self.logger.info(f"Live finding stream enabled (min severity: {self.live_min_severity})")
+
+    async def _stop_live_pipeline(self) -> None:
+        self._live_stop_event.set()
+
+        if self._stats_task is not None:
+            try:
+                await self._stats_task
+            except Exception as e:
+                self.logger.debug(f"Live stats task shutdown error: {e}")
+            self._stats_task = None
+
+        if self._live_task is not None and self._finding_queue is not None:
+            try:
+                await self._finding_queue.put(None)
+                await self._live_task
+            except Exception as e:
+                self.logger.debug(f"Live finding task shutdown error: {e}")
+            self._live_task = None
+
+        if self.checkpoint_every > 0 and len(self._findings) > 0:
+            self._write_partial_checkpoint()
+
+        if self._stream_fp is not None:
+            try:
+                self._stream_fp.write(json.dumps({
+                    "_event": "scan_finished",
+                    "finished_utc": now_utc(),
+                    "total_findings": len(self._findings),
+                    "live_queue_events_dropped": self._live_events_dropped,
+                }, ensure_ascii=False) + "\n")
+                self._stream_fp.flush()
+                self._stream_fp.close()
+            finally:
+                self._stream_fp = None
+
+        self._finding_queue = None
 
     def add_tech(self, name: str, version: str = "", confidence: int = 50, source: str = "") -> None:
         key = name.lower()
@@ -1090,69 +1257,76 @@ class BugHunter:
         dir_wordlist: Optional[List[str]] = None,
         do_wayback: bool = False,
     ) -> None:
-        limits = httpx.Limits(max_connections=self.concurrency, max_keepalive_connections=max(10, self.concurrency // 2))
-        timeout = httpx.Timeout(self.timeout)
-        async with httpx.AsyncClient(limits=limits, timeout=timeout, verify=True) as client:
-            self._client = client
-
-            self.logger.info(f"Target: {self.base_url}  (host={self.hostname}, port={self.port or 'default'})")
-            if not self.unsafe_active_tests:
-                self.logger.info("Safe mode enabled: active probes disabled (remove --safe-mode to re-enable).")
-
-            if do_dns:
-                await self.resolve_dns()
-
-            # Baseline
-            body, headers, setcookies, final = await self.fetch_baseline()
-            if body is None:
-                self.add_finding(Finding(
-                    category="Target_Unreachable",
-                    severity="High",
-                    url=self.base_url,
-                    details="Failed to fetch baseline page.",
-                    remediation="Verify the target is reachable and that you have permission to test it."
-                ))
-            else:
-                if do_headers:
-                    await self.check_security_headers(headers, final)
-                if do_tech:
-                    await self.detect_tech(headers, body, final)
-                await self.check_vuln_patterns(final, body)
-                self._scan_secrets(body, final)
-
-                # quick endpoint discovery (passive, on-target)
-                for p in ("robots.txt", "sitemap.xml", ".well-known/security.txt", "security.txt"):
-                    self.discovered_urls.add(urljoin(self.base_url + "/", p))
-
-            if do_tls:
-                await self.tls_analysis()
-
-            if do_ports and self.hostname:
-                await self.port_scan(ports or DEFAULT_PORTS)
-
-            if do_cors:
-                await self.check_cors(final)
-
-            if do_methods:
-                await self.check_http_methods(final)
-
-            if do_sensitive:
-                await self.check_sensitive_files()
-
-            if do_crawl:
-                await self.crawl(depth=crawl_depth, max_pages=max_pages)
-
-            if do_js:
-                await self.analyze_js()
-
-            if do_dirb:
-                await self.directory_bruteforce(dir_wordlist or DEFAULT_DIR_WORDLIST)
-
-            if do_wayback:
-                await self.passive_wayback()
-
+        await self._start_live_pipeline()
+        try:
+            limits = httpx.Limits(max_connections=self.concurrency, max_keepalive_connections=max(10, self.concurrency // 2))
+            timeout = httpx.Timeout(self.timeout)
+            async with httpx.AsyncClient(limits=limits, timeout=timeout, verify=True) as client:
+                self._client = client
+    
+                self.logger.info(f"Target: {self.base_url}  (host={self.hostname}, port={self.port or 'default'})")
+                if not self.unsafe_active_tests:
+                    self.logger.info("Safe mode enabled: active probes disabled (remove --safe-mode to re-enable).")
+    
+                if do_dns:
+                    await self.resolve_dns()
+    
+                # Baseline
+                body, headers, setcookies, final = await self.fetch_baseline()
+                if body is None:
+                    self.add_finding(Finding(
+                        category="Target_Unreachable",
+                        severity="High",
+                        url=self.base_url,
+                        details="Failed to fetch baseline page.",
+                        remediation="Verify the target is reachable and that you have permission to test it."
+                    ))
+                else:
+                    if do_headers:
+                        await self.check_security_headers(headers, final)
+                    if do_tech:
+                        await self.detect_tech(headers, body, final)
+                    await self.check_vuln_patterns(final, body)
+                    self._scan_secrets(body, final)
+    
+                    # quick endpoint discovery (passive, on-target)
+                    for p in ("robots.txt", "sitemap.xml", ".well-known/security.txt", "security.txt"):
+                        self.discovered_urls.add(urljoin(self.base_url + "/", p))
+    
+                if do_tls:
+                    await self.tls_analysis()
+    
+                if do_ports and self.hostname:
+                    await self.port_scan(ports or DEFAULT_PORTS)
+    
+                if do_cors:
+                    await self.check_cors(final)
+    
+                if do_methods:
+                    await self.check_http_methods(final)
+    
+                if do_sensitive:
+                    await self.check_sensitive_files()
+    
+                if do_crawl:
+                    await self.crawl(depth=crawl_depth, max_pages=max_pages)
+    
+                if do_js:
+                    await self.analyze_js()
+    
+                if do_dirb:
+                    await self.directory_bruteforce(dir_wordlist or DEFAULT_DIR_WORDLIST)
+    
+                if do_wayback:
+                    await self.passive_wayback()
+    
+                self._client = None
+                self.scope.end_utc = now_utc()
+        finally:
             self._client = None
-            self.scope.end_utc = now_utc()
+            if not self.scope.end_utc:
+                self.scope.end_utc = now_utc()
+            await self._stop_live_pipeline()
 
     # ---------- exports ----------
 
@@ -1385,6 +1559,11 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p.add_argument("--timeout", type=float, default=12.0, help="HTTP/TCP timeout seconds")
     p.add_argument("-c", "--concurrency", type=int, default=30, help="Max concurrent tasks")
     p.add_argument("--rate", type=float, default=0.0, help="Optional rate limit (requests per second, 0=off)")
+    p.add_argument("--live", action="store_true", help="Stream new findings in real time during scanning")
+    p.add_argument("--stream-jsonl", action="store_true", help="Write live findings to findings.jsonl as they are discovered")
+    p.add_argument("--live-min-severity", default="Info", help="Minimum severity to print in --live (Critical|High|Medium|Low|Info)")
+    p.add_argument("--live-stats-interval", type=float, default=0.0, help="Print periodic live stats every N seconds (0=off)")
+    p.add_argument("--checkpoint-every", type=int, default=0, help="Write report.partial.json every N new findings (0=off)")
     p.add_argument("--user-agent", default="BugHunter/4 (authorized-testing)", help="User-Agent header")
     p.add_argument("--no-port-scan", action="store_true", help="Disable connect-based port scan")
     p.add_argument("--ports", default="", help="Comma-separated ports to scan (blank=default set)")
@@ -1440,6 +1619,11 @@ async def main_async(args: argparse.Namespace) -> int:
         rate_limit_rps=args.rate,
         debug=args.debug,
         unsafe_active_tests=args.unsafe_active_tests,
+        live_mode=args.live,
+        stream_jsonl=args.stream_jsonl,
+        live_min_severity=args.live_min_severity,
+        live_stats_interval=args.live_stats_interval,
+        checkpoint_every=args.checkpoint_every,
     )
 
     # Profiles
@@ -1462,6 +1646,12 @@ async def main_async(args: argparse.Namespace) -> int:
             ports = [int(x.strip()) for x in args.ports.split(",") if x.strip()]
         except Exception:
             raise ValueError("Invalid --ports. Use comma-separated integers, e.g. 80,443,8080")
+
+    args.live_min_severity = normalize_severity_label(args.live_min_severity, default="Info")
+    if args.checkpoint_every < 0:
+        raise ValueError("Invalid --checkpoint-every. Use 0 or a positive integer.")
+    if args.live_stats_interval < 0:
+        raise ValueError("Invalid --live-stats-interval. Use 0 or a positive number.")
 
     dir_wordlist = DEFAULT_DIR_WORDLIST
     if args.dirb_wordlist:
@@ -1498,6 +1688,10 @@ async def main_async(args: argparse.Namespace) -> int:
     logger.info(f"Wrote: {h}")
     if p:
         logger.info(f"Wrote: {p}")
+    if args.stream_jsonl:
+        logger.info(f"Wrote: {out_dir / 'findings.jsonl'}")
+    if args.checkpoint_every > 0 and (out_dir / 'report.partial.json').exists():
+        logger.info(f"Wrote: {out_dir / 'report.partial.json'}")
 
     # Console summary
     fs = hunter.findings()
