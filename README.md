@@ -205,7 +205,7 @@ These scripts are **training simulations** intended to help you understand how p
 
 > For full descriptions and save locations, check the website tools catalog.
 
-## 📱 Social Media Fake Pages (Educational Use Only)
+## 📱 Fake Pages (Educational Use Only)
 
 These scripts are **training simulations** intended to help you recognize social‑engineering patterns used in fake social media pages.
 
