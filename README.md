@@ -284,6 +284,39 @@ These scripts are **training simulations** intended to help you recognize social
     * *Save Location Language Config: ~/Language.json | Backups: ~/Termux.zip*
 
 
+
+## 🦋 ButSystem.py (Exclusive)
+
+**ButSystem.py** is a self-hosted, **local-first** workspace you run on your own device (Termux).  
+It’s built for **private coordination** and **structured workflows** — with clear screens, predictable controls, and an interface designed to keep you focused.
+
+### What it includes (high level)
+- **Auth & Access:** login/signup, device access approval, optional **2FA**, and recovery flows.
+- **Chats (DM):** fast direct messages with attachments/media and practical moderation controls.
+- **Groups:** group creation + member management (role-based actions like promote/demote/kick where permitted).
+- **Calls:** call actions and related flows (join/leave, prompts, microphone permissions when supported).
+- **Files / Vault:** upload, download, delete, folder management, and navigation.
+- **Profile:** edit profile, picture management, and account actions (including a “danger zone” for irreversible actions).
+- **Profiler / Reports / Bounty (where enabled):** structured record-keeping features and export options.
+- **Admin:** approve/deny requests and manage users/files based on permissions.
+- **Settings (Security):** password changes, session rules, privacy toggles, and security preferences.
+
+### How to use
+1. Open Termux and run **ButSystem.py** (via your DedSec setup).
+2. Open the generated local link in your browser.
+3. Use the **burger menu** to switch modules (Chats, Groups, Calls, Files, Profile, Settings, Admin).
+4. Configure **Settings → Security** before inviting other people.
+
+### Hypothetical scenarios (Batman-style, non-violent)
+ButSystem is **not** for revenge or harm.  
+The “Batman-style” mindset here means: **self-control, detective thinking, lawful evidence you already have, protecting people, and choosing responsible outcomes.**
+
+### Fighting corruption (responsibly)
+Use the system to **organize lawful documentation**, protect your accounts, and pursue **accountability through legal channels** (reporting, compliance, regulators, mediation, or professional advice as appropriate).
+
+> **Reminder:** Use only on systems you own or where you have explicit permission. Misuse for unauthorized or harmful activity is prohibited.
+
+
 ## 💬 Contact Us & Credits
 
 ### Contact Us
