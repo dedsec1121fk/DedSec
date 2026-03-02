@@ -19,6 +19,9 @@ REPO_URL = "https://github.com/dedsec1121fk/DedSec.git"
 LOCAL_DIR = "DedSec"
 REPO_API_URL = "https://api.github.com/repos/dedsec1121fk/DedSec"
 
+# Only these file types are refreshed during project updates (everything else is preserved)
+UPDATE_FILE_EXTS = (".py", ".css", ".sh", ".bash")
+
 # --- Define fixed absolute paths and folder names ---
 ENGLISH_BASE_PATH = "/data/data/com.termux/files/home/DedSec/Scripts"
 GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
@@ -319,6 +322,57 @@ def run_command_silent(command, cwd=None):
 
 
 
+
+def is_update_target_file(rel_path: str) -> bool:
+    """True if a repo-relative file path is a type we refresh during DedSec updates."""
+    rp = (rel_path or "").lower()
+    return rp.endswith(UPDATE_FILE_EXTS)
+
+def list_remote_update_targets(repo_path: str):
+    """Lists update-target files from origin/main (only .py/.css/.sh/.bash)."""
+    out, _err = run_command_silent("git ls-tree -r --name-only origin/main", cwd=repo_path)
+    files = []
+    for line in (out.splitlines() if out else []):
+        line = line.strip()
+        if line and is_update_target_file(line):
+            files.append(line)
+    return files
+
+def has_remote_updates_for_targets(repo_path: str) -> bool:
+    """Returns True if origin/main differs from the current working tree for update-target paths."""
+    diff_cmd = "git diff --name-only origin/main -- '*.py' '*.css' '*.sh' '*.bash'"
+    out, _err = run_command_silent(diff_cmd, cwd=repo_path)
+    return bool(out.strip())
+
+def apply_selective_update(repo_path: str):
+    """Updates ONLY .py/.css/.sh/.bash files from origin/main.
+
+    This does NOT run `git clean` or `git reset --hard`, so other files (images, zips, json, etc.)
+    are NOT deleted during an update.
+    """
+    run_command("git fetch --all", cwd=repo_path)
+
+    if not has_remote_updates_for_targets(repo_path):
+        print(_("No available update found."))
+        return 0
+
+    targets = list_remote_update_targets(repo_path)
+    if not targets:
+        print(_("No available update found."))
+        return 0
+
+    updated = 0
+    for rel in targets:
+        # Checkout only this file from origin/main (keeps correct file modes where applicable).
+        rc = run_command(f'git checkout origin/main -- "{rel}"', cwd=repo_path)
+        if hasattr(rc, "returncode") and rc.returncode == 0:
+            updated += 1
+
+    print(f"[+] Selective update completed: refreshed {updated} file(s) (.py/.css/.sh/.bash).")
+    print(f"[+] Other files were left untouched (no deletion/cleanup).")
+    return updated
+
+
 def run_selected_file(abs_path):
     """Runs a selected script/executable reliably (works with nested folders & spaces)."""
     try:
@@ -406,30 +460,32 @@ def clone_repo():
     return os.path.join(os.getcwd(), LOCAL_DIR)
 
 def force_update_repo(existing_path):
+    """Updates the DedSec project without deleting non-script files.
+
+    - Refreshes ONLY: .py, .css, .sh, .bash from origin/main
+    - Does NOT run `git clean` or `git reset --hard`, so other files are preserved.
+    """
     if existing_path:
         print(f"[+] DedSec found! {_('Forcing a full update...')}")
-        run_command("git fetch --all", cwd=existing_path)
-        run_command("git reset --hard origin/main", cwd=existing_path)
-        run_command("git clean -fd", cwd=existing_path)
-        run_command("git pull", cwd=existing_path)
-        print(f"[+] Repository fully updated, including README and all other files.")
+        apply_selective_update(existing_path)
 
 def update_dedsec():
+
     repo_size = get_github_repo_size()
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
-        run_command("git fetch", cwd=existing_dedsec_path)
-        behind_count, _err = run_command_silent("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
-        try:
-            behind_count = int(behind_count)
-        except Exception:
-            behind_count = 0
-        if behind_count > 0:
-            force_update_repo(existing_dedsec_path)
+        # Fetch remote refs
+        run_command("git fetch --all", cwd=existing_dedsec_path)
+
+        # Only consider updates for .py/.css/.sh/.bash, and never delete other files.
+        if has_remote_updates_for_targets(existing_dedsec_path):
+            apply_selective_update(existing_dedsec_path)
             dedsec_size = get_dedsec_size(existing_dedsec_path)
             print(f"[+] {_('Update applied. DedSec Project Size')}: {dedsec_size}")
         else:
+            print(_("No available update found."))
+    else:
             print(_("No available update found."))
     else:
         existing_dedsec_path = clone_repo()
