@@ -408,25 +408,11 @@ def clone_repo():
 def force_update_repo(existing_path):
     if existing_path:
         print(f"[+] DedSec found! {_('Forcing a full update...')}")
-        # Fetch + hard reset updates tracked files to match origin/main.
         run_command("git fetch --all", cwd=existing_path)
         run_command("git reset --hard origin/main", cwd=existing_path)
-
-        # IMPORTANT: Do NOT wipe all untracked files/folders.
-        # Only clean up untracked source scripts for these languages:
-        #   - Python (.py)
-        #   - Bash/Shell (.sh, .bash)
-        #   - C / C++ (.c, .cpp, .cc, .cxx)
-        #
-        # This prevents accidental deletion of user-added assets (images, docs, configs, etc).
-        clean_cmd = (
-            "git clean -f -- "
-            "'*.py' '*.sh' '*.bash' '*.c' '*.cpp' '*.cc' '*.cxx'"
-        )
-        run_command(clean_cmd, cwd=existing_path)
-
+        run_command('git clean -f -- "*.py" "*.css" "*.sh" "*.bash"', cwd=existing_path)
         run_command("git pull", cwd=existing_path)
-        print("[+] Repository fully updated (safe-clean applied).")
+        print(f"[+] Repository fully updated, including README and all other files.")
 
 def update_dedsec():
     repo_size = get_github_repo_size()
