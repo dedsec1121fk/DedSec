@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
 """
-Bug Hunter (χωρίς root) — εξουσιοδοτημένος σαρωτής αναγνώρισης (recon) & λανθασμένων ρυθμίσεων ασφάλειας web.
+Bug Hunter (χωρίς root) — εργαλείο αναγνώρισης (recon) και ελέγχου λανθασμένων ρυθμίσεων για **εξουσιοδοτημένους** ελέγχους ασφάλειας web.
 
-Στόχοι σχεδίασης (v4):
-- Ικανός από προεπιλογή· μπορείς να τον κάνεις πιο ασφαλή/παθητικό με --safe-mode και --no-dirb.
+Στόχοι σχεδιασμού (v4):
+- Ικανό από προεπιλογή· μπορείς να το κάνεις πιο «ασφαλές/παθητικό» με --safe-mode και --no-dirb.
 - Προαιρετική αυτόματη εγκατάσταση εξαρτήσεων κατά την εκτέλεση (μπορεί να απενεργοποιηθεί).
-- Περιορισμένη ασύγχρονη παραλληλία (όχι τεράστιες λίστες εργασιών).
-- Αναφορά με προτάσεις (JSON/CSV/HTML/PDF), απο-διπλοποίηση ευρημάτων, σύνοψη scope.
-- Λειτουργεί χωρίς root (έλεγχος θυρών μέσω connect· χωρίς raw sockets).
+- Περιορισμένη ασύγχρονη ταυτόχρονη εκτέλεση (χωρίς τεράστιες λίστες tasks).
+- Χρήσιμες αναφορές (JSON/CSV/HTML/PDF), απο-διπλοποίηση ευρημάτων, σύνοψη scope.
+- Λειτουργεί χωρίς root (έλεγχος θυρών με connect· χωρίς raw sockets).
 
 ΑΠΟΠΟΙΗΣΗ ΕΥΘΥΝΗΣ
-Χρησιμοποίησέ το μόνο σε στόχους που σου ανήκουν ή για τους οποίους έχεις ρητή άδεια να δοκιμάσεις.
+Χρησιμοποίησέ το **μόνο** σε στόχους που σου ανήκουν ή για τους οποίους έχεις ρητή άδεια να κάνεις έλεγχο.
 
 Εξαρτήσεις
 Απαραίτητο:  httpx
-Προαιρετικά (συνιστώνται): rich, beautifulsoup4, dnspython, reportlab
+Προαιρετικά (προτείνεται): rich, beautifulsoup4, dnspython, reportlab
 
 Εγκατάσταση:
   python3 -m pip install -U httpx rich beautifulsoup4 dnspython reportlab
@@ -63,16 +63,16 @@ def _pip_install(pkg: str, logger: Optional[logging.Logger] = None) -> bool:
     """Best-effort install via current Python interpreter."""
     cmd = [sys.executable, "-m", "pip", "install", "-U", pkg]
     try:
-        msg = f"Εγκατάσταση ελλείπουσας εξάρτησης: {pkg} ..."
+        msg = f"Installing missing dependency: {pkg} ..."
         (logger.info if logger else print)(msg)
         proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         if proc.returncode == 0:
-            (logger.info if logger else print)(f"Εγκαταστάθηκε: {pkg}")
+            (logger.info if logger else print)(f"Installed: {pkg}")
             return True
-        (logger.error if logger else print)(f"Απέτυχε η εγκατάσταση του {pkg}. pip output:\n{proc.stdout}")
+        (logger.error if logger else print)(f"Αποτυχία εγκατάστασης του {pkg}. Έξοδος pip:\n{proc.stdout}")
         return False
     except Exception as e:
-        (logger.error if logger else print)(f"Απέτυχε η εγκατάσταση του {pkg}: {e}")
+        (logger.error if logger else print)(f"Failed to install {pkg}: {e}")
         return False
 
 
@@ -84,7 +84,7 @@ def ensure_required_dependencies(auto_install: bool = True) -> bool:
 
     missing = ["httpx"]
     if not auto_install:
-        print("Λείπουν εξαρτήσεις:\n  - httpx (required)", file=sys.stderr)
+        print("Λείπουν εξαρτήσεις:\n  - httpx (απαραίτητο)", file=sys.stderr)
         print("\nΕγκατάσταση:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
         return False
 
@@ -94,12 +94,12 @@ def ensure_required_dependencies(auto_install: bool = True) -> bool:
 
     ok = _pip_install("httpx")
     if not ok:
-        print("\nInstall manually:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
+        print("\nΕγκατάσταση χειροκίνητα:\n  python3 -m pip install -U httpx\n", file=sys.stderr)
         return False
 
     httpx = _try_import("httpx")
     if httpx is None:
-        print("Το httpx εγκαταστάθηκε, αλλά δεν ήταν δυνατή η εισαγωγή του στην τρέχουσα διεργασία. Εκτέλεσε ξανά το script.", file=sys.stderr)
+        print("Έγινε εγκατάσταση του httpx αλλά δεν μπόρεσε να γίνει import στην τρέχουσα διεργασία. Ξανατρέξε το script.", file=sys.stderr)
         return False
     return True
 
@@ -165,7 +165,7 @@ class Technology:
     source: str = ""
 
 @dataclass
-class Πεδίο (Scope)Info:
+class ScopeInfo:
     target: str
     base_url: str
     hostname: str
@@ -224,21 +224,22 @@ def first_nonempty_group(m: re.Match) -> str:
 # ---------------- Signatures / patterns ----------------
 
 SEC_HEADERS = {
-    "strict-transport-security": ("HSTS", "Add HSTS with a long max-age and includeSubDomains; preload if appropriate."),
-    "content-security-policy": ("CSP", "Define a restrictive Content-Security-Policy to reduce XSS risk."),
-    "x-frame-options": ("Clickjacking", "Set X-Frame-Options (DENY or SAMEORIGIN) or use CSP frame-ancestors."),
-    "x-content-type-options": ("MIME Sniffing", "Set X-Content-Type-Options: nosniff."),
-    "referrer-policy": ("Referrer Policy", "Set a Referrer-Policy appropriate for the site."),
-    "permissions-policy": ("Permissions Policy", "Use Permissions-Policy to restrict powerful features."),
-    "cross-origin-opener-policy": ("COOP", "Consider COOP to isolate browsing context and mitigate XS leaks."),
-    "cross-origin-resource-policy": ("CORP", "Consider CORP to restrict resource loading across origins."),
-    "cross-origin-embedder-policy": ("COEP", "Consider COEP when feasible to enable cross-origin isolation."),
+    # header-name: (short title, severity)
+    "strict-transport-security":   ("HSTS",               "Medium"),
+    "content-security-policy":     ("CSP",                "Medium"),
+    "x-frame-options":             ("Clickjacking",       "Medium"),
+    "x-content-type-options":      ("MIME Sniffing",      "Medium"),
+    "referrer-policy":             ("Referrer Policy",    "Low"),
+    "permissions-policy":          ("Permissions Policy", "Low"),
+    "cross-origin-opener-policy":  ("COOP",               "Low"),
+    "cross-origin-resource-policy":("CORP",               "Low"),
+    "cross-origin-embedder-policy":("COEP",               "Low"),
 }
 
 COOKIE_FLAG_REMEDIATION = {
-    "Secure": "Mark cookies as Secure so they're only sent over HTTPS.",
-    "HttpOnly": "Mark cookies as HttpOnly to reduce XSS cookie theft risk.",
-    "SameSite": "Set SameSite (Lax/Strict/None) to reduce CSRF risk; if None, also require Secure."
+    "Secure": "Σημείωσε τα cookies ως Secure ώστε να αποστέλλονται μόνο μέσω HTTPS.",
+    "HttpOnly": "Σημείωσε τα cookies ως HttpOnly για μείωση κινδύνου κλοπής μέσω XSS.",
+    "SameSite": "Όρισε SameSite (Lax/Strict/None) για μείωση κινδύνου CSRF· αν είναι None, απαιτείται και Secure."
 }
 
 TECH_SIGS = [
@@ -298,10 +299,57 @@ DEFAULT_PORTS = [
 ]
 
 DEFAULT_DIR_WORDLIST = [
-    "admin", "login", "administrator", "dashboard", "cpanel", "api", "graphql", "v1", "v2",
-    "swagger", "openapi", "docs", "doc", "internal", "private",
-    ".git", ".svn", ".env", "backup", "backups", "old", "dev", "test", "staging",
-    "uploads", "upload", "static", "assets", "images", "js", "css"
+    # Admin / auth panels
+    "admin", "admin/login", "admin/dashboard", "administrator", "administrator/login",
+    "login", "logout", "signin", "signup", "register", "auth", "sso",
+    "dashboard", "panel", "portal", "cpanel", "webadmin", "manage", "management",
+    "account", "accounts", "profile", "user", "users",
+    # APIs
+    "api", "api/v1", "api/v2", "api/v3", "v1", "v2", "v3",
+    "graphql", "graphiql", "rest", "rpc", "soap",
+    "swagger", "swagger-ui", "swagger.yaml",   # .json variants covered by check_sensitive_files
+    "openapi", "openapi.yaml",                  # .json variants covered by check_sensitive_files
+    # Docs / debug
+    "docs", "doc", "documentation", "help",
+    "debug", "console", "test.php",
+    # server-status / server-info / phpinfo / info covered by check_sensitive_files
+    "status", "health", "healthz", "ping", "ready",
+    "metrics", "actuator", "actuator/health", "actuator/env", "actuator/beans",
+    # Source / config leaks (bare dirs only; specific files covered by check_sensitive_files)
+    ".git", ".git/HEAD", ".svn", ".hg",
+    ".env.production", ".env.backup",
+    "config", "config.json", "config.yaml", "config.yml",
+    "configuration", "settings",
+    "application.properties",
+    "Dockerfile", "docker-compose.yml",
+    # Backups / old files (specific files covered by check_sensitive_files)
+    "backup", "backups", "bak", "old", "archive", "archives",
+    "database.sql", "backup.sql",
+    "site.zip", "www.zip",
+    # CMS paths (wp-config.php covered by check_sensitive_files)
+    "wp-admin", "wp-login.php", "wp-content", "wp-includes",
+    "xmlrpc.php", "wp-json",
+    "phpmyadmin", "pma", "myadmin",
+    # Static / uploads
+    "static", "assets", "public", "media", "uploads", "upload",
+    "files", "images", "img", "js", "css", "fonts", "downloads",
+    # Dev / staging
+    "dev", "development", "staging", "stage", "test", "testing", "uat", "qa",
+    "beta", "demo", "sandbox",
+    # Misc interesting
+    "private", "internal", "hidden", "secret", "secure",
+    "cgi-bin", "cgi", "scripts",
+    "crossdomain.xml", "clientaccesspolicy.xml",
+    ".well-known",  # security.txt / robots.txt / sitemap.xml covered by check_sensitive_files
+]
+
+# Extensions to append when force_extensions=True (dirsearch -f style)
+DEFAULT_DIRB_EXTENSIONS = ["php", "html", "js", "json", "txt", "bak", "zip", "old", "asp", "aspx", "jsp"]
+
+# Base words that get %EXT% expansion (probed as word.ext for each extension)
+DIRB_EXT_ENTRIES = [
+    "index", "home", "main", "default", "config", "admin", "login",
+    "upload", "backup", "test", "info", "readme", "changelog",
 ]
 
 
@@ -326,7 +374,7 @@ class BugHunter:
         checkpoint_every: int = 0,
     ) -> None:
         if httpx is None:
-            raise RuntimeError("Λείπει η εξάρτηση: httpx. Εγκατάσταση με: python3 -m pip install -U httpx")
+            raise RuntimeError("Missing dependency: httpx. Install with: python3 -m pip install -U httpx")
 
         self.logger = setup_logger(debug)
         self.debug = debug
@@ -368,7 +416,7 @@ class BugHunter:
 
         self.sem = asyncio.Semaphore(self.concurrency)
 
-        self.scope = Πεδίο (Scope)Info(
+        self.scope = ScopeInfo(
             target=self.target,
             base_url=self.base_url,
             hostname=self.hostname,
@@ -425,9 +473,9 @@ class BugHunter:
             except Exception as e:
                 self.stats.http_errors += 1
                 if self.debug:
-                    self.logger.exception(f"HTTP {method} failed: {url} ({e})")
+                    self.logger.exception(f"Αποτυχία HTTP {method}: {url} ({e})")
                 else:
-                    self.logger.debug(f"HTTP {method} failed: {url} ({e})")
+                    self.logger.debug(f"Αποτυχία HTTP {method}: {url} ({e})")
                 return None
 
     def add_finding(self, finding: Finding) -> None:
@@ -456,9 +504,31 @@ class BugHunter:
 
     def _format_live_finding(self, f: Finding) -> str:
         details = (f.details or "").replace("\n", " ").strip()
-        if len(details) > 220:
-            details = details[:217] + "..."
-        return f"[LIVE][{f.severity}] {f.category} @ {f.url} :: {details}"
+        if len(details) > 200:
+            details = details[:197] + "..."
+        # Show only the path portion to avoid repeating the host on every line
+        try:
+            parsed = urlparse(f.url)
+            path_part = parsed.path or "/"
+            if parsed.query:
+                path_part += "?" + parsed.query
+        except Exception:
+            path_part = f.url
+        return f"[{f.severity}] {f.category} {path_part} — {details}"
+
+    def _print_live_finding(self, f: Finding) -> None:
+        """Print a color-coded live finding line to stdout."""
+        SEV_COLORS = {
+            "Critical": "\033[1;31m",  # bold red
+            "High":     "\033[31m",    # red
+            "Medium":   "\033[33m",    # yellow
+            "Low":      "\033[32m",    # green
+            "Info":     "\033[90m",    # dark grey
+        }
+        RESET = "\033[0m"
+        color = SEV_COLORS.get(f.severity, "")
+        line = self._format_live_finding(f)
+        print(f"{color}{line}{RESET}", flush=True)
 
     def _write_partial_checkpoint(self) -> Optional[Path]:
         if not self.checkpoint_every:
@@ -475,7 +545,7 @@ class BugHunter:
             out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             return out
         except Exception as e:
-            self.logger.debug(f"Live checkpoint write failed: {e}")
+            self.logger.debug(f"Αποτυχία εγγραφής live checkpoint: {e}")
             return None
 
     async def _live_finding_consumer(self) -> None:
@@ -487,7 +557,7 @@ class BugHunter:
 
             # Stream to console (severity-filtered)
             if self.live_mode and severity_meets_threshold(item.severity, self.live_min_severity):
-                self.logger.info(self._format_live_finding(item))
+                self._print_live_finding(item)
 
             # Stream to JSONL (all findings)
             if self._stream_fp is not None:
@@ -500,7 +570,7 @@ class BugHunter:
             if self.checkpoint_every and (self._live_processed_count % self.checkpoint_every == 0):
                 cp = self._write_partial_checkpoint()
                 if cp is not None:
-                    self.logger.info(f"[LIVE] checkpoint updated: {cp}")
+                    self.logger.info(f"[LIVE] ενημερώθηκε checkpoint: {cp}")
 
     async def _live_stats_ticker(self) -> None:
         if self.live_stats_interval <= 0:
@@ -540,14 +610,14 @@ class BugHunter:
                 "live_min_severity": self.live_min_severity,
             }, ensure_ascii=False) + "\n")
             self._stream_fp.flush()
-            self.logger.info(f"Live JSONL stream enabled: {stream_path}")
+            self.logger.info(f"Ενεργοποιήθηκε live JSONL stream: {stream_path}")
 
         self._live_task = asyncio.create_task(self._live_finding_consumer())
         if self.live_stats_interval > 0:
             self._stats_task = asyncio.create_task(self._live_stats_ticker())
 
         if self.live_mode:
-            self.logger.info(f"Live finding stream enabled (min severity: {self.live_min_severity})")
+            self.logger.info(f"Ενεργοποιήθηκε ζωντανή ροή ευρημάτων (ελάχιστη σοβαρότητα: {self.live_min_severity})")
 
     async def _stop_live_pipeline(self) -> None:
         self._live_stop_event.set()
@@ -556,7 +626,7 @@ class BugHunter:
             try:
                 await self._stats_task
             except Exception as e:
-                self.logger.debug(f"Live stats task shutdown error: {e}")
+                self.logger.debug(f"Σφάλμα τερματισμού live stats task: {e}")
             self._stats_task = None
 
         if self._live_task is not None and self._finding_queue is not None:
@@ -564,7 +634,7 @@ class BugHunter:
                 await self._finding_queue.put(None)
                 await self._live_task
             except Exception as e:
-                self.logger.debug(f"Live finding task shutdown error: {e}")
+                self.logger.debug(f"Σφάλμα τερματισμού live finding task: {e}")
             self._live_task = None
 
         if self.checkpoint_every > 0 and len(self._findings) > 0:
@@ -669,9 +739,9 @@ class BugHunter:
                     category="Possible_Secret_Leak",
                     severity="High" if name in ("Private_Key_Block",) else "Medium",
                     url=where,
-                    details=f"Pattern matched: {name}",
+                    details=f"Το μοτίβο ταιριάζει: {name}",
                     evidence=(pat.search(blob).group(0)[:80] if pat.search(blob) else ""),
-                    remediation="Remove secrets from client-facing files; rotate/revoke exposed credentials; add secret scanning to CI."
+                    remediation="Αφαίρεσε secrets από αρχεία που σερβίρονται δημόσια· κάνε rotate/revoke εκτεθειμένα credentials· πρόσθεσε secret scanning στο CI."
                 ))
 
     # ---------- individual checks ----------
@@ -691,8 +761,8 @@ class BugHunter:
                 category="DNS_Resolution_Failed",
                 severity="Low",
                 url=self.base_url,
-                details=f"Failed to resolve hostname: {e}",
-                remediation="Check DNS records and availability."
+                details=f"Αποτυχία επίλυσης hostname: {e}",
+                remediation="Έλεγξε τα DNS records και τη διαθεσιμότητα."
             ))
 
         # Additional records via dnspython if available
@@ -724,8 +794,8 @@ class BugHunter:
                         category="Email_SPF_Missing",
                         severity="Info",
                         url=self.hostname,
-                        details="No SPF record detected (v=spf1) on apex/host.",
-                        remediation="Publish an SPF record if the domain sends email; verify alignment with your mail providers."
+                        details="Δεν εντοπίστηκε SPF record (v=spf1) στο apex/host.",
+                        remediation="Δημοσίευσε SPF record αν το domain στέλνει email· επιβεβαίωσε ευθυγράμμιση με τους παρόχους mail."
                     ))
                 dmarc = _txt(f"_dmarc.{self.hostname}")
                 if not any("v=dmarc1" in t.lower() for t in dmarc):
@@ -733,8 +803,8 @@ class BugHunter:
                         category="Email_DMARC_Missing",
                         severity="Info",
                         url=self.hostname,
-                        details="No DMARC record detected at _dmarc.",
-                        remediation="Publish a DMARC policy (start with p=none) to improve spoofing resistance."
+                        details="Δεν εντοπίστηκε DMARC record στο _dmarc.",
+                        remediation="Δημοσίευσε πολιτική DMARC (ξεκίνα με p=none) για καλύτερη προστασία από spoofing."
                     ))
 
                 # CAA
@@ -746,12 +816,12 @@ class BugHunter:
                         category="CAA_Missing",
                         severity="Info",
                         url=self.hostname,
-                        details="No CAA record detected.",
-                        remediation="Consider publishing CAA to restrict which CAs can issue certificates for the domain."
+                        details="Δεν εντοπίστηκε CAA record.",
+                        remediation="Σκέψου να δημοσιεύσεις CAA για να περιορίσεις ποιοι CA μπορούν να εκδίδουν πιστοποιητικά για το domain."
                     ))
 
             except Exception as e:
-                self.logger.debug(f"DNS extra checks skipped: {e}")
+                self.logger.debug(f"Παραλείφθηκαν επιπλέον DNS έλεγχοι: {e}")
 
         self.scope.resolved_ips = sorted(ips)
 
@@ -779,7 +849,7 @@ class BugHunter:
                 category="TLS_Handshake_Failed",
                 severity="Low",
                 url=f"{host}:{port}",
-                details=f"TLS connection failed: {e}",
+                details=f"Αποτυχία σύνδεσης TLS: {e}",
                 remediation="Check certificate validity and TLS configuration."
             ))
             return
@@ -790,7 +860,7 @@ class BugHunter:
             category="TLS_Info",
             severity="Info",
             url=f"{host}:{port}",
-            details=f"Negotiated {tls_ver} with cipher {cipher}",
+            details=f"Συμφωνήθηκε {tls_ver} με cipher {cipher}",
         ))
 
         cert = info.get("cert") or {}
@@ -802,19 +872,19 @@ class BugHunter:
             days = (exp - datetime.now(timezone.utc)).days
             if days < 0:
                 sev = "High"
-                det = f"Certificate expired {abs(days)} days ago (expired on {exp.date()})"
+                det = f"Το πιστοποιητικό έληξε πριν από {abs(days)} ημέρες (έληξε στις {exp.date()})"
             elif days <= 14:
                 sev = "Medium"
-                det = f"Certificate expires soon ({days} days left, on {exp.date()})"
+                det = f"Το πιστοποιητικό λήγει σύντομα ({days} ημέρες απομένουν, στις {exp.date()})"
             else:
                 sev = "Info"
-                det = f"Certificate valid until {exp.date()} ({days} days left)"
+                det = f"Το πιστοποιητικό ισχύει έως {exp.date()} ({days} ημέρες απομένουν)"
             self.add_finding(Finding(
                 category="TLS_Certificate_Expiry",
                 severity=sev,
                 url=f"{host}:{port}",
                 details=det,
-                remediation="Renew and deploy a valid certificate before expiration; automate renewals where possible."
+                remediation="Ανανέωσε και εγκατέστησε έγκυρο πιστοποιητικό πριν λήξει· αυτοματοποίησε τις ανανεώσεις όπου γίνεται."
             ))
         except Exception:
             pass
@@ -837,14 +907,13 @@ class BugHunter:
         return body, headers, [c for c in cookies if c], final_url
 
     async def check_security_headers(self, headers: Dict[str, str], url: str) -> None:
-        for key, (title, remediation) in SEC_HEADERS.items():
+        for key, (title, severity) in SEC_HEADERS.items():
             if key not in headers:
                 self.add_finding(Finding(
                     category="Missing_Security_Header",
-                    severity="Low" if key in ("referrer-policy", "permissions-policy", "cross-origin-resource-policy", "cross-origin-opener-policy", "cross-origin-embedder-policy") else "Medium",
+                    severity=severity,
                     url=url,
-                    details=f"Missing header: {key} ({title})",
-                    remediation=remediation
+                    details=f"Λείπει header: {key} ({title})",
                 ))
 
         # Cookie flags
@@ -914,9 +983,172 @@ class BugHunter:
                         url=url,
                         details=f"Response contains indicators of {vname.replace('_', ' ')}",
                         evidence=pat.pattern[:120],
-                        remediation="Review error handling and disable verbose debug output in production."
+                        remediation="Έλεγξε το error handling και απενεργοποίησε τα αναλυτικά debug μηνύματα σε production."
                     ))
                     break
+
+    async def check_server_disclosure(self, headers: Dict[str, str], url: str) -> None:
+        """Nikto-style: flag verbose Server/X-Powered-By banners and ETag inode leaks."""
+        server = headers.get("server", "")
+        if server:
+            # Flag if version number is present (e.g. "Apache/2.4.51")
+            if re.search(r"[\d.]{3,}", server):
+                self.add_finding(Finding(
+                    category="Server_Version_Disclosure",
+                    severity="Low",
+                    url=url,
+                    details=f"Server header exposes version: {server}",
+                ))
+            else:
+                self.add_finding(Finding(
+                    category="Server_Header",
+                    severity="Info",
+                    url=url,
+                    details=f"Server: {server}",
+                ))
+
+        xpb = headers.get("x-powered-by", "")
+        if xpb:
+            self.add_finding(Finding(
+                category="X_Powered_By_Disclosure",
+                severity="Low",
+                url=url,
+                details=f"X-Powered-By header exposes technology: {xpb}",
+            ))
+
+        # ETag inode leak (Apache default: inode-mtime-size)
+        etag = headers.get("etag", "")
+        if etag and re.match(r'"[0-9a-f]{5,}-[0-9a-f]+-[0-9a-f]+"', etag):
+            self.add_finding(Finding(
+                category="ETag_Inode_Disclosure",
+                severity="Low",
+                url=url,
+                details=f"ETag may expose inode number: {etag}",
+            ))
+
+        # Uncommon / debug headers
+        suspicious_headers = [
+            "x-debug", "x-debug-token", "x-debug-token-link",
+            "x-aspnet-version", "x-aspnetmvc-version",
+            "x-cf-powered-by", "x-generator", "x-drupal-cache",
+            "x-runtime", "x-rack-cache",
+        ]
+        for h in suspicious_headers:
+            if h in headers:
+                self.add_finding(Finding(
+                    category="Verbose_Header",
+                    severity="Info",
+                    url=url,
+                    details=f"Potentially revealing header: {h}: {headers[h][:120]}",
+                ))
+
+    async def check_clickjacking(self, headers: Dict[str, str], url: str) -> None:
+        """Check both X-Frame-Options and CSP frame-ancestors for clickjacking protection."""
+        xfo = headers.get("x-frame-options", "").lower()
+        csp = headers.get("content-security-policy", "").lower()
+        has_xfo = xfo in ("deny", "sameorigin")
+        has_csp_frame = "frame-ancestors" in csp
+        if not has_xfo and not has_csp_frame:
+            self.add_finding(Finding(
+                category="Clickjacking",
+                severity="Medium",
+                url=url,
+                details="Δεν υπάρχει προστασία clickjacking: λείπουν και τα X-Frame-Options και CSP frame-ancestors.",
+            ))
+
+    async def check_cache_control(self, headers: Dict[str, str], url: str) -> None:
+        """Flag missing or weak Cache-Control on authenticated-looking pages."""
+        cc = headers.get("cache-control", "").lower()
+        pragma = headers.get("pragma", "").lower()
+        # Only flag if the page looks like it could be sensitive
+        sensitive_indicators = any(k in headers for k in ("set-cookie", "authorization", "www-authenticate"))
+        if sensitive_indicators and "no-store" not in cc and "no-cache" not in cc and "no-cache" not in pragma:
+            self.add_finding(Finding(
+                category="Cache_Control_Missing",
+                severity="Low",
+                url=url,
+                details="Σελίδα με cookies/ευαισθησία μπορεί να γίνεται cache: δεν υπάρχει Cache-Control: no-store/no-cache.",
+            ))
+
+    async def check_rate_limiting(self, url: str) -> None:
+        """Probe whether the target enforces any rate limiting."""
+        # Send 15 rapid requests; if none return 429 it likely has no rate limiting
+        hits = 0
+        for _ in range(15):
+            r = await self._request("GET", url)
+            if r and r.status_code == 429:
+                hits += 1
+        if hits == 0:
+            self.add_finding(Finding(
+                category="No_Rate_Limiting",
+                severity="Info",
+                url=url,
+                details="15 γρήγορα αιτήματα δεν επέστρεψαν 429 — πιθανόν να μην υπάρχει rate limiting.",
+            ))
+
+    async def check_http_to_https_redirect(self, url: str) -> None:
+        """Check if HTTP automatically redirects to HTTPS (only relevant for HTTPS targets)."""
+        if not url.startswith("https://"):
+            return
+        http_url = url.replace("https://", "http://", 1)
+        r = await self._request("GET", http_url, follow_redirects=False)
+        if r is None:
+            return
+        if r.status_code in (301, 302, 307, 308):
+            loc = r.headers.get("location", "")
+            if loc.startswith("https://"):
+                return  # good, redirects to HTTPS
+        self.add_finding(Finding(
+            category="HTTP_No_HTTPS_Redirect",
+            severity="Medium",
+            url=http_url,
+            details="Η HTTP έκδοση του site δεν ανακατευθύνει σε HTTPS.",
+        ))
+
+    async def check_csp_quality(self, headers: Dict[str, str], url: str) -> None:
+        """Nikto/nuclei style: flag weak CSP directives like unsafe-inline, unsafe-eval, wildcard."""
+        csp = headers.get("content-security-policy", "")
+        if not csp:
+            return  # already flagged by check_security_headers
+        issues = []
+        if "unsafe-inline" in csp:
+            issues.append("'unsafe-inline' allows inline scripts/styles")
+        if "unsafe-eval" in csp:
+            issues.append("'unsafe-eval' allows eval() and similar")
+        if re.search(r"default-src\s+\*|script-src\s+\*", csp):
+            issues.append("wildcard (*) in script/default-src defeats CSP")
+        if issues:
+            self.add_finding(Finding(
+                category="Weak_CSP",
+                severity="Medium",
+                url=url,
+                details="CSP present but weakened: " + "; ".join(issues),
+            ))
+
+    async def check_favicon_leak(self, url: str) -> None:
+        """Fetch /favicon.ico — its presence and hash can fingerprint the framework."""
+        fav_url = urljoin(self.base_url + "/", "favicon.ico")
+        r = await self._request("GET", fav_url)
+        if r and r.status_code == 200 and r.content:
+            h = hashlib.md5(r.content).hexdigest()
+            # Known favicon hashes mapped to frameworks
+            KNOWN_FAVICONS = {
+                "f7e3d97f404e71d302b3239eef48d5f2": "Apache Tomcat",
+                "6f5902ac237024bdd0c176cb93063dc4": "Nginx default page",
+                "eff4e6e5588eb6e8aa7a03b0d8c94e48": "Cisco IOS",
+                "c5d8f9f0a2c1a0e3b4d9e8c7a6b5f4e3": "Jenkins",
+                "116328": "WordPress",
+            }
+            framework = KNOWN_FAVICONS.get(h, "")
+            detail = f"favicon.ico found (md5={h})"
+            if framework:
+                detail += f" — matches known {framework} favicon"
+            self.add_finding(Finding(
+                category="Favicon_Found",
+                severity="Info",
+                url=fav_url,
+                details=detail,
+            ))
 
     async def check_cors(self, url: str) -> None:
         # Non-destructive: send Origin header and evaluate response.
@@ -934,7 +1166,7 @@ class BugHunter:
                     severity="High",
                     url=url,
                     details="Access-Control-Allow-Origin is '*' while Allow-Credentials is true.",
-                    remediation="Do not combine '*' with credentials. Reflect/allow only trusted origins or disable credentials."
+                    remediation="Μην συνδυάζεις '*' με credentials. Επίτρεψε μόνο έμπιστες origins ή απενεργοποίησε credentials."
                 ))
             else:
                 self.add_finding(Finding(
@@ -942,7 +1174,7 @@ class BugHunter:
                     severity="Low",
                     url=url,
                     details="Access-Control-Allow-Origin is '*'.",
-                    remediation="Consider restricting CORS to trusted origins if the resource is sensitive."
+                    remediation="Αν ο πόρος είναι ευαίσθητος, περιόρισε το CORS σε έμπιστες origins."
                 ))
         elif aco and aco.strip() == origin:
             self.add_finding(Finding(
@@ -951,7 +1183,7 @@ class BugHunter:
                 url=url,
                 details="CORS appears to reflect arbitrary Origin.",
                 evidence=f"Origin: {origin} -> ACAO: {aco}",
-                remediation="Validate Origin against an allowlist; avoid reflecting arbitrary Origin values."
+                remediation="Έλεγξε το Origin με allowlist· απόφυγε το να αντικατοπτρίζεις αυθαίρετες Origin τιμές."
             ))
 
     async def check_http_methods(self, url: str) -> None:
@@ -963,7 +1195,7 @@ class BugHunter:
                 category="HTTP_Methods_Allowed",
                 severity="Info",
                 url=url,
-                details=f"Allow: {allow}"
+                details=f"Επιτρέπονται: {allow}"
             ))
 
         if not self.unsafe_active_tests:
@@ -977,8 +1209,8 @@ class BugHunter:
                     category="Potential_Risky_HTTP_Method",
                     severity="Medium",
                     url=url,
-                    details=f"{m} returned status {rr.status_code}",
-                    remediation="Disable unnecessary HTTP methods on edge/proxy/app servers."
+                    details=f"{m} επέστρεψε status {rr.status_code}",
+                    remediation="Απενεργοποίησε περιττές HTTP μεθόδους σε edge/proxy/app servers."
                 ))
 
     async def check_sensitive_files(self) -> None:
@@ -994,8 +1226,8 @@ class BugHunter:
                     category="Sensitive_File_Exposed",
                     severity=sev,
                     url=url,
-                    details=f"Accessible sensitive path: {path} (HTTP {r.status_code})",
-                    remediation="Remove from web root; deny access at web server; move secrets to env/secret store."
+                    details=f"Προσβάσιμο ευαίσθητο path: {path} (HTTP {r.status_code})",
+                    remediation="Αφαίρεσε το από το web root· απαγόρευσε πρόσβαση στον web server· μετέφερε secrets σε env/secret store."
                 ))
                 try:
                     body = r.text[:20000]
@@ -1009,7 +1241,7 @@ class BugHunter:
                         category="Sensitive_Path_Redirect",
                         severity="Info",
                         url=url,
-                        details=f"{path} redirects to {loc}",
+                        details=f"{path} ανακατευθύνει σε {loc}",
                     ))
 
         await self._run_stream(_check, COMMON_SENSITIVE)
@@ -1040,44 +1272,178 @@ class BugHunter:
                 severity="Info",
                 url=host,
                 details=f"Open TCP ports (connect scan): {', '.join(map(str, self.open_ports))}",
-                remediation="Close or firewall non-essential services; ensure management ports require strong auth."
+                remediation="Κλείσε ή βάλε firewall σε μη απαραίτητες υπηρεσίες· βεβαιώσου ότι οι θύρες διαχείρισης απαιτούν ισχυρό έλεγχο ταυτότητας."
             ))
 
-    async def directory_bruteforce(self, wordlist: List[str]) -> None:
-        # Controlled by --safe-mode (active probes off) and --no-dirb.
+    def _build_dirb_wordlist(
+        self,
+        wordlist: List[str],
+        extensions: Optional[List[str]] = None,
+        force_extensions: bool = False,
+    ) -> List[str]:
+        """
+        Expand wordlist dirsearch-style:
+        - Entries containing %EXT% → one variant per extension replacing %EXT%
+        - force_extensions=True  → append each extension to every bare word too
+        - Deduplicates and preserves order.
+        """
+        exts = extensions or DEFAULT_DIRB_EXTENSIONS
+        seen: Set[str] = set()
+        out: List[str] = []
+
+        def _add(p: str) -> None:
+            p = p.strip("/")
+            if p and p not in seen:
+                seen.add(p)
+                out.append(p)
+
+        for entry in wordlist:
+            entry = entry.strip()
+            if not entry or entry.startswith("#"):
+                continue
+
+            if "%EXT%" in entry:
+                # Replace %EXT% with each extension
+                for ext in exts:
+                    _add(entry.replace("%EXT%", ext))
+            else:
+                _add(entry)
+                if force_extensions and "." not in entry.split("/")[-1]:
+                    for ext in exts:
+                        _add(f"{entry}.{ext}")
+
+        return out
+
+    async def _dirb_404_baseline(self) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Probe a random UUID path to detect wildcard/catch-all responses.
+        Returns (status_code, content_length) so we can filter false positives.
+        """
+        import uuid
+        fake = str(uuid.uuid4()).replace("-", "")[:16]
+        r = await self._request("GET", f"{self.base_url}/{fake}", follow_redirects=False)
+        if r is None:
+            return None, None
+        return r.status_code, len(r.content) if r.content else 0
+
+    async def directory_bruteforce(
+        self,
+        wordlist: List[str],
+        extensions: Optional[List[str]] = None,
+        force_extensions: bool = False,
+        recursive: bool = False,
+        recursion_depth: int = 2,
+        exclude_status: Optional[List[int]] = None,
+    ) -> None:
+        """
+        Dirsearch-style async directory & file brute-forcer.
+
+        Features replicated from dirsearch:
+        - %EXT% keyword expansion per extension
+        - force_extensions: append extensions to every bare word
+        - wildcard/catch-all detection to suppress false positives
+        - recursive scan on discovered directories (up to recursion_depth)
+        - configurable status code exclusions
+        - directory listing detection
+        """
         if not self.unsafe_active_tests:
             self.add_finding(Finding(
                 category="Directory_Bruteforce_Skipped",
                 severity="Info",
                 url=self.base_url,
-                details="Directory brute-force is disabled in safe mode (remove --safe-mode to enable active probes)."
+                details="Το directory brute-force είναι απενεργοποιημένο στο safe mode.",
             ))
             return
 
-        async def _check(seg: str) -> None:
-            url = urljoin(self.base_url + "/", seg.strip("/") + "/")
-            r = await self._request("GET", url, follow_redirects=False)
-            if not r:
-                return
-            if r.status_code in (200, 204, 301, 302, 307, 308, 401, 403):
-                sev = "Low"
-                if r.status_code == 200 and ("index of /" in (r.text or "").lower()):
-                    sev = "Medium"
+        exclude = set(exclude_status or [404, 400])
+        hit_status = {200, 204, 301, 302, 307, 308, 401, 403}
+
+        # Detect wildcard responses (catch-all servers return 200 for everything)
+        wc_status, wc_len = await self._dirb_404_baseline()
+        wildcard_active = wc_status in hit_status if wc_status else False
+        if wildcard_active:
+            self.logger.debug(
+                f"[dirb] Wildcard/catch-all detected (fake path → {wc_status}, {wc_len}b). "
+                "Filtering by response size."
+            )
+
+        paths = self._build_dirb_wordlist(wordlist, extensions=extensions, force_extensions=force_extensions)
+        self.logger.info(f"[dirb] Έλεγχος {len(paths)} paths στο {self.base_url}")
+
+        found_dirs: List[str] = []  # directories to recurse into
+
+        async def _check(path: str, base: str = "") -> None:
+            target_base = base or self.base_url
+            # Try as both a file and a directory
+            variants = [path]
+            # Bare words (no dot in last segment) → also probe with trailing slash
+            last_seg = path.split("/")[-1]
+            if "." not in last_seg and not path.endswith("/"):
+                variants.append(path + "/")
+
+            for variant in variants:
+                url = f"{target_base.rstrip('/')}/{variant.lstrip('/')}"
+                r = await self._request("GET", url, follow_redirects=False)
+                if not r:
+                    continue
+                sc = r.status_code
+                if sc in exclude:
+                    continue
+                if sc not in hit_status:
+                    continue
+
+                # Wildcard filter: if size matches catch-all, skip
+                body_len = len(r.content) if r.content else 0
+                if wildcard_active and sc == wc_status and abs(body_len - (wc_len or 0)) < 50:
+                    continue
+
+                body_text = (r.text or "").lower()
+                is_dir = variant.endswith("/")
+
+                # Directory listing?
+                if sc == 200 and "index of /" in body_text:
                     self.add_finding(Finding(
                         category="Directory_Listing",
-                        severity=sev,
+                        severity="Medium",
                         url=url,
-                        details="Possible directory listing detected (Index of /).",
-                        remediation="Disable directory listing on the web server."
+                        details=f"Ανοικτό directory listing (HTTP {sc})",
                     ))
+                    if recursive and url not in found_dirs:
+                        found_dirs.append(url)
+                    break  # no need to also report Interesting_Path
+
+                # Classify severity
+                if sc in (401, 403):
+                    sev = "Low"    # exists but protected
+                elif sc in (301, 302, 307, 308):
+                    sev = "Low"    # redirect — may be interesting
+                elif sc == 200 and is_dir:
+                    sev = "Medium"
+                    if recursive and url not in found_dirs:
+                        found_dirs.append(url)
+                else:
+                    sev = "Low"
+
                 self.add_finding(Finding(
                     category="Interesting_Path",
                     severity=sev,
                     url=url,
-                    details=f"Potentially interesting path discovered (HTTP {r.status_code})"
+                    details=f"Βρέθηκε path (HTTP {sc}, {body_len}b)",
                 ))
+                break  # found as file or dir, don't double-report
 
-        await self._run_stream(_check, wordlist)
+        await self._run_stream(_check, paths)
+
+        # Recursive scan on discovered directories
+        if recursive and found_dirs and recursion_depth > 1:
+            self.logger.info(f"[dirb] Αναδρομή σε {len(found_dirs)} dirs που βρέθηκαν (βάθος {recursion_depth - 1})")
+            for dir_url in found_dirs:
+                sub_paths = self._build_dirb_wordlist(
+                    wordlist, extensions=extensions, force_extensions=force_extensions
+                )
+                async def _check_sub(path: str, _base: str = dir_url) -> None:
+                    await _check(path, base=_base)
+                await self._run_stream(_check_sub, sub_paths)
 
     async def crawl(self, depth: int = 2, max_pages: int = 200) -> None:
         # Depth-limited BFS. Uses deque for O(1) pops.
@@ -1129,10 +1495,10 @@ class BugHunter:
 
         if self.discovered_urls:
             self.add_finding(Finding(
-                category="Crawl_Σύνοψη",
+                category="Crawl_Summary",
                 severity="Info",
                 url=self.base_url,
-                details=f"Crawled {len(self.discovered_urls)} HTML pages (depth={depth}, max_pages={max_pages})."
+                details=f"Έγινε crawl σε {len(self.discovered_urls)} HTML σελίδες (depth={depth}, max_pages={max_pages})."
             ))
 
     async def analyze_js(self, max_files: int = 50) -> None:
@@ -1167,7 +1533,7 @@ class BugHunter:
                 category="JS_Endpoints_Discovered",
                 severity="Info",
                 url=self.base_url,
-                details=f"Discovered {len(self.discovered_endpoints)} endpoints/URLs from JavaScript.",
+                details=f"Βρέθηκαν {len(self.discovered_endpoints)} endpoints/URLs από JavaScript.",
             ))
 
     async def passive_wayback(self, limit: int = 200) -> None:
@@ -1205,10 +1571,10 @@ class BugHunter:
                     category="Wayback_URLs",
                     severity="Info",
                     url=self.hostname,
-                    details=f"Retrieved {len(urls)} unique URLs from Wayback Machine (limit={limit})."
+                    details=f"Ανακτήθηκαν {len(urls)} μοναδικά URLs από το Wayback Machine (limit={limit})."
                 ))
         except Exception as e:
-            self.logger.debug(f"Wayback parse failed: {e}")
+            self.logger.debug(f"Αποτυχία parsing από Wayback: {e}")
 
     # ---------- bounded streaming runner ----------
 
@@ -1222,9 +1588,9 @@ class BugHunter:
                 await fn(it)
             except Exception as e:
                 if self.debug:
-                    self.logger.exception(f"Task failed for {it}: {e}")
+                    self.logger.exception(f"Αποτυχία εργασίας για {it}: {e}")
                 else:
-                    self.logger.debug(f"Task failed for {it}: {e}")
+                    self.logger.debug(f"Αποτυχία εργασίας για {it}: {e}")
 
         for it in items:
             pending.add(asyncio.create_task(_wrap(it)))
@@ -1255,6 +1621,10 @@ class BugHunter:
         do_js: bool = True,
         do_dirb: bool = False,
         dir_wordlist: Optional[List[str]] = None,
+        dirb_extensions: Optional[List[str]] = None,
+        dirb_force_extensions: bool = False,
+        dirb_recursive: bool = False,
+        dirb_recursion_depth: int = 2,
         do_wayback: bool = False,
     ) -> None:
         await self._start_live_pipeline()
@@ -1266,7 +1636,7 @@ class BugHunter:
     
                 self.logger.info(f"Στόχος: {self.base_url}  (host={self.hostname}, port={self.port or 'default'})")
                 if not self.unsafe_active_tests:
-                    self.logger.info("Ενεργοποιημένο Safe mode: οι ενεργές δοκιμές (probes) απενεργοποιήθηκαν (αφαίρεσε το --safe-mode για επανενεργοποίηση).")
+                    self.logger.info("Ενεργό safe mode: οι ενεργές δοκιμές είναι απενεργοποιημένες (αφαίρεσε το --safe-mode για ενεργοποίηση).")
     
                 if do_dns:
                     await self.resolve_dns()
@@ -1278,14 +1648,20 @@ class BugHunter:
                         category="Target_Unreachable",
                         severity="High",
                         url=self.base_url,
-                        details="Failed to fetch baseline page.",
-                        remediation="Verify the target is reachable and that you have permission to test it."
+                        details="Αποτυχία λήψης της αρχικής (baseline) σελίδας.",
+                        remediation="Επιβεβαίωσε ότι ο στόχος είναι προσβάσιμος και ότι έχεις άδεια να τον ελέγξεις."
                     ))
                 else:
                     if do_headers:
                         await self.check_security_headers(headers, final)
+                        await self.check_server_disclosure(headers, final)
+                        await self.check_clickjacking(headers, final)
+                        await self.check_cache_control(headers, final)
+                        await self.check_csp_quality(headers, final)
+                        await self.check_http_to_https_redirect(final)
                     if do_tech:
                         await self.detect_tech(headers, body, final)
+                        await self.check_favicon_leak(final)
                     await self.check_vuln_patterns(final, body)
                     self._scan_secrets(body, final)
     
@@ -1304,6 +1680,7 @@ class BugHunter:
     
                 if do_methods:
                     await self.check_http_methods(final)
+                    await self.check_rate_limiting(final)
     
                 if do_sensitive:
                     await self.check_sensitive_files()
@@ -1315,7 +1692,13 @@ class BugHunter:
                     await self.analyze_js()
     
                 if do_dirb:
-                    await self.directory_bruteforce(dir_wordlist or DEFAULT_DIR_WORDLIST)
+                    await self.directory_bruteforce(
+                        dir_wordlist or DEFAULT_DIR_WORDLIST,
+                        extensions=dirb_extensions,
+                        force_extensions=dirb_force_extensions,
+                        recursive=dirb_recursive,
+                        recursion_depth=dirb_recursion_depth,
+                    )
     
                 if do_wayback:
                     await self.passive_wayback()
@@ -1411,7 +1794,7 @@ class BugHunter:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Αναφορά Bug Hunter</title>
+<title>Bug Hunter Report</title>
 <style>
 body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }}
 h1 {{ margin: 0 0 8px 0; }}
@@ -1431,11 +1814,11 @@ input {{ padding: 8px; width: 360px; max-width: 100%; border-radius: 10px; borde
 </style>
 </head>
 <body>
-<h1>🐛 Αναφορά Bug Hunter</h1>
-<div class="small">Δημιουργήθηκε: {esc(data['scope']['end_utc'] or now_utc())} (UTC) — Στόχος: {esc(data['scope']['base_url'])}</div>
+<h1>🐛 Bug Hunter Report</h1>
+<div class="small">Generated: {esc(data['scope']['end_utc'] or now_utc())} (UTC) — Target: {esc(data['scope']['base_url'])}</div>
 
 <div class="card">
-<b>Πεδίο (Scope)</b><br>
+<b>Scope</b><br>
 <span class="badge">Host: {esc(data['scope']['hostname'])}</span>
 <span class="badge">IPs: {esc(", ".join(data['scope']['resolved_ips']))}</span>
 <span class="badge">Open Ports: {esc(", ".join(map(str, data.get('open_ports', []))))}</span>
@@ -1445,8 +1828,8 @@ HTTP requests: {data['stats']['http_requests']} — Errors: {data['stats']['http
 </div>
 
 <div class="card">
-<b>Ευρήματα</b> (total: {len(findings)})<br>
-<input id="q" placeholder="Φίλτρο… (σοβαρότητα/κατηγορία/url/κείμενο)" oninput="filter()">
+<b>Findings</b> (total: {len(findings)})<br>
+<input id="q" placeholder="Filter… (severity/category/url/text)" oninput="filter()">
 <table id="t">
 <thead>
 <tr><th>Time (UTC)</th><th>Severity</th><th>Category</th><th>URL</th><th>Details</th></tr>
@@ -1458,7 +1841,7 @@ HTTP requests: {data['stats']['http_requests']} — Errors: {data['stats']['http
 </div>
 
 <div class="card">
-<b>Αρχεία Εξόδου</b><br>
+<b>Outputs</b><br>
 <ul>
   <li>JSON: report.json</li>
   <li>CSV: report.csv</li>
@@ -1483,14 +1866,14 @@ function filter(){{
 
     def export_pdf(self) -> Optional[Path]:
         if reportlab is None:
-            self.logger.info("Παράλειψη εξαγωγής PDF (εγκατέστησε reportlab για ενεργοποίηση).")
+            self.logger.info("PDF export skipped (install reportlab to enable).")
             return None
         try:
             from reportlab.lib.pagesizes import letter
             from reportlab.lib.units import inch
             from reportlab.pdfgen import canvas
         except Exception:
-            self.logger.info("Παράλειψη εξαγωγής PDF (απέτυχε η εισαγωγή του reportlab).")
+            self.logger.info("PDF export skipped (reportlab import failed).")
             return None
 
         out = self.out_dir / "report.pdf"
@@ -1513,14 +1896,14 @@ function filter(){{
         c.setFont("Helvetica-Bold", 16)
         c.drawString(72, h - 72, "Bug Hunter Report")
         c.setFont("Helvetica", 10)
-        c.drawString(72, h - 90, f"Στόχος: {self.scope.base_url}")
-        c.drawString(72, h - 104, f"Δημιουργήθηκε: {self.scope.end_utc or now_utc()} (UTC)")
+        c.drawString(72, h - 90, f"Target: {self.scope.base_url}")
+        c.drawString(72, h - 104, f"Generated: {self.scope.end_utc or now_utc()} (UTC)")
         c.drawString(72, h - 118, f"Host: {self.scope.hostname}  IPs: {', '.join(self.scope.resolved_ips)}")
         c.drawString(72, h - 132, f"Open Ports: {', '.join(map(str, self.open_ports))}")
 
         nonlocal_y = [h - 156]
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(72, nonlocal_y[0], "Σύνοψη")
+        c.drawString(72, nonlocal_y[0], "Summary")
         c.setFont("Helvetica", 10)
         nonlocal_y[0] -= 14
         summary = self._summary()
@@ -1529,16 +1912,16 @@ function filter(){{
 
         nonlocal_y[0] -= 8
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(72, nonlocal_y[0], "Ευρήματα (sorted by severity)")
+        c.drawString(72, nonlocal_y[0], "Findings (sorted by severity)")
         c.setFont("Helvetica", 9)
         nonlocal_y[0] -= 12
 
         for fnd in self.findings():
             draw_wrapped(72, nonlocal_y[0], f"[{fnd.severity}] {fnd.category} — {fnd.url}", width_chars=110, leading=11)
             if fnd.details:
-                draw_wrapped(90, nonlocal_y[0], f"Λεπτομέρειες: {fnd.details}", width_chars=105, leading=11)
+                draw_wrapped(90, nonlocal_y[0], f"Details: {fnd.details}", width_chars=105, leading=11)
             if fnd.remediation:
-                draw_wrapped(90, nonlocal_y[0], f"Διόρθωση: {fnd.remediation}", width_chars=105, leading=11)
+                draw_wrapped(90, nonlocal_y[0], f"Fix: {fnd.remediation}", width_chars=105, leading=11)
             nonlocal_y[0] -= 6
 
         c.save()
@@ -1549,49 +1932,53 @@ function filter(){{
 
 def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Bug Hunter (χωρίς root) — εξουσιοδοτημένος σαρωτής recon & λανθασμένων ρυθμίσεων",
+        description="Bug Hunter (χωρίς root) — εξουσιοδοτημένο recon & έλεγχος λανθασμένων ρυθμίσεων",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    p.add_argument("target", help="URL στόχου ή hostname (υποτίθεται https αν παραλειφθεί το scheme)")
+    p.add_argument("target", help="URL στόχου ή hostname (αν λείπει το scheme, υποθέτουμε https)")
     p.add_argument("-o", "--output", default="bughunter_out", help="Φάκελος εξόδου")
-    p.add_argument("--quick", action="store_true", help="Γρήγορη σάρωση (μικρότερο βάθος, λιγότερα probes)")
-    p.add_argument("--full", action="store_true", help="Πλήρης σάρωση (βαθύτερο crawl, περισσότερη ανακάλυψη)")
-    p.add_argument("--timeout", type=float, default=12.0, help="Χρονικό όριο (timeout) HTTP/TCP σε δευτερόλεπτα")
+    p.add_argument("--quick", action="store_true", help="Γρήγορο scan (μικρότερο βάθος, λιγότεροι έλεγχοι)")
+    p.add_argument("--full", action="store_true", help="Πλήρες scan (πιο βαθύ crawl, περισσότερη ανακάλυψη)")
+    p.add_argument("--timeout", type=float, default=12.0, help="Timeout HTTP/TCP σε δευτερόλεπτα")
     p.add_argument("-c", "--concurrency", type=int, default=30, help="Μέγιστος αριθμός ταυτόχρονων εργασιών")
-    p.add_argument("--rate", type=float, default=0.0, help="Προαιρετικός ρυθμός (αιτήσεις/δευτ., 0=κλειστό)")
-    p.add_argument("--live", action="store_true", help="Ροή νέων ευρημάτων σε πραγματικό χρόνο κατά τη σάρωση")
-    p.add_argument("--stream-jsonl", action="store_true", help="Γράψε ζωντανά ευρήματα στο findings.jsonl καθώς εντοπίζονται")
+    p.add_argument("--rate", type=float, default=0.0, help="Προαιρετικό όριο ρυθμού (αιτήματα/δευτ., 0=off)")
+    p.add_argument("--live", action="store_true", help="Ζωντανή προβολή νέων ευρημάτων κατά το scan")
+    p.add_argument("--stream-jsonl", action="store_true", help="Αποθήκευση ζωντανών ευρημάτων σε findings.jsonl καθώς βρίσκονται")
     p.add_argument("--live-min-severity", default="Info", help="Ελάχιστη σοβαρότητα για εμφάνιση στο --live (Critical|High|Medium|Low|Info)")
-    p.add_argument("--live-stats-interval", type=float, default=0.0, help="Εμφάνιση περιοδικών στατιστικών κάθε N δευτ. (0=κλειστό)")
-    p.add_argument("--checkpoint-every", type=int, default=0, help="Γράψε report.partial.json κάθε N νέα ευρήματα (0=κλειστό)")
+    p.add_argument("--live-stats-interval", type=float, default=0.0, help="Εμφάνιση περιοδικών στατιστικών κάθε N δευτ. (0=off)")
+    p.add_argument("--checkpoint-every", type=int, default=0, help="Εγγραφή report.partial.json κάθε N νέα ευρήματα (0=off)")
     p.add_argument("--user-agent", default="BugHunter/4 (authorized-testing)", help="Κεφαλίδα User-Agent")
-    p.add_argument("--no-port-scan", action="store_true", help="Απενεργοποίηση port scan μέσω connect")
-    p.add_argument("--ports", default="", help="Θύρες προς σάρωση χωρισμένες με κόμμα (κενό=προεπιλογή)")
+    p.add_argument("--no-port-scan", action="store_true", help="Απενεργοποίηση ελέγχου θυρών με connect")
+    p.add_argument("--ports", default="", help="Θύρες για έλεγχο (διαχωρισμένες με κόμμα, κενό=προεπιλογή)")
     p.add_argument("--crawl-depth", type=int, default=2, help="Βάθος crawl (0 απενεργοποιεί το crawling)")
     p.add_argument("--max-pages", type=int, default=200, help="Μέγιστος αριθμός σελίδων για crawl")
     p.add_argument("--no-js", action="store_true", help="Απενεργοποίηση ανάλυσης JS")
     p.add_argument("--no-dns", action="store_true", help="Απενεργοποίηση ελέγχων DNS")
     p.add_argument("--no-tls", action="store_true", help="Απενεργοποίηση ελέγχων TLS")
-    p.add_argument("--no-sensitive", action="store_true", help="Απενεργοποίηση ελέγχων ευαίσθητων αρχείων")
+    p.add_argument("--no-sensitive", action="store_true", help="Απενεργοποίηση ελέγχου ευαίσθητων αρχείων")
     p.add_argument("--no-cors", action="store_true", help="Απενεργοποίηση ελέγχου CORS")
     p.add_argument("--no-methods", action="store_true", help="Απενεργοποίηση ελέγχου HTTP μεθόδων")
     # Enabled by default; use --no-dirb to disable.
     dirb_group = p.add_mutually_exclusive_group()
-    dirb_group.add_argument("--dirb", dest="dirb", action="store_true", help="Ενεργοποίηση brute-force φακέλων")
-    dirb_group.add_argument("--no-dirb", dest="dirb", action="store_false", help="Απενεργοποίηση brute-force φακέλων")
-    p.add_argument("--dirb-wordlist", default="", help="Προαιρετικό αρχείο wordlist για dirb")
+    dirb_group.add_argument("--dirb", dest="dirb", action="store_true", help="Ενεργοποίηση directory brute-force")
+    dirb_group.add_argument("--no-dirb", dest="dirb", action="store_false", help="Απενεργοποίηση directory brute-force")
+    p.add_argument("--dirb-wordlist", default="", help="Προαιρετικό custom wordlist αρχείο για dirb")
+    p.add_argument("--dirb-extensions", default="", help="Επεκτάσεις για δοκιμή (με κόμμα, π.χ. php,html,js). Προεπιλογή: ενσωματωμένη λίστα")
+    p.add_argument("--dirb-force-extensions", action="store_true", help="Προσθήκη επεκτάσεων σε κάθε entry του wordlist (στυλ dirsearch -f)")
+    p.add_argument("--dirb-recursive", action="store_true", help="Αναδρομικό scan σε directories που βρέθηκαν")
+    p.add_argument("--dirb-recursion-depth", type=int, default=2, help="Μέγιστο βάθος αναδρομής για --dirb-recursive")
     # Enabled by default; use --no-wayback to disable.
     wb_group = p.add_mutually_exclusive_group()
-    wb_group.add_argument("--wayback", dest="wayback", action="store_true", help="Ενεργοποίηση παθητικής ανακάλυψης URLs μέσω Wayback (εξωτερική υπηρεσία)")
-    wb_group.add_argument("--no-wayback", dest="wayback", action="store_false", help="Απενεργοποίηση ανακάλυψης URLs μέσω Wayback")
+    wb_group.add_argument("--wayback", dest="wayback", action="store_true", help="Ενεργοποίηση παθητικής ανακάλυψης URL από Wayback (εξωτερική υπηρεσία)")
+    wb_group.add_argument("--no-wayback", dest="wayback", action="store_false", help="Απενεργοποίηση ανακάλυψης URL από Wayback")
 
     # Active probes are enabled by default; use --safe-mode to disable.
     active_group = p.add_mutually_exclusive_group()
     active_group.add_argument("--unsafe-active-tests", dest="unsafe_active_tests", action="store_true",
-                              help="Ενεργοποίηση ενεργών probes (dirb, έλεγχος ριψοκίνδυνων μεθόδων)")
+                              help="Ενεργοποίηση ενεργών δοκιμών (dirb, έλεγχος ριψοκίνδυνων μεθόδων)")
     active_group.add_argument("--safe-mode", dest="unsafe_active_tests", action="store_false",
-                              help="Απενεργοποίηση ενεργών probes (πιο ασφαλής/παθητική συμπεριφορά)")
-    p.add_argument("--debug", action="store_true", help="Αναλυτικό debug logging")
+                              help="Απενεργοποίηση ενεργών δοκιμών (πιο ασφαλής/παθητική συμπεριφορά)")
+    p.add_argument("--debug", action="store_true", help="Αναλυτικά debug logs")
     p.set_defaults(dirb=True, wayback=True, unsafe_active_tests=True)
     return p.parse_args(argv)
 
@@ -1657,6 +2044,10 @@ async def main_async(args: argparse.Namespace) -> int:
     if args.dirb_wordlist:
         dir_wordlist = read_wordlist(args.dirb_wordlist)
 
+    dirb_extensions = None
+    if args.dirb_extensions.strip():
+        dirb_extensions = [e.strip().lstrip(".") for e in args.dirb_extensions.split(",") if e.strip()]
+
     await hunter.scan(
         do_ports=not args.no_port_scan,
         ports=ports,
@@ -1673,6 +2064,10 @@ async def main_async(args: argparse.Namespace) -> int:
         do_js=not args.no_js,
         do_dirb=args.dirb,
         dir_wordlist=dir_wordlist,
+        dirb_extensions=dirb_extensions,
+        dirb_force_extensions=args.dirb_force_extensions,
+        dirb_recursive=args.dirb_recursive,
+        dirb_recursion_depth=args.dirb_recursion_depth,
         do_wayback=args.wayback,
     )
 
@@ -1683,25 +2078,99 @@ async def main_async(args: argparse.Namespace) -> int:
     p = hunter.export_pdf()
 
     logger = hunter.logger
-    logger.info(f"Γράφτηκε: {j}")
-    logger.info(f"Γράφτηκε: {c}")
-    logger.info(f"Γράφτηκε: {h}")
+    logger.info(f"Wrote: {j}")
+    logger.info(f"Wrote: {c}")
+    logger.info(f"Wrote: {h}")
     if p:
-        logger.info(f"Γράφτηκε: {p}")
+        logger.info(f"Wrote: {p}")
     if args.stream_jsonl:
-        logger.info(f"Γράφτηκε: {out_dir / 'findings.jsonl'}")
+        logger.info(f"Wrote: {out_dir / 'findings.jsonl'}")
     if args.checkpoint_every > 0 and (out_dir / 'report.partial.json').exists():
-        logger.info(f"Γράφτηκε: {out_dir / 'report.partial.json'}")
+        logger.info(f"Wrote: {out_dir / 'report.partial.json'}")
 
     # Console summary
     fs = hunter.findings()
     sev_counts = Counter(f.severity for f in fs)
     top = ", ".join([f"{k}={sev_counts.get(k,0)}" for k in ["Critical","High","Medium","Low","Info"]])
-    logger.info(f"Ευρήματα: {len(fs)} ({top})")
+    logger.info(f"Findings: {len(fs)} ({top})")
     return 0
 
 
+def _ask(prompt: str, default: str = "") -> str:
+    """Prompt user for input with an optional default."""
+    if default:
+        display = f"  {prompt} [{default}]: "
+    else:
+        display = f"  {prompt}: "
+    try:
+        val = input(display).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return val if val else default
+
+
+def _ask_yes_no(prompt: str, default: bool = True) -> bool:
+    hint = "Y/n" if default else "y/N"
+    val = _ask(f"{prompt} ({hint})")
+    if not val:
+        return default
+    return val.lower().startswith("y")
+
+
+def interactive_prompt() -> List[str]:
+    """Walk the user through minimal scan configuration and return argv list."""
+    sep = "-" * 50
+    print(sep)
+    print("  Bug Hunter  |  μόνο για εξουσιοδοτημένο έλεγχο")
+    print(sep)
+
+    argv: List[str] = []
+
+    while True:
+        target = _ask("URL στόχου ή hostname")
+        if target:
+            break
+        print("  Απαιτείται στόχος.\n")
+    argv.append(target)
+
+    print()
+    print("  Προφίλ σάρωσης:")
+    print("    1) Standard  - προεπιλεγμένο βάθος & σελίδες")
+    print("    2) Quick     - ρηχή σάρωση, λιγότεροι έλεγχοι")
+    print("    3) Full      - βαθύ crawl, περισσότερη ανακάλυψη")
+    profile = _ask("  Επιλογή [1/2/3]", default="1")
+    if profile == "2":
+        argv.append("--quick")
+    elif profile == "3":
+        argv.append("--full")
+
+    argv.append("--live")
+
+    profile_label = {"1": "Standard", "2": "Quick", "3": "Full"}.get(profile, "Standard")
+    print()
+    print(f"  Target  : {target}")
+    print(f"  Profile : {profile_label}  |  Live: ON  |  All checks: ON")
+    print()
+
+    go = _ask_yes_no("  Έναρξη σάρωσης;", default=True)
+    if not go:
+        print("  Ακυρώθηκε.")
+        raise SystemExit(0)
+
+    print()
+    return argv
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    # If called with no arguments (interactive mode), walk the user through setup
+    if argv is None and len(sys.argv) == 1:
+        try:
+            argv = interactive_prompt()
+        except KeyboardInterrupt:
+            print("\n\n  Διακόπηκε. Αντίο!\n")
+            return 130
+
     args = parse_args(argv)
 
     # Ensure required deps (auto-install missing ones if possible)
