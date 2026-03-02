@@ -113,13 +113,13 @@ The toolkit is organized into the following categories and tools:
 
 - **Developer Base:** 8 tools
 - **Network Tools:** 10 tools
-- **Other Tools:** 5 tools
+- **Other Tools:** 6 tools
 - **Games:** 5 tools
 - **Personal Information Capture:** 17 tools
 - **Social Media Fake Pages:** 25 tools
 - **No Category:** 2 tools
 
-**Total listed on tools page:** 72 tools
+**Total listed on tools page:** 73 tools
 ## 🧑‍💻 Developer Base
 
 1. **File Converter**: A powerful file converter supporting 40+ formats.
@@ -273,6 +273,9 @@ These scripts are **training simulations** intended to help you recognize social
 
 5. **Termux Repair Wizard**: Troubleshooting wizard for Termux: checks common issues (mirrors, packages, permissions), suggests fixes, and runs safe repair commands step-by-step.
     * *Save Location Scan folders created in current directory (scan_[target]_[date])*
+
+6. **FaveSites.py**: A lightweight Termux bookmark manager that saves and organizes your favorite websites for quick access.
+    * *Save Location Saved in your Termux home folder at: `~/FaveSites/` (auto-created if it doesn’t exist).* 
 
 
 ## 📁 No Category
