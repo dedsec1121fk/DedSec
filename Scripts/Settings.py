@@ -861,7 +861,13 @@ def change_language():
 
     current_style = get_current_menu_style()
     update_bashrc(target_path, current_style)
-    
+
+    # Apply immediately for the current session too
+    try:
+        os.chdir(target_path)
+    except Exception:
+        pass
+
     print(f"\n[+] {_('Language set to')} {language.capitalize()}. {_('Bash configuration updated.')}")
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 
@@ -886,6 +892,10 @@ def browse_directory_list_menu(current_path, base_path):
     
     for entry in sorted(os.listdir(listing_dir)):
         if entry.startswith('.'):
+            continue
+
+        # Hide the Greek folder entry when English is selected (even if it couldn't be renamed)
+        if get_current_display_language() == 'english' and os.path.abspath(listing_dir) == os.path.abspath(ENGLISH_BASE_PATH) and entry in (GREEK_FOLDER_NAME, HIDDEN_GREEK_FOLDER):
             continue
             
         full_path = os.path.join(listing_dir, entry)
@@ -1013,7 +1023,12 @@ def run_number_menu():
             entries = []
 
         for entry in entries:
-            if entry.startswith('.'): continue
+            if entry.startswith('.'):
+                continue
+
+            # Hide the Greek folder entry when English is selected (even if it couldn't be renamed)
+            if get_current_display_language() == 'english' and os.path.abspath(listing_dir) == os.path.abspath(ENGLISH_BASE_PATH) and entry in (GREEK_FOLDER_NAME, HIDDEN_GREEK_FOLDER):
+                continue
             full_path = os.path.join(listing_dir, entry)
             
             if os.path.isdir(full_path):
@@ -1110,6 +1125,10 @@ def list_directory_entries(path, base_path):
     
     for entry in sorted(os.listdir(listing_dir)):
         if entry.startswith('.'):
+            continue
+
+        # Hide the Greek folder entry when English is selected (even if it couldn't be renamed)
+        if get_current_display_language() == 'english' and os.path.abspath(listing_dir) == os.path.abspath(ENGLISH_BASE_PATH) and entry in (GREEK_FOLDER_NAME, HIDDEN_GREEK_FOLDER):
             continue
             
         full_path = os.path.join(listing_dir, entry)
