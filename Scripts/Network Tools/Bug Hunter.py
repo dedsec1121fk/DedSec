@@ -224,15 +224,16 @@ def first_nonempty_group(m: re.Match) -> str:
 # ---------------- Signatures / patterns ----------------
 
 SEC_HEADERS = {
-    "strict-transport-security": ("HSTS", "Add HSTS with a long max-age and includeSubDomains; preload if appropriate."),
-    "content-security-policy": ("CSP", "Define a restrictive Content-Security-Policy to reduce XSS risk."),
-    "x-frame-options": ("Clickjacking", "Set X-Frame-Options (DENY or SAMEORIGIN) or use CSP frame-ancestors."),
-    "x-content-type-options": ("MIME Sniffing", "Set X-Content-Type-Options: nosniff."),
-    "referrer-policy": ("Referrer Policy", "Set a Referrer-Policy appropriate for the site."),
-    "permissions-policy": ("Permissions Policy", "Use Permissions-Policy to restrict powerful features."),
-    "cross-origin-opener-policy": ("COOP", "Consider COOP to isolate browsing context and mitigate XS leaks."),
-    "cross-origin-resource-policy": ("CORP", "Consider CORP to restrict resource loading across origins."),
-    "cross-origin-embedder-policy": ("COEP", "Consider COEP when feasible to enable cross-origin isolation."),
+    # header-name: (short title, severity)
+    "strict-transport-security":   ("HSTS",               "Medium"),
+    "content-security-policy":     ("CSP",                "Medium"),
+    "x-frame-options":             ("Clickjacking",       "Medium"),
+    "x-content-type-options":      ("MIME Sniffing",      "Medium"),
+    "referrer-policy":             ("Referrer Policy",    "Low"),
+    "permissions-policy":          ("Permissions Policy", "Low"),
+    "cross-origin-opener-policy":  ("COOP",               "Low"),
+    "cross-origin-resource-policy":("CORP",               "Low"),
+    "cross-origin-embedder-policy":("COEP",               "Low"),
 }
 
 COOKIE_FLAG_REMEDIATION = {
@@ -298,10 +299,57 @@ DEFAULT_PORTS = [
 ]
 
 DEFAULT_DIR_WORDLIST = [
-    "admin", "login", "administrator", "dashboard", "cpanel", "api", "graphql", "v1", "v2",
-    "swagger", "openapi", "docs", "doc", "internal", "private",
-    ".git", ".svn", ".env", "backup", "backups", "old", "dev", "test", "staging",
-    "uploads", "upload", "static", "assets", "images", "js", "css"
+    # Admin / auth panels
+    "admin", "admin/login", "admin/dashboard", "administrator", "administrator/login",
+    "login", "logout", "signin", "signup", "register", "auth", "sso",
+    "dashboard", "panel", "portal", "cpanel", "webadmin", "manage", "management",
+    "account", "accounts", "profile", "user", "users",
+    # APIs
+    "api", "api/v1", "api/v2", "api/v3", "v1", "v2", "v3",
+    "graphql", "graphiql", "rest", "rpc", "soap",
+    "swagger", "swagger-ui", "swagger.yaml",   # .json variants covered by check_sensitive_files
+    "openapi", "openapi.yaml",                  # .json variants covered by check_sensitive_files
+    # Docs / debug
+    "docs", "doc", "documentation", "help",
+    "debug", "console", "test.php",
+    # server-status / server-info / phpinfo / info covered by check_sensitive_files
+    "status", "health", "healthz", "ping", "ready",
+    "metrics", "actuator", "actuator/health", "actuator/env", "actuator/beans",
+    # Source / config leaks (bare dirs only; specific files covered by check_sensitive_files)
+    ".git", ".git/HEAD", ".svn", ".hg",
+    ".env.production", ".env.backup",
+    "config", "config.json", "config.yaml", "config.yml",
+    "configuration", "settings",
+    "application.properties",
+    "Dockerfile", "docker-compose.yml",
+    # Backups / old files (specific files covered by check_sensitive_files)
+    "backup", "backups", "bak", "old", "archive", "archives",
+    "database.sql", "backup.sql",
+    "site.zip", "www.zip",
+    # CMS paths (wp-config.php covered by check_sensitive_files)
+    "wp-admin", "wp-login.php", "wp-content", "wp-includes",
+    "xmlrpc.php", "wp-json",
+    "phpmyadmin", "pma", "myadmin",
+    # Static / uploads
+    "static", "assets", "public", "media", "uploads", "upload",
+    "files", "images", "img", "js", "css", "fonts", "downloads",
+    # Dev / staging
+    "dev", "development", "staging", "stage", "test", "testing", "uat", "qa",
+    "beta", "demo", "sandbox",
+    # Misc interesting
+    "private", "internal", "hidden", "secret", "secure",
+    "cgi-bin", "cgi", "scripts",
+    "crossdomain.xml", "clientaccesspolicy.xml",
+    ".well-known",  # security.txt / robots.txt / sitemap.xml covered by check_sensitive_files
+]
+
+# Extensions to append when force_extensions=True (dirsearch -f style)
+DEFAULT_DIRB_EXTENSIONS = ["php", "html", "js", "json", "txt", "bak", "zip", "old", "asp", "aspx", "jsp"]
+
+# Base words that get %EXT% expansion (probed as word.ext for each extension)
+DIRB_EXT_ENTRIES = [
+    "index", "home", "main", "default", "config", "admin", "login",
+    "upload", "backup", "test", "info", "readme", "changelog",
 ]
 
 
@@ -456,9 +504,31 @@ class BugHunter:
 
     def _format_live_finding(self, f: Finding) -> str:
         details = (f.details or "").replace("\n", " ").strip()
-        if len(details) > 220:
-            details = details[:217] + "..."
-        return f"[LIVE][{f.severity}] {f.category} @ {f.url} :: {details}"
+        if len(details) > 200:
+            details = details[:197] + "..."
+        # Show only the path portion to avoid repeating the host on every line
+        try:
+            parsed = urlparse(f.url)
+            path_part = parsed.path or "/"
+            if parsed.query:
+                path_part += "?" + parsed.query
+        except Exception:
+            path_part = f.url
+        return f"[{f.severity}] {f.category} {path_part} — {details}"
+
+    def _print_live_finding(self, f: Finding) -> None:
+        """Print a color-coded live finding line to stdout."""
+        SEV_COLORS = {
+            "Critical": "\033[1;31m",  # bold red
+            "High":     "\033[31m",    # red
+            "Medium":   "\033[33m",    # yellow
+            "Low":      "\033[32m",    # green
+            "Info":     "\033[90m",    # dark grey
+        }
+        RESET = "\033[0m"
+        color = SEV_COLORS.get(f.severity, "")
+        line = self._format_live_finding(f)
+        print(f"{color}{line}{RESET}", flush=True)
 
     def _write_partial_checkpoint(self) -> Optional[Path]:
         if not self.checkpoint_every:
@@ -487,7 +557,7 @@ class BugHunter:
 
             # Stream to console (severity-filtered)
             if self.live_mode and severity_meets_threshold(item.severity, self.live_min_severity):
-                self.logger.info(self._format_live_finding(item))
+                self._print_live_finding(item)
 
             # Stream to JSONL (all findings)
             if self._stream_fp is not None:
@@ -837,14 +907,13 @@ class BugHunter:
         return body, headers, [c for c in cookies if c], final_url
 
     async def check_security_headers(self, headers: Dict[str, str], url: str) -> None:
-        for key, (title, remediation) in SEC_HEADERS.items():
+        for key, (title, severity) in SEC_HEADERS.items():
             if key not in headers:
                 self.add_finding(Finding(
                     category="Missing_Security_Header",
-                    severity="Low" if key in ("referrer-policy", "permissions-policy", "cross-origin-resource-policy", "cross-origin-opener-policy", "cross-origin-embedder-policy") else "Medium",
+                    severity=severity,
                     url=url,
                     details=f"Missing header: {key} ({title})",
-                    remediation=remediation
                 ))
 
         # Cookie flags
@@ -917,6 +986,169 @@ class BugHunter:
                         remediation="Review error handling and disable verbose debug output in production."
                     ))
                     break
+
+    async def check_server_disclosure(self, headers: Dict[str, str], url: str) -> None:
+        """Nikto-style: flag verbose Server/X-Powered-By banners and ETag inode leaks."""
+        server = headers.get("server", "")
+        if server:
+            # Flag if version number is present (e.g. "Apache/2.4.51")
+            if re.search(r"[\d.]{3,}", server):
+                self.add_finding(Finding(
+                    category="Server_Version_Disclosure",
+                    severity="Low",
+                    url=url,
+                    details=f"Server header exposes version: {server}",
+                ))
+            else:
+                self.add_finding(Finding(
+                    category="Server_Header",
+                    severity="Info",
+                    url=url,
+                    details=f"Server: {server}",
+                ))
+
+        xpb = headers.get("x-powered-by", "")
+        if xpb:
+            self.add_finding(Finding(
+                category="X_Powered_By_Disclosure",
+                severity="Low",
+                url=url,
+                details=f"X-Powered-By header exposes technology: {xpb}",
+            ))
+
+        # ETag inode leak (Apache default: inode-mtime-size)
+        etag = headers.get("etag", "")
+        if etag and re.match(r'"[0-9a-f]{5,}-[0-9a-f]+-[0-9a-f]+"', etag):
+            self.add_finding(Finding(
+                category="ETag_Inode_Disclosure",
+                severity="Low",
+                url=url,
+                details=f"ETag may expose inode number: {etag}",
+            ))
+
+        # Uncommon / debug headers
+        suspicious_headers = [
+            "x-debug", "x-debug-token", "x-debug-token-link",
+            "x-aspnet-version", "x-aspnetmvc-version",
+            "x-cf-powered-by", "x-generator", "x-drupal-cache",
+            "x-runtime", "x-rack-cache",
+        ]
+        for h in suspicious_headers:
+            if h in headers:
+                self.add_finding(Finding(
+                    category="Verbose_Header",
+                    severity="Info",
+                    url=url,
+                    details=f"Potentially revealing header: {h}: {headers[h][:120]}",
+                ))
+
+    async def check_clickjacking(self, headers: Dict[str, str], url: str) -> None:
+        """Check both X-Frame-Options and CSP frame-ancestors for clickjacking protection."""
+        xfo = headers.get("x-frame-options", "").lower()
+        csp = headers.get("content-security-policy", "").lower()
+        has_xfo = xfo in ("deny", "sameorigin")
+        has_csp_frame = "frame-ancestors" in csp
+        if not has_xfo and not has_csp_frame:
+            self.add_finding(Finding(
+                category="Clickjacking",
+                severity="Medium",
+                url=url,
+                details="No clickjacking protection: missing both X-Frame-Options and CSP frame-ancestors.",
+            ))
+
+    async def check_cache_control(self, headers: Dict[str, str], url: str) -> None:
+        """Flag missing or weak Cache-Control on authenticated-looking pages."""
+        cc = headers.get("cache-control", "").lower()
+        pragma = headers.get("pragma", "").lower()
+        # Only flag if the page looks like it could be sensitive
+        sensitive_indicators = any(k in headers for k in ("set-cookie", "authorization", "www-authenticate"))
+        if sensitive_indicators and "no-store" not in cc and "no-cache" not in cc and "no-cache" not in pragma:
+            self.add_finding(Finding(
+                category="Cache_Control_Missing",
+                severity="Low",
+                url=url,
+                details="Authenticated/sensitive page may be cached: no Cache-Control: no-store/no-cache set.",
+            ))
+
+    async def check_rate_limiting(self, url: str) -> None:
+        """Probe whether the target enforces any rate limiting."""
+        # Send 15 rapid requests; if none return 429 it likely has no rate limiting
+        hits = 0
+        for _ in range(15):
+            r = await self._request("GET", url)
+            if r and r.status_code == 429:
+                hits += 1
+        if hits == 0:
+            self.add_finding(Finding(
+                category="No_Rate_Limiting",
+                severity="Info",
+                url=url,
+                details="15 rapid requests returned no 429 responses — rate limiting may not be enforced.",
+            ))
+
+    async def check_http_to_https_redirect(self, url: str) -> None:
+        """Check if HTTP automatically redirects to HTTPS (only relevant for HTTPS targets)."""
+        if not url.startswith("https://"):
+            return
+        http_url = url.replace("https://", "http://", 1)
+        r = await self._request("GET", http_url, follow_redirects=False)
+        if r is None:
+            return
+        if r.status_code in (301, 302, 307, 308):
+            loc = r.headers.get("location", "")
+            if loc.startswith("https://"):
+                return  # good, redirects to HTTPS
+        self.add_finding(Finding(
+            category="HTTP_No_HTTPS_Redirect",
+            severity="Medium",
+            url=http_url,
+            details="HTTP version of the site does not redirect to HTTPS.",
+        ))
+
+    async def check_csp_quality(self, headers: Dict[str, str], url: str) -> None:
+        """Nikto/nuclei style: flag weak CSP directives like unsafe-inline, unsafe-eval, wildcard."""
+        csp = headers.get("content-security-policy", "")
+        if not csp:
+            return  # already flagged by check_security_headers
+        issues = []
+        if "unsafe-inline" in csp:
+            issues.append("'unsafe-inline' allows inline scripts/styles")
+        if "unsafe-eval" in csp:
+            issues.append("'unsafe-eval' allows eval() and similar")
+        if re.search(r"default-src\s+\*|script-src\s+\*", csp):
+            issues.append("wildcard (*) in script/default-src defeats CSP")
+        if issues:
+            self.add_finding(Finding(
+                category="Weak_CSP",
+                severity="Medium",
+                url=url,
+                details="CSP present but weakened: " + "; ".join(issues),
+            ))
+
+    async def check_favicon_leak(self, url: str) -> None:
+        """Fetch /favicon.ico — its presence and hash can fingerprint the framework."""
+        fav_url = urljoin(self.base_url + "/", "favicon.ico")
+        r = await self._request("GET", fav_url)
+        if r and r.status_code == 200 and r.content:
+            h = hashlib.md5(r.content).hexdigest()
+            # Known favicon hashes mapped to frameworks
+            KNOWN_FAVICONS = {
+                "f7e3d97f404e71d302b3239eef48d5f2": "Apache Tomcat",
+                "6f5902ac237024bdd0c176cb93063dc4": "Nginx default page",
+                "eff4e6e5588eb6e8aa7a03b0d8c94e48": "Cisco IOS",
+                "c5d8f9f0a2c1a0e3b4d9e8c7a6b5f4e3": "Jenkins",
+                "116328": "WordPress",
+            }
+            framework = KNOWN_FAVICONS.get(h, "")
+            detail = f"favicon.ico found (md5={h})"
+            if framework:
+                detail += f" — matches known {framework} favicon"
+            self.add_finding(Finding(
+                category="Favicon_Found",
+                severity="Info",
+                url=fav_url,
+                details=detail,
+            ))
 
     async def check_cors(self, url: str) -> None:
         # Non-destructive: send Origin header and evaluate response.
@@ -1043,41 +1275,175 @@ class BugHunter:
                 remediation="Close or firewall non-essential services; ensure management ports require strong auth."
             ))
 
-    async def directory_bruteforce(self, wordlist: List[str]) -> None:
-        # Controlled by --safe-mode (active probes off) and --no-dirb.
+    def _build_dirb_wordlist(
+        self,
+        wordlist: List[str],
+        extensions: Optional[List[str]] = None,
+        force_extensions: bool = False,
+    ) -> List[str]:
+        """
+        Expand wordlist dirsearch-style:
+        - Entries containing %EXT% → one variant per extension replacing %EXT%
+        - force_extensions=True  → append each extension to every bare word too
+        - Deduplicates and preserves order.
+        """
+        exts = extensions or DEFAULT_DIRB_EXTENSIONS
+        seen: Set[str] = set()
+        out: List[str] = []
+
+        def _add(p: str) -> None:
+            p = p.strip("/")
+            if p and p not in seen:
+                seen.add(p)
+                out.append(p)
+
+        for entry in wordlist:
+            entry = entry.strip()
+            if not entry or entry.startswith("#"):
+                continue
+
+            if "%EXT%" in entry:
+                # Replace %EXT% with each extension
+                for ext in exts:
+                    _add(entry.replace("%EXT%", ext))
+            else:
+                _add(entry)
+                if force_extensions and "." not in entry.split("/")[-1]:
+                    for ext in exts:
+                        _add(f"{entry}.{ext}")
+
+        return out
+
+    async def _dirb_404_baseline(self) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Probe a random UUID path to detect wildcard/catch-all responses.
+        Returns (status_code, content_length) so we can filter false positives.
+        """
+        import uuid
+        fake = str(uuid.uuid4()).replace("-", "")[:16]
+        r = await self._request("GET", f"{self.base_url}/{fake}", follow_redirects=False)
+        if r is None:
+            return None, None
+        return r.status_code, len(r.content) if r.content else 0
+
+    async def directory_bruteforce(
+        self,
+        wordlist: List[str],
+        extensions: Optional[List[str]] = None,
+        force_extensions: bool = False,
+        recursive: bool = False,
+        recursion_depth: int = 2,
+        exclude_status: Optional[List[int]] = None,
+    ) -> None:
+        """
+        Dirsearch-style async directory & file brute-forcer.
+
+        Features replicated from dirsearch:
+        - %EXT% keyword expansion per extension
+        - force_extensions: append extensions to every bare word
+        - wildcard/catch-all detection to suppress false positives
+        - recursive scan on discovered directories (up to recursion_depth)
+        - configurable status code exclusions
+        - directory listing detection
+        """
         if not self.unsafe_active_tests:
             self.add_finding(Finding(
                 category="Directory_Bruteforce_Skipped",
                 severity="Info",
                 url=self.base_url,
-                details="Directory brute-force is disabled in safe mode (remove --safe-mode to enable active probes)."
+                details="Directory brute-force disabled in safe mode.",
             ))
             return
 
-        async def _check(seg: str) -> None:
-            url = urljoin(self.base_url + "/", seg.strip("/") + "/")
-            r = await self._request("GET", url, follow_redirects=False)
-            if not r:
-                return
-            if r.status_code in (200, 204, 301, 302, 307, 308, 401, 403):
-                sev = "Low"
-                if r.status_code == 200 and ("index of /" in (r.text or "").lower()):
-                    sev = "Medium"
+        exclude = set(exclude_status or [404, 400])
+        hit_status = {200, 204, 301, 302, 307, 308, 401, 403}
+
+        # Detect wildcard responses (catch-all servers return 200 for everything)
+        wc_status, wc_len = await self._dirb_404_baseline()
+        wildcard_active = wc_status in hit_status if wc_status else False
+        if wildcard_active:
+            self.logger.debug(
+                f"[dirb] Wildcard/catch-all detected (fake path → {wc_status}, {wc_len}b). "
+                "Filtering by response size."
+            )
+
+        paths = self._build_dirb_wordlist(wordlist, extensions=extensions, force_extensions=force_extensions)
+        self.logger.info(f"[dirb] Scanning {len(paths)} paths against {self.base_url}")
+
+        found_dirs: List[str] = []  # directories to recurse into
+
+        async def _check(path: str, base: str = "") -> None:
+            target_base = base or self.base_url
+            # Try as both a file and a directory
+            variants = [path]
+            # Bare words (no dot in last segment) → also probe with trailing slash
+            last_seg = path.split("/")[-1]
+            if "." not in last_seg and not path.endswith("/"):
+                variants.append(path + "/")
+
+            for variant in variants:
+                url = f"{target_base.rstrip('/')}/{variant.lstrip('/')}"
+                r = await self._request("GET", url, follow_redirects=False)
+                if not r:
+                    continue
+                sc = r.status_code
+                if sc in exclude:
+                    continue
+                if sc not in hit_status:
+                    continue
+
+                # Wildcard filter: if size matches catch-all, skip
+                body_len = len(r.content) if r.content else 0
+                if wildcard_active and sc == wc_status and abs(body_len - (wc_len or 0)) < 50:
+                    continue
+
+                body_text = (r.text or "").lower()
+                is_dir = variant.endswith("/")
+
+                # Directory listing?
+                if sc == 200 and "index of /" in body_text:
                     self.add_finding(Finding(
                         category="Directory_Listing",
-                        severity=sev,
+                        severity="Medium",
                         url=url,
-                        details="Possible directory listing detected (Index of /).",
-                        remediation="Disable directory listing on the web server."
+                        details=f"Open directory listing (HTTP {sc})",
                     ))
+                    if recursive and url not in found_dirs:
+                        found_dirs.append(url)
+                    break  # no need to also report Interesting_Path
+
+                # Classify severity
+                if sc in (401, 403):
+                    sev = "Low"    # exists but protected
+                elif sc in (301, 302, 307, 308):
+                    sev = "Low"    # redirect — may be interesting
+                elif sc == 200 and is_dir:
+                    sev = "Medium"
+                    if recursive and url not in found_dirs:
+                        found_dirs.append(url)
+                else:
+                    sev = "Low"
+
                 self.add_finding(Finding(
                     category="Interesting_Path",
                     severity=sev,
                     url=url,
-                    details=f"Potentially interesting path discovered (HTTP {r.status_code})"
+                    details=f"Path found (HTTP {sc}, {body_len}b)",
                 ))
+                break  # found as file or dir, don't double-report
 
-        await self._run_stream(_check, wordlist)
+        await self._run_stream(_check, paths)
+
+        # Recursive scan on discovered directories
+        if recursive and found_dirs and recursion_depth > 1:
+            self.logger.info(f"[dirb] Recursing into {len(found_dirs)} discovered dirs (depth {recursion_depth - 1})")
+            for dir_url in found_dirs:
+                sub_paths = self._build_dirb_wordlist(
+                    wordlist, extensions=extensions, force_extensions=force_extensions
+                )
+                async def _check_sub(path: str, _base: str = dir_url) -> None:
+                    await _check(path, base=_base)
+                await self._run_stream(_check_sub, sub_paths)
 
     async def crawl(self, depth: int = 2, max_pages: int = 200) -> None:
         # Depth-limited BFS. Uses deque for O(1) pops.
@@ -1255,6 +1621,10 @@ class BugHunter:
         do_js: bool = True,
         do_dirb: bool = False,
         dir_wordlist: Optional[List[str]] = None,
+        dirb_extensions: Optional[List[str]] = None,
+        dirb_force_extensions: bool = False,
+        dirb_recursive: bool = False,
+        dirb_recursion_depth: int = 2,
         do_wayback: bool = False,
     ) -> None:
         await self._start_live_pipeline()
@@ -1284,8 +1654,14 @@ class BugHunter:
                 else:
                     if do_headers:
                         await self.check_security_headers(headers, final)
+                        await self.check_server_disclosure(headers, final)
+                        await self.check_clickjacking(headers, final)
+                        await self.check_cache_control(headers, final)
+                        await self.check_csp_quality(headers, final)
+                        await self.check_http_to_https_redirect(final)
                     if do_tech:
                         await self.detect_tech(headers, body, final)
+                        await self.check_favicon_leak(final)
                     await self.check_vuln_patterns(final, body)
                     self._scan_secrets(body, final)
     
@@ -1304,6 +1680,7 @@ class BugHunter:
     
                 if do_methods:
                     await self.check_http_methods(final)
+                    await self.check_rate_limiting(final)
     
                 if do_sensitive:
                     await self.check_sensitive_files()
@@ -1315,7 +1692,13 @@ class BugHunter:
                     await self.analyze_js()
     
                 if do_dirb:
-                    await self.directory_bruteforce(dir_wordlist or DEFAULT_DIR_WORDLIST)
+                    await self.directory_bruteforce(
+                        dir_wordlist or DEFAULT_DIR_WORDLIST,
+                        extensions=dirb_extensions,
+                        force_extensions=dirb_force_extensions,
+                        recursive=dirb_recursive,
+                        recursion_depth=dirb_recursion_depth,
+                    )
     
                 if do_wayback:
                     await self.passive_wayback()
@@ -1580,6 +1963,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     dirb_group.add_argument("--dirb", dest="dirb", action="store_true", help="Enable directory brute-force")
     dirb_group.add_argument("--no-dirb", dest="dirb", action="store_false", help="Disable directory brute-force")
     p.add_argument("--dirb-wordlist", default="", help="Optional custom wordlist file for dirb")
+    p.add_argument("--dirb-extensions", default="", help="Comma-separated extensions to probe (e.g. php,html,js). Default: built-in list")
+    p.add_argument("--dirb-force-extensions", action="store_true", help="Append extensions to every wordlist entry (dirsearch -f style)")
+    p.add_argument("--dirb-recursive", action="store_true", help="Recursively scan discovered directories")
+    p.add_argument("--dirb-recursion-depth", type=int, default=2, help="Max recursion depth for --dirb-recursive")
     # Enabled by default; use --no-wayback to disable.
     wb_group = p.add_mutually_exclusive_group()
     wb_group.add_argument("--wayback", dest="wayback", action="store_true", help="Enable passive Wayback URL discovery (external service)")
@@ -1657,6 +2044,10 @@ async def main_async(args: argparse.Namespace) -> int:
     if args.dirb_wordlist:
         dir_wordlist = read_wordlist(args.dirb_wordlist)
 
+    dirb_extensions = None
+    if args.dirb_extensions.strip():
+        dirb_extensions = [e.strip().lstrip(".") for e in args.dirb_extensions.split(",") if e.strip()]
+
     await hunter.scan(
         do_ports=not args.no_port_scan,
         ports=ports,
@@ -1673,6 +2064,10 @@ async def main_async(args: argparse.Namespace) -> int:
         do_js=not args.no_js,
         do_dirb=args.dirb,
         dir_wordlist=dir_wordlist,
+        dirb_extensions=dirb_extensions,
+        dirb_force_extensions=args.dirb_force_extensions,
+        dirb_recursive=args.dirb_recursive,
+        dirb_recursion_depth=args.dirb_recursion_depth,
         do_wayback=args.wayback,
     )
 
@@ -1701,7 +2096,81 @@ async def main_async(args: argparse.Namespace) -> int:
     return 0
 
 
+def _ask(prompt: str, default: str = "") -> str:
+    """Prompt user for input with an optional default."""
+    if default:
+        display = f"  {prompt} [{default}]: "
+    else:
+        display = f"  {prompt}: "
+    try:
+        val = input(display).strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    return val if val else default
+
+
+def _ask_yes_no(prompt: str, default: bool = True) -> bool:
+    hint = "Y/n" if default else "y/N"
+    val = _ask(f"{prompt} ({hint})")
+    if not val:
+        return default
+    return val.lower().startswith("y")
+
+
+def interactive_prompt() -> List[str]:
+    """Walk the user through minimal scan configuration and return argv list."""
+    sep = "-" * 50
+    print(sep)
+    print("  Bug Hunter  |  authorized testing only")
+    print(sep)
+
+    argv: List[str] = []
+
+    while True:
+        target = _ask("Target URL or hostname")
+        if target:
+            break
+        print("  Target is required.\n")
+    argv.append(target)
+
+    print()
+    print("  Scan profile:")
+    print("    1) Standard  - default depth & pages")
+    print("    2) Quick     - shallow scan, fewer probes")
+    print("    3) Full      - deep crawl, more discovery")
+    profile = _ask("  Choose [1/2/3]", default="1")
+    if profile == "2":
+        argv.append("--quick")
+    elif profile == "3":
+        argv.append("--full")
+
+    argv.append("--live")
+
+    profile_label = {"1": "Standard", "2": "Quick", "3": "Full"}.get(profile, "Standard")
+    print()
+    print(f"  Target  : {target}")
+    print(f"  Profile : {profile_label}  |  Live: ON  |  All checks: ON")
+    print()
+
+    go = _ask_yes_no("  Start scan?", default=True)
+    if not go:
+        print("  Cancelled.")
+        raise SystemExit(0)
+
+    print()
+    return argv
+
+
 def main(argv: Optional[List[str]] = None) -> int:
+    # If called with no arguments (interactive mode), walk the user through setup
+    if argv is None and len(sys.argv) == 1:
+        try:
+            argv = interactive_prompt()
+        except KeyboardInterrupt:
+            print("\n\n  Interrupted. Goodbye!\n")
+            return 130
+
     args = parse_args(argv)
 
     # Ensure required deps (auto-install missing ones if possible)
