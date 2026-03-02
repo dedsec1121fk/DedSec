@@ -1,89 +1,148 @@
-# Security Policy
+# Security Policy — DedSec Project
 
-The DedSec Project is an **educational cybersecurity toolkit**. We take security reports seriously and we want to fix legitimate issues quickly and responsibly.
+DedSec Project is an educational cybersecurity toolkit (often used on Android via Termux) that bundles scripts and utilities under a menu-driven interface. The intention is to support **authorized, consent-based** learning, testing, and defensive checks.
 
-> **Important:** Do **not** use this project (or any report you submit) to perform unauthorized testing, data access, or attacks. Only test systems you own or have **explicit permission** to test.
-
----
-
-## Supported Versions
-
-Security fixes are provided on a **best‑effort** basis for:
-
-- **The latest version on the `main` branch**
-- The **most recent release** (if releases are published)
-
-If you are using an older copy, please update first and verify whether the issue still exists.
+> **No unauthorized use:** Do not use DedSec Project to test, access, disrupt, or attack systems you do not own or have **explicit written permission** to test.
 
 ---
 
-## Reporting a Vulnerability (Responsible Disclosure)
+## Supported versions
 
-### Preferred method (private)
-1. **GitHub Security Advisories (recommended):**
-   - Go to the repository **Security** tab → **Report a vulnerability** (if available).
-2. If that option is not available, contact the maintainer via the official channels below and clearly state that your message is a **security report**.
+Security fixes are provided on a best‑effort basis for:
 
-### Official contact channels (fallback)
-- Website: https://ded-sec.space/
-- Telegram: https://t.me/dedsecproject
-- Instagram: https://www.instagram.com/dedsec_project_official
-- WhatsApp: https://wa.me/37257263676
+- The latest version on the `main` branch
+- The most recent tagged release (if/when releases are published)
 
-### Please do NOT
-- Open a public GitHub Issue for an active vulnerability.
-- Publish proof‑of‑concept exploit code that enables real-world harm.
-- Share stolen data or secrets (tokens, passwords, private keys). If you accidentally access sensitive data, stop immediately and report what happened.
+If you are on an older copy, please update first and verify the issue still exists.
 
 ---
 
-## What to Include in Your Report
+## Reporting a vulnerability (Responsible / Coordinated Disclosure)
 
-To help us reproduce and fix the issue faster, include:
+### Preferred: private report via GitHub
+
+If the repository has GitHub Security Advisories enabled:
+
+1. Open the repository on GitHub
+2. Go to **Security** → **Report a vulnerability**
+3. Submit your report with the details listed below
+
+(If the button is not available, use the fallback contact method.)
+
+### Fallback: official project channels
+
+If private reporting on GitHub is not available, contact the maintainer via an official project channel and clearly mark your message as a **SECURITY REPORT**.
+
+---
+
+## Please do NOT
+
+- Open a public GitHub Issue for an active vulnerability
+- Post exploit code or step-by-step instructions that enable real‑world harm
+- Share stolen data, secrets, tokens, credentials, or private keys  
+  (If you accidentally access sensitive data: **stop immediately** and report what happened.)
+
+---
+
+## What to include in a report
+
+To help reproduce and fix the issue quickly, include:
 
 - A clear description of the vulnerability and why it matters
-- Affected component/tool/script name (and file path, if possible)
-- Steps to reproduce (as minimal as possible)
+- The affected component/tool/script name and file path (if known)
+- Minimal reproduction steps (safe, non-destructive)
 - Expected vs actual behavior
-- Your environment:
-  - Device / Android version
+- Environment details:
+  - Android version + device model
   - Termux version (and whether Termux:API is installed)
-  - Python version / Node version (if relevant)
-- Any logs, stack traces, or screenshots
-- If applicable, an estimate of impact (e.g., data exposure, auth bypass, RCE, SSRF, path traversal)
+  - Python / Node / Bash versions (as relevant)
+- Logs, stack traces, screenshots (redact secrets!)
+- Impact estimate (examples: data exposure, auth bypass, command injection, path traversal)
 
 ---
 
-## Coordinated Disclosure
+## Coordinated disclosure timeline (best effort)
 
-- Please allow us reasonable time to investigate and patch before public disclosure.
-- We may ask follow-up questions or request a safer proof-of-concept.
-- After a fix is available, we’ll try to credit you (unless you prefer to remain anonymous).
+- We will acknowledge a report as soon as practical
+- We may ask clarifying questions or request a safer proof-of-concept
+- We will work on a fix and coordinate a reasonable disclosure window with the reporter
+- We will credit you in release notes/advisory (unless you prefer anonymity)
 
 ---
 
-## Scope Notes
+## Scope: what we consider a “security issue” here
 
-The project includes tools that interact with networks, web content, and user-generated inputs. **Valid security findings** generally include issues such as:
+Valid security findings generally include:
 
-- Authentication / authorization bypass in included web UIs
-- Sensitive data exposure (tokens, private keys, credentials, personal data)
-- Remote code execution or command injection
+- Command injection / code execution via user-controlled input
 - Path traversal / arbitrary file read-write
-- Insecure default configurations (where the tool claims to be secure)
-- Vulnerabilities caused by unsafe handling of tunnels, callbacks, or user-provided URLs
+- Credential or secret leakage (tokens, API keys, session cookies, private keys)
+- Unsafe update/install behaviors (e.g., executing untrusted remote code without integrity checks)
+- Vulnerable web UIs bundled with the project (auth bypass, IDOR, SSRF, XSS where relevant)
+- Dangerous default configurations **when the tool claims to be safe/defensive**
 
-**Out of scope** (usually):
-- Issues in third-party dependencies or external services *without* a demonstrable impact in this project
+Usually out of scope:
+
+- Issues in third‑party dependencies **without a demonstrable impact** on this project
 - Social engineering and physical attacks
-- Denial-of-service reports that only involve unrealistic traffic volumes or non-default setups
+- Denial‑of‑service reports that require unrealistic traffic volumes or non-default setups
 
 ---
 
-## Third‑Party Components
+## Security expectations for contributors
 
-This project uses third-party tools and libraries. If the issue is upstream, please still report it to us with details, and also consider reporting it to the upstream project.
+### 1) Never commit secrets
+
+- Do not commit API keys, tokens, passwords, cookies, session IDs, private keys, or credential dumps
+- Use environment variables or user prompts for secrets
+- If you suspect a secret was committed: rotate it immediately and report the incident privately
+
+### 2) Treat all input as hostile
+
+Across Python / Bash / JS:
+
+- Validate and sanitize any user input
+- Avoid `eval`, unsafe shell interpolation, or concatenating commands
+- Prefer safe subprocess invocation with argument lists (Python) and strict quoting (Bash)
+- Do not auto-execute downloaded content unless integrity-checked and user-consented
+
+### 3) Safe file operations
+
+- Use a dedicated output directory per tool
+- Prevent directory traversal when handling filenames/paths
+- Don’t delete user data outside the project folder unless the user explicitly confirmed
+
+### 4) Safer networking defaults
+
+- Default to **read-only / passive** modes when possible
+- Require explicit confirmation for actions that could:
+  - send traffic to third parties,
+  - generate phishing simulations,
+  - scan networks,
+  - perform brute-force-like checks
+
+### 5) Dependency and supply-chain hygiene
+
+- Pin dependencies where feasible
+- Prefer official package managers (pkg/pip/npm) over untrusted one-liners
+- If you download remote assets:
+  - use HTTPS,
+  - verify checksums/signatures when available,
+  - log sources clearly
 
 ---
 
-Thank you for helping keep the DedSec Project safer.
+## Handling reports: maintainer checklist
+
+1. Reproduce safely, minimize user impact
+2. Classify severity and affected versions
+3. Create a private fix branch (avoid leaking details)
+4. Add regression tests (when practical)
+5. Release fix + notes (and advisory if appropriate)
+6. Credit reporter (if desired) and communicate clearly
+
+---
+
+## Thank you
+
+Thanks for helping keep DedSec Project safer for everyone.
