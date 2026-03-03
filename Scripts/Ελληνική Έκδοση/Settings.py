@@ -541,10 +541,10 @@ def show_credits():
                 {_('Credits').upper()}
 =======================================
 Creator:dedsec1121fk
+Contributors: gr3ysec, Sal Scar
 Art Artist:Christina Chatzidimitriou
 Technical Help:lamprouil, UKI_hunter
-Testers: Sal Scar, Javier
-Social Media Management: gr3ysec
+Testers: Javier
 =======================================
 """
     print(credits)
