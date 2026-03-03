@@ -334,10 +334,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 ### Credits
 
 * **Creator:** dedsec1121fk
+* **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
 * **Technical Help:** lamprouil, UKI_hunter
-* **Testers:** Sal Scar, Javier
-* **Social Media Management:** gr3ysec
+* **Testers:** Javier
 
 ---
 
