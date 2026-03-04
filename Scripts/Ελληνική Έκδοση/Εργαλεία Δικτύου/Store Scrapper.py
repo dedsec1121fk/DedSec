@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# Store Scrapper.py (v10.4) — Termux Universal Store Scraper (No-root)
-# - Auto-installs pip deps ONLY if missing + termux-setup-storage best-effort
-# - Multi-strategy collection: Sitemap → Shopify/Woo/Nike APIs → HTML crawl → Domain crawler → optional headless/API sniff
+# Store Scrapper.py (v10.7) — Καθολικός Scraper Καταστημάτων για Termux (χωρίς root)
+# - Αυτόματη εγκατάσταση εξαρτήσεων pip ΜΟΝΟ αν λείπουν + termux-setup-storage best-effort
+# - Συλλογή με πολλαπλές στρατηγικές: Sitemap → Shopify/Woo/Nike APIs → HTML crawl → Domain crawler → optional headless/API sniff
 # - INLINE_CATALOG fallback for single-page catalogs like /Pages/store.html (DedSec-style)
 # - Deep per-product scrape (optional): JSON-LD + meta + images + variants/sizes + reviews (when available)
 # - Resume mode + SQLite + CSV/XLSX export + product folders + image downloads
@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import deque, defaultdict
 
 # ============================================================
-# Auto-install (ONLY if missing) — Termux friendly bootstrap
+# Αυτόματη εγκατάσταση (ΜΟΝΟ αν λείπει) — Bootstrap φιλικό για Termux
 # ============================================================
 PIP_REQUIRED = {
     "requests": "requests",
@@ -68,7 +68,7 @@ def ensure_import(mod: str, pip_name: str, optional: bool = False):
             return True
         except Exception:
             if optional:
-                print(f"⚠️ Optional dependency '{pip_name}' could not be installed. Continuing without it.")
+                print(f"⚠️ Η προαιρετική εξάρτηση '{pip_name}' δεν μπόρεσε να εγκατασταθεί. Συνέχεια χωρίς αυτήν.")
                 return False
             raise
 
@@ -81,7 +81,7 @@ def bootstrap_dependencies():
         import pip  # noqa: F401
     except Exception:
         if shutil.which("pkg"):
-            print("🔧 Installing Python via Termux pkg (to ensure pip exists)...")
+            print("🔧 Εγκατάσταση Python μέσω Termux pkg (για να υπάρχει το pip)...")
             subprocess.call(["pkg", "install", "-y", "python"])
         import pip  # noqa: F401
 
@@ -106,7 +106,7 @@ except Exception:
     HAVE_LXML = False
 
 # ============================================================
-# Config (low-end friendly defaults)
+# Ρυθμίσεις (φιλικές για low-end συσκευές) - προεπιλογές
 # ============================================================
 UA_POOL = [
     "Mozilla/5.0 (Linux; Android 13; Termux) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0 Mobile Safari/537.36",
@@ -139,7 +139,7 @@ CRAWLER_MAX_DEPTH_DEFAULT = 4
 CRAWLER_MAX_RUNTIME_SEC_DEFAULT = 15 * 60  # 15 minutes
 
 # ============================================================
-# Helpers
+# Βοηθητικές συναρτήσεις
 # ============================================================
 def parser_name():
     return "lxml" if HAVE_LXML else "html.parser"
@@ -204,6 +204,105 @@ def strip_tracking_params(u: str):
     except Exception:
         return u
 
+
+
+# ------------------------------------------------------------
+# JS/SPA helpers (best-effort): extract URLs embedded in scripts
+# ------------------------------------------------------------
+_JS_URL_RE_ABS = re.compile(r'https?://[^\s"\'<>]+', re.IGNORECASE)
+_JS_URL_RE_REL = re.compile(r'/(?:products?|p|item|shop|store)/[^\s"\'<>]+', re.IGNORECASE)
+
+def _walk_collect_strings(obj, out, max_items=20000):
+    if len(out) >= max_items:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                out.append(v)
+            else:
+                _walk_collect_strings(v, out, max_items=max_items)
+            if len(out) >= max_items:
+                return
+    elif isinstance(obj, list):
+        for it in obj:
+            _walk_collect_strings(it, out, max_items=max_items)
+            if len(out) >= max_items:
+                return
+
+def extract_jsonld_itemlist_urls(soup, base_url):
+    """Extract product-ish URLs from JSON-LD ItemList / CollectionPage."""
+    out=[]
+    for s in soup.find_all('script', attrs={'type': re.compile('ld\+json', re.I)}):
+        raw=(s.string or s.get_text() or '').strip()
+        if not raw:
+            continue
+        # Some sites put multiple JSON blobs in one script.
+        chunks=[raw]
+        if raw.startswith('[') and raw.endswith(']'):
+            chunks=[raw]
+        try:
+            data=json.loads(raw)
+        except Exception:
+            # try split
+            continue
+        objs=data if isinstance(data,list) else [data]
+        for o in objs:
+            if not isinstance(o, dict):
+                continue
+            t=str(o.get('@type','')).lower()
+            if 'itemlist' in t or 'collectionpage' in t or 'category' in t or 'searchresults' in t:
+                ile=o.get('itemListElement') or []
+                if isinstance(ile, dict):
+                    ile=[ile]
+                for it in ile:
+                    if isinstance(it, dict):
+                        u=it.get('url')
+                        if not u and isinstance(it.get('item'), dict):
+                            u=it['item'].get('url')
+                        if isinstance(u, str) and u:
+                            out.append(urljoin(base_url, u))
+    return out
+
+def extract_embedded_state_urls(html, base_url, dom):
+    """Extract URLs from SPA states (__NEXT_DATA__, etc.) and raw JS strings."""
+    urls=[]
+    # Next.js
+    m=re.search(r"<script[^>]+id=\"__NEXT_DATA__\"[^>]*>(.*?)</script>", html, re.S|re.I)
+    if m:
+        raw=m.group(1).strip()
+        try:
+            data=json.loads(raw)
+            strings=[]
+            _walk_collect_strings(data, strings)
+            for s in strings:
+                if isinstance(s,str) and ('/product' in s or '/products' in s or '/p/' in s or '/item' in s):
+                    if s.startswith('http'):
+                        urls.append(s)
+                    elif s.startswith('/'):
+                        urls.append(urljoin(base_url, s))
+        except Exception:
+            pass
+
+    # Shopify embedded handles
+    for h in re.findall(r"\"handle\"\s*:\s*\"([a-zA-Z0-9_-]{2,200})\"", html):
+        urls.append(urljoin(base_url, f"/products/{h}"))
+
+    # Generic absolute + relative URLs seen in scripts
+    for u in _JS_URL_RE_ABS.findall(html):
+        urls.append(u)
+    for u in _JS_URL_RE_REL.findall(html):
+        urls.append(urljoin(base_url, u))
+
+    seen=set(); out=[]
+    for u in urls:
+        u=strip_tracking_params(normalize_url(u))
+        if not u.startswith('http'):
+            continue
+        if urlparse(u).netloc.lower()!=dom:
+            continue
+        if u not in seen:
+            seen.add(u); out.append(u)
+    return out
 def best_currency_from_text(t: str):
     t = (t or "")
     if "€" in t or "EUR" in t or "eur" in t: return "EUR"
@@ -212,7 +311,7 @@ def best_currency_from_text(t: str):
     return None
 
 # ============================================================
-# Proxy rotation + backoff + UA rotation
+# Εναλλαγή proxy + backoff + εναλλαγή User-Agent
 # ============================================================
 def parse_proxy_list(text: str):
     text = (text or "").strip()
@@ -286,7 +385,7 @@ class Net:
         return None, None, last_err
 
 # ============================================================
-# Headless OPTIONAL (Playwright) — Termux-safe (no spam)
+# Προαιρετικό Headless (Playwright) — Ασφαλές για Termux (χωρίς spam)
 # ============================================================
 _HEADLESS = {"checked": False, "available": False, "warned": False}
 
@@ -325,19 +424,30 @@ def headless_warn_once():
     global _HEADLESS
     if not _HEADLESS["warned"]:
         _HEADLESS["warned"] = True
-        print("\n⚠️ Headless disabled: Playwright isn't available in this Termux environment.")
-        print("   \u03a3\u03c5\u03bd\u03b5\u03c7\u03af\u03b6\u03c9 \u03bc\u03b5 sitemap/API/crawler/deep HTML (\u03b4\u03bf\u03c5\u03bb\u03b5\u03cd\u03b5\u03b9 \u03c3\u03c4\u03b1 \u03c0\u03b5\u03c1\u03b9\u03c3\u03c3\u03cc\u03c4\u03b5\u03c1\u03b1 \u03ba\u03b1\u03c4\u03b1\u03c3\u03c4\u03ae\u03bc\u03b1\u03c4\u03b1).\n")
+        print("\n⚠️ Το headless απενεργοποιήθηκε: το Playwright δεν είναι διαθέσιμο σε αυτό το περιβάλλον Termux.")
+        print("   Continuing with sitemap/API/crawler/deep HTML (works for most shops).\n")
 
-def headless_fetch_html(url: str, timeout_ms=55000):
+def headless_fetch_html(url: str, timeout_ms=65000, scroll_steps=6):
+    """
+    Render a JS-heavy page and return (final_url, html).
+    Termux note: Playwright may not be available; caller must check headless_available().
+    This uses:
+      - wait_until=networkidle (best for SPA/product grids)
+      - a few scroll steps (triggers infinite-scroll / lazy loading)
+      - best-effort clicks for "load more" buttons (common grids)
+    """
     if not headless_available():
         headless_warn_once()
         return None, None
+
     from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        ctx = browser.new_context(user_agent=DEFAULT_UA)
+        ctx = browser.new_context(user_agent=DEFAULT_UA, viewport={"width": 420, "height": 900})
         page = ctx.new_page()
 
+        # Block heavy resources to keep low-end devices responsive
         def route_handler(route):
             rt = route.request.resource_type
             if rt in ("image", "media", "font"):
@@ -345,13 +455,56 @@ def headless_fetch_html(url: str, timeout_ms=55000):
             return route.continue_()
         page.route("**/*", route_handler)
 
-        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-        page.wait_for_timeout(1800)
+        try:
+            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+        except Exception:
+            # Some sites never reach "networkidle" (analytics / websockets). Fallback.
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+
+        # Give JS a moment to paint UI after navigation
+        page.wait_for_timeout(1200)
+
+        # Try to trigger "Load more" / infinite scroll
+        for _ in range(max(0, int(scroll_steps))):
+            try:
+                # click common "load more" buttons (best-effort)
+                for sel in [
+                    "text=/load more/i",
+                    "text=/show more/i",
+                    "text=/more products/i",
+                    "button:has-text('Load more')",
+                    "button:has-text('Show more')",
+                    "button:has-text('More')",
+                ]:
+                    btn = page.query_selector(sel)
+                    if btn:
+                        try:
+                            btn.click(timeout=800)
+                            page.wait_for_timeout(900)
+                            break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            try:
+                page.mouse.wheel(0, 2200)
+            except Exception:
+                try:
+                    page.evaluate("window.scrollBy(0, 2200)")
+                except Exception:
+                    pass
+
+            page.wait_for_timeout(900)
+
         html = page.content()
         final = page.url
+
         ctx.close()
         browser.close()
         return final, html
+
+
 
 def headless_sniff_api(url: str, timeout_ms=65000):
     if not headless_available():
@@ -388,7 +541,7 @@ def headless_sniff_api(url: str, timeout_ms=65000):
     return out
 
 # ============================================================
-# Robots.txt (basic) + Crawl-delay + Sitemaps
+# Robots.txt (βασικό) + Crawl-delay + Sitemaps
 # ============================================================
 def fetch_robots(net: Net, base: str):
     r, _, _ = net.get(base + "/robots.txt", headers={"User-Agent": DEFAULT_UA}, max_attempts=2)
@@ -463,7 +616,7 @@ def robots_allowed(url: str, base: str, disallow, allow):
     return True
 
 # ============================================================
-# SQLite
+# SQLite (βάση δεδομένων)
 # ============================================================
 def db_connect(run_dir):
     conn = sqlite3.connect(os.path.join(run_dir, "store.db"))
@@ -700,7 +853,7 @@ def export_csv_xlsx(run_dir, conn):
     wb.save(os.path.join(run_dir, "products.xlsx"))
 
 # ============================================================
-# State/Resume + analytics
+# Κατάσταση/Resume + analytics
 # ============================================================
 def state_file(run_dir):
     return os.path.join(run_dir, "resume_state.json")
@@ -746,7 +899,7 @@ def scores_dict(st):
     return st["scores"]
 
 # ============================================================
-# Extraction helpers (maximize data)
+# Βοηθητικά εξαγωγής (μέγιστα δεδομένα)
 # ============================================================
 def meta_content(soup, **attrs):
     tag = soup.find("meta", attrs=attrs)
@@ -973,7 +1126,7 @@ def extract_variants_sizes_best_effort(soup):
     return out[:200]
 
 # ============================================================
-# INLINE CATALOG fallback (single-page "store" lists)
+# Fallback INLINE CATALOG (single-page λίστες "store")
 # ============================================================
 def extract_inline_catalog_from_html(html: str, page_url: str):
     """
@@ -1141,7 +1294,7 @@ def extract_inline_catalog_from_html(html: str, page_url: str):
     return out
 
 # ============================================================
-# Per-product folder
+# Φάκελος ανά προϊόν
 # ============================================================
 def save_product_folder(run_dir, p):
     products_dir = os.path.join(run_dir, "products")
@@ -1171,7 +1324,7 @@ def save_product_folder(run_dir, p):
             f.write(pur + "\n")
 
 # ============================================================
-# Image downloader
+# Λήψη εικόνων
 # ============================================================
 def download_images(net: Net, run_dir, product_id, image_urls):
     img_dir = os.path.join(run_dir, "images_cache", product_id)
@@ -1212,7 +1365,7 @@ def download_images(net: Net, run_dir, product_id, image_urls):
     return saved
 
 # ============================================================
-# Discovery: sitemap + APIs + crawlers
+# Ανακάλυψη: sitemap + APIs + crawlers
 # ============================================================
 def parse_sitemap_xml(xml_text: str):
     urls = []
@@ -1389,10 +1542,12 @@ def nike_collect(net: Net, category_url: str):
 def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_request_delay=BASE_DELAY):
     start_url = strip_tracking_params(normalize_url(start_url))
     dom = urlparse(start_url).netloc.lower()
+    base = f"{urlparse(start_url).scheme}://{dom}"
 
     q = deque([start_url])
     visited = set([start_url])
     product_urls = []
+    prod_seen = set()
     pages = 0
 
     while q and pages < MAX_LISTING_PAGES and len(product_urls) < MAX_PRODUCT_URLS:
@@ -1402,21 +1557,26 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
         if use_headless:
             final, html = headless_fetch_html(cur)
             if not html:
-                return product_urls
+                continue
         else:
             r, _, _ = net.get(cur, headers={"Accept":"text/html,*/*"}, max_attempts=3)
             if r is None or r.status_code != 200:
                 continue
-            final, html = r.url, r.text
+            final, html = r.url, (r.text or "")
+
+        if not html:
+            continue
 
         soup = BeautifulSoup(html, parser_name())
 
+        # rel=next hint
         ln = soup.find("link", rel=lambda v: v and "next" in str(v).lower())
         if ln and ln.get("href"):
             nxt = strip_tracking_params(normalize_url(urljoin(final, ln.get("href"))))
             if urlparse(nxt).netloc.lower() == dom and nxt not in visited:
                 visited.add(nxt); q.append(nxt)
 
+        # 1) Normal anchors
         for a in soup.find_all("a", href=True):
             u = strip_tracking_params(normalize_url(urljoin(final, a["href"])))
             if not u.startswith("http"):
@@ -1424,7 +1584,8 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
             if urlparse(u).netloc.lower() != dom:
                 continue
 
-            if is_probably_product(u) and u not in product_urls:
+            if is_probably_product(u) and u not in prod_seen:
+                prod_seen.add(u)
                 product_urls.append(u)
                 if len(product_urls) >= MAX_PRODUCT_URLS:
                     break
@@ -1432,6 +1593,27 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
             if u not in visited and is_probably_pagination(u):
                 visited.add(u)
                 q.append(u)
+
+        # 2) JSON-LD ItemList / CollectionPage (common on category pages)
+        if len(product_urls) < MAX_PRODUCT_URLS:
+            for u in extract_jsonld_itemlist_urls(soup, final):
+                u = strip_tracking_params(normalize_url(u))
+                if urlparse(u).netloc.lower() != dom:
+                    continue
+                if (is_probably_product(u) or "/products/" in urlparse(u).path.lower()) and u not in prod_seen:
+                    prod_seen.add(u)
+                    product_urls.append(u)
+                    if len(product_urls) >= MAX_PRODUCT_URLS:
+                        break
+
+        # 3) SPA embedded state / raw JS strings (Next.js, Shopify state, etc.)
+        if len(product_urls) < MAX_PRODUCT_URLS:
+            for u in extract_embedded_state_urls(html, base, dom):
+                if (is_probably_product(u) or "/products/" in urlparse(u).path.lower()) and u not in prod_seen:
+                    prod_seen.add(u)
+                    product_urls.append(u)
+                    if len(product_urls) >= MAX_PRODUCT_URLS:
+                        break
 
         sleep(per_request_delay)
 
@@ -1474,7 +1656,7 @@ def sniff_api_then_extract_product_urls(net: Net, url: str):
     return []
 
 # ============================================================
-# Domain Crawler Mode
+# Λειτουργία Domain Crawler
 # ============================================================
 def domain_crawler_mode(net: Net, start_url: str, crawler_conf: dict, robots_rules: dict, crawl_delay_used: float):
     start_url = strip_tracking_params(normalize_url(start_url))
@@ -1546,6 +1728,15 @@ def domain_crawler_mode(net: Net, start_url: str, crawler_conf: dict, robots_rul
         final = r.url
         soup = BeautifulSoup(r.text, parser_name())
 
+        # Also harvest product-like URLs from embedded SPA state / scripts
+        for u in extract_embedded_state_urls(r.text or '', base, dom):
+            if (is_probably_product(u) or '/products/' in urlparse(u).path.lower()) and u not in prod_seen:
+                prod_seen.add(u)
+                product_urls.append(u)
+                if len(product_urls) >= MAX_PRODUCT_URLS:
+                    break
+
+
         for a in soup.find_all("a", href=True):
             u = strip_tracking_params(normalize_url(urljoin(final, a["href"])))
             if urlparse(u).netloc.lower() != dom:
@@ -1586,7 +1777,7 @@ def domain_crawler_mode(net: Net, start_url: str, crawler_conf: dict, robots_rul
     }
 
 # ============================================================
-# Deep scrape (max info)
+# Deep scrape (μέγιστες πληροφορίες)
 # ============================================================
 def deep_scrape(net: Net, product_url: str, headless=False, want_reviews=True):
     fetched_with = "requests"
@@ -1709,7 +1900,7 @@ def deep_scrape(net: Net, product_url: str, headless=False, want_reviews=True):
     }
 
 # ============================================================
-# Strategy escalation (collect + deep)
+# Κλιμάκωση στρατηγικής (collect + deep)
 # ============================================================
 STRATEGIES_COLLECT = [
     ("SITEMAP", 1),
@@ -1892,26 +2083,26 @@ def run_deep(net, st, product_url, headless_allowed, want_reviews):
 # MAIN
 # ============================================================
 def main():
-    print("=== Store Scrapper v10.5 (\u0391\u03c3\u03c6\u03b1\u03bb\u03ad\u03c2 \u03b3\u03b9\u03b1 Termux + Inline \u039a\u03b1\u03c4\u03ac\u03bb\u03bf\u03b3\u03bf\u03c2) ===\n")
+    print("=== Store Scrapper v10.7 (Termux-safe + JS-render + API sniff + Inline Catalog) ===\n")
 
-    url = input("\u0395\u03c0\u03b9\u03ba\u03cc\u03bb\u03bb\u03b7\u03c3\u03b5 URL \u03ba\u03b1\u03c4\u03b1\u03c3\u03c4\u03ae\u03bc\u03b1\u03c4\u03bf\u03c2/\u03bb\u03af\u03c3\u03c4\u03b1\u03c2: ").strip()
+    url = input("Επικόλλησε URL καταστήματος/λίστας: ").strip()
     if not url.startswith("http"):
         url = "https://" + url
     url = strip_tracking_params(normalize_url(url))
 
-    deep = input("\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 \u0391\u039d\u0391\u039b\u03a5\u03a4\u0399\u039a\u039f\u03a5 (DEEP) \u03b5\u03bb\u03ad\u03b3\u03c7\u03bf\u03c5 \u03b1\u03bd\u03ac \u03c0\u03c1\u03bf\u03ca\u03cc\u03bd (\u03c0\u03c1\u03bf\u03c4\u03b5\u03af\u03bd\u03b5\u03c4\u03b1\u03b9); (y/n): ").strip().lower().startswith("y")
-    want_reviews = input("\u0395\u03be\u03b1\u03b3\u03c9\u03b3\u03ae \u03ba\u03c1\u03b9\u03c4\u03b9\u03ba\u03ce\u03bd \u03cc\u03c0\u03bf\u03c5 \u03c5\u03c0\u03ac\u03c1\u03c7\u03bf\u03c5\u03bd; (y/n): ").strip().lower().startswith("y")
-    download_imgs = input("\u039b\u03ae\u03c8\u03b7 \u03b5\u03b9\u03ba\u03cc\u03bd\u03c9\u03bd \u03c0\u03c1\u03bf\u03ca\u03cc\u03bd\u03c4\u03c9\u03bd; (y/n): ").strip().lower().startswith("y")
+    deep = input("Ενεργοποίηση ανά-προϊόν DEEP scrape (προτείνεται); (y/n): ").strip().lower().startswith("y")
+    want_reviews = input("Εξαγωγή κριτικών όταν υπάρχουν; (y/n): ").strip().lower().startswith("y")
+    download_imgs = input("Λήψη εικόνων προϊόντων; (y/n): ").strip().lower().startswith("y")
 
-    headless_allowed = input("\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 headless fallback \u03cc\u03c4\u03b1\u03bd \u03c7\u03c1\u03b5\u03b9\u03ac\u03b6\u03b5\u03c4\u03b1\u03b9; (y/n): ").strip().lower().startswith("y")
+    headless_allowed = input("Ενεργοποίηση headless fallback όταν χρειάζεται; (y/n): ").strip().lower().startswith("y")
     if headless_allowed and not headless_available():
         headless_warn_once()
         headless_allowed = False
 
-    resume = input("\u03a3\u03c5\u03bd\u03ad\u03c7\u03b5\u03b9\u03b1 \u03c0\u03c1\u03bf\u03b7\u03b3\u03bf\u03cd\u03bc\u03b5\u03bd\u03b7\u03c2 \u03b5\u03ba\u03c4\u03ad\u03bb\u03b5\u03c3\u03b7\u03c2 \u03b1\u03bd \u03b2\u03c1\u03b5\u03b8\u03b5\u03af; (y/n): ").strip().lower().startswith("y")
-    domain_crawler_enabled = input("\u0395\u03bd\u03b5\u03c1\u03b3\u03bf\u03c0\u03bf\u03af\u03b7\u03c3\u03b7 \u039b\u0395\u0399\u03a4\u039f\u03a5\u03a1\u0393\u0399\u0391\u03a3 DOMAIN CRAWLER (\u03b5\u03cd\u03c1\u03b5\u03c3\u03b7 \u03c3\u03b5 \u03cc\u03bb\u03bf \u03c4\u03bf site); (y/n): ").strip().lower().startswith("y")
+    resume = input("Συνέχιση προηγούμενης εκτέλεσης αν βρεθεί; (y/n): ").strip().lower().startswith("y")
+    domain_crawler_enabled = input("Ενεργοποίηση DOMAIN CRAWLER MODE (ανακάλυψη σε όλο το site); (y/n): ").strip().lower().startswith("y")
 
-    proxy_text = input("\u03a0\u03c1\u03bf\u03b1\u03b9\u03c1\u03b5\u03c4\u03b9\u03ba\u03ac proxies (\u03ba\u03cc\u03bc\u03bc\u03b1/\u03bd\u03ad\u03b1 \u03b3\u03c1\u03b1\u03bc\u03bc\u03ae). \u0386\u03c6\u03b7\u03c3\u03b5 \u03ba\u03b5\u03bd\u03cc \u03b3\u03b9\u03b1 \u03ba\u03b1\u03bd\u03ad\u03bd\u03b1:\n> ").strip()
+    proxy_text = input("Optional proxies (comma/newline). Leave empty for none:\n> ").strip()
     proxies = parse_proxy_list(proxy_text)
 
     base_out = os.path.join(downloads_dir(), "Store Scrapper")
@@ -1943,11 +2134,9 @@ def main():
         queue = list(st["queue"])
         processed = set(st.get("processed", []))
         engine_hint = st.get("engine") or "generic"
-        print(f"
-Συνέχεια: σε αναμονή={len(queue)} ολοκληρωμένα={len(processed)} engine={engine_hint}
-")
+        print(f"\nΣυνέχεια: σε αναμονή={len(queue)} ολοκληρωμένα={len(processed)} μηχανή={engine_hint}\n")
     else:
-        print("\n🔍 Collecting product URLs (auto-retry + multi-strategy)…\n")
+        print("\n🔍 Συλλογή URL προϊόντων (αυτόματες επαναλήψεις + πολλαπλές στρατηγικές)…\n")
         engine_hint, urls, used = run_collect(
             net, st, url,
             headless_allowed=headless_allowed,
@@ -1958,40 +2147,60 @@ def main():
         )
 
         if not urls:
-            print("⚠️ No product URLs collected (this may be an inline catalog page).")
-            print("🔎 Trying INLINE_CATALOG extraction from this page…")
-            r, _, _ = net.get(url, headers={"Accept":"text/html,*/*"}, max_attempts=3)
+            print("⚠️ Δεν συλλέχθηκαν URL προϊόντων (ίσως είναι JS-rendered grid ή σελίδα inline καταλόγου).")
+
             inline_products = []
+
+            # 1) Try INLINE_CATALOG from plain HTML
+            print("🔎 Δοκιμή εξαγωγής INLINE_CATALOG (απλό HTML)…")
+            r, _, _ = net.get(url, headers={"Accept":"text/html,*/*"}, max_attempts=3)
             if r is not None and r.status_code == 200 and r.text:
                 inline_products = extract_inline_catalog_from_html(r.text, r.url)
 
-            if not inline_products:
-                print("❌ Still no products found.")
-                print("Tips: enable Domain Crawler, add proxies, or try a category/listing URL.")
-                st["engine"] = engine_hint
+            # 2) If still empty, try headless render (JS) and retry INLINE_CATALOG
+            if not inline_products and headless_allowed:
+                print("🧠 Δοκιμή εξαγωγής INLINE_CATALOG (headless render για JS sites)…")
+                final, html = headless_fetch_html(url, scroll_steps=7)
+                if html:
+                    inline_products = extract_inline_catalog_from_html(html, final)
+
+            # 3) If still empty, try headless API sniff (often finds the product JSON endpoint)
+            if not inline_products and headless_allowed:
+                print("🛰️ Δοκιμή HEADLESS API SNIFF (εξαγωγή URL προϊόντων από JSON endpoints)…")
+                api_urls = sniff_api_then_extract_product_urls(net, url)
+                if api_urls:
+                    urls = api_urls
+
+            # If we now have product URLs, skip inline mode and continue normally
+            if urls:
+                print(f"✅ Found {len(urls)} product URLs via JS/API fallback. Continuing...\n")
+            else:
+                if not inline_products:
+                    print("❌ Ακόμα δεν βρέθηκαν προϊόντα.")
+                    print("Tips: ενεργοποίησε Domain Crawler, πρόσθεσε proxies ή δοκίμασε URL κατηγορίας/λίστας.")
+                    st["engine"] = engine_hint
+                    save_state(run_dir, st)
+                    return
+
+                print(f"✅ Το INLINE_CATALOG βρήκε {len(inline_products)} προϊόντα σε αυτή τη σελίδα.")
+                for p in inline_products:
+                    upsert_product(conn, p)
+
+                    image_rows = []
+                    if download_imgs and p.get("images"):
+                        image_rows = download_images(net, run_dir, p["id"], p.get("images"))
+                    replace_children(conn, p["id"], p.get("variants"), image_rows, p.get("reviews"))
+                    save_product_folder(run_dir, p)
+
+                export_csv_xlsx(run_dir, conn)
+                conn.close()
+                st["analytics"]["finished_at"] = int(time.time())
                 save_state(run_dir, st)
+
+                print("\n✅ ΤΕΛΟΣ (ΛΕΙΤΟΥΡΓΙΑ INLINE_CATALOG)")
+                print(f"Φάκελος εκτέλεσης: {run_dir}")
+                print("Έξοδοι: store.db, products.csv, products.xlsx, resume_state.json")
                 return
-
-            print(f"✅ INLINE_CATALOG found {len(inline_products)} products on this page.")
-            for p in inline_products:
-                upsert_product(conn, p)
-
-                image_rows = []
-                if download_imgs and p.get("images"):
-                    image_rows = download_images(net, run_dir, p["id"], p.get("images"))
-                replace_children(conn, p["id"], p.get("variants"), image_rows, p.get("reviews"))
-                save_product_folder(run_dir, p)
-
-            export_csv_xlsx(run_dir, conn)
-            conn.close()
-            st["analytics"]["finished_at"] = int(time.time())
-            save_state(run_dir, st)
-
-            print("\n✅ DONE (INLINE_CATALOG MODE)")
-            print(f"Run folder: {run_dir}")
-            print("Outputs: store.db, products.csv, products.xlsx, resume_state.json")
-            return
-
         queue = urls
         processed = set()
 
@@ -2001,7 +2210,7 @@ def main():
         st["analytics"]["api_used"] = used
         save_state(run_dir, st)
 
-        print(f"✅ Collected {len(queue)} product URLs via: {used}")
+        print(f"✅ Συλλέχθηκαν {len(queue)} URL προϊόντων μέσω: {used}")
         print(f"Engine hint: {engine_hint}\n")
 
     total = len(queue)
@@ -2014,7 +2223,7 @@ def main():
         if deep:
             p, _used_deep = run_deep(net, st, purl, headless_allowed=headless_allowed, want_reviews=want_reviews)
             if not p:
-                print("  ⚠️ Deep scrape failed → saving minimal record.")
+                print("  ⚠️ Αποτυχία deep scrape → αποθήκευση ελάχιστης εγγραφής.")
                 p = {
                     "engine": engine_hint,
                     "fetched_with": "none",
@@ -2077,23 +2286,23 @@ def main():
     st["analytics"]["proxy_stats"] = net.proxy_stats
     save_state(run_dir, st)
 
-    print("\n✅ DONE")
-    print(f"Run folder: {run_dir}")
-    print("Outputs: store.db, products.csv, products.xlsx, resume_state.json")
+    print("\n✅ ΤΕΛΟΣ")
+    print(f"Φάκελος εκτέλεσης: {run_dir}")
+    print("Έξοδοι: store.db, products.csv, products.xlsx, resume_state.json")
 
-    print("\n📊 Strategy analytics (top):")
+    print("\n📊 Αναλυτικά στρατηγικών (κορυφαία):")
     best = st["analytics"].get("best_strategy")
-    print(f"- Best: {best}")
+    print(f"- Καλύτερη: {best}")
     top = sorted(st["analytics"]["strategy"].items(),
                  key=lambda kv: (kv[1].get("ok",0), kv[1].get("found",0)),
                  reverse=True)[:8]
     for strat, info in top:
-        print(f"- {strat}: ok={info['ok']} fail={info['fail']} found={info['found']} time={info['time_sec']:.1f}s")
+        print(f"- {strat}: ok={info['ok']} fail={info['fail']} βρέθηκαν={info['found']} χρόνος={info['time_sec']:.1f}s")
 
     if domain_crawler_enabled:
         c = st["analytics"]["crawler"]
         print("\n🕷 Domain crawler stats:")
-        print(f"- pages={c.get('pages')} category_pages={c.get('category_pages')} product_urls={c.get('product_urls')}")
+        print(f"- σελίδες={c.get('pages')} σελίδες_κατηγοριών={c.get('category_pages')} url_προϊόντων={c.get('product_urls')}")
         print(f"- crawl_delay_used={c.get('crawl_delay_used', BASE_DELAY)}s")
 
     if proxies:
@@ -2105,4 +2314,4 @@ if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\nStopped. Re-run and choose resume=y to continue.")
+        print("\nΣταμάτησε. Ξανατρέξ’ το και διάλεξε resume=y για να συνεχίσεις.")
