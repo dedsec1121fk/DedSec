@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Store Scrapper.py (v10.4) — Termux Universal Store Scraper (No-root)
+# Store Scrapper.py (v10.7) — Termux Universal Store Scraper (No-root)
 # - Auto-installs pip deps ONLY if missing + termux-setup-storage best-effort
 # - Multi-strategy collection: Sitemap → Shopify/Woo/Nike APIs → HTML crawl → Domain crawler → optional headless/API sniff
 # - INLINE_CATALOG fallback for single-page catalogs like /Pages/store.html (DedSec-style)
@@ -204,6 +204,105 @@ def strip_tracking_params(u: str):
     except Exception:
         return u
 
+
+
+# ------------------------------------------------------------
+# JS/SPA helpers (best-effort): extract URLs embedded in scripts
+# ------------------------------------------------------------
+_JS_URL_RE_ABS = re.compile(r'https?://[^\s"\'<>]+', re.IGNORECASE)
+_JS_URL_RE_REL = re.compile(r'/(?:products?|p|item|shop|store)/[^\s"\'<>]+', re.IGNORECASE)
+
+def _walk_collect_strings(obj, out, max_items=20000):
+    if len(out) >= max_items:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                out.append(v)
+            else:
+                _walk_collect_strings(v, out, max_items=max_items)
+            if len(out) >= max_items:
+                return
+    elif isinstance(obj, list):
+        for it in obj:
+            _walk_collect_strings(it, out, max_items=max_items)
+            if len(out) >= max_items:
+                return
+
+def extract_jsonld_itemlist_urls(soup, base_url):
+    """Extract product-ish URLs from JSON-LD ItemList / CollectionPage."""
+    out=[]
+    for s in soup.find_all('script', attrs={'type': re.compile('ld\+json', re.I)}):
+        raw=(s.string or s.get_text() or '').strip()
+        if not raw:
+            continue
+        # Some sites put multiple JSON blobs in one script.
+        chunks=[raw]
+        if raw.startswith('[') and raw.endswith(']'):
+            chunks=[raw]
+        try:
+            data=json.loads(raw)
+        except Exception:
+            # try split
+            continue
+        objs=data if isinstance(data,list) else [data]
+        for o in objs:
+            if not isinstance(o, dict):
+                continue
+            t=str(o.get('@type','')).lower()
+            if 'itemlist' in t or 'collectionpage' in t or 'category' in t or 'searchresults' in t:
+                ile=o.get('itemListElement') or []
+                if isinstance(ile, dict):
+                    ile=[ile]
+                for it in ile:
+                    if isinstance(it, dict):
+                        u=it.get('url')
+                        if not u and isinstance(it.get('item'), dict):
+                            u=it['item'].get('url')
+                        if isinstance(u, str) and u:
+                            out.append(urljoin(base_url, u))
+    return out
+
+def extract_embedded_state_urls(html, base_url, dom):
+    """Extract URLs from SPA states (__NEXT_DATA__, etc.) and raw JS strings."""
+    urls=[]
+    # Next.js
+    m=re.search(r"<script[^>]+id=\"__NEXT_DATA__\"[^>]*>(.*?)</script>", html, re.S|re.I)
+    if m:
+        raw=m.group(1).strip()
+        try:
+            data=json.loads(raw)
+            strings=[]
+            _walk_collect_strings(data, strings)
+            for s in strings:
+                if isinstance(s,str) and ('/product' in s or '/products' in s or '/p/' in s or '/item' in s):
+                    if s.startswith('http'):
+                        urls.append(s)
+                    elif s.startswith('/'):
+                        urls.append(urljoin(base_url, s))
+        except Exception:
+            pass
+
+    # Shopify embedded handles
+    for h in re.findall(r"\"handle\"\s*:\s*\"([a-zA-Z0-9_-]{2,200})\"", html):
+        urls.append(urljoin(base_url, f"/products/{h}"))
+
+    # Generic absolute + relative URLs seen in scripts
+    for u in _JS_URL_RE_ABS.findall(html):
+        urls.append(u)
+    for u in _JS_URL_RE_REL.findall(html):
+        urls.append(urljoin(base_url, u))
+
+    seen=set(); out=[]
+    for u in urls:
+        u=strip_tracking_params(normalize_url(u))
+        if not u.startswith('http'):
+            continue
+        if urlparse(u).netloc.lower()!=dom:
+            continue
+        if u not in seen:
+            seen.add(u); out.append(u)
+    return out
 def best_currency_from_text(t: str):
     t = (t or "")
     if "€" in t or "EUR" in t or "eur" in t: return "EUR"
@@ -328,16 +427,27 @@ def headless_warn_once():
         print("\n⚠️ Headless disabled: Playwright isn't available in this Termux environment.")
         print("   Continuing with sitemap/API/crawler/deep HTML (works for most shops).\n")
 
-def headless_fetch_html(url: str, timeout_ms=55000):
+def headless_fetch_html(url: str, timeout_ms=65000, scroll_steps=6):
+    """
+    Render a JS-heavy page and return (final_url, html).
+    Termux note: Playwright may not be available; caller must check headless_available().
+    This uses:
+      - wait_until=networkidle (best for SPA/product grids)
+      - a few scroll steps (triggers infinite-scroll / lazy loading)
+      - best-effort clicks for "load more" buttons (common grids)
+    """
     if not headless_available():
         headless_warn_once()
         return None, None
+
     from playwright.sync_api import sync_playwright
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        ctx = browser.new_context(user_agent=DEFAULT_UA)
+        ctx = browser.new_context(user_agent=DEFAULT_UA, viewport={"width": 420, "height": 900})
         page = ctx.new_page()
 
+        # Block heavy resources to keep low-end devices responsive
         def route_handler(route):
             rt = route.request.resource_type
             if rt in ("image", "media", "font"):
@@ -345,13 +455,56 @@ def headless_fetch_html(url: str, timeout_ms=55000):
             return route.continue_()
         page.route("**/*", route_handler)
 
-        page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-        page.wait_for_timeout(1800)
+        try:
+            page.goto(url, wait_until="networkidle", timeout=timeout_ms)
+        except Exception:
+            # Some sites never reach "networkidle" (analytics / websockets). Fallback.
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+
+        # Give JS a moment to paint UI after navigation
+        page.wait_for_timeout(1200)
+
+        # Try to trigger "Load more" / infinite scroll
+        for _ in range(max(0, int(scroll_steps))):
+            try:
+                # click common "load more" buttons (best-effort)
+                for sel in [
+                    "text=/load more/i",
+                    "text=/show more/i",
+                    "text=/more products/i",
+                    "button:has-text('Load more')",
+                    "button:has-text('Show more')",
+                    "button:has-text('More')",
+                ]:
+                    btn = page.query_selector(sel)
+                    if btn:
+                        try:
+                            btn.click(timeout=800)
+                            page.wait_for_timeout(900)
+                            break
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            try:
+                page.mouse.wheel(0, 2200)
+            except Exception:
+                try:
+                    page.evaluate("window.scrollBy(0, 2200)")
+                except Exception:
+                    pass
+
+            page.wait_for_timeout(900)
+
         html = page.content()
         final = page.url
+
         ctx.close()
         browser.close()
         return final, html
+
+
 
 def headless_sniff_api(url: str, timeout_ms=65000):
     if not headless_available():
@@ -1389,10 +1542,12 @@ def nike_collect(net: Net, category_url: str):
 def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_request_delay=BASE_DELAY):
     start_url = strip_tracking_params(normalize_url(start_url))
     dom = urlparse(start_url).netloc.lower()
+    base = f"{urlparse(start_url).scheme}://{dom}"
 
     q = deque([start_url])
     visited = set([start_url])
     product_urls = []
+    prod_seen = set()
     pages = 0
 
     while q and pages < MAX_LISTING_PAGES and len(product_urls) < MAX_PRODUCT_URLS:
@@ -1402,21 +1557,26 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
         if use_headless:
             final, html = headless_fetch_html(cur)
             if not html:
-                return product_urls
+                continue
         else:
             r, _, _ = net.get(cur, headers={"Accept":"text/html,*/*"}, max_attempts=3)
             if r is None or r.status_code != 200:
                 continue
-            final, html = r.url, r.text
+            final, html = r.url, (r.text or "")
+
+        if not html:
+            continue
 
         soup = BeautifulSoup(html, parser_name())
 
+        # rel=next hint
         ln = soup.find("link", rel=lambda v: v and "next" in str(v).lower())
         if ln and ln.get("href"):
             nxt = strip_tracking_params(normalize_url(urljoin(final, ln.get("href"))))
             if urlparse(nxt).netloc.lower() == dom and nxt not in visited:
                 visited.add(nxt); q.append(nxt)
 
+        # 1) Normal anchors
         for a in soup.find_all("a", href=True):
             u = strip_tracking_params(normalize_url(urljoin(final, a["href"])))
             if not u.startswith("http"):
@@ -1424,7 +1584,8 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
             if urlparse(u).netloc.lower() != dom:
                 continue
 
-            if is_probably_product(u) and u not in product_urls:
+            if is_probably_product(u) and u not in prod_seen:
+                prod_seen.add(u)
                 product_urls.append(u)
                 if len(product_urls) >= MAX_PRODUCT_URLS:
                     break
@@ -1432,6 +1593,27 @@ def generic_smart_crawl(net: Net, start_url: str, use_headless=False, per_reques
             if u not in visited and is_probably_pagination(u):
                 visited.add(u)
                 q.append(u)
+
+        # 2) JSON-LD ItemList / CollectionPage (common on category pages)
+        if len(product_urls) < MAX_PRODUCT_URLS:
+            for u in extract_jsonld_itemlist_urls(soup, final):
+                u = strip_tracking_params(normalize_url(u))
+                if urlparse(u).netloc.lower() != dom:
+                    continue
+                if (is_probably_product(u) or "/products/" in urlparse(u).path.lower()) and u not in prod_seen:
+                    prod_seen.add(u)
+                    product_urls.append(u)
+                    if len(product_urls) >= MAX_PRODUCT_URLS:
+                        break
+
+        # 3) SPA embedded state / raw JS strings (Next.js, Shopify state, etc.)
+        if len(product_urls) < MAX_PRODUCT_URLS:
+            for u in extract_embedded_state_urls(html, base, dom):
+                if (is_probably_product(u) or "/products/" in urlparse(u).path.lower()) and u not in prod_seen:
+                    prod_seen.add(u)
+                    product_urls.append(u)
+                    if len(product_urls) >= MAX_PRODUCT_URLS:
+                        break
 
         sleep(per_request_delay)
 
@@ -1545,6 +1727,15 @@ def domain_crawler_mode(net: Net, start_url: str, crawler_conf: dict, robots_rul
             continue
         final = r.url
         soup = BeautifulSoup(r.text, parser_name())
+
+        # Also harvest product-like URLs from embedded SPA state / scripts
+        for u in extract_embedded_state_urls(r.text or '', base, dom):
+            if (is_probably_product(u) or '/products/' in urlparse(u).path.lower()) and u not in prod_seen:
+                prod_seen.add(u)
+                product_urls.append(u)
+                if len(product_urls) >= MAX_PRODUCT_URLS:
+                    break
+
 
         for a in soup.find_all("a", href=True):
             u = strip_tracking_params(normalize_url(urljoin(final, a["href"])))
@@ -1892,7 +2083,7 @@ def run_deep(net, st, product_url, headless_allowed, want_reviews):
 # MAIN
 # ============================================================
 def main():
-    print("=== Store Scrapper v10.5 (Termux-safe install + Inline Catalog) ===\n")
+    print("=== Store Scrapper v10.7 (Termux-safe + JS-render + API sniff + Inline Catalog) ===\n")
 
     url = input("Paste store/listing URL: ").strip()
     if not url.startswith("http"):
@@ -1956,40 +2147,60 @@ def main():
         )
 
         if not urls:
-            print("⚠️ No product URLs collected (this may be an inline catalog page).")
-            print("🔎 Trying INLINE_CATALOG extraction from this page…")
-            r, _, _ = net.get(url, headers={"Accept":"text/html,*/*"}, max_attempts=3)
+            print("⚠️ No product URLs collected (this may be a JS-rendered grid or an inline catalog page).")
+
             inline_products = []
+
+            # 1) Try INLINE_CATALOG from plain HTML
+            print("🔎 Trying INLINE_CATALOG extraction (plain HTML)…")
+            r, _, _ = net.get(url, headers={"Accept":"text/html,*/*"}, max_attempts=3)
             if r is not None and r.status_code == 200 and r.text:
                 inline_products = extract_inline_catalog_from_html(r.text, r.url)
 
-            if not inline_products:
-                print("❌ Still no products found.")
-                print("Tips: enable Domain Crawler, add proxies, or try a category/listing URL.")
-                st["engine"] = engine_hint
+            # 2) If still empty, try headless render (JS) and retry INLINE_CATALOG
+            if not inline_products and headless_allowed:
+                print("🧠 Trying INLINE_CATALOG extraction (headless render for JS sites)…")
+                final, html = headless_fetch_html(url, scroll_steps=7)
+                if html:
+                    inline_products = extract_inline_catalog_from_html(html, final)
+
+            # 3) If still empty, try headless API sniff (often finds the product JSON endpoint)
+            if not inline_products and headless_allowed:
+                print("🛰️ Trying HEADLESS API SNIFF (extract product URLs from JSON endpoints)…")
+                api_urls = sniff_api_then_extract_product_urls(net, url)
+                if api_urls:
+                    urls = api_urls
+
+            # If we now have product URLs, skip inline mode and continue normally
+            if urls:
+                print(f"✅ Found {len(urls)} product URLs via JS/API fallback. Continuing...\n")
+            else:
+                if not inline_products:
+                    print("❌ Still no products found.")
+                    print("Tips: enable Domain Crawler, add proxies, or try a category/listing URL.")
+                    st["engine"] = engine_hint
+                    save_state(run_dir, st)
+                    return
+
+                print(f"✅ INLINE_CATALOG found {len(inline_products)} products on this page.")
+                for p in inline_products:
+                    upsert_product(conn, p)
+
+                    image_rows = []
+                    if download_imgs and p.get("images"):
+                        image_rows = download_images(net, run_dir, p["id"], p.get("images"))
+                    replace_children(conn, p["id"], p.get("variants"), image_rows, p.get("reviews"))
+                    save_product_folder(run_dir, p)
+
+                export_csv_xlsx(run_dir, conn)
+                conn.close()
+                st["analytics"]["finished_at"] = int(time.time())
                 save_state(run_dir, st)
+
+                print("\n✅ DONE (INLINE_CATALOG MODE)")
+                print(f"Run folder: {run_dir}")
+                print("Outputs: store.db, products.csv, products.xlsx, resume_state.json")
                 return
-
-            print(f"✅ INLINE_CATALOG found {len(inline_products)} products on this page.")
-            for p in inline_products:
-                upsert_product(conn, p)
-
-                image_rows = []
-                if download_imgs and p.get("images"):
-                    image_rows = download_images(net, run_dir, p["id"], p.get("images"))
-                replace_children(conn, p["id"], p.get("variants"), image_rows, p.get("reviews"))
-                save_product_folder(run_dir, p)
-
-            export_csv_xlsx(run_dir, conn)
-            conn.close()
-            st["analytics"]["finished_at"] = int(time.time())
-            save_state(run_dir, st)
-
-            print("\n✅ DONE (INLINE_CATALOG MODE)")
-            print(f"Run folder: {run_dir}")
-            print("Outputs: store.db, products.csv, products.xlsx, resume_state.json")
-            return
-
         queue = urls
         processed = set()
 
