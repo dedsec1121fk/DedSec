@@ -1,0 +1,95 @@
+DEDSEC PROJECT DOCUMENTATION (ENGLISH VERSION)
+
+1. General Philosophy
+The DedSec Project was built with a strong focus on practical creation, experimentation, and continuous improvement. Even if parts of the project originally started with a fast and highly iterative approach, the core goal remains the same: every tool and every file should work properly, have a clean structure, and provide real value.
+
+2. Development Direction
+Project development should rely on tools and methods that help produce correct, functional, and lawful scripts. For new scripts, bug fixes, or improvements, AI tools such as ChatGPT can be used, as long as prompts are clear, debugging continues in the same chat when needed, and every output is reviewed before being added to the project.
+A useful workflow for simple scripts is:
+- clearly describe the goal,
+- explain the problem with precision,
+- continue in the same chat for fixes and improvements,
+- request the file in a ready-to-download form when necessary.
+
+For more demanding development work, debugging, and stronger results, it is better to use a paid ChatGPT plan that provides access to more capable features. This is especially helpful when more complex reasoning, better troubleshooting, and more complete deliverable files are needed.
+
+Other AI tools may also be used in a supportive role. Gemini can be useful for simpler tasks, but every result should be reviewed carefully for mistakes. DeepSeek may also be used as a helper for ideas, debugging, and draft code, but every generated file must always be checked for quality, stability, security, compatibility, and lawful use before it becomes part of the DedSec Project. This matters even more in cases where an AI tool produces output related to sensitive, risky, or borderline technical areas.
+
+3. Quality and Presentation
+The DedSec Project must keep a consistent visual identity and a clean overall presentation. Everything inside the project should look polished, functional, and intentional, never rushed or fake.
+Each script, tool, or file should:
+- be properly organized,
+- belong to the correct category,
+- be placed according to its real purpose and use,
+- contribute meaningfully to the project’s overall consistency.
+
+4. File Organization and Categories
+Every new script must be placed in the category that matches its actual function. Categorization should never happen randomly or only for appearance; it must be based on what the script does, what it is useful for, and where it logically belongs inside the project.
+If scripts that require root access are ever added in the future, separate folders, clear structural separation, and matching updates to the README files, documentation, and website must be created so users can easily understand which tools are standard and which require root access.
+
+5. Script Structure and Generated Files
+Each script in the DedSec Project should remain as small and clean as possible in terms of structure. The main rule is that a script should not be spread across multiple files without a strong reason, so the project tree stays minimal, clean, and easy to manage.
+Whenever practical, each script should stay in one main file. If it needs to generate files, outputs, exports, or saved data, those should preferably be placed inside a separate folder named after the script itself so that:
+- clutter is avoided,
+- maintenance becomes easier,
+- generated files do not get mixed with core project files,
+- the overall repository structure stays clean.
+
+6. Bilingual Maintenance
+Both the Greek and English versions of the project must always remain updated and synchronized. Any new addition, correction, or change must be reflected in both languages.
+If there is:
+- a translation mistake,
+- a broken file,
+- an inconsistency between the Greek and English versions,
+it should be fixed as quickly as possible.
+
+7. Website Rules
+The project website should not go through massive changes too often. It should maintain consistency in design, structure, and overall user experience.
+The main priority of the project is its tools. New pages, improvements, or future website expansions should be implemented carefully without damaging the project’s identity.
+For major website changes or additions, it is recommended to provide the full existing website to the development tool or AI being used, together with a clear description of the requested change, and receive the result back as a complete package for direct review.
+
+8. Backups
+There must always be backups of the latest correct and stable versions of all important project elements:
+- scripts,
+- website,
+- translations,
+- documentation,
+- README files,
+- supporting assets.
+The goal is to make sure neither the project nor the website ever breaks without a way to restore it immediately.
+
+9. Accessibility and Audience
+The project should remain easy to understand and accessible even for beginner users, while still allowing more advanced tools and capabilities.
+In simple terms:
+- a less experienced user should still be able to understand and use it,
+- but advanced functionality is welcome as long as it is well organized and properly explained.
+
+10. Choosing New Ideas and Tools
+Any idea discovered on platforms such as YouTube, Instagram, or TikTok can be evaluated for inclusion in the project, as long as it is truly useful, practical, and offers real value.
+Nothing should be added just because it looks impressive. The main criterion is whether it actually provides something useful for the user or the community.
+
+11. Usefulness Rule
+No script should be added to the project if it exists only for appearance or attention without real functionality.
+Anything added to the project must:
+- work reliably,
+- have a real purpose,
+- provide help or value,
+- be suitable for responsible and lawful use.
+Quality and real usefulness must always come before appearance.
+
+12. Pull Requests, Contributors, and Team Standards
+Not all pull requests should be accepted. Every proposed change must be reviewed carefully for quality, usefulness, compatibility with the project, and alignment with the overall direction of the DedSec Project.
+Submitting a pull request does not automatically mean that someone is ready to be considered a contributor or a member of the maintenance team.
+
+For someone to become a contributor and join the DedSec Project team, a significant amount of time should pass so their behavior can be observed and evaluated consistently, including:
+- their character,
+- their politeness,
+- their way of collaborating,
+- their respect toward the project and the community,
+- their consistency in the quality of their work.
+
+The DedSec Project is not only for programmers. It is for people who genuinely want to help create positive change in the world through useful tools, the right mindset, and a responsible attitude.
+For that reason, it matters greatly who is publicly shown as a maintainer, contributor, or team member. The people associated with the project should represent not only technical skill, but also ethics, seriousness, and proper conduct.
+
+13. Final Principle
+The DedSec Project should continue to evolve with consistency, strong structure, clear categories, updated translations, stable backups, and meaningful tools. Its development should always be guided by usefulness, clarity, visual consistency, and the maintenance of a reliable experience for anyone who uses or maintains it.
