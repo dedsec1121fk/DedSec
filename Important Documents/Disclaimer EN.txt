@@ -1,0 +1,82 @@
+DEDSEC PROJECT — LEGAL DISCLAIMER & STATEMENT
+Last updated: 7 February 2026
+
+1) Purpose / educational use
+DedSec Project is a community-driven, Termux-first toolkit and website that provides open-source scripts, utilities, learning resources, and related content. Any cybersecurity, OSINT, network-testing, scraping, or similar functionality is provided strictly for:
+• education,
+• lawful security research,
+• defensive testing, and
+• use on systems and accounts you own or where you have explicit, prior, written permission.
+
+2) No unlawful use / authorization required
+You must NOT use DedSec Project tools, guides, or content to:
+• access, test, disrupt, or monitor systems without authorization,
+• perform phishing or credential capture against real targets,
+• conduct unauthorized scanning, exploitation, DDoS/DoS, brute-force, malware activity, or any illegal act.
+
+You are solely responsible for ensuring that your use complies with all applicable laws and contractual obligations.
+
+3) No professional advice
+The website and any provided materials are for informational purposes only and do not constitute legal, financial, medical, or professional advice. No attorney–client relationship is created. For legal advice, consult a qualified attorney.
+
+4) User responsibility, risk, and safety
+Software and scripts can cause data loss, service interruption, account restrictions, or other harm if misused or used incorrectly. You assume all risk arising from your use of:
+• the website,
+• any scripts or tools referenced or distributed,
+• any third-party services, websites, or APIs.
+
+Always test in controlled, authorized environments.
+
+5) Limitation of liability (maximum permitted by law)
+To the maximum extent permitted by applicable law, DedSec Project, its owner, contributors, and collaborators will not be liable for any direct, indirect, incidental, consequential, special, exemplary, or punitive damages, including loss of data, profits, goodwill, or business interruption, arising out of or relating to your access to or use of the website or tools.
+
+Some jurisdictions do not allow certain limitations; where prohibited, those limitations do not apply.
+
+6) Indemnification
+You agree to indemnify and hold harmless DedSec Project, its owner, contributors, and collaborators from any claims, damages, liabilities, losses, and expenses (including reasonable attorney fees) arising from:
+• your use or misuse of the website or tools,
+• your violation of any law, regulation, or third-party right,
+• your breach of this disclaimer.
+
+7) Intellectual property / open-source
+Unless otherwise stated, site text, graphics, and branding are protected by applicable intellectual property laws. Open-source code (where applicable) is governed by the license included with that code. Third-party trademarks remain the property of their respective owners and are used for identification only.
+
+8) Third-party links, services, and affiliates
+The website may contain links to third-party sites and services (e.g., Stripe checkout, social platforms, affiliate/referral links). Third-party services have their own terms and policies, and DedSec Project is not responsible for their content, availability, or practices.
+If an affiliate/referral relationship exists, it may result in a commission at no extra cost to you.
+
+9) Store / payments / digital goods
+If the website offers paid digital products or services, delivery, support, and any refund rules (if any) are described on the Store page and/or at checkout. Where mandatory consumer law applies, statutory rights are not waived.
+
+10) Privacy and data protection (high-level)
+DedSec Project aims to minimize personal data collection. However, standard web hosting, security, and analytics systems may process limited technical data (e.g., IP address, device/browser data, logs) for security and operation.
+
+Where applicable, data processing is governed by:
+• EU GDPR (Regulation (EU) 2016/679) and relevant EU rules,
+• EU ePrivacy rules (Directive 2002/58/EC as implemented nationally),
+• Greek data protection law (including Law 4624/2019 and related implementing rules),
+• and applicable U.S. privacy and consumer-protection frameworks (as relevant).
+
+For details, see the site’s Privacy Policy.
+
+11) Cookies
+If cookies or similar technologies are used (including via third-party embeds), consent and disclosure should be handled as required by GDPR/ePrivacy and local implementing laws. See the Privacy Policy / cookie notice (if shown).
+
+12) Children’s privacy
+The website and tools are not directed to children under 13. If the operator becomes aware of personal information collected from a child under 13 in a manner covered by COPPA (U.S.) or other applicable laws, reasonable steps will be taken to delete it.
+
+13) Security research boundaries (U.S., EU, Greece — “as applicable”)
+You must ensure your actions remain within lawful boundaries, including (as applicable):
+• U.S.: Computer Fraud and Abuse Act (CFAA), DMCA, FTC Act, and state laws,
+• EU: national criminal laws, cybersecurity and data protection rules,
+• Greece: relevant provisions of Greek criminal law and applicable cybercrime / data protection legislation.
+
+This document does not list every law. You must comply with all laws that apply to you and your targets.
+
+14) Changes
+This disclaimer may be updated at any time. Continued use of the site after updates means you accept the updated version.
+
+15) Contact
+For legal/privacy inquiries or takedown requests, use the contact methods listed on the website’s Contact page.
+
+— End of document —
