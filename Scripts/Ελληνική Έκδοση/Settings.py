@@ -15,9 +15,11 @@ import zipfile
 # --- CONSTANTS, PATHS, AND GLOBALS ---
 # ----------------------------------------------------------------------
 
-REPO_URL = "https://github.com/dedsec1121fk/DedSec.git"
+REPO_URL_SOURCE_1 = "https://github.com/dedsec1121fk/DedSec.git"
+REPO_URL_SOURCE_2 = "https://github.com/sal-scar/DedSec.git"
 LOCAL_DIR = "DedSec"
-REPO_API_URL = "https://api.github.com/repos/dedsec1121fk/DedSec"
+REPO_API_URL_SOURCE_1 = "https://api.github.com/repos/dedsec1121fk/DedSec"
+REPO_API_URL_SOURCE_2 = "https://api.github.com/repos/sal-scar/DedSec"
 
 # --- Define fixed absolute paths and folder names ---
 ENGLISH_BASE_PATH = "/data/data/com.termux/files/home/DedSec/Scripts"
@@ -144,7 +146,8 @@ def enforce_language_folder_visibility():
 GREEK_STRINGS = {
     "Select an option": "Επιλέξτε μια επιλογή",
     "About": "Πληροφορίες",
-    "DedSec Project Update": "Ενημέρωση Έργου DedSec",
+    "DedSec Project Update (Source 1)": "Ενημέρωση Έργου DedSec (Πηγή 1)",
+    "DedSec Project Update (Source 2)": "Ενημέρωση Έργου DedSec (Πηγή 2)",
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
@@ -371,9 +374,9 @@ def find_dedsec():
     paths = output.split("\n") if output else []
     return paths[0] if paths else None
 
-def get_github_repo_size():
+def get_github_repo_size(repo_api_url):
     try:
-        response = requests.get(REPO_API_URL)
+        response = requests.get(repo_api_url, timeout=20)
         if response.status_code == 200:
             size_kb = response.json().get('size', 0)
             return f"{size_kb / 1024:.2f} MB"
@@ -400,25 +403,27 @@ def get_dedsec_size(path):
         return size
     return _("DedSec directory not found")
 
-def clone_repo():
+def clone_repo(repo_url):
     print(f"[+] DedSec not found. {_('Cloning repository...')}")
-    run_command("git clone " + REPO_URL)
+    run_command("git clone " + repo_url)
     return os.path.join(os.getcwd(), LOCAL_DIR)
 
-def force_update_repo(existing_path):
+def force_update_repo(existing_path, repo_url):
     if existing_path:
         print(f"[+] DedSec found! {_('Forcing a full update...')}")
+        run_command(f"git remote set-url origin {repo_url}", cwd=existing_path)
         run_command("git fetch --all", cwd=existing_path)
         run_command("git reset --hard origin/main", cwd=existing_path)
         run_command('git clean -f -- "*.py" "*.css" "*.sh" "*.bash"', cwd=existing_path)
         run_command("git pull", cwd=existing_path)
         print(f"[+] Repository fully updated, including README and all other files.")
 
-def update_dedsec():
-    repo_size = get_github_repo_size()
+def update_dedsec(repo_url=REPO_URL_SOURCE_1, repo_api_url=REPO_API_URL_SOURCE_1):
+    repo_size = get_github_repo_size(repo_api_url)
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
     if existing_dedsec_path:
+        run_command(f"git remote set-url origin {repo_url}", cwd=existing_dedsec_path)
         run_command("git fetch", cwd=existing_dedsec_path)
         behind_count, _err = run_command_silent("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
         try:
@@ -426,17 +431,23 @@ def update_dedsec():
         except Exception:
             behind_count = 0
         if behind_count > 0:
-            force_update_repo(existing_dedsec_path)
+            force_update_repo(existing_dedsec_path, repo_url)
             dedsec_size = get_dedsec_size(existing_dedsec_path)
             print(f"[+] {_('Update applied. DedSec Project Size')}: {dedsec_size}")
         else:
             print(_("No available update found."))
     else:
-        existing_dedsec_path = clone_repo()
+        existing_dedsec_path = clone_repo(repo_url)
         dedsec_size = get_dedsec_size(existing_dedsec_path)
         print(f"[+] {_('Cloned new DedSec repository. DedSec Project Size')}: {dedsec_size}")
     print(f"[+] {_('Update process completed successfully')}!")
     return existing_dedsec_path
+
+def update_dedsec_source_1():
+    return update_dedsec(REPO_URL_SOURCE_1, REPO_API_URL_SOURCE_1)
+
+def update_dedsec_source_2():
+    return update_dedsec(REPO_URL_SOURCE_2, REPO_API_URL_SOURCE_2)
 
 def get_internal_storage():
     df_out, _err = run_command_silent("df -h /data")
@@ -545,11 +556,6 @@ Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
 Technical Help: lamprouil, UKI_hunter, Teo, DZAZ
 Testers: Javier, McGrove
----------------------------------------
-Main Website: https://ded-sec.space
-Main Repository: https://github.com/dedsec1121fk/DedSec
-Backup Website: https://ded-sec.online
-Backup Repository: https://github.com/sal-scar/DedSec
 =======================================
 """
     print(credits)
@@ -1433,7 +1439,8 @@ def run_settings_list_menu():
         curses.use_default_colors()
         menu_options = [
             _("About"),
-            _("DedSec Project Update"),
+            _("DedSec Project Update (Source 1)"),
+            _("DedSec Project Update (Source 2)"),
             _("Update Packages & Modules"),
             _("Change Prompt"),
             _("Change Menu Style"),
@@ -1612,7 +1619,8 @@ def run_settings_grid_menu():
 
     menu_options = [
         _("About"),
-        _("DedSec Project Update"),
+        _("DedSec Project Update (Source 1)"),
+        _("DedSec Project Update (Source 2)"),
         _("Update Packages & Modules"),
         _("Change Prompt"),
         _("Change Menu Style"),
@@ -1629,7 +1637,8 @@ def run_settings_number_menu():
     """Settings menu using number style"""
     menu_options = [
         _("About"),
-        _("DedSec Project Update"),
+        _("DedSec Project Update (Source 1)"),
+        _("DedSec Project Update (Source 2)"),
         _("Update Packages & Modules"),
         _("Change Prompt"),
         _("Change Menu Style"),
@@ -1658,7 +1667,7 @@ def run_settings_number_menu():
             continue
         
         if choice == 0:
-            return 9  # Exit option
+            return 10  # Exit option
         
         if 1 <= choice <= len(menu_options):
             return choice - 1
@@ -1690,24 +1699,26 @@ def main():
         if selected == 0:
             show_about()
         elif selected == 1:
-            update_dedsec()
+            update_dedsec_source_1()
         elif selected == 2:
-            update_packages_modules()
+            update_dedsec_source_2()
         elif selected == 3:
-            change_prompt()
+            update_packages_modules()
         elif selected == 4:
-            change_menu_style()
+            change_prompt()
         elif selected == 5:
-            toggle_menu_autostart()
+            change_menu_style()
         elif selected == 6:
-            change_language()
+            toggle_menu_autostart()
         elif selected == 7:
-            show_credits()
+            change_language()
         elif selected == 8:
+            show_credits()
+        elif selected == 9:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 9:
+        elif selected == 10:
             print(_("Exiting..."))
             break
         
