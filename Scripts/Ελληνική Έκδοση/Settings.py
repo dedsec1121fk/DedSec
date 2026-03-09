@@ -555,7 +555,7 @@ Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
 Technical Help: lamprouil, UKI_hunter, Teo, DZAZ
-Testers: Javier, McGrove
+Testers: Javier, Stove
 =======================================
 """
     print(credits)
