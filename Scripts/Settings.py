@@ -540,11 +540,16 @@ def show_credits():
 =======================================
                 {_('Credits').upper()}
 =======================================
-Creator:dedsec1121fk
+Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
-Art Artist:Christina Chatzidimitriou
-Technical Help:lamprouil, UKI_hunter
-Testers: Javier
+Art Artist: Christina Chatzidimitriou
+Technical Help: lamprouil, UKI_hunter, Teo, DZAZ
+Testers: Javier, McGrove
+---------------------------------------
+Main Website: https://ded-sec.space
+Main Repository: https://github.com/dedsec1121fk/DedSec
+Backup Website: https://ded-sec.online
+Backup Repository: https://github.com/sal-scar/DedSec
 =======================================
 """
     print(credits)
