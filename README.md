@@ -176,8 +176,8 @@ The toolkit is organized into the following categories and tools:
 9. **Sod**: A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload),…
     * *Save Location Configuration: load_test_config.json in script directory | Results: Displayed in terminal*
 
-10. **Store Scrapper**: Advanced multi-strategy e‑commerce / store listing scraper optimized for Termux.
-    * *Save Location Creates a run folder in: ~/storage/downloads/Store Scrapper/ _ (includes store.db, products.csv, products.xlsx, resume_state.json, products/, images_cache/).*
+10. **Store Scrapper**: Advanced single-file store scraper for Termux that discovers categories and products using HTML, JSON-LD, embedded JSON, sitemaps, platform APIs, listing pages, and product detail fallbacks. It starts full product scraping the moment each product is found, saves while running, shows live terminal status, and downloads product images into each product folder.
+    * *Save Location Results are saved in: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/ with files such as metadata.json, summary.txt, description.txt, images/, images.json, category state files, and FINAL_REPORT.txt.*
 
 
 ## 📱 Personal Information Capture (Educational Use Only)
@@ -326,7 +326,11 @@ Use the system to **organize lawful documentation**, protect your accounts, and 
 
 For questions, support, or general inquiries, connect with the DedSec Project community through our official channels:
 
-* **Official Website:** [https://ded-sec.space/](https://ded-sec.space/)
+* **Main Website:** [https://ded-sec.space](https://ded-sec.space)
+* **Main DedSec Project Repository:** [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
+* **In Case Something Happens To Our Main Links Visit The Backups:**
+* **Backup Website:** [https://ded-sec.online](https://ded-sec.online)
+* **Backup DedSec Project Repository:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
 * **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
 * **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
@@ -336,8 +340,8 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
-* **Technical Help:** lamprouil, UKI_hunter
-* **Testers:** Javier
+* **Technical Help:** lamprouil, UKI_hunter, Teo, DZAZ
+* **Testers:** Javier, McGrove
 
 ---
 
