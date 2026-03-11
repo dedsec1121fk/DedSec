@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 from typing import List, Tuple, Set
 
-APP_NAME = "Νεκροδιακόπτης"
+APP_NAME = "Dead Switch"
 REPO_NAME = "Dead-Switch"   # GitHub repo name (no spaces)
 def resolve_downloads_dir() -> Path:
     """
@@ -34,19 +34,21 @@ MAX_FILE_BYTES = 40 * 1024 * 1024   # also skip any single file > 40MB
 
 CONFIG_PATH = Path.home() / ".dead_switch_settings.json"
 
-README_TEXT = """# Νεκροδιακόπτης (Dead Man\'s Switch)
+README_TEXT = """# Dead Switch (Νεκροδιακόπτης / Dead Man's Switch)
 
-Ένας *νεκροδιακόπτης* (dead man’s switch) είναι ένας μηχανισμός ασφαλείας που ενεργοποιεί μια ενέργεια αν ο χειριστής πάψει να μπορεί να συνεχίσει—για παράδειγμα, αν σταματήσει να κάνει check‑in.
+Ο *dead man’s switch* είναι ένας μηχανισμός ασφαλείας που ενεργοποιεί μια ενέργεια όταν ο χειριστής δεν μπορεί
+να συνεχίσει — για παράδειγμα, όταν σταματήσει να κάνει check-in.
 
-Με απλά λόγια: αν κάποιος δεν μπορεί να επιβεβαιώσει ότι είναι καλά, το σύστημα μπορεί να αποκαλύψει οδηγίες, να μεταφέρει πρόσβαση, να στείλει ειδοποιήσεις ή να δημοσιεύσει πληροφορίες.
+Με απλά λόγια: αν κάποιος δεν μπορεί να επιβεβαιώσει ότι είναι καλά, το σύστημα μπορεί να αποκαλύψει οδηγίες,
+να μεταφέρει πρόσβαση, να στείλει ειδοποιήσεις ή να δημοσιεύσει πληροφορίες.
 
-Αυτό το αποθετήριο μπορεί να χρησιμοποιηθεί ως “backup concept” νεκροδιακόπτη:
-- Κράτα σημαντικά έγγραφα ή οδηγίες μέσα στο repo.
+Αυτό το αποθετήριο μπορεί να χρησιμοποιηθεί ως ένα dead man’s switch ως εφεδρική λύση:
+- Κράτησε εδώ σημαντικά αρχεία ή οδηγίες.
 - Ενημέρωνέ το όποτε χρειάζεται.
-- Μπορείς να αυτοματοποιήσεις check‑ins και ενέργειες ξεχωριστά (εκτός αυτού του script).
+- Μπορείς να αυτοματοποιήσεις check-ins και ενέργειες ξεχωριστά, έξω από αυτό το script.
 
-> Αυτό το script **δεν** υλοποιεί από μόνο του την αυτόματη ενεργοποίηση.
-> Απλά συγχρονίζει το περιεχόμενο του τοπικού φακέλου σου στο GitHub και προαιρετικά μπορεί να αδειάσει/διαγράψει το repo.
+> Αυτό το script **δεν** υλοποιεί από μόνο του αυτόματη ενεργοποίηση.
+> Απλώς συγχρονίζει τα περιεχόμενα του τοπικού σου φακέλου στο GitHub και προαιρετικά μπορεί να αδειάσει ή να διαγράψει το repo.
 """
 
 def load_settings() -> dict:
@@ -79,12 +81,12 @@ def get_visibility() -> str:
 def set_visibility(vis: str):
     vis = (vis or "").lower().strip()
     if vis not in ("public", "private"):
-        print("[!] Invalid visibility. Use public/private.")
+        print("[!] Μη έγκυρη ορατότητα. Χρησιμοποίησε public/private.")
         return
     settings = load_settings()
     settings["visibility"] = vis
     save_settings(settings)
-    print(f"[✓] Saved repository visibility preference: {vis.upper()}")
+    print(f"[✓] Αποθηκεύτηκε η προτίμηση ορατότητας αποθετηρίου: {vis.upper()}")
 
 
 
@@ -108,7 +110,7 @@ def run(cmd, cwd=None, check=True, capture=False):
         msg = ""
         if getattr(e, "stdout", None):
             msg = "\n" + e.stdout
-        print(f"\n[!] Command failed: {' '.join(cmd)}{msg}")
+        print(f"\n[!] Η εντολή απέτυχε: {' '.join(cmd)}{msg}")
         if check:
             raise
         return msg.strip()
@@ -121,10 +123,10 @@ def ensure_termux_storage():
     # We check both the resolved downloads dir and the Termux storage link path.
     termux_dl = Path.home() / "storage" / "downloads"
     if not DOWNLOADS_DIR.exists() or (str(DOWNLOADS_DIR).startswith(str(Path.home())) and not termux_dl.exists()):
-        print("[!] Δεν έχει ρυθμιστεί το Termux storage (δεν υπάρχει πρόσβαση στον κοινόχρηστο χώρο ακόμα).")
-        print("    Εκτέλεση: termux-setup-storage")
+        print("[!] Το αποθηκευτικό σύστημα του Termux δεν έχει ρυθμιστεί ακόμα (δεν υπάρχει πρόσβαση στον κοινόχρηστο χώρο).")
+        print("    Εκτελείται: termux-setup-storage")
         run(["termux-setup-storage"], check=False)
-        print("\n    Δώσε την άδεια στο παράθυρο που θα εμφανιστεί και μετά ξανατρέξε το script.")
+        print("\n    Δώσε την άδεια όταν εμφανιστεί το παράθυρο και μετά ξανατρέξε το script.")
         sys.exit(1)
 
 def ensure_folder():
@@ -133,13 +135,13 @@ def ensure_folder():
         print(f"[*] Δημιουργία φακέλου: {LOCAL_DIR}")
         LOCAL_DIR.mkdir(parents=True, exist_ok=True)
     else:
-        print(f"[*] Ο φάκελος υπάρχει: {LOCAL_DIR}")
+        print(f"[*] Ο φάκελος υπάρχει ήδη: {LOCAL_DIR}")
 
 def ensure_pkg(bin_name, pkg_name=None):
     if which(bin_name):
         return
     pkg_name = pkg_name or bin_name
-    print(f"[*] Γίνεται εγκατάσταση {pkg_name} ...")
+    print(f"[*] Εγκατάσταση {pkg_name} ...")
     run(["pkg", "update", "-y"], check=False)
     run(["pkg", "install", "-y", pkg_name])
 
@@ -153,31 +155,31 @@ def ensure_termux_api():
     # termux-notification binary comes from termux-api package
     if which("termux-notification"):
         return
-    print("[*] Γίνεται εγκατάσταση termux-api (for notifications)...")
+    print("[*] Εγκατάσταση termux-api (για ειδοποιήσεις)...")
     ensure_pkg("termux-notification", "termux-api")
     if not which("termux-notification"):
-        print("[!] Το termux-notification δεν βρέθηκε ακόμη.")
-        print("    Εγκατέστησε την εφαρμογή Termux:API από F-Droid/Play Store και τρέξε:")
+        print("[!] Το termux-notification ακόμα δεν βρέθηκε.")
+        print("    Εγκατάστησε την εφαρμογή Termux:API από F-Droid/Play Store και τρέξε:")
         print("    pkg install termux-api")
         return
 
 def ensure_logged_in():
-    print("[*] Έλεγχος κατάστασης σύνδεσης στο GitHub...")
+    print("[*] Έλεγχος κατάστασης σύνδεσης GitHub...")
     ok = subprocess.run(["gh", "auth", "status"],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     if ok:
-        print("[*] GitHub: ήδη συνδεδεμένος (αποθηκευμένο στο HOME του Termux).")
+        print("[*] GitHub: είσαι ήδη συνδεδεμένος (αποθηκευμένο στο Termux HOME).")
         return
 
     print("\n[!] Δεν είσαι συνδεδεμένος στο GitHub CLI (gh).")
-    print("    Εκκίνηση σύνδεσης device/web (σύγχρονο, χωρίς κωδικό).")
-    print("    Ακολούθησε τις οδηγίες στο Termux.\n")
+    print("    Ξεκινά σύνδεση μέσω συσκευής/web (σύγχρονη μέθοδος, χωρίς κωδικό).")
+    print("    Ακολούθησε τις οδηγίες μέσα στο Termux.\n")
     run(["gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web"], check=False)
 
     ok = subprocess.run(["gh", "auth", "status"],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     if not ok:
-        print("\n[!] Η σύνδεση δεν ολοκληρώθηκε. Τρέξε χειροκίνητα:")
+        print("\n[!] Η σύνδεση ακόμα δεν ολοκληρώθηκε. Τρέξε χειροκίνητα:")
         print("    gh auth login --hostname github.com --git-protocol https --web")
         sys.exit(1)
 
@@ -208,7 +210,7 @@ def ensure_scopes(required_scopes):
     missing = [sc for sc in required_scopes if sc not in scopes]
     if not missing:
         return
-    print(f"[*] Λείπουν δικαιώματα (scopes) token GitHub: {', '.join(missing)}")
+    print(f"[*] Λείπουν scopes από το GitHub token: {', '.join(missing)}")
     print("[*] Ζητούνται επιπλέον δικαιώματα (μία φορά)...")
     args = ["gh", "auth", "refresh", "-h", "github.com"]
     for sc in missing:
@@ -251,10 +253,10 @@ def ensure_repo_created(owner, visibility: str):
              "-f", "auto_init=false"], check=True)
         print("[*] Το repo δημιουργήθηκε.")
     else:
-        print(f"[*] Το repo υπάρχει: {owner}/{REPO_NAME}")
+        print(f"[*] Το repo υπάρχει ήδη: {owner}/{REPO_NAME}")
 
     # Apply desired visibility (best effort) and verify
-    print(f"[*] Εφαρμογή ορατότητας αποθετηρίου: {visibility.upper()}...")
+    print(f"[*] Ορισμός ορατότητας αποθετηρίου σε {visibility.upper()}...")
     private_flag = "true" if visibility == "private" else "false"
     run(["gh", "api", "-X", "PATCH", f"repos/{owner}/{REPO_NAME}", "-f", f"private={private_flag}"], check=False)
 
@@ -266,7 +268,7 @@ def ensure_repo_created(owner, visibility: str):
     priv = run(["gh", "api", f"repos/{owner}/{REPO_NAME}", "--jq", ".private"], capture=True, check=False).strip().lower()
     want_priv = "true" if visibility == "private" else "false"
     if priv and priv != want_priv:
-        print("[!] Η ορατότητα δεν εφαρμόστηκε με την πρώτη. Επαναπροσπάθεια μία φορά...")
+        print("[!] Η ορατότητα δεν εφαρμόστηκε με την πρώτη. Γίνεται άλλη μία προσπάθεια...")
         ensure_repo_scope()
         run(["gh", "api", "-X", "PATCH", f"repos/{owner}/{REPO_NAME}", "-f", f"private={private_flag}"], check=False)
         run(edit_args, check=False)
@@ -342,12 +344,12 @@ def staged_has_changes() -> bool:
 
 def commit_staged(message: str) -> bool:
     if not staged_has_changes():
-        print("[*] Nothing staged to commit.")
+        print("[*] Δεν υπάρχει κάτι στο staging για commit.")
         return False
     # Commit and detect success
     rc, out = run_rc(["git", "commit", "-m", message], cwd=str(LOCAL_DIR), capture=True)
     if rc != 0:
-        print("[!] Αποτυχία commit.")
+        print("[!] Το commit απέτυχε.")
         if out:
             print(out)
         return False
@@ -362,7 +364,7 @@ def push_current() -> bool:
     print("[*] Γίνεται push στο GitHub...")
     rc, out = run_rc(["git", "push", "-u", "origin", head], cwd=str(LOCAL_DIR), capture=True)
     if rc != 0:
-        print("[!] Αποτυχία push.")
+        print("[!] Το push απέτυχε.")
         if out:
             print(out)
         return False
@@ -451,9 +453,9 @@ def stage_paths(paths: List[str]):
 def create_switch_only_new():
     """
     Upload only NEW paths not present in repo.
-    Παρτίδαed so each push <= 20MB.
+    Batched so each push <= 20MB.
     """
-    print("\n=== Δημιουργία (Μόνο νέα αρχεία) ===")
+    print("\n=== Δημιουργία Switch (Μόνο νέα αρχεία) ===")
     ensure_folder()
     ensure_git()
     ensure_gh()
@@ -462,7 +464,7 @@ def create_switch_only_new():
 
     owner = gh_user()
     if not owner:
-        print("[!] Δεν μπόρεσα να εντοπίσω το username στο GitHub.")
+        print("[!] Δεν ήταν δυνατός ο εντοπισμός του ονόματος χρήστη GitHub.")
         return
 
     ensure_repo_created(owner, get_visibility())
@@ -470,7 +472,7 @@ def create_switch_only_new():
     set_remote(owner)
     ensure_gitignore()
     readme_path = ensure_readme()
-    print(f"[*] Το README δημιουργήθηκε/ενημερώθηκε στο: {readme_path}")
+    print(f"[*] Το README δημιουργήθηκε/ενημερώθηκε εδώ: {readme_path}")
 
     run(["git", "fetch", "origin"], cwd=str(LOCAL_DIR), check=False)
 
@@ -479,7 +481,7 @@ def create_switch_only_new():
     local_items = list_local_files()
     print(f"[*] Εντοπίστηκαν τοπικά αρχεία: {len(local_items)}")
     if len(local_items) == 0:
-        print("[!] Ο φάκελος Νεκροδιακόπτης είναι άδειος. Βάλε αρχεία μέσα και ξαναδοκίμασε.")
+        print("[!] Ο φάκελος Dead Switch είναι άδειος. Βάλε αρχεία μέσα και ξαναδοκίμασε.")
         return
     # Always ensure README/.gitignore exist and are considered
     # (they are in local_items already because ensure_* wrote them)
@@ -503,7 +505,7 @@ def create_switch_only_new():
         return
 
     batches = make_batches(candidates, MAX_BATCH_BYTES)
-    print(f"[*] Χρειάζεται να ανέβουν {len(candidates)} new file(s) in {len(batches)} παρτίδα(ες).")
+    print(f"[*] Πρέπει να ανέβουν {len(candidates)} νέο(α) αρχείο(α) σε {len(batches)} παρτίδα(ες).")
 
     uploaded = 0
     for i, batch in enumerate(batches, start=1):
@@ -516,13 +518,13 @@ def create_switch_only_new():
         print(f"\n[*] Παρτίδα {i}/{len(batches)}: {len(batch_paths)} αρχείο(α), {batch_bytes/(1024*1024):.2f} MB")
         stage_paths(batch_paths)
 
-        if not commit_staged(f"Add new files batch {i}/{len(batches)} (<=40MB)"):
+        if not commit_staged(f"Προσθήκη νέων αρχείων - παρτίδα {i}/{len(batches)} (<=40MB)"):
             # If commit failed, stop to avoid misleading "done"
-            print("[!] Διακοπή επειδή απέτυχε το commit. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
+            print("[!] Η διαδικασία σταματά επειδή απέτυχε το commit. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
             return
 
         if not push_current():
-            print("[!] Διακοπή επειδή απέτυχε το push. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
+            print("[!] Η διαδικασία σταματά επειδή απέτυχε το push. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
             return
 
         uploaded += len(batch_paths)
@@ -531,7 +533,7 @@ def create_switch_only_new():
         for rel in batch_paths:
             remote_paths.add(rel)
 
-    print(f"\n[✓] Τέλος. Ανέβηκαν {uploaded} file(s). Repo: https://github.com/{owner}/{REPO_NAME}")
+    print(f"\n[✓] Έτοιμο. Ανέβηκαν {uploaded} αρχείο(α). Repo: https://github.com/{owner}/{REPO_NAME}")
 
 def overwrite_repository_batched():
     """
@@ -539,7 +541,7 @@ def overwrite_repository_batched():
     - Stages files from the folder in batches.
     - Does NOT automatically delete remote files you removed locally.
     """
-    print("\n=== Overwrite Repository (Full Sync, Παρτίδαed) ===")
+    print("\n=== Αντικατάσταση Αποθετηρίου (Πλήρης συγχρονισμός, σε παρτίδες) ===")
     ensure_folder()
     ensure_git()
     ensure_gh()
@@ -548,7 +550,7 @@ def overwrite_repository_batched():
 
     owner = gh_user()
     if not owner:
-        print("[!] Δεν μπόρεσα να εντοπίσω το username στο GitHub.")
+        print("[!] Δεν ήταν δυνατός ο εντοπισμός του ονόματος χρήστη GitHub.")
         return
 
     ensure_repo_created(owner, get_visibility())
@@ -556,25 +558,25 @@ def overwrite_repository_batched():
     set_remote(owner)
     ensure_gitignore()
     readme_path = ensure_readme()
-    print(f"[*] Το README δημιουργήθηκε/ενημερώθηκε στο: {readme_path}")
+    print(f"[*] Το README δημιουργήθηκε/ενημερώθηκε εδώ: {readme_path}")
 
     run(["git", "fetch", "origin"], cwd=str(LOCAL_DIR), check=False)
 
     local_items = list_local_files()
     print(f"[*] Εντοπίστηκαν τοπικά αρχεία: {len(local_items)}")
     if len(local_items) == 0:
-        print("[!] Ο φάκελος Νεκροδιακόπτης είναι άδειος. Βάλε αρχεία μέσα και ξαναδοκίμασε.")
+        print("[!] Ο φάκελος Dead Switch είναι άδειος. Βάλε αρχεία μέσα και ξαναδοκίμασε.")
         return
     skipped_large = [(rel, size) for rel, size in local_items if size > MAX_FILE_BYTES]
     report_skips(skipped_large)
 
     candidates = [(rel, size) for rel, size in local_items if size <= MAX_FILE_BYTES]
     if not candidates:
-        print("[*] Τίποτα για ανέβασμα (δεν υπάρχουν αρχεία κάτω από το όριο).")
+        print("[*] Δεν υπάρχει κάτι για ανέβασμα (κανένα αρχείο κάτω από το όριο).")
         return
 
     batches = make_batches(candidates, MAX_BATCH_BYTES)
-    print(f"[*] Θα συγχρονιστούν {len(candidates)} file(s) in {len(batches)} παρτίδα(ες).")
+    print(f"[*] Θα συγχρονιστούν {len(candidates)} αρχείο(α) σε {len(batches)} παρτίδα(ες).")
 
     committed_any = False
     for i, batch in enumerate(batches, start=1):
@@ -585,21 +587,21 @@ def overwrite_repository_batched():
         print(f"\n[*] Παρτίδα {i}/{len(batches)}: {len(batch_paths)} αρχείο(α), {batch_bytes/(1024*1024):.2f} MB")
         stage_paths(batch_paths)
 
-        if commit_staged(f"Overwrite/sync batch {i}/{len(batches)} (<=40MB)"):
+        if commit_staged(f"Αντικατάσταση/συγχρονισμός - παρτίδα {i}/{len(batches)} (<=40MB)"):
             committed_any = True
             if not push_current():
-                print("[!] Διακοπή επειδή απέτυχε το push. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
+                print("[!] Η διαδικασία σταματά επειδή απέτυχε το push. Διόρθωσε το πρόβλημα και ξανατρέξε το script.")
                 return
         else:
             print("[*] Δεν άλλαξε κάτι σε αυτή την παρτίδα.")
 
     if committed_any:
-        print(f"\n[✓] Done. Repo: https://github.com/{owner}/{REPO_NAME}")
+        print(f"\n[✓] Έτοιμο. Repo: https://github.com/{owner}/{REPO_NAME}")
     else:
         print("\n[*] Δεν εντοπίστηκαν αλλαγές για ανέβασμα.")
 
 def wipe_repo_files(owner):
-    print("[*] Άδειασμα αρχείων αποθετηρίου (empty commit)...")
+    print("[*] Άδειασμα αρχείων αποθετηρίου (κενό commit)...")
     ensure_git()
     init_or_use_git_repo()
     set_remote(owner)
@@ -620,16 +622,16 @@ def wipe_repo_files(owner):
     (LOCAL_DIR / ".gitkeep").write_text("Το repo αδειάστηκε από το Dead Switch.py\n", encoding="utf-8")
 
     run(["git", "add", "-A"], cwd=str(LOCAL_DIR), check=False)
-    commit_staged("Wipe repository contents")
+    commit_staged("Καθαρισμός περιεχομένων αποθετηρίου")
     run(["git", "push", "origin", "HEAD", "--force"], cwd=str(LOCAL_DIR), check=False)
-    print("[*] Το περιεχόμενο του repo άδειασε (best effort).")
+    print("[*] Τα περιεχόμενα του repo αδειάστηκαν όσο ήταν δυνατόν.")
 
 def ensure_delete_scope():
     print("[*] Έλεγχος δικαιωμάτων διαγραφής (delete_repo)...")
     ensure_scopes(["delete_repo", "repo"])
 
 def delete_repo(owner):
-    print(f"[*] Γίνεται διαγραφή repo: {owner}/{REPO_NAME}")
+    print(f"[*] Διαγραφή repo: {owner}/{REPO_NAME}")
     ensure_delete_scope()
 
     rc = subprocess.run(["gh", "repo", "delete", f"{owner}/{REPO_NAME}", "--yes"],
@@ -646,7 +648,7 @@ def delete_repo(owner):
         print("[✓] Το repo διαγράφηκε.")
 
 def kill_switch():
-    print("\n=== Ακύρωση (Άδειασμα + Διαγραφή Repo) ===")
+    print("\n=== Kill Switch (Άδειασμα + Διαγραφή repo) ===")
     ensure_folder()
     ensure_git()
     ensure_gh()
@@ -655,7 +657,7 @@ def kill_switch():
 
     owner = gh_user()
     if not owner:
-        print("[!] Δεν μπόρεσα να εντοπίσω το username στο GitHub.")
+        print("[!] Δεν ήταν δυνατός ο εντοπισμός του ονόματος χρήστη GitHub.")
         return
 
     if not repo_exists(owner):
@@ -665,7 +667,7 @@ def kill_switch():
     try:
         wipe_repo_files(owner)
     except Exception:
-        print("[!] Δεν μπόρεσα να αδειάσω πλήρως τα αρχεία (συνεχίζω στη διαγραφή του repo).")
+        print("[!] Δεν ήταν δυνατό να αδειάσουν πλήρως τα αρχεία (συνεχίζει η διαγραφή του repo).")
 
     delete_repo(owner)
 
@@ -689,92 +691,92 @@ def create_notification():
     run([
         "termux-notification",
         "--id", "dead_switch",
-        "--title", "Νεκροδιακόπτης",
-        "--content", f"Διάλεξε ενέργεια (repo {get_visibility().upper()}):",
-        "--button1", "Δημιουργία",
+        "--title", "Dead Switch",
+        "--content", f"Επίλεξε ενέργεια (repo {get_visibility().upper()}):",
+        "--button1", "Δημιουργία Switch",
         "--button1-action", create_cmd,
-        "--button2", "Ακύρωση",
+        "--button2", "Εκτέλεση Kill Switch",
         "--button2-action", kill_cmd,
         "--ongoing"
     ], check=False)
 
-    print("[✓] Η ειδοποίηση δημιουργήθηκε. (Απαιτεί εγκατεστημένη την εφαρμογή Termux:API.)")
+    print("[✓] Η ειδοποίηση δημιουργήθηκε. (Απαιτείται η εφαρμογή Termux:API.)")
 
 def print_header():
     os.system("clear")
     print("===================================")
-    print(f" {APP_NAME} (Termux, no root)")
+    print(f" {APP_NAME} (Ελληνική έκδοση, Termux, χωρίς root)")
     print("===================================")
-    print(f"Τοπικός φάκελος: {LOCAL_DIR} (resolved: {LOCAL_DIR.resolve()})  (downloads: {DOWNLOADS_DIR})")
-    print(f"Αποθετήριο GitHub : {REPO_NAME} (preference: {get_visibility().upper()})")
-    print("Κανόνες μεταφόρτωσης:")
-    print(" - Κάθε παρτίδα (batch) push <= 40MB συνολικά.")
+    print(f"Τοπικός φάκελος: {LOCAL_DIR} (πραγματική διαδρομή: {LOCAL_DIR.resolve()})  (λήψεις: {DOWNLOADS_DIR})")
+    print(f"GitHub repo : {REPO_NAME} (προτίμηση: {get_visibility().upper()})")
+    print("Κανόνες ανεβάσματος:")
+    print(" - Κάθε push παρτίδας <= 40MB συνολικά.")
     print(" - Κάθε μεμονωμένο αρχείο > 40MB παραλείπεται.")
     print("Λειτουργίες:")
-    print(" - Δημιουργία: ανεβάζει μόνο ΝΕΑ αρχεία/διαδρομές (χωρίς αντικατάσταση).")
-    print(" - Αντικατάσταση: ενημερώνει/αντικαθιστά σε παρτίδες.")
-    print(" - Ακύρωση: άδειασμα + διαγραφή αποθετηρίου.")
-    print("Η σύνδεση παραμένει μέσω GitHub CLI στο HOME του Termux (~/.config/gh).")
+    print(" - Δημιουργία Switch: ανεβάζει μόνο ΝΕΕΣ διαδρομές αρχείων (χωρίς αντικατάσταση).")
+    print(" - Αντικατάσταση Repo: ενημερώνει/αντικαθιστά σε παρτίδες.")
+    print(" - Kill Switch: άδειασμα + διαγραφή repo.")
+    print("Η σύνδεση παραμένει αποθηκευμένη μέσω GitHub CLI στο Termux HOME (~/.config/gh).")
     print("")
 
 def menu():
     while True:
         print_header()
-        print("1) Δημιουργία (ΜΟΝΟ νέα αρχεία, σε παρτίδες <=40MB)")
-        print("2) Αντικατάσταση/Συγχρονισμός αποθετηρίου (παρτίδες <=40MB)")
-        print("3) Ακύρωση (άδειασμα repo και μετά διαγραφή)")
-        print("4) Ορατότητα αποθετηρίου (Δημόσιο / Ιδιωτικό)")
-        print("5) Ειδοποίηση Termux (Δημιουργία / Ακύρωση)")
-        print("6) Άνοιγμα φακέλου Νεκροδιακόπτης (termux-open)")
+        print("1) Δημιουργία Switch (ΜΟΝΟ νέα αρχεία, σε παρτίδες <=40MB)")
+        print("2) Αντικατάσταση Αποθετηρίου (συγχρονισμός/overwrite, σε παρτίδες <=40MB)")
+        print("3) Kill Switch (άδειασε το repo και μετά διέγραψέ το)")
+        print("4) Ορισμός Ορατότητας Αποθετηρίου (Public / Private)")
+        print("5) Δημιουργία Ειδοποίησης Termux (Δημιουργία Switch / Kill Switch)")
+        print("6) Άνοιγμα φακέλου Dead Switch (termux-open)")
         print("0) Έξοδος")
         choice = input("\nΕπιλογή: ").strip()
 
         if choice == "1":
             create_switch_only_new()
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
         elif choice == "2":
-            print("\n[!] ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Αυτό θα ΑΝΤΙΚΑΤΑΣΤΗΣΕΙ/ΕΝΗΜΕΡΩΣΕΙ αρχεία στο repo (σε παρτίδες).")
-            confirm = input("Πληκτρολόγησε OVERWRITE για συνέχεια: ").strip()
+            print("\n[!] ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Αυτό θα ΚΑΝΕΙ OVERWRITE/UPDATE τα αρχεία στο repo (σε παρτίδες).")
+            confirm = input("Γράψε OVERWRITE για συνέχεια: ").strip()
             if confirm == "OVERWRITE":
                 overwrite_repository_batched()
             else:
                 print("[*] Ακυρώθηκε.")
-            input("\nΠάτα Enter για συνέχεια...")
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
         elif choice == "3":
             print("\n[!] ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Αυτό θα ΑΔΕΙΑΣΕΙ και θα ΔΙΑΓΡΑΨΕΙ το GitHub repo σου.")
-            confirm = input("Πληκτρολόγησε KILL για συνέχεια: ").strip()
+            confirm = input("Γράψε KILL για συνέχεια: ").strip()
             if confirm == "KILL":
                 kill_switch()
             else:
                 print("[*] Ακυρώθηκε.")
-            input("\nΠάτα Enter για συνέχεια...")
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
         elif choice == "4":
-            print("\nΔιάλεξε ορατότητα:")
-            print("1) Δημόσιο")
-            print("2) Ιδιωτικό")
-            v = input("\nΕπιλογή: ").strip()
+            print("\nΕπίλεξε ορατότητα:")
+            print("1) Public")
+            print("2) Private")
+            v = input("\nSelect: ").strip()
             if v == "1":
                 set_visibility("public")
             elif v == "2":
                 set_visibility("private")
             else:
                 print("[*] Ακυρώθηκε.")
-            input("\nΠάτα Enter για συνέχεια...")
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
         elif choice == "5":
             create_notification()
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
         elif choice == "6":
             ensure_folder()
             run(["termux-open", str(LOCAL_DIR)], check=False)
         elif choice == "0":
-            print("Γεια.")
+            print("Αντίο.")
             return
         else:
             print("[!] Μη έγκυρη επιλογή.")
-            input("\nΠάτα Enter για συνέχεια...")
+            input("\nΠάτησε Enter για συνέχεια...")
 
 def cli_entry():
     # Non-interactive flags for notification buttons
@@ -806,4 +808,4 @@ if __name__ == "__main__":
         if not cli_entry():
             menu()
     except KeyboardInterrupt:
-        print("\nΓεια.")
+        print("\nΑντίο.")
