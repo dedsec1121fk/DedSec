@@ -336,6 +336,59 @@ def ensure_git_safe_directory():
     except Exception:
         pass
 
+
+def ensure_git_identity():
+    """
+    Ensure git has a usable identity so commits do not fail on first run.
+    """
+    try:
+        name = run(["git", "config", "--global", "user.name"], capture=True, check=False).strip()
+        email = run(["git", "config", "--global", "user.email"], capture=True, check=False).strip()
+
+        if not name:
+            run(["git", "config", "--global", "user.name", "dead-switch-termux"], check=False)
+        if not email:
+            run(["git", "config", "--global", "user.email", "dead-switch@localhost"], check=False)
+
+        if (LOCAL_DIR / ".git").exists():
+            run(["git", "config", "user.name", "dead-switch-termux"], cwd=str(LOCAL_DIR), check=False)
+            run(["git", "config", "user.email", "dead-switch@localhost"], cwd=str(LOCAL_DIR), check=False)
+    except Exception:
+        pass
+
+
+def remote_branch_exists(branch: str) -> bool:
+    if not branch:
+        return False
+    rc, out = run_rc(["git", "ls-remote", "--heads", "origin", branch], cwd=str(LOCAL_DIR), capture=True)
+    return rc == 0 and bool((out or "").strip())
+
+
+def sync_local_repo_with_remote(owner):
+    """
+    Make sure the local git repo shares history with the remote repo before committing.
+    This fixes push failures when the remote already exists but local .git was recreated.
+    """
+    default_branch = get_default_branch(owner) or "main"
+    run(["git", "fetch", "origin", "--prune"], cwd=str(LOCAL_DIR), check=False)
+
+    branch_to_track = None
+    if remote_branch_exists(default_branch):
+        branch_to_track = default_branch
+    elif default_branch != "main" and remote_branch_exists("main"):
+        branch_to_track = "main"
+    elif default_branch != "master" and remote_branch_exists("master"):
+        branch_to_track = "master"
+
+    if branch_to_track:
+        print(f"[*] Syncing local repo to remote branch: {branch_to_track}")
+        run(["git", "checkout", "-B", branch_to_track, f"origin/{branch_to_track}"], cwd=str(LOCAL_DIR), check=False)
+        if branch_to_track != default_branch:
+            run(["git", "branch", "-M", default_branch], cwd=str(LOCAL_DIR), check=False)
+    else:
+        run(["git", "checkout", "-B", default_branch], cwd=str(LOCAL_DIR), check=False)
+
+
 def ensure_gitignore():
     gi = LOCAL_DIR / ".gitignore"
     if not gi.exists():
@@ -492,7 +545,7 @@ def create_switch_only_new():
     readme_path = ensure_readme()
     print(f"[*] README created/updated at: {readme_path}")
 
-    run(["git", "fetch", "origin"], cwd=str(LOCAL_DIR), check=False)
+    sync_local_repo_with_remote(owner)
 
     remote_paths = fetch_remote_paths(owner)
 
@@ -578,7 +631,7 @@ def overwrite_repository_batched():
     readme_path = ensure_readme()
     print(f"[*] README created/updated at: {readme_path}")
 
-    run(["git", "fetch", "origin"], cwd=str(LOCAL_DIR), check=False)
+    sync_local_repo_with_remote(owner)
 
     local_items = list_local_files()
     print(f"[*] Local files detected: {len(local_items)}")
@@ -624,15 +677,7 @@ def wipe_repo_files(owner):
     init_or_use_git_repo()
     set_remote(owner)
 
-    run(["git", "fetch", "origin"], cwd=str(LOCAL_DIR), check=False)
-
-    for branch in ("main", "master"):
-        rc = subprocess.run(["git", "checkout", branch], cwd=str(LOCAL_DIR),
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode
-        if rc == 0:
-            break
-    else:
-        run(["git", "checkout", "-B", "main"], cwd=str(LOCAL_DIR), check=False)
+    sync_local_repo_with_remote(owner)
 
     run(["git", "rm", "-r", "--ignore-unmatch", "."], cwd=str(LOCAL_DIR), check=False)
 
@@ -760,7 +805,6 @@ def menu():
             else:
                 print("[*] Cancelled.")
             input("\nPress Enter to continue...")
-            input("\nPress Enter to continue...")
         elif choice == "3":
             print("\n[!] WARNING: This will WIPE and DELETE your GitHub repo.")
             confirm = input("Type KILL to continue: ").strip()
@@ -768,7 +812,6 @@ def menu():
                 kill_switch()
             else:
                 print("[*] Cancelled.")
-            input("\nPress Enter to continue...")
             input("\nPress Enter to continue...")
         elif choice == "4":
             print("\nChoose visibility:")
@@ -781,7 +824,6 @@ def menu():
                 set_visibility("private")
             else:
                 print("[*] Cancelled.")
-            input("\nPress Enter to continue...")
             input("\nPress Enter to continue...")
         elif choice == "5":
             create_notification()
