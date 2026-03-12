@@ -340,8 +340,8 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
-* **Technical Help:** lamprouil, UKI_hunter, Teo, DZAZ
-* **Testers:** Javier, Stove
+* **Testers:** Javier
+* **Past Help:** lamprouil, UKI_hunter
 
 ---
 
