@@ -554,8 +554,8 @@ def show_credits():
 Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
-Technical Help: lamprouil, UKI_hunter, Teo, DZAZ
-Testers: Javier, Stove
+Testers: Javier
+Past Help: lamprouil, UKI_hunter
 =======================================
 """
     print(credits)
