@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Butterfly Chat + DedSec's Database (Unified Login Script)
+# Connections + DedSec's Database (Unified Login Script)
 
 import os
 import sys
@@ -139,7 +139,7 @@ def wait_for_server(url, timeout=20):
     print(f"Σφάλμα: Ο τοπικός διακομιστής στο {url} δεν ξεκίνησε μέσα στο όριο χρόνου.")
     return False
 
-# --- 50 GB limit for Butterfly Chat ---
+# --- 50 GB limit for Connections ---
 MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024 * 1024  # 53,687,091,200 bytes
 
 @contextlib.contextmanager
@@ -190,7 +190,7 @@ def start_cloudflared_tunnel(port, proto="http", name=""):
 # ----------------------------
 # Tor Hidden Service (Onion) Helper
 # ----------------------------
-def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Butterfly Chat"):
+def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Connections"):
     """Starts Tor with an ephemeral hidden service that maps hs_virtual_port -> localhost:local_https_port.
     Returns (tor_process, onion_url, hs_dir).
     """
@@ -563,7 +563,7 @@ html_template_db = '''
 
 <body>
 <div class="topbar">
-  <a class="back-btn" href="/">← Επιστροφή στο Butterfly Chat</a>
+  <a class="back-btn" href="/">← Επιστροφή στο Connections</a>
 </div>
 
 <div class="container">
@@ -797,7 +797,7 @@ HTML = '''
 <html lang="el">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-<title>Butterfly Chat (Ελληνικά)</title>
+<title>Connections (Ελληνικά)</title>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 <style>
 /* --- CSS Variables for Theming --- */
@@ -1346,14 +1346,14 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
 <div id="main-content">
     <div class="header">
         <div class="header-left">
-            <div class="avatar" aria-label="Butterfly Chat">
+            <div class="avatar" aria-label="Connections">
                 <picture>
                     <source srcset="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/e0fab73c56ea9e68109f540f302b407ced1b14b3/Assets/Images/Logos/White%20Purple%20Butterfly%20Logo.jpeg" media="(prefers-color-scheme: light)">
                     <img id="chatLogo" src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/e0fab73c56ea9e68109f540f302b407ced1b14b3/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg" alt="Butterfly Logo">
                 </picture>
             </div>
             <div class="title-wrap">
-                <div class="title">Butterfly Chat</div>
+                <div class="title">Connections</div>
                 <div class="subtitle" id="statusText">Ασφαλές • Έτοιμο</div>
             </div>
         </div>
@@ -1521,7 +1521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function showInfo() {
-    const infoText = `Butterfly Chat — Βοήθεια & Πληροφορίες
+    const infoText = `Connections — Βοήθεια & Πληροφορίες
 
 Σύνδεσμοι που βλέπεις στον launcher:
 • Σύνδεσμος Cloudflared (https://*.trycloudflare.com) — Ανοίγει σε ΟΠΟΙΟΝΔΗΠΟΤΕ iOS browser (Safari/Chrome κ.λπ.) ✅
@@ -2434,7 +2434,7 @@ function initializeChat(secretKey) {
 </html>
 '''
 
-# --- Butterfly Chat Server Routes ---
+# --- Connections Server Routes ---
 
 @app.route('/')
 def index_chat():
@@ -2662,18 +2662,18 @@ if __name__ == '__main__' and "--server" not in sys.argv:
             online_url = None
 
             if shutil.which("tor"):
-                tor_proc, onion_url, _hs_dir = start_tor_hidden_service(5000, 80, "Butterfly Chat")
+                tor_proc, onion_url, _hs_dir = start_tor_hidden_service(5000, 80, "Connections")
             else:
                 print("Το 'tor' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Onion σύνδεσμος.")
 
             if shutil.which("cloudflared"):
-                tunnel_proc, online_url = start_cloudflared_tunnel(5000, "http", "Butterfly Chat")
+                tunnel_proc, online_url = start_cloudflared_tunnel(5000, "http", "Connections")
             else:
                 print("Το 'cloudflared' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Online σύνδεσμος.")
 
             os.system('cls' if os.name == 'nt' else 'clear')
             print(
-f"""✅ Το Butterfly Chat είναι πλέον ενεργό!
+f"""✅ Το Connections είναι πλέον ενεργό!
 =================================================================
 🔑 Το εφάπαξ Μυστικό Κλειδί σου (για σύνδεση):
    {SECRET_KEY}
@@ -2756,7 +2756,7 @@ if __name__ == '__main__' and "--server" in sys.argv:
         print(f"Starting server with key: {SECRET_KEY_SERVER[:4]}...")
         
     # --- Start Main Server (Chat + DB) ---
-    print("Εκκίνηση Butterfly Chat (με Βάση Δεδομένων) στο http://localhost:5000...")
+    print("Εκκίνηση Connections (με Βάση Δεδομένων) στο http://localhost:5000...")
     try:
         # This one command runs the Flask app, the SocketIO, AND the DB blueprint
         socketio.run(app, host='0.0.0.0', port=5000)
