@@ -247,8 +247,10 @@ These scripts are **training simulations** intended to help you recognize social
 2. **CTF God**: Full‑screen Curses CTF game for Termux with story mode, missions, daily challenges, random boss levels, hint shop economy, achievements & ranks, challenge pack…
     * *Save Location User workspaces & challenge files: /storage/emulated/0/Download/CTF God/ /files (fallback: ~/storage/downloads/CTF God/...). Game state & packs: ~/.ctf_god/ (state.json, packs/, custom.json).*
 
-3. **Detective**: A story-driven Terminal detective game for Termux with 90 fixed, unique cases.
-    * *Save Location ~/Detective/*
+3. **Detective**: Story-driven terminal detective game for Termux with a large fixed case library, richer lore dossiers, district rumors, side stories, suspect rosters, evidence board and timeline views, and long-case pacing. Includes 4 difficulties (Rookie, Detective, Noir, Legend), 3 manual save slots plus autosave, note/evidence tracking, interrogation flow, checkpoint hints, and quick commands like `:help`, `:guide`, `:lore`, `:suspects`, `:board`, `:timeline`, `:hint`, and `:save`.
+    * *Save Location `~/Detective/` (player config, autosave/manual saves, and case progress)*
+
+    * *Gameplay Notes:* Accusations are intentionally locked until the case timer matures, so you investigate first instead of speed-running. The updated build also adds casefile lore screens with dossiers, district threads, legends, rumors, and lingering side-story beats.
 
 4. **Tamagotchi**: A fully featured terminal pet game.
     * *Save Location ~/.termux_tamagotchi_v8.json*
