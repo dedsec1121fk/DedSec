@@ -1,25 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Store Scrapper for Termux
-Single-file Python scraper for many online stores without root.
+Store Scrapper για Termux
+Python scraper σε ένα μόνο αρχείο για πολλά online καταστήματα χωρίς root.
 
-Features:
-- Tries multiple ways to discover categories and products
-- Works with regular HTML pages plus many JS-style stores by reading:
+Χαρακτηριστικά:
+- Δοκιμάζει πολλούς τρόπους για να βρει κατηγορίες και προϊόντα
+- Λειτουργεί με κανονικές HTML σελίδες αλλά και με πολλά JS-style stores διαβάζοντας:
   HTML, JSON-LD, embedded JSON, sitemaps, Shopify endpoints, WooCommerce APIs,
-  generic product cards, breadcrumbs, OpenGraph/meta tags, and internal links
-- Saves while running
-- Starts full product scraping the moment each product is found
-- Shows live terminal status
-- Enter = default for all prompts
-- Stores results under:
+  generic product cards, breadcrumbs, OpenGraph/meta tags και εσωτερικά links
+- Αποθηκεύει ενώ τρέχει
+- Ξεκινά πλήρες scraping προϊόντος μόλις βρεθεί κάθε προϊόν
+- Εμφανίζει ζωντανή κατάσταση στο terminal
+- Enter = προεπιλογή σε κάθε prompt
+- Αποθηκεύει αποτελέσματα στον φάκελο:
   ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
 
-Notes:
-- No scraper can guarantee 100% success on every store. Some sites use strong
-  anti-bot protection or private APIs. This script uses many fallback methods
-  to still catch a lot of JS-driven stores without requiring root.
+Σημειώσεις:
+- Κανένα scraper δεν μπορεί να εγγυηθεί 100% επιτυχία σε κάθε κατάστημα. Ορισμένα sites
+  χρησιμοποιούν ισχυρή anti-bot προστασία ή ιδιωτικά APIs. Αυτό το script χρησιμοποιεί
+  πολλές εναλλακτικές μεθόδους ώστε να πιάνει όσο γίνεται περισσότερα JS-driven stores
+  χωρίς να απαιτεί root.
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 from urllib.parse import urljoin, urlparse, urlunparse, parse_qsl, urlencode
 from xml.etree import ElementTree as ET
 
-# --------------------------- bootstrap dependencies ---------------------------
+# --------------------------- αρχικοποίηση εξαρτήσεων ---------------------------
 
 REQUIRED_PACKAGES = [
     ("requests", "requests"),
@@ -78,7 +79,7 @@ def ensure_package(import_name: str, pip_name: str, required: bool = True) -> bo
         return True
     except Exception as exc:
         if required:
-            print(f"[!] Failed to install required package {pip_name}: {exc}", file=sys.stderr)
+            print(f"[!] Αποτυχία εγκατάστασης του απαιτούμενου πακέτου {pip_name}: {exc}", file=sys.stderr)
             sys.exit(1)
         return False
 
@@ -99,7 +100,7 @@ except Exception:
     cloudscraper = None
 
 
-# ------------------------------- misc helpers --------------------------------
+# -------------------------------- βοηθητικά --------------------------------
 
 VERSION = "1.5"
 DEFAULT_TIMEOUT = 20
@@ -189,7 +190,7 @@ class GracefulStop:
 
     def _handler(self, signum, frame) -> None:
         self.stop = True
-        print("\n[!] Stop requested. Finishing current step safely...")
+        print("\n[!] Ζητήθηκε διακοπή. Ολοκλήρωση του τρέχοντος βήματος με ασφάλεια...")
 
 
 STOPPER = GracefulStop()
@@ -814,7 +815,7 @@ def input_int(prompt: str, default: int, minimum: int = 0) -> int:
                 raise ValueError
             return number
         except Exception:
-            print(f"[!] Enter a number >= {minimum} or just press Enter for default.")
+            print(f"[!] Δώσε αριθμό >= {minimum} ή απλώς πάτα Enter για την προεπιλογή.")
 
 
 def input_yes_no(prompt: str, default: bool = True) -> bool:
@@ -825,7 +826,7 @@ def input_yes_no(prompt: str, default: bool = True) -> bool:
     return value in {"y", "yes", "1", "true"}
 
 
-# -------------------------------- live status --------------------------------
+# ------------------------------ ζωντανή κατάσταση ------------------------------
 
 class LiveStatus:
     def __init__(self) -> None:
@@ -872,19 +873,33 @@ class LiveStatus:
         while self.running:
             with self.lock:
                 elapsed = int(time.time() - self.started_at)
+                phase_label = {
+                    "idle": "αναμονή",
+                    "start": "έναρξη",
+                    "prepare": "προετοιμασία",
+                    "fetch": "λήψη",
+                    "discover-categories": "εύρεση-κατηγοριών",
+                    "scrape-category": "scrape-κατηγορίας",
+                    "scrape-product": "scrape-προϊόντος",
+                    "save-image": "αποθήκευση-εικόνας",
+                    "shopify-api": "shopify-api",
+                    "woocommerce-api": "woocommerce-api",
+                    "generic-listing": "γενική-λίστα",
+                    "done": "ολοκληρώθηκε",
+                }.get(self.phase, self.phase)
                 msg = (
-                    f"[LIVE] phase={self.phase} | store={truncate(self.store, 22)} | "
-                    f"cat={truncate(self.category, 18)} | page={self.page} | "
-                    f"saved={self.saved} | prod={self.products_found} | cats={self.categories_found} | "
-                    f"http={self.http_code or '-'} | err={self.errors} | "
-                    f"last={truncate(self.last_item, 28)} | url={truncate(self.current_url, 58)} | "
-                    f"time={elapsed}s"
+                    f"[LIVE] φάση={phase_label} | κατάστημα={truncate(self.store, 22)} | "
+                    f"κατ={truncate(self.category, 18)} | σελίδα={self.page} | "
+                    f"αποθηκευμένα={self.saved} | προϊόντα={self.products_found} | κατηγορίες={self.categories_found} | "
+                    f"http={self.http_code or '-'} | σφάλματα={self.errors} | "
+                    f"τελευταίο={truncate(self.last_item, 28)} | url={truncate(self.current_url, 58)} | "
+                    f"χρόνος={elapsed}s"
                 )
             print(msg)
             time.sleep(1.5)
 
 
-# --------------------------------- data types --------------------------------
+# -------------------------------- τύποι δεδομένων --------------------------------
 
 @dataclass
 class CategoryRecord:
@@ -898,7 +913,7 @@ class CategoryRecord:
 class ProductRecord:
     name: str
     url: str
-    category: str = "Uncategorized"
+    category: str = "Χωρίς Κατηγορία"
     description: str = ""
     price: str = ""
     price_text: str = ""
@@ -910,7 +925,7 @@ class ProductRecord:
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
-# -------------------------------- main scraper --------------------------------
+# ------------------------------- κύριος scraper -------------------------------
 
 class StoreScrapper:
     def __init__(self, base_url: str, config: Dict[str, Any]) -> None:
@@ -956,7 +971,7 @@ class StoreScrapper:
         self._active_category_detail_executor = None
         self._active_category_task_index = 0
 
-    # ----------------------------- session/network ----------------------------
+    # ---------------------------- συνεδρία/δίκτυο ----------------------------
 
     def _make_session(self):
         headers = {
@@ -1085,7 +1100,7 @@ class StoreScrapper:
             except Exception:
                 return None
 
-    # -------------------------------- parsing --------------------------------
+    # -------------------------------- ανάλυση --------------------------------
 
     def detect_platforms(self, html_text: str) -> None:
         lower = html_text.lower()
@@ -1469,11 +1484,11 @@ class StoreScrapper:
             categories.append(CategoryRecord(name=sanitize_name(name), url=url, source="sitemap"))
 
         categories = self.rank_categories(categories)
-        homepage_category = CategoryRecord(name="Homepage Featured", url=self.base_url, source="homepage-products")
+        homepage_category = CategoryRecord(name="Προτεινόμενα Αρχικής", url=self.base_url, source="homepage-products")
         if not any(canonicalize_url(cat.url) == canonicalize_url(homepage_category.url) for cat in categories):
             categories.insert(0, homepage_category)
         if not categories:
-            categories = [CategoryRecord(name="All Products", url=self.base_url, source="fallback-home")]
+            categories = [CategoryRecord(name="Όλα τα Προϊόντα", url=self.base_url, source="fallback-home")]
 
         verify_cap = min(max(20, self.config.get("default_category_count", 5) * 4), len(categories), 36)
         rescored = []
@@ -1498,10 +1513,10 @@ class StoreScrapper:
 
         self.stats["discovered_categories"] = len(categories)
         self.status.set(categories_found=len(categories))
-        self.discovery_notes.append(f"Platforms detected: {', '.join(sorted(self.platform)) or 'generic'}")
-        self.discovery_notes.append(f"Sitemap product URLs found: {len(discovered_products_from_sitemap)}")
-        self.discovery_notes.append(f"Seed product URLs found: {len(self.discovered_product_urls)}")
-        self.discovery_notes.append(f"Categories found: {len(categories)}")
+        self.discovery_notes.append(f"Εντοπίστηκαν πλατφόρμες: {', '.join(sorted(self.platform)) or 'generic'}")
+        self.discovery_notes.append(f"Βρέθηκαν URLs προϊόντων από sitemap: {len(discovered_products_from_sitemap)}")
+        self.discovery_notes.append(f"Βρέθηκαν αρχικά URLs προϊόντων: {len(self.discovered_product_urls)}")
+        self.discovery_notes.append(f"Βρέθηκαν κατηγορίες: {len(categories)}")
         return categories
 
     def rank_categories(self, categories: List[CategoryRecord]) -> List[CategoryRecord]:
@@ -1555,17 +1570,17 @@ class StoreScrapper:
         return sorted(picked)
 
     def choose_categories_interactively(self, categories: List[CategoryRecord]) -> List[CategoryRecord]:
-        print(f"[+] Categories / Sections found: {len(categories)}")
+        print(f"[+] Βρέθηκαν κατηγορίες / ενότητες: {len(categories)}")
         for idx, cat in enumerate(categories, start=1):
             print(f"  {idx}. {cat.name} -> {cat.url} [{cat.source}]")
         default_count = int(self.config.get("default_category_count", 0) or 0)
         default_text = "0" if default_count == 0 else f"first {min(default_count, len(categories))}"
         while True:
-            raw = input(f"Choose category numbers (examples: 1,4,7 or 2-5, 0=all) [{default_text}]: ").strip()
+            raw = input(f"Επίλεξε αριθμούς κατηγοριών (παραδείγματα: 1,4,7 ή 2-5, 0=όλες) [{default_text}]: ").strip()
             indexes = self.parse_category_selection_spec(raw, len(categories))
             if indexes:
                 return [categories[i] for i in indexes]
-            print("[!] Invalid selection. Use numbers like 1,4,7 or ranges like 2-5. Use 0 for all.")
+            print("[!] Μη έγκυρη επιλογή. Χρησιμοποίησε αριθμούς όπως 1,4,7 ή εύρη όπως 2-5. Χρησιμοποίησε 0 για όλες.")
 
     def build_output_root(self) -> None:
         downloads = get_home_downloads_dir()
@@ -1573,7 +1588,7 @@ class StoreScrapper:
         self.output_root = ensure_dir(os.path.join(downloads, "Store Scrapper", store_folder))
         ensure_dir(self.output_root)
         self.status.set(store=store_folder)
-        print(f"[+] Saving under: {self.output_root}")
+        print(f"[+] Αποθήκευση στο: {self.output_root}")
 
     # ---------------------------- product extraction ---------------------------
 
@@ -1710,7 +1725,7 @@ class StoreScrapper:
 
 
     def shopify_products_from_category(self, category: CategoryRecord, category_dir: str) -> List[ProductRecord]:
-        products: List[ProductRecord] = []
+        προϊόντα: List[ProductRecord] = []
         base = category.url.rstrip("/")
         pages = self.config["max_pages_per_category"]
         for page in range(1, pages + 1):
@@ -1725,7 +1740,7 @@ class StoreScrapper:
             if not items:
                 break
             for item in items:
-                title = pick_first(item.get("title"), item.get("handle"), "Unnamed Product")
+                title = pick_first(item.get("title"), item.get("handle"), "Προϊόν Χωρίς Όνομα")
                 handle = item.get("handle") or "product"
                 product_url = urljoin(self.root_url, f"/products/{handle}")
                 images = []
@@ -1757,14 +1772,14 @@ class StoreScrapper:
                     source="shopify-api",
                     extra={"raw": item},
                 )
-                products.append(product)
+                προϊόντα.append(product)
                 self.capture_found_product(product)
                 if self.category_stream_limit_reached():
                     break
-        return products
+        return προϊόντα
 
     def woocommerce_products_from_category(self, category: CategoryRecord, category_dir: str) -> List[ProductRecord]:
-        products: List[ProductRecord] = []
+        προϊόντα: List[ProductRecord] = []
         category_id = category.meta.get("id") if isinstance(category.meta, dict) else None
         pages = self.config["max_pages_per_category"]
         per_page = 100
@@ -1787,7 +1802,7 @@ class StoreScrapper:
                 price_text = pick_first(item.get("prices", {}).get("price"), item.get("price_html"), item.get("price"))
                 price, currency = parse_price_and_currency(price_text)
                 product = ProductRecord(
-                    name=pick_first(item.get("name"), item.get("slug"), "Unnamed Product"),
+                    name=pick_first(item.get("name"), item.get("slug"), "Προϊόν Χωρίς Όνομα"),
                     url=canonicalize_url(permalink or category.url),
                     category=category.name,
                     description=clean_text(item.get("short_description") or item.get("description")),
@@ -1800,11 +1815,11 @@ class StoreScrapper:
                     source="woocommerce-api",
                     extra={"raw": item},
                 )
-                products.append(product)
+                προϊόντα.append(product)
                 self.capture_found_product(product)
                 if self.category_stream_limit_reached():
                     break
-        return products
+        return προϊόντα
 
     def generic_products_from_category(self, category: CategoryRecord, category_dir: str) -> List[ProductRecord]:
         found: List[ProductRecord] = []
@@ -2188,7 +2203,7 @@ class StoreScrapper:
             clean_text((soup.select_one("[itemprop='sku']") or {}).get_text(" ", strip=True) if soup.select_one("[itemprop='sku']") else ""),
             product.sku,
         )
-        category = pick_first(self.extract_category_from_breadcrumbs(soup), product.category, "Uncategorized")
+        category = pick_first(self.extract_category_from_breadcrumbs(soup), product.category, "Χωρίς Κατηγορία")
 
         detail_signals = {
             "jsonld_product": False,
@@ -2244,7 +2259,7 @@ class StoreScrapper:
         return ProductRecord(
             name=sanitize_name(name or product.name or "Product"),
             url=canonicalize_url(product.url),
-            category=sanitize_name(category or "Uncategorized"),
+            category=sanitize_name(category or "Χωρίς Κατηγορία"),
             description=description,
             price=price,
             price_text=price_text,
@@ -2338,10 +2353,10 @@ class StoreScrapper:
                 return sanitize_name(names[-2])
         return ""
 
-    # --------------------------------- saving ---------------------------------
+    # -------------------------------- αποθήκευση ---------------------------------
 
     def product_dir(self, product: ProductRecord) -> str:
-        category_folder = ensure_dir(os.path.join(self.output_root, slugify(product.category or "Uncategorized")))
+        category_folder = ensure_dir(os.path.join(self.output_root, slugify(product.category or "Χωρίς Κατηγορία")))
         product_folder = ensure_dir(os.path.join(category_folder, slugify(product.name or "Product")))
         return product_folder
 
@@ -2400,7 +2415,7 @@ class StoreScrapper:
             json_dump_sync(discovery_metadata, os.path.join(product_folder, "_discovered.json"))
             write_text_sync(
                 os.path.join(product_folder, "FOUND.txt"),
-                f"Discovered: {discovered_at}\nName: {product.name}\nURL: {product.url}\nCategory: {product.category}\nSource: {product.source}\nPrice: {product.price_text or product.price}\n",
+                f"Εντοπίστηκε: {discovered_at}\nΌνομα: {product.name}\nURL: {product.url}\nΚατηγορία: {product.category}\nΠηγή: {product.source}\nΤιμή: {product.price_text or product.price}\n",
             )
             append_text_sync(
                 os.path.join(category_dir, "_discovered_products.jsonl"),
@@ -2447,15 +2462,15 @@ class StoreScrapper:
             json_dump_sync(metadata, os.path.join(folder, "metadata.json"))
 
             summary = []
-            summary.append(f"Name: {product.name}")
+            summary.append(f"Όνομα: {product.name}")
             summary.append(f"URL: {product.url}")
-            summary.append(f"Category: {product.category}")
-            summary.append(f"Price: {product.price_text or product.price}")
-            summary.append(f"Currency: {product.currency}")
-            summary.append(f"Brand: {product.brand}")
+            summary.append(f"Κατηγορία: {product.category}")
+            summary.append(f"Τιμή: {product.price_text or product.price}")
+            summary.append(f"Νόμισμα: {product.currency}")
+            summary.append(f"Μάρκα: {product.brand}")
             summary.append(f"SKU: {product.sku}")
             summary.append("")
-            summary.append("Description:")
+            summary.append("Περιγραφή:")
             summary.append(product.description or "")
             write_text_sync(os.path.join(folder, "summary.txt"), "\n".join(summary).strip() + "\n")
             write_text_sync(os.path.join(folder, "description.txt"), (product.description or "") + "\n")
@@ -2502,7 +2517,7 @@ class StoreScrapper:
             self.status.inc("saved", 1)
             self.status.set(last_item=product.name)
             self.save_global_state(force=True)
-            print(f"[+] Saved product: {product.name}")
+            print(f"[+] Αποθηκεύτηκε προϊόν: {product.name}")
         except Exception:
             with self.state_lock:
                 self.saved_product_keys.discard(key)
@@ -2556,7 +2571,7 @@ class StoreScrapper:
         if self.input_mode == "category":
             return [CategoryRecord(name=self.category_candidate_name("", self.base_url), url=self.base_url, source="input-url")]
         if not categories:
-            return [CategoryRecord(name="All Products", url=self.base_url, source="fallback-home")]
+            return [CategoryRecord(name="Όλα τα Προϊόντα", url=self.base_url, source="fallback-home")]
         default_count = int(self.config.get("default_category_count", 0) or 0)
         if default_count <= 0 or default_count >= len(categories):
             return list(categories)
@@ -2569,15 +2584,15 @@ class StoreScrapper:
             self.build_output_root()
             self.save_global_state(force=True)
 
-            print(f"[+] Store detected: {self.store_name}")
-            print(f"[+] Platforms: {', '.join(sorted(self.platform)) or 'generic'}")
-            print(f"[+] Input mode: {self.input_mode}")
+            print(f"[+] Εντοπίστηκε κατάστημα: {self.store_name}")
+            print(f"[+] Πλατφόρμες: {', '.join(sorted(self.platform)) or 'generic'}")
+            print("[+] Τρόπος εισόδου: " + {"product": "προϊόν", "category": "κατηγορία", "site": "ιστότοπος"}.get(self.input_mode, self.input_mode))
 
             if self.input_mode == "product":
                 product = ProductRecord(
                     name=sanitize_name(pathlib.Path(urlparse(self.base_url).path).name or "Product"),
                     url=self.base_url,
-                    category="Direct Product",
+                    category="Άμεσο Προϊόν",
                     source="input-url",
                 )
                 self.record_discovered_product(product, ensure_dir(os.path.join(self.output_root, slugify(product.category))))
@@ -2585,22 +2600,22 @@ class StoreScrapper:
             else:
                 if self.input_mode == "site":
                     self.discovered_categories = self.discover_categories()
-                    print(f"[+] Categories found: {len(self.discovered_categories)}")
+                    print(f"[+] Βρέθηκαν κατηγορίες: {len(self.discovered_categories)}")
                 else:
                     self.discovered_categories = [CategoryRecord(name=self.category_candidate_name("", self.base_url), url=self.base_url, source="input-url")]
                     self.status.set(categories_found=1)
-                    print(f"[+] Direct category target: {self.base_url}")
+                    print(f"[+] Άμεσος στόχος κατηγορίας: {self.base_url}")
 
                 selected_categories = self.auto_select_categories(self.discovered_categories)
                 if not selected_categories:
-                    selected_categories = [CategoryRecord(name="All Products", url=self.base_url, source="fallback-home")]
+                    selected_categories = [CategoryRecord(name="Όλα τα Προϊόντα", url=self.base_url, source="fallback-home")]
 
                 for idx, category in enumerate(selected_categories, start=1):
                     if STOPPER.stop:
                         break
-                    print(f"\n[+] Scraping category {idx}/{len(selected_categories)}: {category.name}")
+                    print(f"\n[+] Γίνεται scrape της κατηγορίας {idx}/{len(selected_categories)}: {category.name}")
                     saved_count = self.scrape_category(category)
-                    print(f"[+] Category done: {category.name} | saved {saved_count} products")
+                    print(f"[+] Η κατηγορία ολοκληρώθηκε: {category.name} | αποθηκεύτηκαν {saved_count} προϊόντα")
 
             self.save_global_state(force=True)
             self.write_final_report()
@@ -2610,15 +2625,15 @@ class StoreScrapper:
 
     def write_final_report(self) -> None:
         report = []
-        report.append(f"Store: {self.store_name}")
-        report.append(f"Base URL: {self.base_url}")
-        report.append(f"Platforms: {', '.join(sorted(self.platform)) or 'generic'}")
+        report.append(f"Κατάστημα: {self.store_name}")
+        report.append(f"Βασικό URL: {self.base_url}")
+        report.append(f"Πλατφόρμες: {', '.join(sorted(self.platform)) or 'generic'}")
         report.append("")
-        report.append("Stats:")
+        report.append("Στατιστικά:")
         for key, value in self.stats.items():
             report.append(f"- {key}: {value}")
         report.append("")
-        report.append("Notes:")
+        report.append("Σημειώσεις:")
         for note in self.discovery_notes:
             report.append(f"- {note}")
         write_text(os.path.join(self.output_root, "FINAL_REPORT.txt"), "\n".join(report) + "\n")
@@ -2628,26 +2643,26 @@ class StoreScrapper:
 
 def show_banner() -> None:
     print("=" * 78)
-    print(f"Store Scrapper for Termux | v{VERSION}")
-    print("Single-file store scraper with live saving, live status, and many fallbacks")
-    print("Enter = default on every prompt")
+    print(f"Store Scrapper για Termux | v{VERSION}")
+    print("Store scraper σε ένα αρχείο με ζωντανή αποθήκευση, ζωντανή κατάσταση και πολλές εναλλακτικές μεθόδους")
+    print("Enter = προεπιλογή σε κάθε prompt")
     print("=" * 78)
 
 
 def show_help() -> None:
     print(
         """
-How it works:
-- Reads the store homepage
-- Detects common store platforms (Shopify, WooCommerce, Next.js, Nuxt, Swell, etc.)
-- Tries sitemaps, menus, category links, embedded JSON, JSON-LD, raw hidden URLs,
-  platform APIs, listing pages, product cards, pagination, and product detail pages
-- Uses threaded workers for category verification, product detail pages, and image downloads
-- Saves each discovered product immediately while it runs
-- Writes a per-product discovery placeholder the moment it is found
-- Downloads product images into each product folder
+Πώς λειτουργεί:
+- Διαβάζει την αρχική σελίδα του καταστήματος
+- Εντοπίζει συνηθισμένες πλατφόρμες καταστημάτων (Shopify, WooCommerce, Next.js, Nuxt, Swell κ.λπ.)
+- Δοκιμάζει sitemaps, μενού, links κατηγοριών, embedded JSON, JSON-LD, κρυμμένα raw URLs,
+  APIs πλατφορμών, listing pages, product cards, pagination και σελίδες λεπτομερειών προϊόντων
+- Χρησιμοποιεί threaded workers για επαλήθευση κατηγοριών, σελίδες λεπτομερειών προϊόντων και λήψη εικόνων
+- Αποθηκεύει κάθε προϊόν αμέσως μόλις εντοπιστεί
+- Γράφει placeholder ανακάλυψης για κάθε προϊόν τη στιγμή που βρίσκεται
+- Κατεβάζει τις εικόνες προϊόντων μέσα στον φάκελο κάθε προϊόντος
 
-Folder layout:
+Δομή φακέλων:
 ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
   metadata.json
   summary.txt
@@ -2655,12 +2670,12 @@ Folder layout:
   images/
   images.json
 
-Tips:
-- You now only need to paste one link; the script auto-picks timeouts, workers, and mode
-- If you paste a category URL, it scrapes that category directly without wasting time on full-site discovery
-- If you paste a product URL, it saves that product directly
-- Some stores block bots; this script still tries multiple fallback methods
-- Best results usually come from starting on the main store homepage or a category page
+Χρήσιμα:
+- Τώρα χρειάζεται να επικολλήσεις μόνο ένα link· το script επιλέγει αυτόματα timeouts, workers και mode
+- Αν επικολλήσεις URL κατηγορίας, κάνει scrape απευθείας σε αυτή την κατηγορία χωρίς να χάνει χρόνο σε πλήρη ανακάλυψη site
+- Αν επικολλήσεις URL προϊόντος, αποθηκεύει απευθείας αυτό το προϊόν
+- Ορισμένα stores μπλοκάρουν bots· το script παρ' όλα αυτά δοκιμάζει πολλές εναλλακτικές μεθόδους
+- Τα καλύτερα αποτελέσματα συνήθως έρχονται όταν ξεκινάς από την αρχική σελίδα του store ή από σελίδα κατηγορίας
         """.strip()
     )
 
@@ -2696,7 +2711,7 @@ def auto_build_config(url: str) -> Dict[str, Any]:
 
 def main() -> None:
     while True:
-        url = input("Link: " ).strip()
+        url = input("Σύνδεσμος: " ).strip()
         if url:
             break
     if not re.match(r"^https?://", url, re.I):
@@ -2705,7 +2720,7 @@ def main() -> None:
 
     scraper = StoreScrapper(url, config)
     scraper.run()
-    print(f"\n[+] Output folder: {scraper.output_root}")
+    print(f"\n[+] Φάκελος εξόδου: {scraper.output_root}")
 
 
 if __name__ == "__main__":
