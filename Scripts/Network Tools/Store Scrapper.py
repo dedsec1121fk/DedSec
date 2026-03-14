@@ -101,7 +101,7 @@ except Exception:
 
 # ------------------------------- misc helpers --------------------------------
 
-VERSION = "1.4"
+VERSION = "1.5"
 DEFAULT_TIMEOUT = 20
 DEFAULT_DELAY_MIN = 0.05
 DEFAULT_DELAY_MAX = 0.20
@@ -175,6 +175,7 @@ COMMON_SECTION_WORDS = [
     "αξεσ", "τρεξ", "ποδοσφ", "μπασκε", "προπονη", "γυμναστη", "τενις", "γκολφ", "γιογκα", "τζορνταν",
 ]
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"}
+CODE_PRODUCT_NAME_RE = re.compile(r"^[A-Z]{1,4}-\d{1,3}(?:[A-Z]{1,2}|-\d{1,3}(?:-[A-Z0-9]{1,8})?)?$", re.I)
 
 
 class GracefulStop:
@@ -406,19 +407,234 @@ def parse_price_and_currency(text: str) -> Tuple[str, str]:
     text = clean_text(text)
     if not text:
         return "", ""
+
+    upper = text.upper()
     currency = ""
-    if "€" in text or "EUR" in text.upper():
+    if "€" in text or "EUR" in upper:
         currency = "EUR"
-    elif "$" in text or "USD" in text.upper():
+    elif "$" in text or "USD" in upper:
         currency = "USD"
-    elif "£" in text or "GBP" in text.upper():
+    elif "£" in text or "GBP" in upper:
         currency = "GBP"
-    elif "¥" in text or "JPY" in text.upper():
+    elif "¥" in text or "JPY" in upper:
         currency = "JPY"
-    elif "₹" in text or "INR" in text.upper():
+    elif "₹" in text or "INR" in upper:
         currency = "INR"
-    number_match = re.search(r"\d[\d.,]*", text)
-    return (number_match.group(0) if number_match else "", currency)
+
+    candidates: List[str] = []
+    for pattern in (
+        r"(?:€|\$|£|¥|₹)\s*\d[\d.,]*",
+        r"\d[\d.,]*\s*(?:€|\$|£|¥|₹)",
+        r"\b\d[\d.,]*\s*(?:EUR|USD|GBP|JPY|INR)\b",
+        r"\b(?:EUR|USD|GBP|JPY|INR)\s*\d[\d.,]*\b",
+        r"\d[\d.,]*",
+    ):
+        candidates.extend(re.findall(pattern, text, re.I))
+
+    if not candidates:
+        return "", currency
+
+    def normalize_number(raw: str) -> str:
+        raw = clean_text(raw)
+        raw = re.sub(r"[^\d.,]", "", raw)
+        if not raw:
+            return ""
+        if "," in raw and "." in raw:
+            if raw.rfind(",") > raw.rfind("."):
+                decimal_sep = ","
+                thousands_sep = "."
+            else:
+                decimal_sep = "."
+                thousands_sep = ","
+            raw = raw.replace(thousands_sep, "")
+            raw = raw.replace(decimal_sep, ".")
+        elif raw.count(",") >= 1 and "." not in raw:
+            if re.search(r",\d{2}$", raw):
+                raw = raw.replace(".", "").replace(",", ".")
+            else:
+                raw = raw.replace(",", "")
+        elif raw.count(".") > 1:
+            if re.search(r"\.\d{2}$", raw):
+                last = raw.rfind(".")
+                raw = raw[:last].replace(".", "") + raw[last:]
+            else:
+                raw = raw.replace(".", "")
+        elif raw.count(".") == 1:
+            if not re.search(r"\.\d{1,2}$", raw):
+                raw = raw.replace(".", "")
+        return raw.strip(".")
+
+    scored = []
+    for idx, cand in enumerate(candidates):
+        norm = normalize_number(cand)
+        if not norm:
+            continue
+        score = 0
+        if re.search(r"(?:€|\$|£|¥|₹|EUR|USD|GBP|JPY|INR)", cand, re.I):
+            score += 5
+        if re.search(r"[.,]\d{2}$", norm):
+            score += 3
+        if len(norm) >= 4:
+            score += 1
+        score += max(0, 10 - idx)
+        scored.append((score, norm))
+
+    if not scored:
+        return "", currency
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return scored[0][1], currency
+
+
+def looks_like_code_product_name(name: Any) -> bool:
+    text = clean_text(name).strip().upper()
+    if not text or len(text) > 24:
+        return False
+    if not CODE_PRODUCT_NAME_RE.fullmatch(text):
+        return False
+    prefix = text.split("-", 1)[0]
+    if prefix in {"BLACK", "WHITE", "GRAY", "GREY", "RED", "BLUE", "GREEN", "BROWN", "BEIGE", "TAN", "PINK", "YELLOW", "ORANGE", "PURPLE", "SILVER", "GOLD", "CLEAR", "CHROME"}:
+        return False
+    return True
+
+
+def normalize_product_slug(value: Any) -> str:
+    text = clean_text(value).strip().lower()
+    if not text:
+        return ""
+    text = text.replace("_", "-").replace("/", "-")
+    text = re.sub(r"[^a-z0-9-]+", "-", text)
+    text = re.sub(r"-+", "-", text).strip("-")
+    return text
+
+
+def extract_code_names(text: Any, limit: int = 80) -> List[str]:
+    raw = clean_text(text).upper()
+    if not raw:
+        return []
+    found = []
+    for match in re.finditer(r"\b[A-Z]{1,4}-\d{1,3}(?:[A-Z]{1,2}|-\d{1,3}(?:-[A-Z0-9]{1,8})?)?\b", raw):
+        code = match.group(0).strip()
+        if looks_like_code_product_name(code):
+            found.append(code)
+        if len(found) >= limit:
+            break
+    return unique_keep_order(found)
+
+
+def extract_price_text_from_any(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return clean_text(value)
+    if isinstance(value, list):
+        for item in value:
+            text = extract_price_text_from_any(item)
+            if text:
+                return text
+        return ""
+    if isinstance(value, dict):
+        preferred = [
+            "formatted", "display", "price", "amount", "value", "current", "current_price",
+            "sale_price", "regular_price", "orig_price", "min", "max", "label",
+        ]
+        lower = {str(k).lower(): v for k, v in value.items()}
+        for key in preferred:
+            if key in lower:
+                text = extract_price_text_from_any(lower.get(key))
+                if text:
+                    return text
+        for item in lower.values():
+            text = extract_price_text_from_any(item)
+            if text:
+                return text
+    return clean_text(value)
+
+
+def collect_image_urls(value: Any, base_url: str = "", limit: int = 24) -> List[str]:
+    urls: List[str] = []
+
+    def walk(node: Any, depth: int = 0) -> None:
+        if depth > 6 or len(urls) >= limit:
+            return
+        if node is None:
+            return
+        if isinstance(node, str):
+            text = clean_text(node)
+            if text and (looks_like_image(text) or any(word in text.lower() for word in ["image", "images", "cdn", "media", "photo"])):
+                urls.append(canonicalize_url(urljoin(base_url, text)))
+            return
+        if isinstance(node, (int, float, bool)):
+            return
+        if isinstance(node, list):
+            for item in node:
+                walk(item, depth + 1)
+            return
+        if isinstance(node, dict):
+            for key, value in node.items():
+                lower = str(key).lower()
+                if lower in {"src", "url", "image", "images", "thumbnail", "featuredimage", "featured_image", "media", "gallery", "file", "filename", "main_image"} or "image" in lower or lower.endswith("src"):
+                    walk(value, depth + 1)
+                elif depth < 2:
+                    walk(value, depth + 1)
+
+    walk(value)
+    cleaned = []
+    for url in urls:
+        lower = url.lower()
+        if any(word in lower for word in ["logo", "icon", "sprite", "favicon", "placeholder"]):
+            continue
+        cleaned.append(url)
+    return rank_image_urls(unique_keep_order(cleaned))[:limit]
+
+
+def recursive_find_product_candidates(obj: Any, limit: int = 80) -> List[Dict[str, Any]]:
+    found: List[Dict[str, Any]] = []
+    seen: Set[Tuple[str, str, str]] = set()
+
+    def walk(node: Any, depth: int = 0) -> None:
+        if len(found) >= limit or depth > 14:
+            return
+        if isinstance(node, dict):
+            lower = {str(k).lower(): v for k, v in node.items()}
+            name = pick_first(lower.get("name"), lower.get("title"), lower.get("product_name"), lower.get("handle"), lower.get("slug"), lower.get("sku"))
+            url = pick_first(lower.get("url"), lower.get("permalink"), lower.get("href"), lower.get("link"), lower.get("canonical_url"), lower.get("path"))
+            price_text = pick_first(
+                extract_price_text_from_any(lower.get("price")),
+                extract_price_text_from_any(lower.get("sale_price")),
+                extract_price_text_from_any(lower.get("formatted_price")),
+                extract_price_text_from_any(lower.get("amount")),
+                extract_price_text_from_any(lower.get("price_range")),
+            )
+            images = collect_image_urls(node, base_url="", limit=6)
+            score = 0
+            if name:
+                score += 2
+            if url:
+                score += 2
+            if price_text:
+                score += 2
+            if images:
+                score += 2
+            if lower.get("id") or lower.get("sku") or lower.get("product_id"):
+                score += 1
+            if looks_like_code_product_name(name):
+                score += 1
+            if score >= 4 and (name or url or images):
+                sig = (clean_text(name).lower()[:120], clean_text(url).lower()[:180], clean_text(lower.get("id") or lower.get("sku") or "")[:80])
+                if sig not in seen:
+                    seen.add(sig)
+                    found.append(node)
+            for value in node.values():
+                walk(value, depth + 1)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item, depth + 1)
+
+    walk(obj)
+    return found
 
 
 def is_likely_category_url(url: str) -> bool:
@@ -451,9 +667,17 @@ def is_likely_product_url(url: str) -> bool:
         return False
     if looks_like_bad_category_url(lower) or looks_like_locale_root(lower):
         return False
+
+    path_value = urlparse(lower).path
+    ext = os.path.splitext(path_value)[1].lower()
+    if ext in {".xml", ".txt", ".json", ".js", ".css", ".svg", ".ico", ".map", ".pdf", ".zip", ".gz", ".csv", ".webmanifest"}:
+        return False
+    if path_value.endswith("/robots.txt") or "/sitemap" in path_value:
+        return False
+
     if any(word in lower for word in LIKELY_PRODUCT_WORDS):
         return True
-    path = urlparse(lower).path.strip("/")
+    path = path_value.strip("/")
     parts = [p for p in path.split("/") if p]
     parts = strip_locale_parts(parts)
     if len(parts) < 2:
@@ -462,6 +686,10 @@ def is_likely_product_url(url: str) -> bool:
         return True
     last = parts[-1]
     prev = parts[-2] if len(parts) >= 2 else ""
+    if looks_like_code_product_name(last) and ("products" in parts or "product" in parts or len(parts) >= 2):
+        return True
+    if len(parts) == 2 and looks_like_code_product_name(last):
+        return True
     if len(parts) >= 3 and re.search(r"[a-z]", last):
         if re.search(r"[0-9]", last) or re.search(r"[0-9]", prev):
             return True
@@ -875,6 +1103,8 @@ class StoreScrapper:
             self.platform.add("wix")
         if "magento" in lower or "mage/" in lower:
             self.platform.add("magento")
+        if "swell.store" in lower or "swell-js" in lower or "swell.init" in lower or "@swell" in lower:
+            self.platform.add("swell")
 
     def soup(self, html_text: str) -> BeautifulSoup:
         return BeautifulSoup(html_text, "html.parser")
@@ -1016,6 +1246,8 @@ class StoreScrapper:
         category_urls: List[str] = []
         product_urls: List[str] = []
         processed = 0
+        blocked_exts = {".xml", ".txt", ".json", ".js", ".css", ".svg", ".ico", ".map", ".pdf", ".zip", ".gz", ".csv", ".webmanifest"}
+
         while queue_urls and processed < 40 and len(seen) < limit and not STOPPER.stop:
             current = queue_urls.pop(0)
             if current in seen:
@@ -1032,18 +1264,25 @@ class StoreScrapper:
                 if len(seen) >= limit:
                     break
                 lower = loc.lower()
+                path = urlparse(loc).path.lower()
+                ext = os.path.splitext(path)[1].lower()
                 if lower.endswith(".xml"):
                     queue_urls.append(loc)
-                elif is_likely_category_url(loc):
+                    continue
+                if ext in blocked_exts or path.endswith("/robots.txt") or "/sitemap" in path:
+                    continue
+                if is_likely_category_url(loc):
                     category_urls.append(loc)
-                elif is_likely_product_url(loc):
+                    continue
+                if is_likely_product_url(loc):
                     product_urls.append(loc)
-                else:
-                    # keep maybe-product URLs too
-                    path = urlparse(loc).path.lower()
-                    if path.count("/") >= 2:
-                        product_urls.append(loc)
+                    continue
+                parts = [p for p in strip_locale_parts(path_parts(loc)) if p]
+                if len(parts) >= 3 and any(re.search(r"\d", seg) for seg in parts[-2:]) and not looks_like_bad_category_url(lower):
+                    product_urls.append(loc)
+
         return unique_keep_order(category_urls), unique_keep_order(product_urls)
+
 
     def category_candidate_name(self, text: str, url: str) -> str:
         return sanitize_name(text or human_name_from_url(url) or "Category")
@@ -1230,6 +1469,9 @@ class StoreScrapper:
             categories.append(CategoryRecord(name=sanitize_name(name), url=url, source="sitemap"))
 
         categories = self.rank_categories(categories)
+        homepage_category = CategoryRecord(name="Homepage Featured", url=self.base_url, source="homepage-products")
+        if not any(canonicalize_url(cat.url) == canonicalize_url(homepage_category.url) for cat in categories):
+            categories.insert(0, homepage_category)
         if not categories:
             categories = [CategoryRecord(name="All Products", url=self.base_url, source="fallback-home")]
 
@@ -1445,17 +1687,24 @@ class StoreScrapper:
         if STOPPER.stop:
             return
         self.status.set(phase="scrape-product", page=idx, last_item=product.name, current_url=product.url)
+        guessed_sources = {"code-guess", "path-guess", "generated-guess"}
         try:
             detailed = self.scrape_product_detail(product)
-            to_save = detailed if self.is_valid_product_record(detailed) else product
-            self.save_product(to_save)
+            to_save: Optional[ProductRecord] = None
+            if self.is_valid_product_record(detailed):
+                to_save = detailed
+            elif product.source not in guessed_sources and self.is_valid_product_record(product):
+                to_save = product
+            if to_save is not None:
+                self.save_product(to_save)
         except Exception:
             self.bump_stat("errors", 1)
             self.status.inc("errors", 1)
             err_path = os.path.join(category_dir, f"_error_{idx}.txt")
             write_text(err_path, traceback.format_exc())
             try:
-                self.save_product(product)
+                if product.source not in guessed_sources and self.is_valid_product_record(product):
+                    self.save_product(product)
             except Exception:
                 pass
 
@@ -1580,7 +1829,8 @@ class StoreScrapper:
                 continue
             self.detect_platforms(html_text)
             extracted_products = self.extract_products_from_listing_html(html_text, page_url, category.name)
-            for product in extracted_products:
+            extracted_products.extend(self.extract_products_from_listing_signals(html_text, page_url, category.name))
+            for product in unique_keep_order(extracted_products):
                 found.append(product)
                 self.capture_found_product(product)
                 if self.category_stream_limit_reached():
@@ -1616,6 +1866,70 @@ class StoreScrapper:
                 elif is_likely_category_url(raw_url) and len(queue_pages) < self.config["max_pages_per_category"] * 4:
                     queue_pages.append(raw_url)
         return found
+
+    def extract_products_from_listing_signals(self, html_text: str, base_url: str, category_name: str) -> List[ProductRecord]:
+        soup = self.soup(html_text)
+        found: List[ProductRecord] = []
+
+        for a in soup.select("a[href]"):
+            href = a.get("href")
+            if not href:
+                continue
+            url = canonicalize_url(urljoin(base_url, href))
+            if not same_domain(self.root_url, url):
+                continue
+            if not is_likely_product_url(url):
+                continue
+            name = pick_first(
+                a.get("aria-label"),
+                a.get("title"),
+                clean_text(a.get_text(" ", strip=True)),
+                clean_text((a.find("img") or {}).get("alt") if a.find("img") else ""),
+            )
+            images = []
+            img = a.find("img")
+            if img:
+                for attr in ["src", "data-src", "data-original", "data-lazy", "data-srcset", "srcset"]:
+                    value = img.get(attr)
+                    if value:
+                        if attr.endswith("srcset"):
+                            for part in str(value).split(","):
+                                raw = part.strip().split(" ")[0]
+                                if raw:
+                                    images.append(canonicalize_url(urljoin(base_url, raw)))
+                        else:
+                            images.append(canonicalize_url(urljoin(base_url, value)))
+            found.append(ProductRecord(
+                name=sanitize_name(name or pathlib.Path(urlparse(url).path).name or "Product"),
+                url=url,
+                category=category_name,
+                images=rank_image_urls(images),
+                source="anchor-signal",
+            ))
+
+        code_names: List[str] = []
+        code_names.extend(extract_code_names(soup.get_text(" ", strip=True), limit=120))
+        for img in soup.find_all("img"):
+            for attr in ["alt", "title", "src", "data-src", "data-original"]:
+                value = img.get(attr)
+                if value:
+                    code_names.extend(extract_code_names(value, limit=20))
+        code_names = unique_keep_order(code_names)
+        allow_code_guesses = "swell" in self.platform or len(code_names) >= 6 or "/products/" in html_text.lower()
+        if allow_code_guesses:
+            for code in code_names[:120]:
+                slug = normalize_product_slug(code)
+                if not slug:
+                    continue
+                guess_url = canonicalize_url(urljoin(self.root_url, f"/products/{slug}"))
+                found.append(ProductRecord(
+                    name=sanitize_name(code),
+                    url=guess_url,
+                    category=category_name,
+                    source="code-guess",
+                ))
+
+        return unique_keep_order(found)
 
     def extract_pagination_links(self, html_text: str, base_url: str) -> List[str]:
         soup = self.soup(html_text)
@@ -1765,44 +2079,59 @@ class StoreScrapper:
 
     def products_from_embedded_json(self, obj: Any, base_url: str, category_name: str) -> List[ProductRecord]:
         out: List[ProductRecord] = []
-        for item in recursive_find_productish(obj, limit=40):
-            name = pick_first(item.get("name"), item.get("title"), item.get("product_name"), item.get("handle"))
-            url = pick_first(item.get("url"), item.get("permalink"), item.get("href"), item.get("handle"))
-            if url and not url.startswith("http"):
-                if not str(url).startswith("/") and "handle" in item:
-                    url = "/products/" + str(url).strip("/")
-                url = urljoin(base_url, str(url))
+        candidates = recursive_find_productish(obj, limit=40) + recursive_find_product_candidates(obj, limit=120)
+        for item in unique_keep_order(candidates):
+            name = pick_first(
+                item.get("name"), item.get("title"), item.get("product_name"), item.get("handle"),
+                item.get("slug"), item.get("style_code"), item.get("stylecode"), item.get("sku"),
+            )
+            slug_source = pick_first(item.get("handle"), item.get("slug"), item.get("path"), item.get("style_code"), item.get("stylecode"), name if looks_like_code_product_name(name) else "")
+            url = pick_first(item.get("url"), item.get("permalink"), item.get("href"), item.get("link"), item.get("canonical_url"), item.get("path"), item.get("handle"))
+            if url and not str(url).startswith("http"):
+                url_text = str(url).strip()
+                if not url_text.startswith("/") and "/" not in url_text:
+                    slug = normalize_product_slug(slug_source or url_text)
+                    if slug:
+                        url_text = "/products/" + slug
+                url = urljoin(base_url, url_text)
+            elif not url and slug_source:
+                slug = normalize_product_slug(slug_source)
+                if slug:
+                    url = urljoin(base_url, "/products/" + slug)
             elif not url:
                 continue
+
             price_text = pick_first(
-                item.get("price"),
-                item.get("formatted_price"),
-                item.get("sale_price"),
-                item.get("amount"),
+                extract_price_text_from_any(item.get("price")),
+                extract_price_text_from_any(item.get("formatted_price")),
+                extract_price_text_from_any(item.get("sale_price")),
+                extract_price_text_from_any(item.get("amount")),
+                extract_price_text_from_any(item.get("price_range")),
+                extract_price_text_from_any(item.get("current_price")),
             )
             price, currency = parse_price_and_currency(price_text)
-            images = item.get("images") or item.get("image") or item.get("thumbnail") or []
-            if isinstance(images, str):
-                images = [images]
-            if isinstance(images, dict):
-                images = [images.get("src") or images.get("url")]
-            clean_images = []
-            for img in images:
-                if isinstance(img, dict):
-                    img = img.get("src") or img.get("url")
-                if img:
-                    clean_images.append(canonicalize_url(urljoin(base_url, str(img))))
+            clean_images = collect_image_urls(
+                [
+                    item.get("images"), item.get("image"), item.get("thumbnail"), item.get("featured_image"),
+                    item.get("featuredImage"), item.get("media"), item.get("gallery"), item.get("assets"),
+                ],
+                base_url=base_url,
+                limit=16,
+            )
+            url = canonicalize_url(url)
+            if not same_domain(self.root_url, url):
+                continue
             out.append(ProductRecord(
                 name=sanitize_name(name or pathlib.Path(urlparse(url).path).name or "Product"),
-                url=canonicalize_url(url),
+                url=url,
                 category=category_name,
-                description=clean_text(item.get("description") or item.get("short_description")),
+                description=clean_text(item.get("description") or item.get("short_description") or item.get("excerpt") or item.get("summary")),
                 price=price,
                 price_text=clean_text(price_text),
-                currency=currency or pick_first(item.get("currency"), item.get("currency_code")),
-                images=unique_keep_order([u for u in clean_images if u]),
-                brand=pick_first(item.get("brand"), (item.get("vendor") or {}).get("name") if isinstance(item.get("vendor"), dict) else item.get("vendor")),
-                sku=pick_first(item.get("sku"), item.get("id"), item.get("product_id")),
+                currency=currency or pick_first(item.get("currency"), item.get("currency_code"), item.get("price_currency")),
+                images=clean_images,
+                brand=pick_first(item.get("brand"), (item.get("vendor") or {}).get("name") if isinstance(item.get("vendor"), dict) else item.get("vendor"), item.get("designer")),
+                sku=pick_first(item.get("sku"), item.get("id"), item.get("product_id"), item.get("style_code"), item.get("stylecode")),
                 source="embedded-json",
                 extra={"raw": item},
             ))
@@ -1932,7 +2261,10 @@ class StoreScrapper:
         url = canonicalize_url(product.url).lower()
         description = clean_text(product.description).lower()
         signals = product.extra.get("detail_signals", {}) if isinstance(product.extra, dict) else {}
+        path = urlparse(url).path.lower()
+        ext = os.path.splitext(path)[1].lower()
         score = 0
+
         if is_likely_product_url(url):
             score += 8
         if product.price or product.price_text:
@@ -1941,19 +2273,30 @@ class StoreScrapper:
             score += 4
         if product.images:
             score += 2
+        if looks_like_code_product_name(product.name):
+            score += 2
         if signals.get("jsonld_product"):
             score += 8
         if signals.get("has_add_to_cart"):
             score += 3
+        if product.source in {"json-ld", "embedded-json", "input-url", "seed-url", "listing-link", "anchor-signal"}:
+            score += 1
         if looks_like_bad_category_name(name) or looks_like_bad_category_url(url):
             score -= 20
         if any(word in name for word in ["find a store", "join us", "membership", "guide", "lookbook", "βρες ένα κατάστημα", "έλα μαζί μας", "οδηγός"]):
             score -= 20
         if description and any(word in description for word in ["join the", "find your nearest", "store locator", "member benefits"]):
             score -= 10
+        if ext in {".xml", ".txt", ".json", ".js", ".css", ".svg", ".ico", ".map", ".pdf", ".zip", ".gz", ".csv", ".webmanifest"}:
+            score -= 60
+        if path.endswith("/robots.txt") or "/sitemap" in path:
+            score -= 60
+        if any(word in name for word in ["sitemap", "robots.txt", "rss"]):
+            score -= 60
         if not product.price and not product.price_text and not signals.get("jsonld_product") and not is_likely_product_url(url):
             score -= 6
         return score >= 6
+
 
     def extract_images_from_product_page(self, soup: BeautifulSoup, base_url: str) -> List[str]:
         urls: List[str] = []
@@ -2296,7 +2639,7 @@ def show_help() -> None:
         """
 How it works:
 - Reads the store homepage
-- Detects common store platforms (Shopify, WooCommerce, Next.js, Nuxt, etc.)
+- Detects common store platforms (Shopify, WooCommerce, Next.js, Nuxt, Swell, etc.)
 - Tries sitemaps, menus, category links, embedded JSON, JSON-LD, raw hidden URLs,
   platform APIs, listing pages, product cards, pagination, and product detail pages
 - Uses threaded workers for category verification, product detail pages, and image downloads
