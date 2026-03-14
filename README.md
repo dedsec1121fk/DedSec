@@ -111,7 +111,7 @@ After installation, access the settings menu to:
 
 The toolkit is organized into the following categories and tools:
 
-- **Developer Base:** 8 tools
+- **Developer Base:** 9 tools
 - **Network Tools:** 10 tools
 - **Other Tools:** 6 tools
 - **Games:** 5 tools
@@ -119,7 +119,7 @@ The toolkit is organized into the following categories and tools:
 - **Social Media Fake Pages:** 25 tools
 - **No Category:** 2 tools
 
-**Total listed on tools page:** 73 tools
+**Total listed on tools page:** 74 tools
 ## 🧑‍💻 Developer Base
 
 1. **File Converter**: A powerful file converter supporting 40+ formats.
@@ -145,6 +145,9 @@ The toolkit is organized into the following categories and tools:
 
 8. **Tree Explorer**: File-system explorer for Termux: browse folders, search files, find duplicates by hash, and clean empty directories with safe prompts.
     * *Save Location Scan folders created in current directory (scan_[target]_[date])*
+
+9. **Devices Finder**: Local-network device discovery tool for Termux that works without root. It separates live-host discovery from service scanning to reduce false positives, classifies devices using ports, banners, hostnames, and vendor hints, includes interactive scan profiles and type filters, and can optionally enrich results with mDNS, UPnP, SNMP, and NetBIOS clues. It exports JSON, TXT, CSV, and HTML reports.
+    * *Save Location Results are saved in: ~/storage/downloads/Devices Finder/ as devices_scan_[timestamp].json/.txt/.csv/.html (falls back to ~/downloads/Devices Finder/ or the current directory).*
 
 
 ## 🔧 Network Tools
@@ -176,7 +179,7 @@ The toolkit is organized into the following categories and tools:
 9. **Sod**: A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload),…
     * *Save Location Configuration: load_test_config.json in script directory | Results: Displayed in terminal*
 
-10. **Store Scrapper**: Advanced single-file store scraper for Termux that discovers categories and products using HTML, JSON-LD, embedded JSON, sitemaps, platform APIs, listing pages, and product detail fallbacks. It starts full product scraping the moment each product is found, saves while running, shows live terminal status, and downloads product images into each product folder.
+10. **Store Scrapper**: Single-file Python store scraper for Termux that works without root. It tries multiple ways to discover categories and products across regular HTML pages and many JS-style stores by reading HTML, JSON-LD, embedded JSON, sitemaps, Shopify endpoints, WooCommerce APIs, generic product cards, breadcrumbs, OpenGraph/meta tags, and internal links. It saves while running, starts full product scraping the moment each product is found, shows live terminal status, uses Enter as the default for prompts, and organizes results into store/category/product folders with downloaded images. Use only on systems you own or have explicit permission to test.
     * *Save Location Results are saved in: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/ with files such as metadata.json, summary.txt, description.txt, images/, images.json, category state files, and FINAL_REPORT.txt.*
 
 
