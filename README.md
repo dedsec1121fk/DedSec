@@ -346,6 +346,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
 * **Testers:** Javier
+* **Legal Documents:** Lampros Spyrou
 * **Past Help:** lamprouil, UKI_hunter
 
 ---
