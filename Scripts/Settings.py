@@ -555,6 +555,7 @@ Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
 Testers: Javier
+Legal Documents: Lampros Spyrou
 Past Help: lamprouil, UKI_hunter
 =======================================
 """
