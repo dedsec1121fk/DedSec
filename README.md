@@ -339,6 +339,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
 * **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+* **💬 Discord Server:** [https://discord.gg/dPw4ZpXcKD](https://discord.gg/dPw4ZpXcKD)
 
 ### Credits
 
@@ -347,6 +348,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Art Artists:** Christina Chatzidimitriou
 * **Testers:** Javier
 * **Legal Documents:** Lampros Spyrou
+* **Discord Server Maintenance:** Talha
 * **Past Help:** lamprouil, UKI_hunter
 
 ---
