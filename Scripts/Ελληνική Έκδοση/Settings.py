@@ -556,6 +556,7 @@ Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
 Testers: Javier
 Legal Documents: Lampros Spyrou
+Discord Server Maintenance: Talha
 Past Help: lamprouil, UKI_hunter
 =======================================
 """
