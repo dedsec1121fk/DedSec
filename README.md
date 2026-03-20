@@ -339,7 +339,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
 * **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
-* **💬 Discord Server:** [https://discord.gg/dPw4ZpXcKD](https://discord.gg/dPw4ZpXcKD)
+* **💬 Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
 ### Credits
 
