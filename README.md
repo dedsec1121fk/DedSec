@@ -297,8 +297,8 @@ These scripts are **training simulations** intended to help you recognize social
 
 To access the scripts in this category, you need an active monthly GitHub subscription of **$10 or $15**.
 
-1. **Face Detector.py**: Local face-detection tool for Termux that opens a browser-based interface, can detect faces from uploaded images or a live camera feed, and draws square boxes around detected faces.
-    * *Save Location Generated files and temporary assets are handled locally by the script during use.*
+1. **Face Detector.py**: Local browser-based face detection and tracking tool for Termux. It uses the live camera feed, tracks up to 3 faces with MediaPipe Face Mesh, draws detailed landmark overlays, supports photo and video capture, lets you switch between front and back camera, and can expose both a local link and a Cloudflare public link.
+    * *Save Location Captured photos and videos are saved in: `~/storage/downloads/Face Detector/` on Termux, with fallback to `./Face Detector/` if storage is unavailable. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to the current directory. Internal web files, certificates, and downloaded helper binaries are stored in `~/.face_detector_studio/`.*
 
 
 ## 🦋 ButSystem.py (Exclusive)
