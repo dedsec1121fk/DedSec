@@ -118,8 +118,9 @@ The toolkit is organized into the following categories and tools:
 - **Personal Information Capture:** 17 tools
 - **Social Media Fake Pages:** 25 tools
 - **No Category:** 2 tools
+- **Sponsors-Only:** 1 tool
 
-**Total listed on tools page:** 74 tools
+**Total listed on tools page:** 75 tools
 ## 🧑‍💻 Developer Base
 
 1. **File Converter**: A powerful file converter supporting 40+ formats.
@@ -291,6 +292,13 @@ These scripts are **training simulations** intended to help you recognize social
 2. **Settings**: The central control hub for the DedSec ecosystem.
     * *Save Location Language Config: ~/Language.json | Backups: ~/Termux.zip*
 
+
+## 💜 Sponsors-Only
+
+To access the scripts in this category, you need an active monthly GitHub subscription of **$10 or $15**.
+
+1. **Face Detector.py**: Local face-detection tool for Termux that opens a browser-based interface, can detect faces from uploaded images or a live camera feed, and draws square boxes around detected faces.
+    * *Save Location Generated files and temporary assets are handled locally by the script during use.*
 
 
 ## 🦋 ButSystem.py (Exclusive)
