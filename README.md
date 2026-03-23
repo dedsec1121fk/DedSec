@@ -419,9 +419,9 @@ After installation, the main things to configure are:
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 2 tools
-- **Sponsors-Only:** 2 tools
+- **Sponsors-Only:** 3 tools
 
-**Total listed on tools page:** 76 tools
+**Total listed on tools page:** 77 tools
 
 </details>
 
@@ -439,7 +439,7 @@ After installation, the main things to configure are:
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 2 εργαλεία
-- **Sponsors-Only:** 2 εργαλεία
+- **Sponsors-Only:** 3 εργαλεία
 
 **Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 76 εργαλεία
 
@@ -2045,6 +2045,26 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 
 </details>
 
+
+### • AR Terror.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**AR Terror.py** is a local browser-based AR horror experience for Termux that works without root. It launches a full-screen camera-driven web page where you explore the environment, collect 13 hidden logs, use archive-style visuals and audio effects, switch between front and back camera, record evidence as WEBM, and can expose both a local network link and an optional Cloudflare public link.
+
+**Save Location:** On Termux, recorded evidence is saved in `~/storage/downloads/AR Terror/`. If Termux storage is unavailable, it falls back to `~/AR Terror/`. On non-Termux systems it uses `~/Downloads/AR Terror/`, with fallback to `~/AR Terror/`. Internal web files, certificates, and helper binaries are stored in `~/.ar_terror_studio/`.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **AR Terror.py** είναι μια τοπική browser-based AR horror εμπειρία για Termux που λειτουργεί χωρίς root. Εκκινεί μια full-screen camera-driven ιστοσελίδα όπου εξερευνάς το περιβάλλον, συλλέγεις 13 κρυμμένα logs, χρησιμοποιείς archive-style visuals και audio effects, αλλάζεις ανάμεσα σε μπροστινή και πίσω κάμερα, γράφεις evidence σε WEBM και μπορεί να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
+
+**Τοποθεσία Αποθήκευσης:** Στο Termux, το recorded evidence αποθηκεύεται στο `~/storage/downloads/AR Terror/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/AR Terror/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/AR Terror/`, με fallback στο `~/AR Terror/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.ar_terror_studio/`.
+
+</details>
 
 ---
 
