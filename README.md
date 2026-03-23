@@ -118,9 +118,9 @@ The toolkit is organized into the following categories and tools:
 - **Personal Information Capture:** 17 tools
 - **Social Media Fake Pages:** 25 tools
 - **No Category:** 2 tools
-- **Sponsors-Only:** 1 tool
+- **Sponsors-Only:** 2 tools
 
-**Total listed on tools page:** 75 tools
+**Total listed on tools page:** 76 tools
 ## 🧑‍💻 Developer Base
 
 1. **File Converter**: A powerful file converter supporting 40+ formats.
@@ -297,8 +297,11 @@ These scripts are **training simulations** intended to help you recognize social
 
 To access the scripts in this category, you need an active monthly GitHub subscription of **$10 or $15**.
 
-1. **Face Detector.py**: Local browser-based face detection and tracking tool for Termux. It uses the live camera feed, tracks up to 3 faces with MediaPipe Face Mesh, draws detailed landmark overlays, supports photo and video capture, lets you switch between front and back camera, and can expose both a local link and a Cloudflare public link.
-    * *Save Location Captured photos and videos are saved in: `~/storage/downloads/Face Detector/` on Termux, with fallback to `./Face Detector/` if storage is unavailable. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to the current directory. Internal web files, certificates, and downloaded helper binaries are stored in `~/.face_detector_studio/`.*
+1. **Face Detector.py**: Local browser-based face-mesh detection tool for Termux that works without root. It uses the live camera feed, tracks up to 3 faces with MediaPipe Face Mesh, draws detailed landmark overlays and on-screen analysis instead of simple square boxes, supports PNG photo capture and WEBM video recording, lets you switch between front and back camera, and can provide both a local network link and an optional Cloudflare public link. It auto-creates the web files it needs and runs through a local web page.
+    * *Save Location On Termux, captures and recordings are saved in: `~/storage/downloads/Face Detector/`. If Termux storage is unavailable, it falls back to `~/Face Detector/`. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to `~/Face Detector/`. Internal web files, certificates, and helper binaries are stored in `~/.face_detector_studio/`.*
+
+2. **Steganography.py**: Password-based steganography suite for Termux. It can generate random black-and-white PNG cover images, encrypt secret text with a password-derived Fernet key, hide the encrypted text inside PNG images using LSB steganography, and batch-decode hidden messages from images placed in the Decrypt folder. Recovered text is also saved as separate `.txt` files. It auto-creates its working folders and installs missing dependencies when possible.
+    * *Save Location Main folder: `/storage/emulated/0/Download/Steganography/` | Encrypt images: `/Encrypt` | Images to decode: `/Decrypt` | Recovered text files: `/Decrypted Texts`*
 
 
 ## 🦋 ButSystem.py (Exclusive)
