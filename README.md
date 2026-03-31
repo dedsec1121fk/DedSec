@@ -427,9 +427,9 @@ After installation, the main things to configure are:
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 2 tools
-- **Sponsors-Only:** 3 tools
+- **Sponsors-Only:** 4 tools
 
-**Total listed on tools page:** 77 tools
+**Total listed on tools page:** 78 tools
 
 </details>
 
@@ -447,9 +447,9 @@ After installation, the main things to configure are:
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 2 εργαλεία
-- **Sponsors-Only:** 3 εργαλεία
+- **Sponsors-Only:** 4 εργαλεία
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 76 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 78 εργαλεία
 
 </details>
 
@@ -2018,18 +2018,38 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**Face Detector.py** is a local browser-based face-mesh detection tool for Termux that works without root. It uses the live camera feed, tracks up to 3 faces with MediaPipe Face Mesh, draws detailed landmark overlays and on-screen analysis directly on the camera view instead of simple square boxes, supports front and back camera switching, PNG snapshots, and WEBM video recording, and can provide both a local network link and an optional Cloudflare public link.
+**Face Detector.py** is a local browser-based face analysis tool for Termux that works without root. It uses MediaPipe Face Mesh on the live camera feed, supports both front and back camera, tracks up to 3 faces, draws detailed facial landmark overlays instead of simple boxes, and now also lets you upload photos or videos for analysis directly from the interface. It can capture PNG snapshots, record WEBM video, save cropped detected faces separately, and provide both a local network link and an optional Cloudflare public link.
 
-**Save Location:** On Termux, captures and recordings are saved in `~/storage/downloads/Face Detector/`. If Termux storage is unavailable, it falls back to `~/Face Detector/`. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to `~/Face Detector/`. Internal web files, certificates, and helper binaries are stored in `~/.face_detector_studio/`.
+**Save Location:** On Termux, captures, recordings, uploaded results, and saved face crops are stored in `~/storage/downloads/Face Detector/`. If Termux storage is unavailable, it falls back to `~/Face Detector/`. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to `~/Face Detector/`. Internal web files, certificates, and helper binaries are stored in `~/.face_detector_studio/`.
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **Face Detector.py** είναι ένα τοπικό browser-based εργαλείο face-mesh detection για Termux που λειτουργεί χωρίς root. Χρησιμοποιεί το live feed της κάμερας, παρακολουθεί έως και 3 πρόσωπα με το MediaPipe Face Mesh, σχεδιάζει αναλυτικά landmark overlays και on-screen ανάλυση απευθείας πάνω στην προβολή της κάμερας αντί για απλά τετράγωνα πλαίσια, υποστηρίζει εναλλαγή μπροστινής και πίσω κάμερας, PNG snapshots και WEBM video recording και μπορεί να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
+Το **Face Detector.py** είναι ένα τοπικό browser-based εργαλείο ανάλυσης προσώπου για Termux που λειτουργεί χωρίς root. Χρησιμοποιεί MediaPipe Face Mesh στο live feed της κάμερας, υποστηρίζει μπροστινή και πίσω κάμερα, παρακολουθεί έως και 3 πρόσωπα, σχεδιάζει αναλυτικά facial landmark overlays αντί για απλά boxes και πλέον επιτρέπει επίσης upload φωτογραφιών ή βίντεο για ανάλυση απευθείας από το interface. Μπορεί να τραβά PNG snapshots, να γράφει WEBM βίντεο, να αποθηκεύει ξεχωριστά cropped detected faces και να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
 
-**Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures και recordings αποθηκεύονται στο `~/storage/downloads/Face Detector/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/Face Detector/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/Face Detector/`, με fallback στο `~/Face Detector/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.face_detector_studio/`.
+**Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures, recordings, uploaded results και τα αποθηκευμένα face crops μπαίνουν στο `~/storage/downloads/Face Detector/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/Face Detector/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/Face Detector/`, με fallback στο `~/Face Detector/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.face_detector_studio/`.
+
+</details>
+
+### • Face Detector Heavy.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Face Detector Heavy.py** is the expanded heavy-analysis version of the face detector for Termux, built without root. In addition to live camera use, front/back camera switching, photo and video uploads, PNG snapshots, WEBM recording, and saved face crops, it raises face tracking up to 30 faces and adds TensorFlow COCO-SSD object detection on top of the MediaPipe face mesh pipeline. It overlays richer on-screen telemetry such as face count, animal/object detection, pose and gaze estimates, facial proportions, mouth and brow state, asymmetry scoring, and other visual analysis details, while still supporting a local network link and an optional Cloudflare public link.
+
+**Save Location:** On Termux, captures, recordings, uploaded results, and saved face crops are stored in `~/storage/downloads/Face Detector/`. If Termux storage is unavailable, it falls back to `~/Face Detector/`. On non-Termux systems it uses `~/Downloads/Face Detector/`, with fallback to `~/Face Detector/`. Internal web files, certificates, and helper binaries are stored in `~/.face_detector_studio/`.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **Face Detector Heavy.py** είναι η πιο βαριά και επεκταμένη έκδοση ανάλυσης του face detector για Termux, χωρίς ανάγκη για root. Εκτός από live χρήση κάμερας, εναλλαγή μπροστινής/πίσω κάμερας, upload φωτογραφιών και βίντεο, PNG snapshots, WEBM recording και αποθήκευση face crops, ανεβάζει την παρακολούθηση έως και σε 30 πρόσωπα και προσθέτει TensorFlow COCO-SSD object detection πάνω στο pipeline του MediaPipe face mesh. Εμφανίζει πιο πλούσιο on-screen telemetry όπως face count, animal/object detection, εκτιμήσεις pose και gaze, facial proportions, κατάσταση στόματος και φρυδιών, asymmetry scoring και άλλα visual analysis στοιχεία, ενώ συνεχίζει να υποστηρίζει local network link και προαιρετικό δημόσιο Cloudflare link.
+
+**Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures, recordings, uploaded results και τα αποθηκευμένα face crops μπαίνουν στο `~/storage/downloads/Face Detector/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/Face Detector/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/Face Detector/`, με fallback στο `~/Face Detector/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.face_detector_studio/`.
 
 </details>
 
@@ -2038,18 +2058,18 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**Steganography.py** is a password-based steganography suite for Termux. It can generate random black-and-white PNG cover images, encrypt secret text with a password-derived Fernet key, hide the encrypted text inside PNG images using LSB steganography, and batch-decode hidden messages from images placed in the Decrypt folder. Recovered text is also saved as separate `.txt` files.
+**Steganography.py** is a password-based steganography suite for Termux. It can generate random black-and-white PNG carrier images, encrypt secret text with a password-derived Fernet key, hide the encrypted text inside PNG images using LSB steganography, and batch-decode hidden messages from all images placed in the Decrypt folder. Extracted messages are automatically saved as separate `.txt` files, and the script can also optionally clean processed images from the decode folder after scanning.
 
-**Save Location:** Main folder: `/storage/emulated/0/Download/Steganography/` | Encrypt images: `/Encrypt` | Images to decode: `/Decrypt` | Recovered text files: `/Decrypted Texts`
+**Save Location:** Main folder: `/storage/emulated/0/Download/Steganography/` | Carrier/output images: `/Encrypt` | Images to scan for hidden messages: `/Decrypt` | Extracted text files: `/Decrypted Texts`
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **Steganography.py** είναι μια password-based steganography suite για Termux. Μπορεί να δημιουργεί τυχαίες ασπρόμαυρες PNG εικόνες-φορείς, να κρυπτογραφεί μυστικό κείμενο με password-derived Fernet key, να κρύβει το κρυπτογραφημένο κείμενο μέσα σε PNG εικόνες με LSB steganography και να κάνει batch αποκωδικοποίηση κρυμμένων μηνυμάτων από εικόνες που τοποθετούνται στον φάκελο Decrypt. Το ανακτημένο κείμενο αποθηκεύεται επίσης ως ξεχωριστά `.txt` αρχεία.
+Το **Steganography.py** είναι μια password-based steganography suite για Termux. Μπορεί να δημιουργεί τυχαίες ασπρόμαυρες PNG εικόνες-φορείς, να κρυπτογραφεί μυστικό κείμενο με password-derived Fernet key, να κρύβει το κρυπτογραφημένο κείμενο μέσα σε PNG εικόνες με LSB steganography και να κάνει batch αποκωδικοποίηση κρυμμένων μηνυμάτων από όλες τις εικόνες που τοποθετούνται στον φάκελο Decrypt. Τα εξαγόμενα μηνύματα αποθηκεύονται αυτόματα ως ξεχωριστά `.txt` αρχεία και το script μπορεί προαιρετικά να καθαρίζει τις ήδη επεξεργασμένες εικόνες από τον φάκελο αποκωδικοποίησης μετά το scan.
 
-**Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: `/storage/emulated/0/Download/Steganography/` | Εικόνες για κρυπτογράφηση: `/Encrypt` | Εικόνες για αποκωδικοποίηση: `/Decrypt` | Ανακτημένα αρχεία κειμένου: `/Decrypted Texts`
+**Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: `/storage/emulated/0/Download/Steganography/` | Carrier/output εικόνες: `/Encrypt` | Εικόνες για έλεγχο κρυμμένων μηνυμάτων: `/Decrypt` | Εξαγόμενα αρχεία κειμένου: `/Decrypted Texts`
 
 </details>
 
@@ -2059,7 +2079,7 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**AR Terror.py** is a local browser-based AR horror experience for Termux that works without root. It launches a full-screen camera-driven web page where you explore the environment, collect 13 hidden logs, use archive-style visuals and audio effects, switch between front and back camera, record evidence as WEBM, and can expose both a local network link and an optional Cloudflare public link.
+**AR Terror.py** is a local browser-based AR horror experience for Termux that works without root. It launches a full-screen camera-driven web page where you explore the environment, collect hidden logs into an archive/inventory system, use atmospheric visual and audio effects, switch between front and back camera, and record evidence as WEBM while the experience runs. It can also expose both a local network link and an optional Cloudflare public link.
 
 **Save Location:** On Termux, recorded evidence is saved in `~/storage/downloads/AR Terror/`. If Termux storage is unavailable, it falls back to `~/AR Terror/`. On non-Termux systems it uses `~/Downloads/AR Terror/`, with fallback to `~/AR Terror/`. Internal web files, certificates, and helper binaries are stored in `~/.ar_terror_studio/`.
 
@@ -2068,7 +2088,7 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **AR Terror.py** είναι μια τοπική browser-based AR horror εμπειρία για Termux που λειτουργεί χωρίς root. Εκκινεί μια full-screen camera-driven ιστοσελίδα όπου εξερευνάς το περιβάλλον, συλλέγεις 13 κρυμμένα logs, χρησιμοποιείς archive-style visuals και audio effects, αλλάζεις ανάμεσα σε μπροστινή και πίσω κάμερα, γράφεις evidence σε WEBM και μπορεί να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
+Το **AR Terror.py** είναι μια τοπική browser-based AR horror εμπειρία για Termux που λειτουργεί χωρίς root. Εκκινεί μια full-screen camera-driven ιστοσελίδα όπου εξερευνάς το περιβάλλον, συλλέγεις κρυμμένα logs μέσα σε archive/inventory σύστημα, χρησιμοποιείς ατμοσφαιρικά visual και audio effects, αλλάζεις ανάμεσα σε μπροστινή και πίσω κάμερα και γράφεις evidence σε WEBM όσο τρέχει η εμπειρία. Μπορεί επίσης να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, το recorded evidence αποθηκεύεται στο `~/storage/downloads/AR Terror/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/AR Terror/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/AR Terror/`, με fallback στο `~/AR Terror/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.ar_terror_studio/`.
 
