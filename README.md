@@ -426,10 +426,10 @@ After installation, the main things to configure are:
 - **Games:** 5 tools
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
-- **No Category:** 2 tools
+- **No Category:** 3 tools
 - **Sponsors-Only:** 4 tools
 
-**Total listed on tools page:** 78 tools
+**Total listed on tools page:** 79 tools
 
 </details>
 
@@ -446,10 +446,10 @@ After installation, the main things to configure are:
 - **Games:** 5 εργαλεία
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
-- **No Category:** 2 εργαλεία
+- **No Category:** 3 εργαλεία
 - **Sponsors-Only:** 4 εργαλεία
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 78 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 79 εργαλεία
 
 </details>
 
@@ -1994,6 +1994,26 @@ These scripts are educational simulations intended to help users recognize socia
 
 </details>
 
+
+### • DedSec Market
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**DedSec Market** is a curses-based GitHub repository market for Termux that displays projects by project name instead of the raw repository name. It fetches README text cleanly, shows releases and issues, supports install, update, delete, and launch actions, keeps a watchlist, and stores cache/state for faster reuse.
+
+**Save Location:** App data: `~/DedSec Market/` (`cache/`, `state.json`) | Installed repositories: `~/<repo-name>`
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **DedSec Market** είναι ένα curses-based GitHub repository market για Termux που εμφανίζει τα projects με το όνομα του project αντί για το ακατέργαστο όνομα του repository. Καθαρίζει και εμφανίζει σωστά το κείμενο των README, δείχνει releases και issues, υποστηρίζει ενέργειες install, update, delete και launch, κρατά watchlist και αποθηκεύει cache/state για πιο γρήγορη επαναχρησιμοποίηση.
+
+**Τοποθεσία Αποθήκευσης:** Δεδομένα εφαρμογής: `~/DedSec Market/` (`cache/`, `state.json`) | Εγκατεστημένα repositories: `~/<repo-name>`
+
+</details>
 
 ---
 
