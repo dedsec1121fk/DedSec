@@ -2022,14 +2022,14 @@ These scripts are educational simulations intended to help users recognize socia
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-To access the scripts in this category, you need an active monthly GitHub subscription of **$10 or $15**.
+To access the scripts in this category, you need an active monthly GitHub subscription starting from **$3**.
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Για να αποκτήσεις πρόσβαση στα scripts αυτής της κατηγορίας, χρειάζεσαι ενεργή μηνιαία GitHub συνδρομή **$10 ή $15**.
+Για να αποκτήσεις πρόσβαση στα scripts αυτής της κατηγορίας, χρειάζεσαι ενεργή μηνιαία GitHub συνδρομή από **$3** και πάνω.
 
 </details>
 
