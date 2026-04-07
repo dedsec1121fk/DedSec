@@ -35,6 +35,12 @@ HOME_DIR = "/data/data/com.termux/files/home"
 LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
 BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip")
 
+# --- Sponsors-Only shortcuts ---
+SPONSORS_ROOT_NAME = "Sponsors-Only-main"
+SPONSORS_ROOT_PATH = os.path.join(HOME_DIR, SPONSORS_ROOT_NAME)
+SPONSORS_ENGLISH_FOLDER_NAME = "English Version"
+SPONSORS_GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
+
 # Define hidden folder name/path for Greek (Necessary for language toggle)
 HIDDEN_GREEK_FOLDER = "." + GREEK_FOLDER_NAME
 HIDDEN_GREEK_PATH = os.path.join(ENGLISH_BASE_PATH, HIDDEN_GREEK_FOLDER)
@@ -307,6 +313,41 @@ def format_display_name(filename, full_path):
     """Formats the display name with icons - only at the start."""
     icon = get_file_icon(filename, full_path)
     return f"{icon} {filename}"
+
+def get_sponsors_display_name():
+    """Returns the Sponsors-Only entry label when the folder exists."""
+    if os.path.isdir(SPONSORS_ROOT_PATH):
+        return format_display_name(SPONSORS_ROOT_NAME, SPONSORS_ROOT_PATH)
+    return None
+
+def get_sponsors_preferred_path():
+    """Returns the preferred Sponsors-Only language path, with safe fallbacks."""
+    if not os.path.isdir(SPONSORS_ROOT_PATH):
+        return None
+
+    preferred_language = load_language_preference()
+    if preferred_language not in ['english', 'greek']:
+        preferred_language = get_current_display_language()
+
+    preferred_folder = (
+        SPONSORS_ENGLISH_FOLDER_NAME
+        if preferred_language == 'english'
+        else SPONSORS_GREEK_FOLDER_NAME
+    )
+    preferred_path = os.path.join(SPONSORS_ROOT_PATH, preferred_folder)
+    if os.path.isdir(preferred_path):
+        return preferred_path
+
+    fallback_folder = (
+        SPONSORS_GREEK_FOLDER_NAME
+        if preferred_folder == SPONSORS_ENGLISH_FOLDER_NAME
+        else SPONSORS_ENGLISH_FOLDER_NAME
+    )
+    fallback_path = os.path.join(SPONSORS_ROOT_PATH, fallback_folder)
+    if os.path.isdir(fallback_path):
+        return fallback_path
+
+    return SPONSORS_ROOT_PATH
 
 # --- Utility Functions ---
 
@@ -896,6 +937,9 @@ def browse_directory_list_menu(current_path, base_path):
         items.append(go_back_text)
         listing_dir = HOME_DIR
     elif os.path.abspath(current_path) == os.path.abspath(base_path):
+        sponsors_display_name = get_sponsors_display_name()
+        if sponsors_display_name:
+            items.append(sponsors_display_name)
         items.append(f"{HOME_ICON} {_('Home Scripts')}")
         listing_dir = base_path
     else:
@@ -942,7 +986,11 @@ def browse_directory_list_menu(current_path, base_path):
         
     if selected.startswith(".."):
         return "back"
-    
+
+    sponsors_display_name = get_sponsors_display_name()
+    if sponsors_display_name and selected == sponsors_display_name:
+        return "go_sponsors"
+
     if selected == f"{HOME_ICON} {_('Home Scripts')}":
         return "go_home"
     
@@ -980,6 +1028,12 @@ def run_list_menu():
                     current_path = base_path
             continue
         
+        if selected == "go_sponsors":
+            sponsors_path = get_sponsors_preferred_path()
+            if sponsors_path:
+                current_path = sponsors_path
+            continue
+
         if selected == "go_home":
             current_path = HOME_DIR
             continue
@@ -1025,6 +1079,9 @@ def run_number_menu():
             items.append((".. (" + _("Go Back") + ")", "back"))
         elif os.path.abspath(current_path) == os.path.abspath(base_path):
             listing_dir = base_path
+            sponsors_display_name = get_sponsors_display_name()
+            if sponsors_display_name:
+                items.append((sponsors_display_name, "go_sponsors"))
             items.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         else:
             listing_dir = current_path
@@ -1090,6 +1147,12 @@ def run_number_menu():
                         current_path = base_path
                 continue
 
+            if selected_path == "go_sponsors":
+                sponsors_path = get_sponsors_preferred_path()
+                if sponsors_path:
+                    current_path = sponsors_path
+                continue
+
             if selected_path == "go_home":
                 current_path = HOME_DIR
                 continue
@@ -1129,6 +1192,9 @@ def list_directory_entries(path, base_path):
         entries.append((go_back_text, "back"))
         listing_dir = HOME_DIR
     elif os.path.abspath(path) == os.path.abspath(base_path):
+        sponsors_display_name = get_sponsors_display_name()
+        if sponsors_display_name:
+            entries.append((sponsors_display_name, "go_sponsors"))
         entries.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         listing_dir = base_path
     else:
@@ -1312,9 +1378,19 @@ def run_grid_menu():
             if os.path.abspath(current_path) == os.path.abspath(HOME_DIR):
                 current_path = base_path
             else:
-                current_path = os.path.dirname(current_path)
+                parent = os.path.dirname(current_path)
+                if os.path.abspath(parent).startswith(os.path.abspath(base_path)):
+                    current_path = parent
+                else:
+                    current_path = base_path
             continue
-        
+
+        if selected_path == "go_sponsors":
+            sponsors_path = get_sponsors_preferred_path()
+            if sponsors_path:
+                current_path = sponsors_path
+            continue
+
         if selected_path == "go_home":
             current_path = HOME_DIR
             continue
