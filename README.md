@@ -354,58 +354,58 @@ bash Setup.sh
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-The DedSec Project includes a central **Settings.py** tool that manages the main configuration of the toolkit.
+The DedSec Project includes a central **Settings.py** tool that acts as the main control center for project maintenance and everyday configuration.
 
 ### Main Features
 
-- project updates and package refresh
-- persistent language preference (English / Greek)
-- menu style selection: **list**, **grid**, or **number**
-- terminal prompt customization
-- system information display
-- home scripts integration
-- backup and restore support
-- complete uninstall with cleanup
-- automatic Termux bash configuration updates
-- credits and project information
+- update the project from either supported source
+- refresh packages and Python modules
+- save a persistent language preference (English / Greek)
+- choose menu style: **list**, **grid**, or **number**
+- enable or disable menu auto-start
+- customize the terminal prompt username
+- view system and hardware information
+- open credits and project information
+- support backup-aware uninstall and cleanup
+- provide quick access to DedSec OS tools and related project actions
 
 ### First-Time Setup Focus
 
 After installation, the main things to configure are:
 
 1. your preferred language  
-2. your menu style  
-3. any system preferences you want  
-4. project updates when needed
+2. your menu style and auto-start preference  
+3. your prompt username and other system preferences  
+4. project and package updates when needed
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το DedSec Project περιλαμβάνει το κεντρικό εργαλείο **Settings.py**, το οποίο διαχειρίζεται τη βασική ρύθμιση ολόκληρου του toolkit.
+Το DedSec Project περιλαμβάνει το κεντρικό εργαλείο **Settings.py**, το οποίο λειτουργεί ως το βασικό κέντρο ελέγχου για συντήρηση του project και καθημερινή παραμετροποίηση.
 
 ### Κύριες Δυνατότητες
 
-- ενημερώσεις project και ανανέωση πακέτων
-- μόνιμη επιλογή γλώσσας (English / Greek)
+- ενημέρωση του project από οποιαδήποτε από τις δύο υποστηριζόμενες πηγές
+- ανανέωση πακέτων και Python modules
+- αποθήκευση μόνιμης επιλογής γλώσσας (English / Greek)
 - επιλογή στυλ μενού: **list**, **grid** ή **number**
-- παραμετροποίηση terminal prompt
-- προβολή πληροφοριών συστήματος
-- ενσωμάτωση home scripts
-- υποστήριξη backup και restore
-- πλήρες uninstall με καθαρισμό
-- αυτόματες ενημερώσεις ρυθμίσεων bash στο Termux
-- credits και πληροφορίες για το project
+- ενεργοποίηση ή απενεργοποίηση αυτόματης εκκίνησης μενού
+- παραμετροποίηση του ονόματος στο terminal prompt
+- προβολή πληροφοριών συστήματος και υλικού
+- άνοιγμα credits και πληροφοριών για το project
+- uninstall με υποστήριξη backup και καθαρισμό
+- γρήγορη πρόσβαση στα εργαλεία του DedSec OS και σε σχετικές ενέργειες του project
 
 ### Έμφαση στην Πρώτη Ρύθμιση
 
 Μετά την εγκατάσταση, τα βασικά που χρειάζεται να ρυθμίσεις είναι:
 
 1. τη γλώσσα που προτιμάς  
-2. το στυλ μενού που θέλεις  
-3. όποιες προτιμήσεις συστήματος σε εξυπηρετούν  
-4. τις ενημερώσεις του project όταν χρειάζονται
+2. το στυλ μενού και την προτίμηση αυτόματης εκκίνησης  
+3. το όνομα του prompt και όποιες άλλες προτιμήσεις συστήματος θέλεις  
+4. τις ενημερώσεις του project και των πακέτων όταν χρειάζονται
 
 </details>
 
@@ -2207,7 +2207,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
-* **Testers:** Javier
+* **Testers:** MR-x
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
 * **Past Help:** lamprouil, UKI_hunter
@@ -2235,7 +2235,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec, Sal Scar
 * **Art Artists:** Christina Chatzidimitriou
-* **Testers:** Javier
+* **Testers:** MR-x
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
 * **Past Help:** lamprouil, UKI_hunter
