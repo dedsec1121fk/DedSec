@@ -360,7 +360,7 @@ The DedSec Project includes a central **Settings.py** tool that manages the main
 
 - project updates and package refresh
 - persistent language preference (English / Greek)
-- menu style selection: **list**, **grid**, or **number**
+- menu style selection: **list**, **grid**, **number**, or **DedSec OS**
 - terminal prompt customization
 - system information display
 - home scripts integration
