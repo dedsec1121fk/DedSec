@@ -26,7 +26,7 @@ import webbrowser
 import shutil
 import zipfile
 
-# --- Εισαγωγές Εξαρτήσεων & Καθολικές Σημαίες ---
+# --- Dependency Imports & Global Flags ---
 CURSES_AVAILABLE = False
 COLORS_AVAILABLE = False
 SPEEDTEST_AVAILABLE = False
@@ -61,7 +61,7 @@ except ImportError:
         def __getattr__(self, name): return ''
     Fore = Back = Style = DummyColor()
 
-# 3. Δοκιμές δυναμικής εισαγωγής
+# 3. Δυναμικές προσπάθειες import
 def _try_import(module_name, global_var_name):
     try:
         module = importlib.import_module(module_name)
@@ -86,7 +86,7 @@ _try_import('csv', 'csv')
 
 def auto_install_dependencies():
     """
-    Εγκαθιστά αυτόματα όλες τις απαιτούμενες εξαρτήσεις χωρίς δικαιώματα root.
+    Εγκαθιστά αυτόματα όλες τις απαιτούμενες εξαρτήσεις χωρίς root.
     """
     print(f"{Fore.CYAN}🛠️ DedSec Toolkit - Εγκατάσταση Εξαρτήσεων{Style.RESET_ALL}")
     print("="*60)
@@ -106,9 +106,9 @@ def auto_install_dependencies():
         print(f"\n{Fore.CYAN}[*] Έλεγχος πακέτων Termux...{Style.RESET_ALL}")
         try:
             subprocess.run(['pkg', 'install', '-y'] + termux_packages, capture_output=True)
-            print(f"    {Fore.GREEN}✅ Τα πακέτα Termux εγκαταστάθηκαν.{Style.RESET_ALL}")
+            print(f"    {Fore.GREEN}✅ Τα πακέτα του Termux εγκαταστάθηκαν.{Style.RESET_ALL}")
         except Exception as e:
-            print(f"    {Fore.YELLOW}⚠️ Σφάλμα εγκατάστασης πακέτων συστήματος: {e}{Style.RESET_ALL}")
+            print(f"    {Fore.YELLOW}⚠️ Σφάλμα κατά την εγκατάσταση πακέτων συστήματος: {e}{Style.RESET_ALL}")
     
     print(f"\n{Fore.CYAN}[*] Εγκατάσταση εξαρτήσεων Python...{Style.RESET_ALL}")
     for package in pip_packages:
@@ -119,11 +119,11 @@ def auto_install_dependencies():
         except Exception as e:
             print(f"    {Fore.RED}❌ Αποτυχία εγκατάστασης {package}: {e}{Style.RESET_ALL}")
     
-    print(f"\n{Fore.GREEN}🎉 Installation complete! Restarting...{Style.RESET_ALL}")
+    print(f"\n{Fore.GREEN}🎉 Η εγκατάσταση ολοκληρώθηκε! Επανεκκίνηση...{Style.RESET_ALL}")
     time.sleep(2)
     return True
 
-# --- Βοηθητικά TUI ---
+# --- Βοηθοί TUI ---
 def _draw_curses_menu(stdscr, title, options):
     curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLACK) 
     curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLACK) 
@@ -135,7 +135,7 @@ def _draw_curses_menu(stdscr, title, options):
         stdscr.clear()
         h, w = stdscr.getmaxyx()
         
-        # Κεντραρισμένος τίτλος
+        # Κεντράρισμα τίτλου
         title_x = max(0, (w // 2) - (len(title) // 2))
         stdscr.attron(curses.A_BOLD | curses.color_pair(2))
         stdscr.addstr(1, title_x, title)
@@ -150,7 +150,7 @@ def _draw_curses_menu(stdscr, title, options):
             y = 4 + idx
             if y >= h - 1: break
             
-            # Μορφοποίηση επιλογών για ομοιόμορφη και κεντραρισμένη εμφάνιση
+            # Μορφοποίηση επιλογών ώστε να φαίνονται ομοιόμορφες και κεντραρισμένες
             if option.startswith("---"):
                 text = option
             else:
@@ -185,7 +185,7 @@ def _draw_curses_menu(stdscr, title, options):
         elif key == curses.KEY_ENTER or key in [10, 13]:
             return current_row
 
-# --- Κύρια Λογική ---
+# --- Κύρια λογική ---
 
 class AdvancedNetworkTools:
     def __init__(self):
@@ -193,9 +193,9 @@ class AdvancedNetworkTools:
         self.is_termux = os.path.exists('/data/data/com.termux')
         if self.is_termux:
             base_dir = os.path.expanduser('~')
-            self.save_dir = os.path.join(base_dir, "DedSec's Network (Ελληνικά)")
+            self.save_dir = os.path.join(base_dir, "DedSec's Network")
         else:
-            self.save_dir = os.path.join(os.getcwd(), "DedSec's Network (Ελληνικά)")
+            self.save_dir = os.path.join(os.getcwd(), "DedSec's Network")
 
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
@@ -254,25 +254,32 @@ class AdvancedNetworkTools:
                 conn.commit()
         except Exception: pass
 
-    # --- Εργαλείο: Λήψη Ιστοσελίδας (Αναδρομική) ---
+    # --- Εργαλείο: Λήψη Ιστοσελίδας (Αναδρομικά) ---
 
     def website_downloader(self):
-        print(f"\n{Fore.CYAN}📥 ΑΝΑΔΡΟΜΙΚΗ ΛΗΨΗ ΙΣΤΟΣΕΛΙΔΑΣ{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}📥 ΛΗΨΗ ΙΣΤΟΣΕΛΙΔΑΣ ΑΝΑΔΡΟΜΙΚΑ{Style.RESET_ALL}")
         if not REQUESTS_AVAILABLE or not BS4_AVAILABLE:
             print(f"{Fore.RED}❌ Λείπουν τα Requests/BS4.{Style.RESET_ALL}"); return
 
-        # Directory Setup
+        # Ρύθμιση φακέλου
         if self.is_termux:
-            storage_path = "/sdcard/Download/Websites"
+            primary_storage_path = "/storage/emulated/0/Download/Websites"
+            fallback_storage_path = "/storage/emulated/0/Download/Websites"
+            storage_path = primary_storage_path
+            try:
+                os.makedirs(storage_path, exist_ok=True)
+            except Exception:
+                storage_path = fallback_storage_path
+                try:
+                    os.makedirs(storage_path, exist_ok=True)
+                except Exception:
+                    storage_path = os.path.join(self.save_dir, "Websites")
+                    os.makedirs(storage_path, exist_ok=True)
         else:
             storage_path = os.path.join(os.path.expanduser("~"), "Downloads", "Websites")
+            os.makedirs(storage_path, exist_ok=True)
 
-        if not os.path.exists(storage_path):
-            try: os.makedirs(storage_path)
-            except: storage_path = os.path.join(self.save_dir, "Websites")
-            if not os.path.exists(storage_path): os.makedirs(storage_path)
-
-        url = input(f"{Fore.WHITE}Στόχος URL: {Style.RESET_ALL}").strip()
+        url = input(f"{Fore.WHITE}URL στόχος: {Style.RESET_ALL}").strip()
         if not url.startswith('http'): url = 'http://' + url
         
         try:
@@ -287,7 +294,7 @@ class AdvancedNetworkTools:
         visited = set()
         to_visit = deque([(url, 1)])
         
-        print(f"[*] Λήψη στο: {target_folder}")
+        print(f"[*] Αποθήκευση σε: {target_folder}")
 
         while to_visit:
             curr_url, depth = to_visit.popleft()
@@ -298,7 +305,7 @@ class AdvancedNetworkTools:
                 print(f"  {Fore.GREEN}[+]{Style.RESET_ALL} Λήψη: {curr_url}")
                 r = requests.get(curr_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
                 
-                # Καθορισμός ονόματος αρχείου
+                # Προσδιορισμός ονόματος αρχείου
                 parsed_path = urlparse(curr_url).path
                 fname = os.path.basename(parsed_path) or "index.html"
                 if not fname.endswith(".html"): fname += ".html"
@@ -337,14 +344,14 @@ class AdvancedNetworkTools:
                 for root, dirs, files in os.walk(target_folder):
                     for file in files:
                         zipf.write(os.path.join(root, file), arcname=file)
-            print(f"{Fore.GREEN}✅ Δημιουργήθηκε ZIP: {zip_name}{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}✅ Το ZIP δημιουργήθηκε: {zip_name}{Style.RESET_ALL}")
 
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
-    # --- Εργαλείο: Internet & Δικτύωση (Αρχικά) ---
+    # --- Εργαλείο: Internet & Δίκτυο (Αρχικά) ---
     
     def run_internet_speed_test(self):
-        print(f"\n{Fore.CYAN}⚡️ ΤΕΣΤ ΤΑΧΥΤΗΤΑΣ{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}⚡️ ΕΛΕΓΧΟΣ ΤΑΧΥΤΗΤΑΣ{Style.RESET_ALL}")
         if not SPEEDTEST_AVAILABLE:
             print(f"{Fore.RED}❌ Το 'speedtest-cli' δεν είναι εγκατεστημένο.{Style.RESET_ALL}")
             input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}"); return
@@ -368,7 +375,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def subnet_calculator(self):
-        print(f"\n{Fore.CYAN}🧮 ΥΠΟΛΟΓΙΣΤΗΣ SUBNET{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🧮 ΥΠΟΛΟΓΙΣΜΟΣ SUBNET{Style.RESET_ALL}")
         ip_input = input(f"Δώσε IP/CIDR: ").strip()
         try:
             ip_str, cidr_str = ip_input.split('/')
@@ -384,7 +391,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def enhanced_port_scanner(self):
-        print(f"\n{Fore.CYAN}🔍 ΣΑΡΩΤΗΣ ΘΥΡΩΝ (TCP){Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🔍 ΣΑΡΩΣΗ ΘΥΡΩΝ (TCP){Style.RESET_ALL}")
         target = input("Στόχος: ").strip()
         if not target: return
         try:
@@ -394,14 +401,14 @@ class AdvancedNetworkTools:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(self.scan_timeout)
                     if s.connect_ex((target_ip, port)) == 0:
-                        print(f"  {Fore.GREEN}[+] Θύρα {port} ΑΝΟΙΧΤΗ{Style.RESET_ALL}")
+                        print(f"  {Fore.GREEN}[+] Port {port} ΑΝΟΙΧΤΗ{Style.RESET_ALL}")
             with ThreadPoolExecutor(max_workers=self.max_workers) as ex:
                 ex.map(scan, ports)
         except: pass
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def _safe_input(self, prompt):
-        """Περιτύλιγμα εισόδου που επιτρέπει ακύρωση χωρίς να κρασάρει η εφαρμογή."""
+        """Βοηθητική input ώστε ο χρήστης να μπορεί να ακυρώσει χωρίς να κλείσει η εφαρμογή."""
         try:
             return input(prompt)
         except (KeyboardInterrupt, EOFError):
@@ -409,7 +416,7 @@ class AdvancedNetworkTools:
             return None
 
     def _print_whois_result(self, w):
-        """Όμορφη εκτύπωση αποτελέσματος WHOIS από dict/object του python-whois."""
+        """Όμορφη εμφάνιση αποτελεσμάτων WHOIS από dict/object του python-whois."""
         def _fmt(v):
             if isinstance(v, (list, tuple, set)):
                 vals = [str(x) for x in v if x not in (None, '')]
@@ -427,9 +434,9 @@ class AdvancedNetworkTools:
 
         print(f"\n{Fore.GREEN}✅ ΑΠΟΤΕΛΕΣΜΑΤΑ WHOIS{Style.RESET_ALL}")
         print(f"Καταχωρητής   : {_fmt(registrar)}")
-        print(f"Διακομιστής WHOIS: {_fmt(whois_server)}")
-        print(f"Δημιουργήθηκε : {_fmt(creation_date)}")
-        print(f"Ενημερώθηκε   : {_fmt(updated_date)}")
+        print(f"WHOIS Server  : {_fmt(whois_server)}")
+        print(f"Δημιουργία    : {_fmt(creation_date)}")
+        print(f"Ενημέρωση     : {_fmt(updated_date)}")
         print(f"Λήγει         : {_fmt(expiration_date)}")
         print(f"Emails        : {_fmt(emails)}")
         print(f"Name Servers  : {_fmt(name_servers)}")
@@ -453,15 +460,15 @@ class AdvancedNetworkTools:
                 print(f"{Fore.RED}❌ Δεν λήφθηκε έξοδος WHOIS.{Style.RESET_ALL}")
                 return False
 
-            print(f"\n{Fore.GREEN}✅ ΑΠΟΤΕΛΕΣΜΑΤΑ WHOIS (εφεδρική εντολή συστήματος){Style.RESET_ALL}")
+            print(f"\n{Fore.GREEN}✅ ΑΠΟΤΕΛΕΣΜΑΤΑ WHOIS (system whois fallback){Style.RESET_ALL}")
             lines = output.splitlines()
             for line in lines[:80]:
                 print(line)
             if len(lines) > 80:
-                print(f"{Fore.YELLOW}... η έξοδος περικόπηκε ({len(lines)-80} περισσότερες γραμμές) ...{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}... η έξοδος περικόπηκε ({len(lines)-80} ακόμη γραμμές) ...{Style.RESET_ALL}")
             return True
         except FileNotFoundError:
-            print(f"{Fore.YELLOW}⚠️ Η εντολή συστήματος 'whois' δεν βρέθηκε. Εγκατάσταση στο Termux με: pkg install whois{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}⚠️ Η εντολή 'whois' δεν βρέθηκε. Εγκατέστησέ την στο Termux με: pkg install whois{Style.RESET_ALL}")
             return False
         except subprocess.TimeoutExpired:
             print(f"{Fore.RED}❌ Το αίτημα WHOIS έληξε χρονικά (20s). Δοκίμασε ξανά ή έλεγξε το δίκτυο.{Style.RESET_ALL}")
@@ -507,19 +514,19 @@ class AdvancedNetworkTools:
             except Exception as e:
                 print(f"{Fore.YELLOW}⚠️ Το python-whois απέτυχε: {e}{Style.RESET_ALL}")
         else:
-            print(f"{Fore.YELLOW}⚠️ Το python-whois δεν είναι εγκατεστημένο, δοκιμή εφεδρικής εντολής συστήματος...{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}⚠️ Το python-whois δεν είναι εγκατεστημένο, δοκιμή εφεδρικού συστήματος...{Style.RESET_ALL}")
 
         if not success:
             success = self._whois_fallback_subprocess(domain)
 
         if not success:
-            print(f"{Fore.RED}❌ Αποτυχία αναζήτησης WHOIS για: {domain}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Συμβουλές:{Style.RESET_ALL} Έλεγξε το internet, χρησιμοποίησε domain (όχι IP), ή εγκατέστησε εξαρτήσεις με --install")
+            print(f"{Fore.RED}❌ Η αναζήτηση WHOIS απέτυχε για: {domain}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Συμβουλές:{Style.RESET_ALL} Έλεγξε το internet, χρησιμοποίησε domain (όχι IP) ή εγκατέστησε εξαρτήσεις με --install")
 
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def get_dns_records(self):
-        print(f"\n{Fore.CYAN}🌐 ΕΓΓΡΑΦΕΣ DNS{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🌐 DNS ΕΓΓΡΑΦΕΣ{Style.RESET_ALL}")
         if not DNS_AVAILABLE: return
         domain = input("Domain: ").strip()
         for r in ['A', 'MX', 'TXT']:
@@ -542,7 +549,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def subdomain_enum(self):
-        print(f"\n{Fore.CYAN}🔎 ΕΝΤΟΠΙΣΜΟΣ ΥΠΟΤΟΜΕΩΝ{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🔎 ΕΝΤΟΠΙΣΜΟΣ SUBDOMAINS{Style.RESET_ALL}")
         domain = input("Domain: ").strip()
         subs = ['www', 'mail', 'dev', 'api', 'admin']
         def check(s):
@@ -565,7 +572,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def http_headers(self):
-        print(f"\n{Fore.CYAN}📋 ΑΝΑΛΥΤΗΣ HEADERS{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}📋 ΑΝΑΛΥΣΗ HEADERS{Style.RESET_ALL}")
         url = input("URL: ").strip()
         try:
             r = requests.get(url, timeout=5)
@@ -574,7 +581,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def sql_injector(self):
-        print(f"\n{Fore.CYAN}💉 ΕΛΕΓΚΤΗΣ SQL INJECTION{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}💉 ΕΛΕΓΧΟΣ SQL INJECTION{Style.RESET_ALL}")
         url = input("URL με παράμετρο: ").strip()
         if '?' in url:
             payload = url + "'"
@@ -586,19 +593,19 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def xss_scanner(self):
-        print(f"\n{Fore.CYAN}🎯 ΣΑΡΩΤΗΣ XSS{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🎯 ΣΑΡΩΣΗ XSS{Style.RESET_ALL}")
         url = input("URL με παράμετρο: ").strip()
         payload = "<script>alert(1)</script>"
         if '?' in url:
             try:
                 r = requests.get(url + payload, timeout=5)
-                if payload in r.text: print(f"{Fore.RED}[!] Βρέθηκε XSS!{Style.RESET_ALL}")
+                if payload in r.text: print(f"{Fore.RED}[!] XSS Found!{Style.RESET_ALL}")
                 else: print("Ασφαλές.")
             except: pass
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def cms_detect(self):
-        print(f"\n{Fore.CYAN}🧬 ΑΝΙΧΝΕΥΤΗΣ CMS{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🧬 ΑΝΙΧΝΕΥΣΗ CMS{Style.RESET_ALL}")
         url = input("URL: ").strip()
         try:
             r = requests.get(url, timeout=5).text.lower()
@@ -609,7 +616,7 @@ class AdvancedNetworkTools:
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def ssh_brute(self):
-        print(f"\n{Fore.CYAN}🔐 SSH BRUTE FORCE{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}🔐 ΔΟΚΙΜΗ ΚΩΔΙΚΩΝ SSH{Style.RESET_ALL}")
         if not PARAMIKO_AVAILABLE: return
         host = input("Host: ").strip()
         user = input("Χρήστης: ").strip()
@@ -618,12 +625,12 @@ class AdvancedNetworkTools:
                 ssh = paramiko.SSHClient()
                 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 ssh.connect(host, username=user, password=p, timeout=3)
-                print(f"{Fore.GREEN}ΒΡΕΘΗΚΕ ΚΩΔΙΚΟΣ: {p}{Style.RESET_ALL}"); ssh.close(); break
+                print(f"{Fore.GREEN}ΒΡΕΘΗΚΕ: {p}{Style.RESET_ALL}"); ssh.close(); break
             except: pass
         input(f"\n{Fore.YELLOW}Πάτησε Enter...{Style.RESET_ALL}")
 
     def view_logs(self):
-        print(f"\n{Fore.CYAN}📊 ΚΑΤΑΓΡΑΦΕΣ ΕΛΕΓΧΟΥ{Style.RESET_ALL}")
+        print(f"\n{Fore.CYAN}📊 ΚΑΤΑΓΡΑΦΕΣ ΕΛΕΓΧΩΝ{Style.RESET_ALL}")
         try:
             with sqlite3.connect(self.audit_db_name) as conn:
                 for r in conn.execute("SELECT * FROM audit_results LIMIT 10"): print(r)
@@ -641,23 +648,23 @@ class AdvancedNetworkTools:
         while True:
             options = [
                 "--- ΔΙΚΤΥΟ & ΣΥΝΔΕΣΙΜΟΤΗΤΑ ---", # 0
-                "Σαρωτής Θυρών (TCP)",             # 1
-                "Υπολογιστής Subnet",              # 2
-                "Τεστ Ταχύτητας Internet",            # 3
+                "Σάρωση Θυρών (TCP)",             # 1
+                "Υπολογισμός Subnet",              # 2
+                "Έλεγχος Ταχύτητας Internet",            # 3
                 "Πληροφορίες Εξωτερικής IP",               # 4
-                "Λήψη Ιστοσελίδας (Αναδρομική)", # 5
+                "Λήψη Ιστοσελίδας (Αναδρομικά)", # 5
                 "--- OSINT & ΑΝΑΓΝΩΡΙΣΗ ---",          # 6
                 "Αναζήτηση WHOIS",                   # 7
-                "Εγγραφές DNS",                    # 8
-                "Εντοπισμός Υποτομέων",          # 9
+                "DNS Εγγραφές",                    # 8
+                "Εντοπισμός Subdomains",          # 9
                 "Reverse IP Lookup",              # 10
                 "Web Crawler",                    # 11
-                "--- ΑΣΦΑΛΕΙΑ WEB ---",           # 12
-                "Αναλυτής HTTP Headers",           # 13
-                "Ανιχνευτής CMS",                   # 14
-                "Ελεγκτής SQL Injection",           # 15
-                "Σαρωτής Reflected XSS",          # 16
-                "SSH Brute Force",                # 17
+                "--- ΑΣΦΑΛΕΙΑ ΙΣΤΟΥ ---",           # 12
+                "Ανάλυση HTTP Headers",           # 13
+                "Ανίχνευση CMS",                   # 14
+                "Έλεγχος SQL Injection",           # 15
+                "Σάρωση Reflected XSS",          # 16
+                "Δοκιμή Κωδικών SSH",                # 17
                 "--- ΣΥΣΤΗΜΑ ---",                 # 18
                 "Προβολή Καταγραφών Ελέγχου",                # 19
                 "Αλλαγή Στυλ Μενού",              # 20
@@ -666,7 +673,7 @@ class AdvancedNetworkTools:
 
             sel = -1
             if CURSES_AVAILABLE and self.menu_style == 'list':
-                sel = curses.wrapper(_draw_curses_menu, "DedSec Network Tool (Lite) - Ελληνικά", options)
+                sel = curses.wrapper(_draw_curses_menu, "Εργαλείο Δικτύου DedSec (Lite)", options)
             else:
                 print(f"\n{Fore.CYAN}   DEDSEC TOOLKIT - ΕΠΙΛΟΓΗ ΜΕ ΑΡΙΘΜΟ{Style.RESET_ALL}")
                 for i, o in enumerate(options):
@@ -675,7 +682,7 @@ class AdvancedNetworkTools:
                 try: sel = int(input(f"\nΕπίλεξε επιλογή > ").strip())
                 except: sel = -1
 
-            # Αντιστοίχιση επιλογών σε συναρτήσεις
+            # Αντιστοίχιση επιλογών με συναρτήσεις
             opt_map = {
                 1: self.enhanced_port_scanner, 2: self.subnet_calculator, 3: self.run_internet_speed_test,
                 4: self.get_external_ip_info, 5: self.website_downloader, 7: self.get_whois_info,
@@ -699,4 +706,4 @@ if __name__ == "__main__":
     try:
         app = AdvancedNetworkTools()
         app.run()
-    except KeyboardInterrupt: print("\nΈξοδοςing.")
+    except KeyboardInterrupt: print("\nΈξοδος.")
