@@ -263,14 +263,21 @@ class AdvancedNetworkTools:
 
         # Directory Setup
         if self.is_termux:
-            storage_path = "/sdcard/Download/Websites"
+            primary_storage_path = "/storage/emulated/0/Download/Websites"
+            fallback_storage_path = "/sdcard/Download/Websites"
+            storage_path = primary_storage_path
+            try:
+                os.makedirs(storage_path, exist_ok=True)
+            except Exception:
+                storage_path = fallback_storage_path
+                try:
+                    os.makedirs(storage_path, exist_ok=True)
+                except Exception:
+                    storage_path = os.path.join(self.save_dir, "Websites")
+                    os.makedirs(storage_path, exist_ok=True)
         else:
             storage_path = os.path.join(os.path.expanduser("~"), "Downloads", "Websites")
-
-        if not os.path.exists(storage_path):
-            try: os.makedirs(storage_path)
-            except: storage_path = os.path.join(self.save_dir, "Websites")
-            if not os.path.exists(storage_path): os.makedirs(storage_path)
+            os.makedirs(storage_path, exist_ok=True)
 
         url = input(f"{Fore.WHITE}Target URL: {Style.RESET_ALL}").strip()
         if not url.startswith('http'): url = 'http://' + url
