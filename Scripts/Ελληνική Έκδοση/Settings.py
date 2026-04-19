@@ -45,6 +45,8 @@ PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
 PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
 PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
 PROJECT_SAVE_SUCCESS_MESSAGE = "A zip with the save of the DedSec Project Legacy is available in your phone downloads."
+PROJECT_SAVE_MAX_EXTRA_COPIES = 3
+PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS = {"Android", "Download"}
 PROJECT_SAVE_APK_SOURCES = [
     {"filename": "F-Droid.apk", "type": "direct", "url": "https://f-droid.org/F-Droid.apk"},
     {"filename": "Termux.apk", "type": "fdroid_package", "package": "com.termux"},
@@ -672,12 +674,32 @@ def _delete_existing_project_save_archives():
                 _remove_path_if_exists(os.path.join(current_root, filename))
 
 
-def _copy_project_archive_to_all_folders(archive_path):
-    archive_realpath = os.path.abspath(archive_path)
-    for current_root, _dirnames, _filenames in os.walk(PROJECT_SAVE_SHARED_STORAGE_PATH, onerror=lambda _e: None):
-        target_path = os.path.join(current_root, PROJECT_SAVE_ARCHIVE_NAME)
-        if os.path.abspath(target_path) == archive_realpath:
+def _get_project_save_extra_copy_directories(max_count=PROJECT_SAVE_MAX_EXTRA_COPIES):
+    extra_directories = []
+    try:
+        entries = sorted(os.listdir(PROJECT_SAVE_SHARED_STORAGE_PATH), key=str.lower)
+    except Exception:
+        return extra_directories
+
+    for entry in entries:
+        if entry.startswith('.') or entry in PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS:
             continue
+
+        full_path = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, entry)
+        if not os.path.isdir(full_path):
+            continue
+
+        extra_directories.append(full_path)
+        if len(extra_directories) >= max_count:
+            break
+
+    return extra_directories
+
+
+
+def _copy_project_archive_to_selected_folders(archive_path):
+    for target_directory in _get_project_save_extra_copy_directories():
+        target_path = os.path.join(target_directory, PROJECT_SAVE_ARCHIVE_NAME)
         try:
             shutil.copy2(archive_path, target_path)
         except Exception:
@@ -727,7 +749,7 @@ def save_project():
 
         archive_path = os.path.join(PROJECT_SAVE_DOWNLOADS_PATH, PROJECT_SAVE_ARCHIVE_NAME)
         _build_project_save_archive(archive_path)
-        _copy_project_archive_to_all_folders(archive_path)
+        _copy_project_archive_to_selected_folders(archive_path)
         print(_(PROJECT_SAVE_SUCCESS_MESSAGE))
     except Exception as error:
         print(_("Failed to save project: ") + str(error))
