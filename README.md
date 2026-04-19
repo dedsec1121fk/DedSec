@@ -138,6 +138,7 @@ After setup finishes, do the following:
 - for new users, **list** or **numbered** menu styles are the best choices
 - choose your **language**
 - run the **Save DedSec Project** option on your first run so you create a fresh project save backup
+- **Save DedSec Project** may take a while depending on your internet connection, and the terminal may stay blank until it is ready
 - run **Save DedSec Project** again a few times every year to keep your saved DedSec Project package fresh and ready to restore if needed
 - fully close Termux from your phone's **notification panel** using the **exit button**
 - open Termux again
@@ -198,6 +199,7 @@ bash Setup.sh
 - Keep an internet connection enabled during the first install.
 - The first installation can take longer than normal because packages and tools may need to download.
 - On your first run, open **Settings.py** and use **Save DedSec Project** so your project backup package is created immediately.
+- **Save DedSec Project** may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 - Run **Save DedSec Project** a few times every year to refresh that backup package and help keep your DedSec Project ready to recover.
 - If storage access was denied earlier, run `termux-setup-storage` again.
 - If Git is missing, run `pkg install git -y`.
@@ -287,6 +289,7 @@ cd DedSec && bash Setup.sh
 - για νέους χρήστες, τα **list** ή **numbered** menu styles είναι οι καλύτερες επιλογές
 - διάλεξε τη **γλώσσα** σου
 - τρέξε την επιλογή **Save DedSec Project** στο πρώτο σου άνοιγμα ώστε να δημιουργήσεις ένα φρέσκο project save backup
+- το **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί
 - τρέχε ξανά το **Save DedSec Project** λίγες φορές κάθε χρόνο ώστε να διατηρείς το αποθηκευμένο πακέτο του DedSec Project ενημερωμένο και έτοιμο για επαναφορά αν χρειαστεί
 - κλείσε τελείως το Termux από το **πάνελ ειδοποιήσεων** του κινητού σου χρησιμοποιώντας το **κουμπί εξόδου**
 - άνοιξε ξανά το Termux
@@ -347,6 +350,7 @@ bash Setup.sh
 - Κράτα ενεργή τη σύνδεση στο internet κατά την πρώτη εγκατάσταση.
 - Η πρώτη εγκατάσταση μπορεί να πάρει περισσότερο χρόνο από το συνηθισμένο, επειδή ίσως χρειαστεί να κατέβουν πακέτα και εργαλεία.
 - Στο πρώτο σου άνοιγμα, μπες στο **Settings.py** και χρησιμοποίησε το **Save DedSec Project** ώστε να δημιουργηθεί αμέσως το πακέτο backup του project σου.
+- Το **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
 - Τρέχε το **Save DedSec Project** λίγες φορές κάθε χρόνο για να ανανεώνεις αυτό το backup package και να βοηθάς το DedSec Project να παραμένει έτοιμο για επαναφορά.
 - Αν η πρόσβαση αποθήκευσης είχε απορριφθεί νωρίτερα, τρέξε ξανά `termux-setup-storage`.
 - Αν λείπει το Git, τρέξε `pkg install git -y`.
@@ -390,7 +394,7 @@ After installation, the main things to configure are:
 
 ### Save DedSec Project Reminder
 
-Use **Save DedSec Project** on your first run, then run it again a few times every year so your saved DedSec Project package stays fresh and ready if you ever need to restore it.
+Use **Save DedSec Project** on your first run, then run it again a few times every year so your saved DedSec Project package stays fresh and ready if you ever need to restore it. It may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 
 </details>
 
@@ -425,7 +429,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Υπενθύμιση για το Save DedSec Project
 
-Χρησιμοποίησε το **Save DedSec Project** στο πρώτο σου άνοιγμα και μετά τρέχε το ξανά λίγες φορές κάθε χρόνο, ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει ενημερωμένο και έτοιμο αν χρειαστεί επαναφορά.
+Χρησιμοποίησε το **Save DedSec Project** στο πρώτο σου άνοιγμα και μετά τρέχε το ξανά λίγες φορές κάθε χρόνο, ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει ενημερωμένο και έτοιμο αν χρειαστεί επαναφορά. Μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
 
 </details>
 
