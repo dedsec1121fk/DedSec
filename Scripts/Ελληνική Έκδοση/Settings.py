@@ -39,6 +39,25 @@ LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
 BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip")
 SUPPRESS_NEXT_AUTOSTART_PATH = os.path.join(HOME_DIR, ".dedsec_skip_autostart_once")
 
+PROJECT_SAVE_SHARED_STORAGE_PATH = "/storage/emulated/0"
+PROJECT_SAVE_DOWNLOADS_PATH = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, "Download")
+PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
+PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
+PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
+PROJECT_SAVE_SUCCESS_MESSAGE = "A zip with the save of the DedSec Project Legacy is available in your phone downloads."
+PROJECT_SAVE_APK_SOURCES = [
+    {"filename": "F-Droid.apk", "type": "direct", "url": "https://f-droid.org/F-Droid.apk"},
+    {"filename": "Termux.apk", "type": "fdroid_package", "package": "com.termux"},
+    {"filename": "Termux_API.apk", "type": "fdroid_package", "package": "com.termux.api"},
+    {"filename": "Termux_Styling.apk", "type": "fdroid_package", "package": "com.termux.styling"},
+]
+PROJECT_SAVE_REPOSITORIES = [
+    {"folder_name": "DedSec_dedsec1121fk", "url": "https://github.com/dedsec1121fk/DedSec.git"},
+    {"folder_name": "dedsec1121fk.github.io", "url": "https://github.com/dedsec1121fk/dedsec1121fk.github.io.git"},
+    {"folder_name": "ded-sec_sal-scar", "url": "https://github.com/sal-scar/ded-sec.git"},
+    {"folder_name": "DedSec_sal-scar", "url": "https://github.com/sal-scar/DedSec.git"},
+]
+
 # --- Sponsors-Only shortcuts ---
 SPONSORS_ROOT_NAME = "Sponsors-Only-main"
 SPONSORS_ROOT_PATH = os.path.join(HOME_DIR, SPONSORS_ROOT_NAME)
@@ -159,6 +178,9 @@ GREEK_STRINGS = {
     "DedSec Project Update (Source 1)": "Ενημέρωση Έργου DedSec (Πηγή 1)",
     "DedSec Project Update (Source 2)": "Ενημέρωση Έργου DedSec (Πηγή 2)",
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
+    "Save DedSec Project": "Αποθήκευση DedSec Project",
+    "A zip with the save of the DedSec Project Legacy is available in your phone downloads.": "Ένα zip με το save του DedSec Project Legacy είναι διαθέσιμο στα Downloads του τηλεφώνου σας.",
+    "Failed to save project: ": "Αποτυχία αποθήκευσης έργου: ",
     "Change Prompt": "Αλλαγή Προτροπής",
     "Change Menu Style": "Αλλαγή Στυλ Μενού",
     "Enable Menu Auto-Start": "Ενεργοποίηση Αυτόματης Εκκίνησης Μενού",
@@ -577,6 +599,141 @@ def get_hardware_details():
 def get_user():
     output, _err = run_command_silent("whoami")
     return output if output else "Unknown"
+
+def _remove_path_if_exists(target_path):
+    """Removes a file/directory/symlink if it exists."""
+    try:
+        if os.path.islink(target_path) or os.path.isfile(target_path):
+            os.remove(target_path)
+        elif os.path.isdir(target_path):
+            shutil.rmtree(target_path)
+    except Exception:
+        pass
+
+
+def _download_file_silent(url, destination_path):
+    headers = {"User-Agent": "Mozilla/5.0 (Termux; Android) DedSecProjectLegacySave/1.0"}
+    with requests.get(url, stream=True, allow_redirects=True, timeout=120, headers=headers) as response:
+        response.raise_for_status()
+        with open(destination_path, "wb") as handle:
+            for chunk in response.iter_content(chunk_size=1024 * 256):
+                if chunk:
+                    handle.write(chunk)
+
+
+def _resolve_fdroid_package_apk_url(package_name):
+    headers = {"User-Agent": "Mozilla/5.0 (Termux; Android) DedSecProjectLegacySave/1.0"}
+    response = requests.get(f"https://f-droid.org/packages/{package_name}/", timeout=60, headers=headers)
+    response.raise_for_status()
+    html = response.text
+
+    patterns = [
+        r'href="([^"]+\.apk)"[^>]*>\s*Download APK',
+        r'href="([^"]*' + re.escape(package_name) + r'[^"]*\.apk)"',
+        r'href="([^"]+\.apk)"',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+        if match:
+            apk_url = match.group(1).strip()
+            if apk_url.startswith("//"):
+                return "https:" + apk_url
+            if apk_url.startswith("/"):
+                return "https://f-droid.org" + apk_url
+            if apk_url.startswith("http://") or apk_url.startswith("https://"):
+                return apk_url
+            return "https://f-droid.org/" + apk_url.lstrip("/")
+
+    raise RuntimeError(f"Unable to resolve APK URL for {package_name}")
+
+
+def _clone_repository_silent(repo_url, destination_path):
+    _remove_path_if_exists(destination_path)
+    result = subprocess.run(
+        ["git", "clone", "--depth", "1", repo_url, destination_path],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        error_message = (result.stderr or result.stdout or "git clone failed").strip()
+        raise RuntimeError(error_message)
+
+    git_dir = os.path.join(destination_path, ".git")
+    if os.path.isdir(git_dir):
+        shutil.rmtree(git_dir, ignore_errors=True)
+
+
+def _delete_existing_project_save_archives():
+    archive_name = PROJECT_SAVE_ARCHIVE_NAME
+    for current_root, _dirnames, filenames in os.walk(PROJECT_SAVE_SHARED_STORAGE_PATH, onerror=lambda _e: None):
+        for filename in filenames:
+            if filename == archive_name:
+                _remove_path_if_exists(os.path.join(current_root, filename))
+
+
+def _copy_project_archive_to_all_folders(archive_path):
+    archive_realpath = os.path.abspath(archive_path)
+    for current_root, _dirnames, _filenames in os.walk(PROJECT_SAVE_SHARED_STORAGE_PATH, onerror=lambda _e: None):
+        target_path = os.path.join(current_root, PROJECT_SAVE_ARCHIVE_NAME)
+        if os.path.abspath(target_path) == archive_realpath:
+            continue
+        try:
+            shutil.copy2(archive_path, target_path)
+        except Exception:
+            pass
+
+
+def _build_project_save_archive(archive_path):
+    _remove_path_if_exists(PROJECT_SAVE_WORKDIR)
+    os.makedirs(PROJECT_SAVE_WORKDIR, exist_ok=True)
+
+    bundle_root = os.path.join(PROJECT_SAVE_WORKDIR, PROJECT_SAVE_BUNDLE_DIRNAME)
+    apks_dir = os.path.join(bundle_root, "APKs")
+    repos_dir = os.path.join(bundle_root, "Repositories")
+    os.makedirs(apks_dir, exist_ok=True)
+    os.makedirs(repos_dir, exist_ok=True)
+
+    for apk_source in PROJECT_SAVE_APK_SOURCES:
+        target_path = os.path.join(apks_dir, apk_source["filename"])
+        if apk_source["type"] == "direct":
+            apk_url = apk_source["url"]
+        else:
+            apk_url = _resolve_fdroid_package_apk_url(apk_source["package"])
+        _download_file_silent(apk_url, target_path)
+
+    for repo_source in PROJECT_SAVE_REPOSITORIES:
+        repo_target_dir = os.path.join(repos_dir, repo_source["folder_name"])
+        _clone_repository_silent(repo_source["url"], repo_target_dir)
+
+    os.makedirs(os.path.dirname(archive_path), exist_ok=True)
+    _remove_path_if_exists(archive_path)
+
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for current_root, _dirnames, filenames in os.walk(bundle_root):
+            for filename in filenames:
+                full_path = os.path.join(current_root, filename)
+                relative_path = os.path.relpath(full_path, PROJECT_SAVE_WORKDIR)
+                archive.write(full_path, arcname=relative_path)
+
+
+def save_project():
+    try:
+        if not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
+            run_command_silent("termux-setup-storage")
+
+        os.makedirs(PROJECT_SAVE_DOWNLOADS_PATH, exist_ok=True)
+        _delete_existing_project_save_archives()
+
+        archive_path = os.path.join(PROJECT_SAVE_DOWNLOADS_PATH, PROJECT_SAVE_ARCHIVE_NAME)
+        _build_project_save_archive(archive_path)
+        _copy_project_archive_to_all_folders(archive_path)
+        print(_(PROJECT_SAVE_SUCCESS_MESSAGE))
+    except Exception as error:
+        print(_("Failed to save project: ") + str(error))
+    finally:
+        _remove_path_if_exists(PROJECT_SAVE_WORKDIR)
+
 
 def show_about():
     print(f"=== {_('System Information')} ===")
@@ -5461,6 +5618,7 @@ def run_settings_list_menu():
             _("DedSec Project Update (Source 1)"),
             _("DedSec Project Update (Source 2)"),
             _("Update Packages & Modules"),
+            _("Save DedSec Project"),
             _("Change Prompt"),
             _("Change Menu Style"),
             get_menu_autostart_label(),
@@ -5641,6 +5799,7 @@ def run_settings_grid_menu():
         _("DedSec Project Update (Source 1)"),
         _("DedSec Project Update (Source 2)"),
         _("Update Packages & Modules"),
+        _("Save DedSec Project"),
         _("Change Prompt"),
         _("Change Menu Style"),
         get_menu_autostart_label(),
@@ -5659,6 +5818,7 @@ def run_settings_number_menu():
         _("DedSec Project Update (Source 1)"),
         _("DedSec Project Update (Source 2)"),
         _("Update Packages & Modules"),
+        _("Save DedSec Project"),
         _("Change Prompt"),
         _("Change Menu Style"),
         get_menu_autostart_label(),
@@ -5686,7 +5846,7 @@ def run_settings_number_menu():
             continue
         
         if choice == 0:
-            return 10  # Exit option
+            return len(menu_options) - 1  # Exit option
         
         if 1 <= choice <= len(menu_options):
             return choice - 1
@@ -5709,11 +5869,14 @@ def run_settings_menu():
 
 def main():
     while True:
+        should_exit = False
+        pause_without_text = False
+
         selected = run_settings_menu()
         if selected is None:
             print(_("Exiting..."))
             break
-            
+
         os.system("clear")
         if selected == 0:
             show_about()
@@ -5724,25 +5887,31 @@ def main():
         elif selected == 3:
             update_packages_modules()
         elif selected == 4:
-            change_prompt()
+            save_project()
+            pause_without_text = True
         elif selected == 5:
-            change_menu_style()
+            change_prompt()
         elif selected == 6:
-            toggle_menu_autostart()
+            change_menu_style()
         elif selected == 7:
-            change_language()
+            toggle_menu_autostart()
         elif selected == 8:
-            show_credits()
+            change_language()
         elif selected == 9:
+            show_credits()
+        elif selected == 10:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 10:
+        elif selected == 11:
             print(_("Exiting..."))
             break
-        
-        if 'should_exit' not in locals() or not should_exit:
-            input(f"\n{_('Press Enter to return to the settings menu...')}")
+
+        if not should_exit:
+            if pause_without_text:
+                input()
+            else:
+                input(f"\n{_('Press Enter to return to the settings menu...')}")
 
 # ------------------------------
 # Entry Point
