@@ -137,6 +137,8 @@ After setup finishes, do the following:
 - change the **menu style**
 - for new users, **list** or **numbered** menu styles are the best choices
 - choose your **language**
+- run the **Save DedSec Project** option on your first run so you create a fresh project save backup
+- run **Save DedSec Project** again a few times every year to keep your saved DedSec Project package fresh and ready to restore if needed
 - fully close Termux from your phone's **notification panel** using the **exit button**
 - open Termux again
 
@@ -195,6 +197,8 @@ bash Setup.sh
 
 - Keep an internet connection enabled during the first install.
 - The first installation can take longer than normal because packages and tools may need to download.
+- On your first run, open **Settings.py** and use **Save DedSec Project** so your project backup package is created immediately.
+- Run **Save DedSec Project** a few times every year to refresh that backup package and help keep your DedSec Project ready to recover.
 - If storage access was denied earlier, run `termux-setup-storage` again.
 - If Git is missing, run `pkg install git -y`.
 - If you are already inside the DedSec folder, you do not need to clone the repository again.
@@ -282,6 +286,8 @@ cd DedSec && bash Setup.sh
 - άλλαξε το **στυλ του μενού**
 - για νέους χρήστες, τα **list** ή **numbered** menu styles είναι οι καλύτερες επιλογές
 - διάλεξε τη **γλώσσα** σου
+- τρέξε την επιλογή **Save DedSec Project** στο πρώτο σου άνοιγμα ώστε να δημιουργήσεις ένα φρέσκο project save backup
+- τρέχε ξανά το **Save DedSec Project** λίγες φορές κάθε χρόνο ώστε να διατηρείς το αποθηκευμένο πακέτο του DedSec Project ενημερωμένο και έτοιμο για επαναφορά αν χρειαστεί
 - κλείσε τελείως το Termux από το **πάνελ ειδοποιήσεων** του κινητού σου χρησιμοποιώντας το **κουμπί εξόδου**
 - άνοιξε ξανά το Termux
 
@@ -340,6 +346,8 @@ bash Setup.sh
 
 - Κράτα ενεργή τη σύνδεση στο internet κατά την πρώτη εγκατάσταση.
 - Η πρώτη εγκατάσταση μπορεί να πάρει περισσότερο χρόνο από το συνηθισμένο, επειδή ίσως χρειαστεί να κατέβουν πακέτα και εργαλεία.
+- Στο πρώτο σου άνοιγμα, μπες στο **Settings.py** και χρησιμοποίησε το **Save DedSec Project** ώστε να δημιουργηθεί αμέσως το πακέτο backup του project σου.
+- Τρέχε το **Save DedSec Project** λίγες φορές κάθε χρόνο για να ανανεώνεις αυτό το backup package και να βοηθάς το DedSec Project να παραμένει έτοιμο για επαναφορά.
 - Αν η πρόσβαση αποθήκευσης είχε απορριφθεί νωρίτερα, τρέξε ξανά `termux-setup-storage`.
 - Αν λείπει το Git, τρέξε `pkg install git -y`.
 - Αν βρίσκεσαι ήδη μέσα στον φάκελο DedSec, δεν χρειάζεται να ξανακάνεις clone το repository.
@@ -359,6 +367,7 @@ The DedSec Project includes a central **Settings.py** tool that manages the main
 ### Main Features
 
 - project updates and package refresh
+- **Save DedSec Project** backup creation and refresh for long-term project recovery
 - persistent language preference (English / Greek)
 - menu style selection: **list**, **grid**, **number**, or **DedSec OS**
 - terminal prompt customization
@@ -375,8 +384,13 @@ After installation, the main things to configure are:
 
 1. your preferred language  
 2. your menu style  
-3. any system preferences you want  
-4. project updates when needed
+3. run **Save DedSec Project** on your first run  
+4. any system preferences you want  
+5. project updates when needed
+
+### Save DedSec Project Reminder
+
+Use **Save DedSec Project** on your first run, then run it again a few times every year so your saved DedSec Project package stays fresh and ready if you ever need to restore it.
 
 </details>
 
@@ -388,8 +402,9 @@ After installation, the main things to configure are:
 ### Κύριες Δυνατότητες
 
 - ενημερώσεις project και ανανέωση πακέτων
+- δημιουργία και ανανέωση backup μέσω **Save DedSec Project** για μακροχρόνια επαναφορά του project
 - μόνιμη επιλογή γλώσσας (English / Greek)
-- επιλογή στυλ μενού: **list**, **grid** ή **number**
+- επιλογή στυλ μενού: **list**, **grid**, **number** ή **DedSec OS**
 - παραμετροποίηση terminal prompt
 - προβολή πληροφοριών συστήματος
 - ενσωμάτωση home scripts
@@ -404,8 +419,13 @@ After installation, the main things to configure are:
 
 1. τη γλώσσα που προτιμάς  
 2. το στυλ μενού που θέλεις  
-3. όποιες προτιμήσεις συστήματος σε εξυπηρετούν  
-4. τις ενημερώσεις του project όταν χρειάζονται
+3. να τρέξεις το **Save DedSec Project** στο πρώτο σου άνοιγμα  
+4. όποιες προτιμήσεις συστήματος σε εξυπηρετούν  
+5. τις ενημερώσεις του project όταν χρειάζονται
+
+### Υπενθύμιση για το Save DedSec Project
+
+Χρησιμοποίησε το **Save DedSec Project** στο πρώτο σου άνοιγμα και μετά τρέχε το ξανά λίγες φορές κάθε χρόνο, ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει ενημερωμένο και έτοιμο αν χρειαστεί επαναφορά.
 
 </details>
 
