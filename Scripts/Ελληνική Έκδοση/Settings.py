@@ -45,7 +45,7 @@ PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
 PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
 PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
 PROJECT_SAVE_SUCCESS_MESSAGE = "A zip with the save of the DedSec Project Legacy is available in your phone downloads."
-PROJECT_SAVE_MAX_EXTRA_COPIES = 3
+PROJECT_SAVE_MAX_EXTRA_COPIES = 6
 PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS = {"Android", "Download"}
 PROJECT_SAVE_APK_SOURCES = [
     {"filename": "F-Droid.apk", "type": "direct", "url": "https://f-droid.org/F-Droid.apk"},
