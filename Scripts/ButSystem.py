@@ -26,6 +26,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Tuple, Any
 import hashlib
 import hmac
+import ssl
 
 
 # ---------------------------
@@ -153,6 +154,8 @@ from jinja2 import DictLoader
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding as asym_padding
+from cryptography import x509
+from cryptography.x509.oid import NameOID
 
 # ---------------------------
 # Paths / logging
@@ -174,14 +177,57 @@ ACCENT_PRESETS = {
 
 FONT_PRESETS = {
     "system": {"label": "System", "stack": 'system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji"'},
-    "mono":   {"label": "Monospace", "stack": 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'},
-    "serif":  {"label": "Serif", "stack": 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif'},
+    "clean_sans": {"label": "Clean Sans", "stack": '"Noto Sans", "Segoe UI", Roboto, Arial, sans-serif'},
+    "readable_sans": {"label": "Readable Sans", "stack": 'Verdana, "Noto Sans", "Segoe UI", Arial, sans-serif'},
+    "compact_sans": {"label": "Compact Sans", "stack": 'Tahoma, "Noto Sans", "Segoe UI", Arial, sans-serif'},
+    "humanist": {"label": "Humanist Sans", "stack": '"Trebuchet MS", "Noto Sans", "Segoe UI", Arial, sans-serif'},
+    "modern_ui": {"label": "Modern UI", "stack": '"Inter", "Noto Sans", "Segoe UI", Roboto, Arial, sans-serif'},
+    "rounded_ui": {"label": "Rounded UI", "stack": '"Nunito", "Noto Sans", "Segoe UI", Arial, sans-serif'},
+    "wide_sans": {"label": "Wide Sans", "stack": '"Lucida Sans Unicode", "Lucida Grande", "Noto Sans", "Segoe UI", Arial, sans-serif'},
+    "news": {"label": "News Serif", "stack": 'Georgia, "Noto Serif", "Times New Roman", Times, serif'},
+    "classic_serif": {"label": "Classic Serif", "stack": 'Cambria, "Noto Serif", Georgia, serif'},
+    "mono": {"label": "Monospace", "stack": 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace'},
+    "terminal": {"label": "Terminal Mono", "stack": '"DejaVu Sans Mono", "Noto Sans Mono", Consolas, "Liberation Mono", monospace'},
+}
+
+UI_THEME_PRESETS = {
+    "default": {"label": "Default"},
+    "matrix": {"label": "Matrix"},
+    "ocean": {"label": "Ocean"},
+    "amber": {"label": "Amber"},
+    "crimson": {"label": "Crimson"},
+    "silver": {"label": "Silver"},
+    "rose": {"label": "Rose"},
+    "forest": {"label": "Forest"},
+    "midnight": {"label": "Midnight"},
+    "neon": {"label": "Neon"},
+    "lavender": {"label": "Lavender"},
+    "cyber": {"label": "Cyber"},
+    "emerald": {"label": "Emerald"},
+    "sunset": {"label": "Sunset"},
+    "ice": {"label": "Ice"},
+    "coffee": {"label": "Coffee"},
+    "obsidian": {"label": "Obsidian"},
+    "royal": {"label": "Royal"},
+    "peach": {"label": "Peach"},
+    "terminal": {"label": "Terminal"},
+    "storm": {"label": "Storm"},
+    "mint": {"label": "Mint"},
+    "plum": {"label": "Plum"},
+    "gold": {"label": "Gold"},
+    "volcano": {"label": "Volcano"},
+    "glacier": {"label": "Glacier"},
+    "nightshade": {"label": "Nightshade"},
+    "sand": {"label": "Sand"},
+    "aqua": {"label": "Aqua"},
+    "orchid": {"label": "Orchid"},
 }
 
 ACCENT_CHOICES = [{"key": k, "label": v["label"]} for k, v in ACCENT_PRESETS.items()]
 FONT_CHOICES = [{"key": k, "label": v["label"]} for k, v in FONT_PRESETS.items()]
+UI_THEME_CHOICES = [{"key": k, "label": v["label"]} for k, v in UI_THEME_PRESETS.items()]
 
-DEFAULT_PREFS = {"accent_key": "purple", "font_key": "system"}
+DEFAULT_PREFS = {"accent_key": "purple", "font_key": "system", "ui_theme_key": "default"}
 
 
 LOGO_DARK_URL = "https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/c0d1f698cc38dbd0535a94f8865ac9ba9fb45086/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg"
@@ -234,6 +280,35 @@ def _choose_homework_root() -> str:
         pass
     return fallback
 
+def _choose_face_detector_output_dir() -> str:
+    """Prefer phone Downloads for saved face detector captures."""
+    candidates = []
+    shared = _termux_shared_root()
+    if shared:
+        candidates.append(os.path.join(shared, "Download", "ButSystem", "Face Detector"))
+        candidates.append(os.path.join(shared, "Downloads", "ButSystem", "Face Detector"))
+    candidates.append(os.path.join(HOME, "storage", "downloads", "ButSystem", "Face Detector"))
+    candidates.append(os.path.join(HOME, "Downloads", "ButSystem", "Face Detector"))
+    candidates.append(os.path.join(HOME, "ButSystem", "Face Detector"))
+
+    seen = set()
+    for root in candidates:
+        if not root or root in seen:
+            continue
+        seen.add(root)
+        try:
+            os.makedirs(root, exist_ok=True)
+            if os.path.isdir(root) and os.access(root, os.W_OK):
+                return root
+        except Exception:
+            continue
+    fallback = os.path.join(HOME, "ButSystem", "Face Detector")
+    try:
+        os.makedirs(fallback, exist_ok=True)
+    except Exception:
+        pass
+    return fallback
+
 HOMEWORK_ROOT = _choose_homework_root()
 BASE_DIR = os.path.join(HOMEWORK_ROOT, "ButSystem")
 
@@ -248,6 +323,7 @@ TMP_UPLOAD_DIR = os.path.join(DATA_DIR, "tmp_uploads")    # temporary plain uplo
 PFP_DIR = os.path.join(DATA_DIR, "profile_pics_enc")     # user profile pictures (plaintext)
 DM_FILES_DIR = os.path.join(DATA_DIR, "dm_files_enc")    # DM file exchange (plaintext)
 DISC_FILES_DIR = os.path.join(DATA_DIR, "discussion_files_enc")  # Discussion attachments (plaintext)
+FACE_DETECTOR_DIR = _choose_face_detector_output_dir()
 
 DB_PATH = os.path.join(DATA_DIR, "butsystem.db")
 MASTER_KEY_PATH = os.path.join(KEYS_DIR, "master.key")
@@ -284,7 +360,7 @@ def _migrate_legacy_data():
 
 _migrate_legacy_data()
 
-for d in (BASE_DIR, DATA_DIR, STORAGE_DIR, KEYS_DIR, LOG_DIR, TOR_DIR, ATT_DIR, PFP_DIR, DM_FILES_DIR, DISC_FILES_DIR):
+for d in (BASE_DIR, DATA_DIR, STORAGE_DIR, KEYS_DIR, LOG_DIR, TOR_DIR, ATT_DIR, PFP_DIR, DM_FILES_DIR, DISC_FILES_DIR, FACE_DETECTOR_DIR):
     os.makedirs(d, exist_ok=True)
 
 # ---------------------------
@@ -789,7 +865,20 @@ Returns:
     """)
     _ensure_col("user_prefs", "accent_key", "ALTER TABLE user_prefs ADD COLUMN accent_key TEXT")
     _ensure_col("user_prefs", "font_key", "ALTER TABLE user_prefs ADD COLUMN font_key TEXT")
+    _ensure_col("user_prefs", "ui_theme_key", "ALTER TABLE user_prefs ADD COLUMN ui_theme_key TEXT")
     _ensure_col("user_prefs", "updated_at", "ALTER TABLE user_prefs ADD COLUMN updated_at TEXT")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS chat_pin_locks (
+        owner TEXT NOT NULL,
+        scope TEXT NOT NULL,      -- 'dm' | 'group'
+        target TEXT NOT NULL,     -- username for dm, group id string for group
+        pin_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY(owner, scope, target)
+    )
+    """)
 
     # Direct chat messages (encrypted text)
     cur.execute("""
@@ -984,33 +1073,37 @@ def get_user_prefs(username: Optional[str]) -> Dict[str, str]:
     try:
         conn = db_connect()
         row = conn.execute(
-            "SELECT accent_key, font_key FROM user_prefs WHERE username=?",
+            "SELECT accent_key, font_key, ui_theme_key FROM user_prefs WHERE username=?",
             (username,),
         ).fetchone()
         conn.close()
         if row:
             ak = (row["accent_key"] or "").strip()
             fk = (row["font_key"] or "").strip()
+            tk = (row["ui_theme_key"] or "").strip() if "ui_theme_key" in row.keys() else ""
             if ak in ACCENT_PRESETS:
                 prefs["accent_key"] = ak
             if fk in FONT_PRESETS:
                 prefs["font_key"] = fk
+            if tk in UI_THEME_PRESETS:
+                prefs["ui_theme_key"] = tk
     except Exception:
         pass
     return prefs
 
 
-def set_user_prefs(username: str, accent_key: str, font_key: str) -> None:
+def set_user_prefs(username: str, accent_key: str, font_key: str, ui_theme_key: Optional[str]=None) -> None:
     """Persist UI preferences for a user."""
     if not username:
         return
     ak = accent_key if accent_key in ACCENT_PRESETS else DEFAULT_PREFS["accent_key"]
     fk = font_key if font_key in FONT_PRESETS else DEFAULT_PREFS["font_key"]
+    tk = ui_theme_key if ui_theme_key in UI_THEME_PRESETS else DEFAULT_PREFS["ui_theme_key"]
     try:
         conn = db_connect()
         conn.execute(
-            "INSERT OR REPLACE INTO user_prefs(username, accent_key, font_key, updated_at) VALUES (?,?,?,?)",
-            (username, ak, fk, now_z()),
+            "INSERT OR REPLACE INTO user_prefs(username, accent_key, font_key, ui_theme_key, updated_at) VALUES (?,?,?,?,?)",
+            (username, ak, fk, tk, now_z()),
         )
         conn.commit()
         conn.close()
@@ -1237,6 +1330,7 @@ app.secret_key = load_or_create_session_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_REFRESH_EACH_REQUEST=False,
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
     # Global hard cap (needed for Flask/Werkzeug to accept large multipart bodies).
     # We enforce tighter per-feature limits below.
@@ -1435,6 +1529,17 @@ Returns:
     g.csrf_token = csrf_token()
 
 @app.before_request
+def _validate_host_header():
+    try:
+        host = (request.host or "").split(":", 1)[0].strip().strip("[]")
+    except Exception:
+        host = ""
+    if not _host_is_allowed(host):
+        log_security_event("blocked_host_header", detail=f"host={host or '?'}", level="warning")
+        abort(400)
+    return None
+
+@app.before_request
 def _csrf_protect():
     """_csrf_protect.
 
@@ -1532,18 +1637,19 @@ Returns:
     resp.headers.setdefault("Referrer-Policy", "same-origin")
     resp.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
     resp.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    resp.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
+    resp.headers.setdefault("Origin-Agent-Cluster", "?1")
 
     # Permissions-Policy helps reduce unexpected browser permission prompts/leaks.
     resp.headers.setdefault(
         "Permissions-Policy",
-        "geolocation=(self), microphone=(self), camera=(self), fullscreen=(self), payment=()"
+        "geolocation=(self), microphone=(self), camera=(self), fullscreen=(self), payment=(), display-capture=()"
     )
 
     # CSP: tuned to keep everything working across iOS/Android/Desktop.
     # (We allow inline scripts for now because templates include a few inline handlers.)
     # If you later remove inline handlers, you can tighten script-src by removing 'unsafe-inline'.
-    resp.headers.setdefault(
-        "Content-Security-Policy",
+    csp_value = (
         "default-src 'self'; "
         "base-uri 'self'; "
         "form-action 'self'; "
@@ -1556,11 +1662,45 @@ Returns:
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
         "connect-src 'self' https: wss:; "
     )
+    try:
+        if request.endpoint == 'face_detector_page':
+            csp_value = (
+                "default-src 'self'; "
+                "base-uri 'self'; "
+                "form-action 'self'; "
+                "frame-ancestors 'none'; "
+                "object-src 'none'; "
+                "img-src 'self' data: blob: https:; "
+                "media-src 'self' blob: data: https:; "
+                "font-src 'self' data: https:; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net; "
+                "worker-src 'self' blob: https://cdn.jsdelivr.net; "
+                "child-src 'self' blob: https://cdn.jsdelivr.net; "
+                "connect-src 'self' https: blob: data: wss:; "
+            )
+    except Exception:
+        pass
+    resp.headers.setdefault("Content-Security-Policy", csp_value)
 
     # Only set HSTS when actually served over HTTPS (safe for Cloudflared/Tor HTTPS frontends).
     try:
         if request.is_secure:
             resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    except Exception:
+        pass
+
+    # Avoid caching authenticated or sensitive pages in browsers / shared devices.
+    try:
+        sensitive_endpoints = {
+            "chat_with", "group_chat", "discussion", "profile", "settings_security",
+            "settings_appearance_page", "admin_panel", "admin_logs", "profiler", "news",
+            "face_detector", "reports", "files", "locations_page"
+        }
+        if is_logged_in() or (request.endpoint in sensitive_endpoints):
+            resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private, max-age=0"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
     except Exception:
         pass
 
@@ -1602,6 +1742,137 @@ Returns:
     Varies.
 """
     return bool(current_user())
+
+
+def _normalize_chat_pin(pin: str) -> str:
+    pin = re.sub(r"\s+", "", str(pin or ""))
+    if not re.fullmatch(r"\d{4,12}", pin):
+        raise ValueError("invalid_pin")
+    return pin
+
+
+def _lock_target(scope: str, target) -> str:
+    if scope == "dm":
+        return str(target or "").strip()
+    if scope == "group":
+        return str(int(target))
+    raise ValueError("invalid_scope")
+
+
+def _lock_session_key(owner: str, scope: str, target) -> str:
+    return f"{owner}|{scope}|{_lock_target(scope, target)}"
+
+
+def _session_unlocks() -> set:
+    raw = session.get("chat_pin_unlocks") or []
+    if isinstance(raw, list):
+        return set(str(x) for x in raw if x)
+    return set()
+
+
+def _save_session_unlocks(items: set):
+    session["chat_pin_unlocks"] = sorted(set(str(x) for x in items if x))
+    session.modified = True
+
+
+def _chat_lock_exists(owner: str, scope: str, target) -> bool:
+    if not owner:
+        return False
+    conn = db_connect()
+    try:
+        row = conn.execute(
+            "SELECT 1 FROM chat_pin_locks WHERE owner=? AND scope=? AND target=? LIMIT 1",
+            (owner, scope, _lock_target(scope, target)),
+        ).fetchone()
+        return bool(row)
+    finally:
+        conn.close()
+
+
+def _chat_lock_is_unlocked(owner: str, scope: str, target) -> bool:
+    if not _chat_lock_exists(owner, scope, target):
+        return True
+    return _lock_session_key(owner, scope, target) in _session_unlocks()
+
+
+def _chat_lock_set(owner: str, scope: str, target, pin: str):
+    pin = _normalize_chat_pin(pin)
+    t = _lock_target(scope, target)
+    conn = db_connect()
+    try:
+        conn.execute(
+            """
+            INSERT INTO chat_pin_locks(owner, scope, target, pin_hash, created_at, updated_at)
+            VALUES(?,?,?,?,?,?)
+            ON CONFLICT(owner, scope, target)
+            DO UPDATE SET pin_hash=excluded.pin_hash, updated_at=excluded.updated_at
+            """,
+            (owner, scope, t, generate_password_hash(pin), now_z(), now_z()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    items = _session_unlocks()
+    items.add(_lock_session_key(owner, scope, t))
+    _save_session_unlocks(items)
+
+
+def _chat_lock_verify_and_unlock(owner: str, scope: str, target, pin: str) -> bool:
+    try:
+        pin = _normalize_chat_pin(pin)
+    except Exception:
+        return False
+    conn = db_connect()
+    try:
+        row = conn.execute(
+            "SELECT pin_hash FROM chat_pin_locks WHERE owner=? AND scope=? AND target=?",
+            (owner, scope, _lock_target(scope, target)),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return True
+    try:
+        ok = check_password_hash(row["pin_hash"], pin)
+    except Exception:
+        ok = False
+    if ok:
+        items = _session_unlocks()
+        items.add(_lock_session_key(owner, scope, target))
+        _save_session_unlocks(items)
+    return ok
+
+
+def _chat_lock_remove(owner: str, scope: str, target):
+    conn = db_connect()
+    try:
+        conn.execute(
+            "DELETE FROM chat_pin_locks WHERE owner=? AND scope=? AND target=?",
+            (owner, scope, _lock_target(scope, target)),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    _chat_lock_clear_session(owner, scope, target)
+
+
+def _chat_lock_clear_session(owner: str, scope: str, target):
+    items = _session_unlocks()
+    items.discard(_lock_session_key(owner, scope, target))
+    _save_session_unlocks(items)
+
+
+def _locked_json_or_redirect(scope: str, target):
+    wants_json = (
+        request.path.startswith("/api/")
+        or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or "application/json" in (request.headers.get("Accept", ""))
+    )
+    if wants_json:
+        return jsonify(ok=False, locked=True, error="PIN required"), 423
+    if scope == "dm":
+        return redirect(url_for("chat_with", username=_lock_target(scope, target)))
+    return redirect(url_for("group_chat", gid=int(_lock_target(scope, target))))
 
 
 # -----------------------------
@@ -2140,7 +2411,7 @@ TRANSLATIONS_EL.update({
     "How to use ButSystem": "Πώς να χρησιμοποιείς το ButSystem",
     "ButSystem is preparing your session.": "Το ButSystem προετοιμάζει τη συνεδρία σου.",
     "Please wait — this may take 20–40 seconds.": "Παρακαλώ περίμενε — αυτό μπορεί να πάρει 20–40 δευτερόλεπτα.",
-    "Please wait — this may take 15–30 seconds.": "Παρακαλώ περίμενε — αυτό μπορεί να πάρει 15–30 δευτερόλεπτα.",
+    "Please wait — this may take 10–20 seconds.": "Παρακαλώ περίμενε — αυτό μπορεί να πάρει 10–20 δευτερόλεπτα.",
     "Important notice": "Σημαντική ειδοποίηση",
     "This system is NOT affiliated with police, military, or any government agency.": "Αυτό το σύστημα ΔΕΝ σχετίζεται με αστυνομία, στρατό ή οποιαδήποτε κρατική υπηρεσία.",
     "It is for personal use only.": "Προορίζεται μόνο για προσωπική χρήση.",
@@ -2826,6 +3097,42 @@ Returns:
     wrapper.__name__ = fn.__name__
     return wrapper
 
+
+
+def privacy_panic_active() -> bool:
+    try:
+        return float(session.get("privacy_panic_until") or 0) > time.time()
+    except Exception:
+        return False
+
+
+@app.route("/privacy/panic", methods=["POST"])
+@login_required
+def privacy_panic():
+    session.pop("privacy_panic_until", None)
+    session.modified = True
+    try:
+        log_user_action("privacy_panic", detail="blur_sensitive_content", username=current_user())
+    except Exception:
+        pass
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+        return jsonify({"ok": True, "reload": True})
+    return redirect(request.referrer or url_for("chats"))
+
+
+@app.route("/privacy/resume", methods=["POST"])
+@login_required
+def privacy_resume():
+    session.pop("privacy_panic_until", None)
+    session.modified = True
+    try:
+        log_user_action("privacy_resume", detail="show_sensitive_content", username=current_user())
+    except Exception:
+        pass
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.is_json:
+        return jsonify({"ok": True, "reload": True})
+    return redirect(request.referrer or url_for("chats"))
+
 def guess_mime(filename: str) -> str:
     """guess_mime.
 
@@ -3057,9 +3364,6 @@ Returns:
     conn.commit()
     
     # Keep a Profiler entry automatically mirrored from "My Profile".
-    # Requested behavior:
-    # - Auto-create/update on profile save
-    # - Skip username "dedsec1121fk"
     try:
         profiler_sync_from_user_profile(username)
     except Exception:
@@ -3471,15 +3775,20 @@ BUT_CSS = r"""
   --toggler-icon: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%23111111' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
-html,body{height:100%;overflow-x:hidden;}
+html,body{height:100%;min-height:100%;overflow-x:hidden;}
 html{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
 body{
   margin:0;
+  min-height: var(--app-height, 100vh);
   background: var(--bg);
   color: var(--text);
   font-family: var(--app-font);
   padding-bottom: env(safe-area-inset-bottom);
   caret-color: var(--accent);
+}
+@supports (-webkit-touch-callout: none){
+  html, body{ min-height: -webkit-fill-available; }
+  body{ min-height: var(--app-height, -webkit-fill-available); }
 }
 
 /* Chat mode: prevent whole page scrolling; only messages scroll */
@@ -4175,6 +4484,31 @@ details.opt-details[open] > summary{ background:rgba(255,255,255,0.06); }
   main.container{ padding-left: 12px !important; padding-right: 12px !important; }
   .card-soft{ border-radius: 22px; }
 }
+/* Panic privacy mode: hide sensitive details but keep navigation usable */
+body.privacy-panic .panic-blurable{
+  filter: blur(18px) saturate(.7) brightness(.28);
+  transition: filter .2s ease, opacity .2s ease;
+}
+body.privacy-panic .panic-banner{ display:flex !important; }
+.panic-banner{
+  display:none;
+  position:fixed;
+  right:12px;
+  bottom:calc(12px + env(safe-area-inset-bottom));
+  z-index:2500;
+  gap:.55rem;
+  align-items:center;
+  padding:.75rem .9rem;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:rgba(8,11,16,.92);
+  box-shadow:var(--shadow);
+  max-width:min(92vw, 420px);
+}
+body.light-theme .panic-banner{ background:rgba(255,255,255,.94); }
+.panic-banner .panic-text{ font-size:.92rem; color:var(--text); }
+
+
 """
 
 TEMPLATES = {}
@@ -4185,12 +4519,17 @@ TEMPLATES["base.html"] = r"""
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <meta name="format-detection" content="telephone=no,date=no,address=no,email=no"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0b0f14"/>
   <meta name="csrf-token" content="{{ csrf_token }}"/>
   <title>{{ title or "ButSystem" }}</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>{{ but_css|safe }}</style>
 </head>
-<body class="{% if request.endpoint in ['chat_with','group_chat','discussion'] %}chat-mode{% endif %}">
+<body data-ui-theme="{{ (user_prefs.ui_theme_key if user_prefs and user_prefs.ui_theme_key else 'default') }}" class="{% if request.endpoint in ['chat_with','group_chat','discussion'] %}chat-mode{% endif %}">
 <nav class="navbar navbar-expand-lg sticky-top">
   <div class="container-fluid">
     <a class="navbar-brand brand d-flex align-items-center gap-2" href="https://ded-sec.space">
@@ -4200,9 +4539,8 @@ TEMPLATES["base.html"] = r"""
 
     {% set hide_burger = request.endpoint in ['index','loading','login','signup'] %}
 
-    <!-- Always-visible controls (outside the burger menu): Theme + Language + Burger -->
+    <!-- Always-visible controls (outside the burger menu): Language + Burger -->
     <div class="d-flex align-items-center gap-2 ms-auto nav-top-controls">
-      <button class="btn btn-ghost btn-sm" id="themeBtn" type="button" title="{{ _('Theme') }}" aria-label="{{ _('Theme') }}">☀️</button>
       <a class="btn btn-ghost btn-sm lang-toggle {% if lang=='en' %}lang-long{% endif %}" href="{{ url_for('toggle_language') }}" title="{{ _('Language') }}" aria-label="{{ _('Language') }}">
         {{- "Ελληνικά" if lang=="en" else "English" -}}
       </a>
@@ -4226,6 +4564,7 @@ TEMPLATES["base.html"] = r"""
           <li class="nav-item"><a class="nav-link" href="{{ url_for('chats') }}">{{ _("Chats") }} {% if notifications and notifications.dm_total>0 %}<span class="notif-badge">{{ notifications.dm_total }}</span>{% endif %}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('stories') }}">{{ _('Stories') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('live_locations') }}"><span>{{ _("Live Locations") }}</span></a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('face_detector_page') }}">{{ _("Face Detector") }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('profile') }}">{{ _("My Profile") }}</a></li>
           {% if is_admin %}<li class="nav-item"><a class="nav-link" href="{{ url_for('admin_panel') }}">{{ _("Admin") }}</a></li>{% endif %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('settings_security') }}">{{ _("Settings") }}</a></li>
@@ -4264,6 +4603,11 @@ TEMPLATES["base.html"] = r"""
   {% endif %}
 </main>
 
+<div class="panic-banner">
+  <div class="panic-text">{{ _("Panic mode is active. Sensitive content is blurred until you resume.") }}</div>
+  {% if user %}<button class="btn btn-sm btn-accent" type="button" id="resumePrivacyBtnInline">{{ _("Resume") }}</button>{% endif %}
+</div>
+
 <div class="offcanvas offcanvas-end" tabindex="-1" id="helpCanvas">
   <div class="offcanvas-header">
     <h5 class="offcanvas-title">{{ _("ButSystem Helper") }}</h5>
@@ -4287,7 +4631,7 @@ TEMPLATES["base.html"] = r"""
 
       <div class="fw-bold mb-2">{{ _("Top bar") }}</div>
       <ul class="small-muted">
-        <li><span class="kbd">☀️/🌙</span> <b>{{ _("Theme") }}</b> — {{ _("Switch between dark and light.") }}</li>
+        <li><span class="kbd">Settings → Appearance</span> <b>{{ _("Theme") }}</b> — {{ _("Choose dark/light mode and color style.") }}</li>
         <li><span class="kbd">English / Ελληνικά</span> <b>{{ _("Language") }}</b> — {{ _("Switch the interface language.") }}</li>
         <li><span class="kbd">☰</span> <b>{{ _("Menu") }}</b> — {{ _("Open the menu to navigate to all pages.") }}</li>
       </ul>
@@ -4381,6 +4725,15 @@ TEMPLATES["base.html"] = r"""
 
       <hr class="my-3"/>
 
+      <div class="fw-bold mb-2">{{ _("Face Detector") }}</div>
+      <ul class="small-muted">
+        <li><b>{{ _("Face Detector") }}</b> — {{ _("Open the built-in camera or upload a photo/video to detect faces.") }}</li>
+        <li>{{ _("Use the save button to store a captured result in your Downloads/ButSystem/Face Detector folder when available.") }}</li>
+        <li>{{ _("The top bar theme button still switches only between dark and light. Extra style presets are available in Settings.") }}</li>
+      </ul>
+
+      <hr class="my-3"/>
+
       <div class="small-muted mb-2">{{ _("Privacy notes") }}</div>
       <ul class="small-muted mb-0">
         <li><b>{{ _("Text messages") }}</b> {{ _("are encrypted at rest.") }}</li>
@@ -4397,31 +4750,41 @@ TEMPLATES["base.html"] = r"""
 (function(){
   window.__butLogoDark = {{ logo_dark|tojson }};
   window.__butLogoLight = {{ logo_light|tojson }};
-  const btn = document.getElementById("themeBtn");
-  const extra = document.getElementById("themeBtn2");
-  const key = "but_theme";
-  function apply(theme){
-    if(theme === "light"){
-      document.body.classList.add("light-theme");
-      if(btn) btn.textContent = "🌙";
-      if(extra) extra.textContent = "🌙";
-    }else{
-      document.body.classList.remove("light-theme");
-      if(btn) btn.textContent = "☀️";
-      if(extra) extra.textContent = "☀️";
-    }
-    document.querySelectorAll('img[data-logo]').forEach(el => { el.src = (theme === 'light') ? window.__butLogoLight : window.__butLogoDark; });
+  const key = "but_theme_mode";
+  function getSavedMode(){
+    const raw = (localStorage.getItem(key) || "dark").toLowerCase();
+    return (raw === "light" || raw === "dark" || raw === "system") ? raw : "dark";
   }
-  function toggle(){
-    const cur = localStorage.getItem(key) || "dark";
-    const next = (cur === "dark") ? "light" : "dark";
+  function effectiveMode(mode){
+    if(mode === "system"){
+      try{
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? "light" : "dark";
+      }catch(e){ return "dark"; }
+    }
+    return mode === "light" ? "light" : "dark";
+  }
+  function apply(mode){
+    const eff = effectiveMode(mode || getSavedMode());
+    document.body.classList.toggle("light-theme", eff === "light");
+    document.querySelectorAll('img[data-logo]').forEach(el => { el.src = (eff === 'light') ? window.__butLogoLight : window.__butLogoDark; });
+  }
+  function setMode(mode){
+    const next = (mode === "light" || mode === "dark" || mode === "system") ? mode : "dark";
     localStorage.setItem(key, next);
     apply(next);
   }
-  apply(localStorage.getItem(key) || "dark");
-  if(btn) btn.addEventListener("click", toggle);
-  if(extra) extra.addEventListener("click", toggle);
-  window.butToggleTheme = toggle;
+  apply(getSavedMode());
+  try{
+    const mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+    if(mq){
+      const onChange = ()=>{ if(getSavedMode() === 'system') apply('system'); };
+      if(mq.addEventListener) mq.addEventListener('change', onChange);
+      else if(mq.addListener) mq.addListener(onChange);
+    }
+  }catch(e){}
+  window.butSetThemeMode = setMode;
+  window.butGetThemeMode = getSavedMode;
+  window.butApplyTheme = apply;
 })();
 </script>
 
@@ -4527,11 +4890,9 @@ window.butConfirmProfilerDelete = function(form){
 
 <script nonce="{{ csp_nonce }}">
 (function(){
-  // Mobile keyboard fix:
-  // On some mobile browsers (especially iOS Safari), the on-screen keyboard can cover the bottom composer.
-  // We keep chat screens at the *visual* viewport height so the composer always sits above the keyboard.
-  if(!document.body.classList.contains("chat-mode")) return;
-
+  // Cross-browser viewport fix:
+  // iOS Safari and some Android browsers report unstable 100vh values when the toolbar/keyboard changes.
+  // We keep a CSS variable synced to the visual viewport for all pages, and use it more aggressively on chat screens.
   function setAppHeight(){
     try{
       const vv = window.visualViewport;
@@ -4540,13 +4901,16 @@ window.butConfirmProfilerDelete = function(form){
     }catch(e){}
   }
 
-  // Initial + listeners (iOS updates viewport on both resize and scroll while the keyboard is open).
   setAppHeight();
   window.addEventListener("resize", setAppHeight);
+  window.addEventListener("orientationchange", ()=>{ setTimeout(setAppHeight, 120); });
+  window.addEventListener("pageshow", ()=>{ setTimeout(setAppHeight, 0); setTimeout(setAppHeight, 160); });
   if(window.visualViewport){
     window.visualViewport.addEventListener("resize", setAppHeight);
     window.visualViewport.addEventListener("scroll", setAppHeight);
   }
+
+  if(!document.body.classList.contains("chat-mode")) return;
 
   // When focusing the textarea, make sure the latest message is visible.
   const msgBox = document.getElementById("msgBox") || document.getElementById("gMsgBox");
@@ -4558,7 +4922,7 @@ window.butConfirmProfilerDelete = function(form){
       else if(msgBox) msgBox.scrollTop = msgBox.scrollHeight;
     }catch(e){}
   }
-  if(ta) ta.addEventListener("focus", ()=>{ scrollBottom(); setTimeout(scrollBottom, 50); });
+  if(ta) ta.addEventListener("focus", ()=>{ scrollBottom(); setTimeout(scrollBottom, 50); setTimeout(setAppHeight, 120); });
 })();
 </script>
 
@@ -4614,7 +4978,7 @@ TEMPLATES["landing.html"] = r"""
   /* Make the welcome screen non-scrollable and fit in one viewport */
   main.container{padding:0!important;}
   body{overflow:hidden;}
-  .welcome-card{max-height: calc(100vh - 120px); overflow:hidden;}
+  .welcome-card{max-height: calc(var(--app-height, 100vh) - 120px); overflow:hidden;}
   .welcome-card .alert{font-size:clamp(.72rem,2.6vw,.9rem); line-height:1.25;}
 </style>
 <div class="row justify-content-center">
@@ -4655,12 +5019,12 @@ TEMPLATES["landing.html"] = r"""
 
 TEMPLATES["loading.html"] = r"""{% extends "base.html" %}
 {% block content %}
-<style nonce="{{ csp_nonce }}">html,body{height:100%;overflow:hidden;} :root{--welcome-top-pad:clamp(8px,3.6vh,26px);} .page-wrap{height:calc(100vh - var(--nav-h,64px));padding-top:var(--welcome-top-pad);box-sizing:border-box;} .welcome-card{max-height:calc(100vh - var(--nav-h,64px) - 24px - var(--welcome-top-pad));overflow:hidden;} .welcome-card .alert-notice{font-size:clamp(0.72rem,1.25vh,0.92rem);line-height:1.25;} .welcome-card .h4{font-size:clamp(1.05rem,3.2vw,1.35rem);} .welcome-card .small-muted{font-size:clamp(0.78rem,2.4vw,0.95rem);} @media (max-height:720px){ .welcome-card{padding:1rem !important;} .welcome-card img[data-logo]{height:72px !important;width:72px !important;border-radius:20px !important;} .welcome-card .my-3{margin-top:.6rem !important;margin-bottom:.6rem !important;} .welcome-card .mt-3{margin-top:.7rem !important;} }</style>
+<style nonce="{{ csp_nonce }}">html,body{height:100%;overflow:hidden;} :root{--welcome-top-pad:clamp(8px,3.6vh,26px);} .page-wrap{height:calc(var(--app-height, 100vh) - var(--nav-h,64px));padding-top:var(--welcome-top-pad);box-sizing:border-box;} .welcome-card{max-height:calc(var(--app-height, 100vh) - var(--nav-h,64px) - 24px - var(--welcome-top-pad));overflow:hidden;} .welcome-card .alert-notice{font-size:clamp(0.72rem,1.25vh,0.92rem);line-height:1.25;} .welcome-card .h4{font-size:clamp(1.05rem,3.2vw,1.35rem);} .welcome-card .small-muted{font-size:clamp(0.78rem,2.4vw,0.95rem);} @media (max-height:720px){ .welcome-card{padding:1rem !important;} .welcome-card img[data-logo]{height:72px !important;width:72px !important;border-radius:20px !important;} .welcome-card .my-3{margin-top:.6rem !important;margin-bottom:.6rem !important;} .welcome-card .mt-3{margin-top:.7rem !important;} }</style>
 <div class="d-flex align-items-start justify-content-center page-wrap">
   <div class="card-soft p-3 p-md-4 text-center welcome-card" style="max-width:560px;width:100%;">
     <div class="h4 mb-2">{{ _("Welcome") }} {{ display_name }}!</div>
     <div class="small-muted mb-2">{{ _("Entering…") }}</div>
-    <div class="small-muted mb-2">{{ _("Please wait — this may take 15–30 seconds.") }}</div>
+    <div class="small-muted mb-2">{{ _("Please wait — this may take 10–20 seconds.") }}</div>
     <div class="d-flex justify-content-center my-3">
       <img data-logo src="{{ logo_dark }}" alt="logo" style="height:88px;width:88px;border-radius:24px;object-fit:cover;"/>
     </div>
@@ -4690,8 +5054,8 @@ TEMPLATES["loading.html"] = r"""{% extends "base.html" %}
     await fetch("{{ url_for('api_news') }}?" + qs.toString(), {cache:"no-store"});
   }catch(e){}
 
-  // Keep the loading screen visible for a random 20–40 seconds (each login).
-  const targetMs = 15000 + Math.floor(Math.random() * 15001); // 15,000–30,000
+  // Keep the loading screen visible for a random 10–20 seconds (each login).
+  const targetMs = 10000 + Math.floor(Math.random() * 10001); // 10,000–20,000
   const elapsed = Date.now() - t0;
   const remain = Math.max(0, targetMs - elapsed);
   setTimeout(()=>{ window.location.replace("{{ url_for('profiler') }}"); }, remain);
@@ -5125,6 +5489,23 @@ TEMPLATES["device_access.html"] = r"""
   setTimeout(poll, 1200);
 })();
 </script>
+<script nonce="{{ csp_nonce }}">
+(function(){
+  async function postSimple(url){
+    try{
+      const r = await fetch(url, {method:"POST", headers:{"X-Requested-With":"XMLHttpRequest","X-CSRF-Token": {{ csrf_token|tojson }}}});
+      const data = await r.json().catch(()=>({}));
+      if(data && data.reload){ window.location.reload(); }
+    }catch(e){}
+  }
+  const panicBtn = document.getElementById("panicBtn");
+  const resumeBtn = document.getElementById("resumePrivacyBtn");
+  const resumeInline = document.getElementById("resumePrivacyBtnInline");
+  if(panicBtn){ panicBtn.addEventListener("click", function(ev){ ev.preventDefault(); postSimple("{{ url_for('privacy_panic') }}"); }); }
+  if(resumeBtn){ resumeBtn.addEventListener("click", function(ev){ ev.preventDefault(); postSimple("{{ url_for('privacy_resume') }}"); }); }
+  if(resumeInline){ resumeInline.addEventListener("click", function(ev){ ev.preventDefault(); postSimple("{{ url_for('privacy_resume') }}"); }); }
+})();
+</script>
 {% endblock %}
 """
 
@@ -5286,6 +5667,7 @@ TEMPLATES["admin.html"] = r"""
     <div class="small-muted">Kick users (force logout), delete accounts, manage admins, </div>
   </div>
   <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-ghost" href="{{ url_for('admin_logs') }}">{{ _('Logs') }}</a>
   </div>
 </div>
 
@@ -5430,6 +5812,41 @@ TEMPLATES["admin.html"] = r"""
 
 {% endblock %}
 """
+TEMPLATES["admin_logs.html"] = r"""
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start gap-2 mb-3 flex-wrap">
+  <div>
+    <h3 class="mb-1">{{ _("Admin logs") }}</h3>
+    <div class="small-muted">{{ _("View log files stored by ButSystem.") }}</div>
+  </div>
+  <a class="btn btn-ghost" href="{{ url_for('admin_panel') }}">{{ _("Back") }}</a>
+</div>
+<div class="row g-3">
+  <div class="col-12 col-lg-4">
+    <div class="card-soft p-3">
+      <div class="fw-semibold mb-2">{{ _("Log files") }}</div>
+      {% if files %}
+      <div class="d-grid gap-2">
+        {% for f in files %}
+        <a class="btn btn-ghost text-start" href="{{ url_for('admin_logs', name=f.name) }}">{{ f.name }} <span class="small-muted">({{ f.size }} B)</span></a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="small-muted">{{ _("No log files found.") }}</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-12 col-lg-8">
+    <div class="card-soft p-3">
+      <div class="fw-semibold mb-2">{{ selected_name or _("Select a log") }}</div>
+      <pre style="white-space:pre-wrap;word-break:break-word;max-height:70dvh;overflow:auto;margin:0">{{ selected_content or _("Choose a log file from the left.") }}</pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+"""
+
 TEMPLATES["files.html"] = r"""
 {% extends "base.html" %}
 {% block content %}
@@ -6302,6 +6719,56 @@ const MSG_VOICE_UPLOAD_FAIL = {{ _("Upload failed. Please choose an audio file."
 
 
 # Mobile/IG-like chat page (no left sidebar). This is what /chat/<username> renders.
+TEMPLATES["chat_locked.html"] = r"""{% extends "base.html" %}
+{% block content %}
+<div class="card-soft p-3">
+  <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+    <div>
+      <h4 class="mb-1">🔒 {{ peer_display }}</h4>
+      <div class="small-muted">{{ _('This chat is locked with a PIN.') if lang=='en' else 'Αυτή η συνομιλία είναι κλειδωμένη με PIN.' }}</div>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('chats') }}">{{ _('Back') }}</a>
+  </div>
+</div>
+<div class="card-soft p-3 mt-3">
+  <form method="post" action="{{ url_for('dm_lock_unlock', username=peer) }}" class="d-flex gap-2 flex-wrap align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label class="form-label">{{ _('PIN') }}</label>
+      <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+    </div>
+    <button class="btn btn-accent" type="submit">{{ _('Unlock') if lang=='en' else 'Ξεκλείδωμα' }}</button>
+  </form>
+  <div class="small-muted mt-2">{{ _('Use 4 to 12 digits.') if lang=='en' else 'Χρησιμοποίησε 4 έως 12 ψηφία.' }}</div>
+</div>
+{% endblock %}
+"""
+
+TEMPLATES["group_locked.html"] = r"""{% extends "base.html" %}
+{% block content %}
+<div class="card-soft p-3">
+  <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+    <div>
+      <h4 class="mb-1">🔒 {{ g.name }}</h4>
+      <div class="small-muted">{{ _('This group is locked with a PIN.') if lang=='en' else 'Αυτή η ομάδα είναι κλειδωμένη με PIN.' }}</div>
+    </div>
+    <a class="btn btn-ghost" href="{{ url_for('groups') }}">{{ _('Back') }}</a>
+  </div>
+</div>
+<div class="card-soft p-3 mt-3">
+  <form method="post" action="{{ url_for('group_lock_unlock', gid=g.id) }}" class="d-flex gap-2 flex-wrap align-items-end">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div>
+      <label class="form-label">{{ _('PIN') }}</label>
+      <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+    </div>
+    <button class="btn btn-accent" type="submit">{{ _('Unlock') if lang=='en' else 'Ξεκλείδωμα' }}</button>
+  </form>
+  <div class="small-muted mt-2">{{ _('Use 4 to 12 digits.') if lang=='en' else 'Χρησιμοποίησε 4 έως 12 ψηφία.' }}</div>
+</div>
+{% endblock %}
+"""
+
 TEMPLATES["chat_page.html"] = r"""{% extends "base.html" %}
 {% block content %}
 <div class="chat-page">
@@ -6320,6 +6787,39 @@ TEMPLATES["chat_page.html"] = r"""{% extends "base.html" %}
         </div>{% endif %}
       </div>
     </div>
+  </div>
+
+  <div class="card-soft p-3 mt-3">
+    <div class="small-muted mb-2">🔐 {{ _('Chat PIN lock') if lang=='en' else 'Κλείδωμα συνομιλίας με PIN' }}</div>
+    {% if has_chat_pin %}
+      <div class="d-flex gap-2 flex-wrap align-items-end">
+        <form method="post" action="{{ url_for('dm_lock_set', username=peer) }}" class="d-flex gap-2 flex-wrap align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div>
+            <label class="form-label small-muted">{{ _('Change PIN') if lang=='en' else 'Αλλαγή PIN' }}</label>
+            <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+          </div>
+          <button class="btn btn-ghost" type="submit">{{ _('Save') if lang=='en' else 'Αποθήκευση' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('dm_lock_close', username=peer) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-ghost" type="submit">{{ _('Lock now') if lang=='en' else 'Κλείδωσε τώρα' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('dm_lock_remove', username=peer) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-danger" type="submit">{{ _('Remove PIN') if lang=='en' else 'Αφαίρεση PIN' }}</button>
+        </form>
+      </div>
+    {% else %}
+      <form method="post" action="{{ url_for('dm_lock_set', username=peer) }}" class="d-flex gap-2 flex-wrap align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div>
+          <label class="form-label small-muted">{{ _('Set PIN') if lang=='en' else 'Ορισμός PIN' }}</label>
+          <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+        </div>
+        <button class="btn btn-accent" type="submit">{{ _('Enable') if lang=='en' else 'Ενεργοποίηση' }}</button>
+      </form>
+    {% endif %}
   </div>
 
   <div class="chat-messages" id="msgBox">
@@ -7960,6 +8460,39 @@ TEMPLATES["group_chat.html"] = r"""
     {% endif %}
   </div>
 
+  <div class="card-soft p-3 mt-3">
+    <div class="small-muted mb-2">🔐 {{ _('Group PIN lock') if lang=='en' else 'Κλείδωμα ομάδας με PIN' }}</div>
+    {% if has_group_pin %}
+      <div class="d-flex gap-2 flex-wrap align-items-end">
+        <form method="post" action="{{ url_for('group_lock_set', gid=g.id) }}" class="d-flex gap-2 flex-wrap align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div>
+            <label class="form-label small-muted">{{ _('Change PIN') if lang=='en' else 'Αλλαγή PIN' }}</label>
+            <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+          </div>
+          <button class="btn btn-ghost" type="submit">{{ _('Save') if lang=='en' else 'Αποθήκευση' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('group_lock_close', gid=g.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-ghost" type="submit">{{ _('Lock now') if lang=='en' else 'Κλείδωσε τώρα' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('group_lock_remove', gid=g.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn-danger" type="submit">{{ _('Remove PIN') if lang=='en' else 'Αφαίρεση PIN' }}</button>
+        </form>
+      </div>
+    {% else %}
+      <form method="post" action="{{ url_for('group_lock_set', gid=g.id) }}" class="d-flex gap-2 flex-wrap align-items-end">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div>
+          <label class="form-label small-muted">{{ _('Set PIN') if lang=='en' else 'Ορισμός PIN' }}</label>
+          <input class="form-control" type="password" name="pin" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="12" required>
+        </div>
+        <button class="btn btn-accent" type="submit">{{ _('Enable') if lang=='en' else 'Ενεργοποίηση' }}</button>
+      </form>
+    {% endif %}
+  </div>
+
   <div class="chat-messages" id="gMsgBox" aria-live="polite">
     {% for m in messages %}
       <div class="msg-row {{ 'me' if m.sender==me else 'them' }}">
@@ -8817,7 +9350,7 @@ TEMPLATES["settings_security.html"] = r"""
 <div class="row g-3">
   <div class="col-12 col-lg-6">
     <div class="card-soft p-4">
-      <h3 class="mb-1">{{ _("Settings") }}</h3>
+      <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap mb-2"><div><h3 class="mb-1">{{ _("Settings") }}</h3></div><a class="btn btn-ghost" href="{{ request.referrer or url_for('profiler') }}">{{ _("Back") }}</a></div>
       <div class="small-muted">{{ _("Account security") }}</div>
       <hr class="my-3"/>
 
@@ -8890,12 +9423,30 @@ TEMPLATES["settings_security.html"] = r"""
 
   <div class="col-12">
     <div class="card-soft p-4">
-      <h5 class="mb-2">{{ _("Appearance") }}</h5>
-      <div class="small-muted mb-3">{{ _("Customize accent color and font (saved per account).") }}</div>
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><h5 class="mb-0">{{ _("Appearance") }}</h5><a class="btn btn-sm btn-ghost" href="{{ url_for('settings_appearance_page') }}">{{ _("Open full appearance settings") }}</a></div>
+      <div class="small-muted mb-3">{{ _("Customize theme style, accent color, and font (saved per account).") }}</div>
 
       <form method="post" action="{{ url_for('settings_appearance') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <div class="row g-2">
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Theme style") }}</label>
+            <select class="form-select" name="ui_theme">
+              {% for t in ui_theme_choices %}
+                <option value="{{ t.key }}" {% if prefs.ui_theme_key == t.key %}selected{% endif %}>{{ _(t.label) }}</option>
+              {% endfor %}
+            </select>
+            <div class="small-muted mt-2">{{ _("This changes the saved color style for the interface.") }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Appearance mode") }}</label>
+            <select class="form-select" id="themeModeSelect" name="theme_mode">
+              <option value="dark">{{ _("Dark") }}</option>
+              <option value="light">{{ _("Light") }}</option>
+              <option value="system">{{ _("System") }}</option>
+            </select>
+            <div class="small-muted mt-2">{{ _("This changes only the dark/light mode for this browser on this device.") }}</div>
+          </div>
           <div class="col-12 col-md-6">
             <label class="form-label">{{ _("Accent color") }}</label>
             <select class="form-select" name="accent">
@@ -8919,6 +9470,93 @@ TEMPLATES["settings_security.html"] = r"""
   </div>
 
 </div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function(){
+  const form = document.querySelector('form[action="{{ url_for('settings_appearance') }}"]');
+  const sel = document.getElementById('themeModeSelect');
+  if(!sel) return;
+  try{ if(window.butGetThemeMode) sel.value = window.butGetThemeMode(); }catch(e){}
+  const applyNow = ()=>{ try{ if(window.butSetThemeMode) window.butSetThemeMode(sel.value || 'dark'); }catch(e){} };
+  sel.addEventListener('change', applyNow);
+  if(form){ form.addEventListener('submit', applyNow); }
+})();
+</script>
+{% endblock %}
+"""
+
+
+TEMPLATES["settings_appearance.html"] = r"""
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <div class="card-soft p-4">
+      <div class="d-flex flex-wrap justify-content-between gap-2 align-items-start mb-3">
+        <div>
+          <h3 class="mb-1">{{ _("Appearance") }}</h3>
+          <div class="small-muted">{{ _("Themes and fonts are here. Choose your saved interface style for this account.") }}</div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+          <a class="btn btn-ghost" href="{{ url_for('settings_root') }}">{{ _("Security settings") }}</a>
+        </div>
+      </div>
+      <form method="post" action="{{ url_for('settings_appearance') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Theme style") }}</label>
+            <select class="form-select" name="ui_theme">
+              {% for t in ui_theme_choices %}
+                <option value="{{ t.key }}" {% if prefs.ui_theme_key == t.key %}selected{% endif %}>{{ _(t.label) }}</option>
+              {% endfor %}
+            </select>
+            <div class="small-muted mt-2">{{ _("30 saved color styles are available here.") }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Appearance mode") }}</label>
+            <select class="form-select" id="themeModeSelect" name="theme_mode">
+              <option value="dark">{{ _("Dark") }}</option>
+              <option value="light">{{ _("Light") }}</option>
+              <option value="system">{{ _("System") }}</option>
+            </select>
+            <div class="small-muted mt-2">{{ _("This changes only the dark/light mode for this browser on this device.") }}</div>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Accent color") }}</label>
+            <select class="form-select" name="accent">
+              {% for c in accent_choices %}
+                <option value="{{ c.key }}" {% if prefs.accent_key == c.key %}selected{% endif %}>{{ c.label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12 col-md-6">
+            <label class="form-label">{{ _("Font") }}</label>
+            <select class="form-select" name="font">
+              {% for f in font_choices %}
+                <option value="{{ f.key }}" {% if prefs.font_key == f.key %}selected{% endif %}>{{ _(f.label) }}</option>
+              {% endfor %}
+            </select>
+            <div class="small-muted mt-2">{{ _("12 Greek and English friendly font stacks are available here.") }}</div>
+          </div>
+        </div>
+        <button class="btn btn-accent mt-3" type="submit">{{ _("Save") }}</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function(){
+  const sel = document.getElementById('themeModeSelect');
+  if(!sel) return;
+  try{ if(window.butGetThemeMode) sel.value = window.butGetThemeMode(); }catch(e){}
+  const applyNow = ()=>{ try{ if(window.butSetThemeMode) window.butSetThemeMode(sel.value || 'dark'); }catch(e){} };
+  sel.addEventListener('change', applyNow);
+})();
+</script>
 {% endblock %}
 """
 
@@ -9001,6 +9639,442 @@ TEMPLATES["recover.html"] = r"""
 </div>
 {% endblock %}
 """
+
+TEMPLATES["face_detector.html"] = r"""
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mb-3">
+  <div>
+    <h3 class="mb-1">{{ _("Face Detector") }}</h3>
+  </div>
+  <div class="small-muted">{{ _("Saved captures go to your Downloads/ButSystem/Face Detector folder when available.") }}</div>
+</div>
+
+<div class="card-soft p-3 p-md-4 fd-root">
+  <div class="fd-top-info mb-3">
+    <div class="fd-status-line" id="fdStatus">{{ _("Ready. Tap Start camera.") }}</div>
+    <div class="fd-sub-line" id="fdServerStatus">{{ _("SERVER: STANDBY") }}</div>
+    <div class="fd-sub-line" id="fdSourceStatus">{{ _("SOURCE: LIVE CAMERA") }}</div>
+  </div>
+
+  <div class="fd-controls mb-3">
+    <button class="btn btn-ghost fd-ctrl" type="button" id="fdStart">{{ _("Start camera") }}</button>
+    <button class="btn btn-ghost fd-ctrl" type="button" id="fdSwitch">{{ _("Switch camera") }}</button>
+    <label class="btn btn-ghost mb-0 fd-ctrl" for="fdUpload">{{ _("Upload photo/video") }}</label>
+    <input id="fdUpload" type="file" accept="image/*,video/*" hidden>
+    <button class="btn btn-accent fd-ctrl" type="button" id="fdSave">{{ _("Save result") }}</button>
+    <button class="btn btn-ghost fd-ctrl" type="button" id="fdBackLive">{{ _("Back to live camera") }}</button>
+    {% if is_admin and fd_bounty_refs %}
+      <select class="form-control fd-ctrl fd-select" id="fdRefSelect">
+        <option value="">{{ _("Bounty reference photo") }}</option>
+        {% for ref in fd_bounty_refs %}
+          <option value="{{ ref.preview_url }}">#{{ ref.id }} • {{ ref.first }} {{ ref.last }}{% if ref.bounty_price_display %} • {{ ref.bounty_price_display }}{% endif %}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-ghost fd-ctrl" type="button" id="fdClearRef">{{ _("Clear reference") }}</button>
+      <div class="fd-ctrl fd-ref-note small-muted">{{ _("Manual side-by-side review only.") }}</div>
+    {% endif %}
+  </div>
+
+  <div class="fd-review-layout{% if not (is_admin and fd_bounty_refs) %} no-ref{% endif %}">
+    <div class="fd-stage-wrap">
+      <div class="fd-stage">
+        <video id="fdVideo" playsinline muted autoplay></video>
+        <canvas id="fdCanvas"></canvas>
+      </div>
+    </div>
+
+    {% if is_admin and fd_bounty_refs %}
+    <aside class="fd-ref-panel">
+      <div class="fd-ref-head">{{ _("Bounty reference") }}</div>
+      <div class="fd-ref-box" id="fdRefBox">
+        <img id="fdRefImg" alt="{{ _("Reference photo") }}" hidden>
+        <div class="small-muted" id="fdRefEmpty">{{ _("Select a bounty profile photo to review beside the live camera. No automatic face matching is performed.") }}</div>
+      </div>
+    </aside>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.fd-root{position:relative;}
+.fd-top-info{display:inline-flex;flex-direction:column;gap:4px;background:rgba(12,12,12,.55);border:1px solid var(--border);border-radius:16px;padding:10px 14px;backdrop-filter:blur(8px)}
+.fd-status-line{font-weight:800;letter-spacing:.04em;color:var(--accent)}
+.fd-sub-line{font-size:.86rem;color:var(--text-muted)}
+.fd-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;align-items:stretch}
+.fd-controls .fd-ctrl{display:flex;align-items:center;justify-content:center;min-height:46px;padding:.55rem .75rem;font-size:.95rem;text-align:center;line-height:1.2;white-space:normal}
+.fd-select{appearance:auto;justify-content:flex-start!important}
+.fd-ref-note{border:1px dashed var(--border);border-radius:14px;padding:.55rem .75rem;background:rgba(255,255,255,.02)}
+.fd-review-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.85fr);gap:14px;align-items:stretch}
+.fd-review-layout.no-ref{grid-template-columns:minmax(0,1fr)}
+.fd-stage-wrap{min-width:0}
+.fd-stage{position:relative;width:100%;max-width:1200px;margin:0 auto;min-height:460px;aspect-ratio:16/10;overflow:hidden;border:1px solid var(--border);border-radius:18px;background:#000}
+.fd-stage video,.fd-stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:18px}
+.fd-stage video{z-index:1;background:#000;visibility:visible;transform:scaleX(-1)}
+.fd-stage canvas{z-index:2;pointer-events:none;transform:scaleX(-1)}
+.fd-ref-panel{display:flex;flex-direction:column;gap:10px;border:1px solid var(--border);border-radius:18px;padding:12px;background:rgba(255,255,255,.02);min-height:460px}
+.fd-ref-head{font-weight:700;color:var(--accent)}
+.fd-ref-box{position:relative;flex:1;min-height:380px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#080808;display:flex;align-items:center;justify-content:center;padding:12px}
+.fd-ref-box img{display:block;width:100%;height:100%;object-fit:contain;border-radius:12px;background:#000}
+@media (min-width: 768px){
+  .fd-controls .fd-ctrl{min-height:48px;font-size:1rem}
+  .fd-stage{min-height:600px;aspect-ratio:16/10}
+}
+@media (max-width: 900px){
+  .fd-review-layout{grid-template-columns:1fr}
+  .fd-ref-panel{min-height:unset}
+  .fd-ref-box{min-height:260px}
+}
+@media (max-width: 520px){
+  .fd-controls .fd-ctrl{padding:.5rem .45rem;font-size:.86rem}
+}
+</style>
+
+<script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+<script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+<script nonce="{{ csp_nonce }}" src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script nonce="{{ csp_nonce }}">
+(function(){
+  const I18N = {{ fd_i18n|tojson }};
+  const videoEl = document.getElementById('fdVideo');
+  const canvasEl = document.getElementById('fdCanvas');
+  const ctx = canvasEl.getContext('2d');
+  const uploadEl = document.getElementById('fdUpload');
+  const btnStart = document.getElementById('fdStart');
+  const btnSwitch = document.getElementById('fdSwitch');
+  const btnSave = document.getElementById('fdSave');
+  const btnBackLive = document.getElementById('fdBackLive');
+  const statusEl = document.getElementById('fdStatus');
+  const serverStatusEl = document.getElementById('fdServerStatus');
+  const sourceStatusEl = document.getElementById('fdSourceStatus');
+  const refSelect = document.getElementById('fdRefSelect');
+  const refImg = document.getElementById('fdRefImg');
+  const refEmpty = document.getElementById('fdRefEmpty');
+  const btnClearRef = document.getElementById('fdClearRef');
+
+  videoEl.muted = true;
+  videoEl.setAttribute('muted', '');
+  videoEl.setAttribute('playsinline', '');
+  videoEl.setAttribute('webkit-playsinline', '');
+
+  let currentFacing = 'user';
+  let cameraActive = null;
+  let stream = null;
+  let sourceMode = 'camera';
+  let uploadedImage = null;
+  let uploadedVideo = null;
+  let uploadLoop = null;
+  let liveLoop = null;
+  let processing = false;
+  let lastSource = null;
+  let currentFaceBoxes = [];
+  let currentUploadName = '';
+
+  function setStatus(msg){ statusEl.textContent = msg || ''; }
+  function setServer(msg){ serverStatusEl.textContent = msg || ''; }
+  function setSource(msg){ sourceStatusEl.textContent = msg || ''; }
+  function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+  function showReference(url){
+    if(!refImg || !refEmpty) return;
+    if(!url){
+      refImg.hidden = true; refImg.removeAttribute('src');
+      refEmpty.hidden = false;
+      setStatus(I18N.referenceCleared || 'Reference photo cleared.');
+      return;
+    }
+    refImg.onload = ()=>{ refImg.hidden = false; refEmpty.hidden = true; setStatus(I18N.referenceLoaded || 'Reference photo loaded.'); };
+    refImg.onerror = ()=>{ refImg.hidden = true; refEmpty.hidden = false; setStatus('Could not load the selected reference photo.'); };
+    refImg.src = url;
+  }
+  function updateSourceLabel(extra=''){
+    let label = I18N.sourceLive || 'SOURCE: LIVE CAMERA';
+    if(sourceMode === 'upload-image') label = I18N.sourcePhoto || 'SOURCE: UPLOADED PHOTO';
+    else if(sourceMode === 'upload-video') label = I18N.sourceVideo || 'SOURCE: UPLOADED VIDEO';
+    if(extra) label += ' | ' + extra;
+    setSource(label);
+  }
+  function sizeCanvasFrom(source){
+    const w = source.videoWidth || source.naturalWidth || source.width || 1280;
+    const h = source.videoHeight || source.naturalHeight || source.height || 720;
+    canvasEl.width = w; canvasEl.height = h;
+  }
+  function stopLive(){
+    if(liveLoop){ cancelAnimationFrame(liveLoop); liveLoop = null; }
+    try{ if(cameraActive && typeof cameraActive.stop === 'function'){ cameraActive.stop(); } }catch(e){}
+    cameraActive = null;
+    if(stream){ try{ stream.getTracks().forEach(t=>t.stop()); }catch(e){} }
+    stream = null;
+    if(videoEl.srcObject){ try{ videoEl.srcObject.getTracks().forEach(t=>t.stop()); }catch(e){} }
+    videoEl.srcObject = null;
+    try{ videoEl.pause(); }catch(e){}
+  }
+  function stopUploadMedia(){
+    if(uploadLoop){ cancelAnimationFrame(uploadLoop); uploadLoop = null; }
+    if(uploadedVideo){ try{ uploadedVideo.pause(); }catch(e){} if(uploadedVideo.src && uploadedVideo.src.startsWith('blob:')){ try{ URL.revokeObjectURL(uploadedVideo.src); }catch(e){} } }
+    if(uploadedImage && uploadedImage.src && uploadedImage.src.startsWith('blob:')){ try{ URL.revokeObjectURL(uploadedImage.src); }catch(e){} }
+    uploadedImage = null; uploadedVideo = null;
+  }
+  function calcDist(p1, p2) { return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2)); }
+  function calcAngle(p1, p2) { return Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI; }
+  function getEmotion(landmarks, faceWidth, faceHeight) {
+      const mouthOpen = calcDist(landmarks[13], landmarks[14]) / faceHeight;
+      const mouthWidth = calcDist(landmarks[61], landmarks[291]) / faceWidth;
+      const browInnerDist = calcDist(landmarks[55], landmarks[285]) / faceWidth;
+      const eyeOpen = (calcDist(landmarks[159], landmarks[145]) + calcDist(landmarks[386], landmarks[374])) / (2 * faceHeight);
+      if (mouthOpen > 0.08 && eyeOpen > 0.045) return (I18N.emotionSurprised || 'SURPRISED') + ' 😲';
+      if (mouthWidth > 0.40 && mouthOpen > 0.02) return (I18N.emotionHappy || 'HAPPY') + ' 😊';
+      if (browInnerDist < 0.22 && eyeOpen < 0.035) return (I18N.emotionAngry || 'ANGRY') + ' 😠';
+      if (mouthWidth < 0.32 && mouthOpen < 0.02) return (I18N.emotionSad || 'SAD') + ' 😔';
+      return (I18N.emotionNeutral || 'NEUTRAL') + ' 😐';
+  }
+
+  if (typeof FaceMesh === 'undefined') { setStatus('MediaPipe failed to load. Refresh the page and try again.'); return; }
+  const faceMesh = new FaceMesh({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}` });
+  faceMesh.setOptions({ maxNumFaces: 3, refineLandmarks: true, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+  faceMesh.onResults((results) => {
+    const source = results.image; if(!source) return;
+    lastSource = source; sizeCanvasFrom(source); currentFaceBoxes = [];
+    ctx.save();
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    ctx.drawImage(source, 0, 0, canvasEl.width, canvasEl.height);
+    const faces = results.multiFaceLandmarks || [];
+    if (faces.length) {
+      setServer((I18N.serverAnalyzing || 'SERVER: ANALYZING'));
+      let faceCount = 0;
+      for (const landmarks of faces) {
+        faceCount++;
+        const xs = landmarks.map(p => p.x), ys = landmarks.map(p => p.y);
+        const minX = Math.max(0, Math.min(...xs) - 0.04), maxX = Math.min(1, Math.max(...xs) + 0.04);
+        const minY = Math.max(0, Math.min(...ys) - 0.06), maxY = Math.min(1, Math.max(...ys) + 0.06);
+        currentFaceBoxes.push({
+          x: Math.round(minX * canvasEl.width), y: Math.round(minY * canvasEl.height),
+          width: Math.round((maxX - minX) * canvasEl.width), height: Math.round((maxY - minY) * canvasEl.height)
+        });
+
+        if (typeof drawConnectors !== 'undefined' && typeof drawLandmarks !== 'undefined') {
+          try{ drawConnectors(ctx, landmarks, FACEMESH_TESSELATION, {color: '#B57EDC44', lineWidth: 0.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_FACE_OVAL, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYEBROW, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYEBROW, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_RIGHT_EYE, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_LEFT_EYE, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_LIPS, {color: '#B57EDC', lineWidth: 1.5}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_RIGHT_IRIS, {color: '#B57EDC', lineWidth: 2}); }catch(e){}
+          try{ drawConnectors(ctx, landmarks, FACEMESH_LEFT_IRIS, {color: '#B57EDC', lineWidth: 2}); }catch(e){}
+          try{ drawLandmarks(ctx, landmarks, {color: '#B57EDC', fillColor: '#FFF', lineWidth: 0.5, radius: 0.8}); }catch(e){}
+        }
+
+        const pTop = landmarks[10], pBottom = landmarks[152], pLeft = landmarks[234], pRight = landmarks[454];
+        const faceHeight = calcDist(pTop, pBottom); const faceWidth = calcDist(pLeft, pRight);
+        const roll = -calcAngle(landmarks[33], landmarks[263]);
+        const noseOffsetX = ((landmarks[1].x - pLeft.x) / (pRight.x - pLeft.x)) - 0.5;
+        const noseOffsetY = ((landmarks[1].y - pTop.y) / (pBottom.y - pTop.y)) - 0.5;
+        const yaw = noseOffsetX * 100; const pitch = noseOffsetY * 100;
+        const jawWidth = calcDist(landmarks[132], landmarks[361]) / faceWidth;
+        const noseWidth = calcDist(landmarks[129], landmarks[358]) / faceWidth;
+        let shapeStr = (faceHeight / faceWidth > 1.35) ? (I18N.long || 'LONG') : ((faceHeight / faceWidth < 1.25) ? (I18N.round || 'ROUND') : (I18N.oval || 'OVAL'));
+        let jawStr = (jawWidth > 0.8) ? (I18N.broad || 'BROAD') : (I18N.narrow || 'NARROW');
+        const leftEyeOpen = calcDist(landmarks[159], landmarks[145]) / faceHeight * 100;
+        const rightEyeOpen = calcDist(landmarks[386], landmarks[374]) / faceHeight * 100;
+        const eyeSpacing = calcDist(landmarks[159], landmarks[386]) / faceWidth;
+        let eyeSetStr = (eyeSpacing > 0.44) ? (I18N.wide || 'WIDE') : ((eyeSpacing < 0.4) ? (I18N.close || 'CLOSE') : (I18N.avg || 'AVG'));
+        let gaze = I18N.center || 'CENTER';
+        if (landmarks[468]) {
+            const irisL_offset = (landmarks[468].x - landmarks[33].x) / (landmarks[133].x - landmarks[33].x);
+            if (irisL_offset < 0.4) gaze = I18N.right || 'RIGHT';
+            else if (irisL_offset > 0.6) gaze = I18N.left || 'LEFT';
+            else if (landmarks[468].y < landmarks[159].y + 0.01) gaze = I18N.up || 'UP';
+        }
+        const browL = calcDist(landmarks[52], landmarks[159]) / faceHeight;
+        const browR = calcDist(landmarks[282], landmarks[386]) / faceHeight;
+        const browLStr = browL > 0.12 ? (I18N.raise || 'RAISE') : (browL < 0.08 ? (I18N.furrow || 'FURROW') : (I18N.neut || 'NEUT'));
+        const browRStr = browR > 0.12 ? (I18N.raise || 'RAISE') : (browR < 0.08 ? (I18N.furrow || 'FURROW') : (I18N.neut || 'NEUT'));
+        const mouthOpen = calcDist(landmarks[13], landmarks[14]) / faceHeight * 100;
+        const mouthW = calcDist(landmarks[61], landmarks[291]) / faceWidth * 100;
+        const asymEye = Math.abs(leftEyeOpen - rightEyeOpen);
+        const asymBrow = Math.abs(browL - browR) * 100;
+        const totalAsym = (asymEye + asymBrow).toFixed(2);
+        const emotion = getEmotion(landmarks, faceWidth, faceHeight);
+
+        ctx.scale(-1, 1); ctx.translate(-canvasEl.width, 0);
+        const faceLeftPx = (1 - pLeft.x) * canvasEl.width;
+        const faceRightPx = (1 - pRight.x) * canvasEl.width;
+        const faceTopPx = pTop.y * canvasEl.height;
+        const lines = [
+            `[ ${I18N.faceId || 'ID'}: ${faceCount} | ${emotion} ]`,
+            `${I18N.pose || 'POSE'}  | Yaw:${yaw.toFixed(1)}° Pch:${pitch.toFixed(1)}° Rol:${roll.toFixed(1)}°`,
+            `${I18N.shape || 'SHAPE'} | Face:${shapeStr} Jaw:${jawStr} NoseW:${(noseWidth*100).toFixed(1)}%`,
+            `${I18N.eyes || 'EYES'}  | ${eyeSetStr} Set | Gaze: ${gaze}`,
+            `      | Opn L:${leftEyeOpen.toFixed(2)} R:${rightEyeOpen.toFixed(2)}`,
+            `${I18N.brows || 'BROWS'} | L:${browLStr} R:${browRStr}`,
+            `${I18N.mouth || 'MOUTH'} | Wdh:${mouthW.toFixed(1)}% Opn:${mouthOpen.toFixed(2)}%`,
+            `${I18N.asym || 'ASYM'}  | Score: ${totalAsym}%`
+        ];
+        ctx.font = 'bold 11px monospace'; ctx.strokeStyle='black'; ctx.lineWidth=2.5; ctx.lineJoin='round';
+        const blockWidth = 210, blockHeight = lines.length * 16;
+        let textX = faceLeftPx + 15; if (textX + blockWidth > canvasEl.width) textX = faceRightPx - blockWidth - 15;
+        textX = Math.max(10, Math.min(textX, canvasEl.width - blockWidth - 10));
+        let startY = faceTopPx - blockHeight - 10; if (startY < 15) startY = faceTopPx + (faceHeight * canvasEl.height) + 20;
+        startY = Math.max(15, Math.min(startY, canvasEl.height - blockHeight - 10));
+        lines.forEach((line, idx) => {
+          const y = startY + (idx * 16);
+          ctx.strokeText(line, textX, y);
+          if (idx === 0) ctx.fillStyle = '#00FFCC';
+          else if (line.includes(I18N.asym || 'ASYM') && Number(totalAsym) > 5) ctx.fillStyle = '#FF4444';
+          else ctx.fillStyle = 'white';
+          ctx.fillText(line, textX, y);
+        });
+        ctx.translate(canvasEl.width, 0); ctx.scale(-1, 1);
+      }
+      const sourceTag = (sourceMode === 'camera') ? (I18N.live || 'LIVE') : (I18N.upload || 'UPLOAD');
+      setStatus(`${I18N.analyzing || 'ANALYZING'} ${sourceTag} ${faceCount} FACE(S)`);
+    } else {
+      const sourceTag = (sourceMode === 'camera') ? (I18N.live || 'LIVE') : (I18N.upload || 'UPLOAD');
+      setStatus(`${sourceTag} ${I18N.ready || 'READY'} | ${I18N.noFaceDetected || 'No face detected.'}`);
+      setServer(I18N.serverStandby || 'SERVER: STANDBY');
+    }
+    ctx.restore();
+  });
+
+  async function acquireCameraStream(){
+    const seq = [
+      { video: { facingMode: { exact: currentFacing } }, audio: false },
+      { video: { facingMode: { ideal: currentFacing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+      { video: true, audio: false }
+    ];
+    let lastErr = null;
+    for (const constraints of seq){
+      try { return await navigator.mediaDevices.getUserMedia(constraints); }
+      catch(err){ lastErr = err; }
+    }
+    throw lastErr || new Error('camera_failed');
+  }
+
+  async function waitForVideo(){
+    if(videoEl.readyState >= 2 && videoEl.videoWidth > 0) return;
+    await new Promise((resolve, reject) => {
+      let done = false;
+      const ok = () => { if(done) return; done = true; cleanup(); resolve(); };
+      const bad = () => { if(done) return; done = true; cleanup(); reject(new Error('video_not_ready')); };
+      const cleanup = () => { videoEl.removeEventListener('loadedmetadata', ok); videoEl.removeEventListener('canplay', ok); clearTimeout(timer); };
+      videoEl.addEventListener('loadedmetadata', ok, {once:true});
+      videoEl.addEventListener('canplay', ok, {once:true});
+      const timer = setTimeout(bad, 6000);
+    });
+  }
+
+  async function startCamera(){
+    stopUploadMedia();
+    stopLive();
+    sourceMode = 'camera';
+    updateSourceLabel(currentFacing === 'environment' ? 'BACK CAMERA' : 'FRONT CAMERA');
+    setStatus(I18N.startingCamera || 'Starting camera...');
+    try{
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ throw new Error('media_unsupported'); }
+      await sleep(220);
+      stream = await acquireCameraStream();
+      videoEl.srcObject = stream;
+      videoEl.style.visibility = 'visible';
+      try{ await videoEl.play(); }catch(e){}
+      await waitForVideo();
+      sizeCanvasFrom(videoEl);
+
+      if(typeof Camera !== 'undefined'){
+        cameraActive = new Camera(videoEl, {
+          onFrame: async () => {
+            if(sourceMode !== 'camera' || processing) return;
+            processing = true;
+            try{ await faceMesh.send({ image: videoEl }); }catch(err){ console.error(err); }
+            processing = false;
+          },
+          width: videoEl.videoWidth || 1280,
+          height: videoEl.videoHeight || 720
+        });
+        await cameraActive.start();
+      }else{
+        const loop = async () => {
+          if(sourceMode !== 'camera') return;
+          if(videoEl.readyState >= 2 && !processing){
+            processing = true;
+            try{ await faceMesh.send({ image: videoEl }); }catch(e){ console.error(e); }
+            processing = false;
+          }
+          liveLoop = requestAnimationFrame(loop);
+        };
+        liveLoop = requestAnimationFrame(loop);
+      }
+      setStatus(I18N.liveCamera || 'Live camera ready.');
+    }catch(err){
+      console.error(err);
+      const msg = `${I18N.cameraError || 'Failed to acquire camera feed.'} ${err && err.name ? err.name + ': ' : ''}${err && err.message ? err.message : ''}`.trim();
+      setStatus(msg);
+      try{ alert(msg); }catch(e){}
+    }
+  }
+
+  async function backToLiveCamera(){ currentFacing = 'user'; await startCamera(); }
+
+  async function handleUpload(file){
+    if(!file) return;
+    currentUploadName = file.name || 'uploaded_media';
+    stopLive(); stopUploadMedia();
+    if(file.type.startsWith('image/')){
+      sourceMode = 'upload-image'; updateSourceLabel(currentUploadName);
+      const url = URL.createObjectURL(file); const img = new Image();
+      img.onload = async () => { uploadedImage = img; setStatus(I18N.analyzingUpload || 'Analyzing uploaded media...'); try{ await faceMesh.send({ image: img }); }catch(err){ console.error(err); setStatus(I18N.uploadFailed || 'Upload analysis failed.'); } };
+      img.src = url; return;
+    }
+    if(file.type.startsWith('video/')){
+      sourceMode = 'upload-video'; updateSourceLabel(currentUploadName);
+      const url = URL.createObjectURL(file); const v = document.createElement('video');
+      v.src = url; v.playsInline = true; v.muted = true; v.loop = true; v.autoplay = true;
+      v.onloadeddata = async () => {
+        uploadedVideo = v;
+        try{
+          await uploadedVideo.play(); setStatus(I18N.analyzingUpload || 'Analyzing uploaded media...');
+          const loop = async () => {
+            if(sourceMode !== 'upload-video' || !uploadedVideo) return;
+            if(uploadedVideo.readyState >= 2 && !uploadedVideo.paused && !uploadedVideo.ended && !processing){
+              processing = true; try{ await faceMesh.send({ image: uploadedVideo }); }catch(e){} processing = false;
+            }
+            uploadLoop = requestAnimationFrame(loop);
+          };
+          uploadLoop = requestAnimationFrame(loop);
+        }catch(err){ console.error(err); setStatus(I18N.videoPlaybackBlocked || 'Video playback blocked.'); }
+      };
+      try{ v.load(); }catch(e){}
+      return;
+    }
+    setStatus(I18N.unsupportedFile || 'Please choose a photo or video file.');
+  }
+
+  async function saveResult(){
+    if(!canvasEl.width || !canvasEl.height){ setStatus(I18N.nothingToSave || 'Nothing to save yet.'); return; }
+    setStatus(I18N.serverUploading || 'SERVER: UPLOADING...');
+    try{
+      const filename = `FaceDetector_Result_${Date.now()}.png`;
+      const dataUrl = canvasEl.toDataURL('image/png');
+      const resp = await fetch("{{ url_for('face_detector_save') }}", { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-Token': {{ csrf_token|tojson }} }, body: JSON.stringify({ filename, filedata: dataUrl }) });
+      const data = await resp.json(); if(!resp.ok || !data.ok) throw new Error(data.error || 'save_failed');
+      setServer(I18N.serverSaved || 'SERVER: SAVED');
+      setStatus((I18N.savedTo || 'Saved to') + ': ' + (data.path || filename));
+      setTimeout(()=>setServer(I18N.serverStandby || 'SERVER: STANDBY'), 2500);
+    }catch(err){ console.error(err); setServer(I18N.serverDisconnected || 'SERVER: DISCONNECTED'); setStatus(I18N.saveFailed || 'Could not save the result.'); }
+  }
+
+  btnStart.addEventListener('click', ()=>{ startCamera(); });
+  btnSwitch.addEventListener('click', async ()=>{ if(sourceMode !== 'camera'){ await backToLiveCamera(); return; } currentFacing = (currentFacing === 'user') ? 'environment' : 'user'; await startCamera(); });
+  btnSave.addEventListener('click', saveResult);
+  btnBackLive.addEventListener('click', backToLiveCamera);
+  uploadEl.addEventListener('change', (ev)=>{ const f = ev.target.files && ev.target.files[0]; handleUpload(f); ev.target.value=''; });
+  if(refSelect){ refSelect.addEventListener('change', ()=>{ showReference(refSelect.value || ''); }); }
+  if(btnClearRef){ btnClearRef.addEventListener('click', ()=>{ if(refSelect) refSelect.value=''; showReference(''); }); }
+})();
+</script>
+{% endblock %}
+"""
+
 app.jinja_loader = DictLoader(TEMPLATES)
 
 @app.context_processor
@@ -9091,51 +10165,111 @@ Returns:
         })()
 
 # ---------------------------
-# Auth rate limiting (light)
+# Auth / abuse rate limiting
 # ---------------------------
 
 _login_fail = {}
 _login_lock = threading.Lock()
+_action_hits = {}
+_action_lock = threading.Lock()
 
-def _too_many_attempts(ip: str) -> bool:
-    """_too_many_attempts.
+def _rl_key(bucket: str, ident: str) -> str:
+    return f"{bucket}:{ident or '?'}"
 
-Internal helper function.
+def _rate_limit_hit(bucket: str, ident: str, limit: int, window_sec: int) -> bool:
+    """Sliding-window rate limiter stored in memory for this process.
 
-This docstring was added automatically to improve maintainability.
-
-Args:
-    ip: Parameter.
-
-Returns:
-    Varies.
+Used for abusive login / signup / recovery / admin bursts.
 """
+    now = time.time()
+    key = _rl_key(bucket, ident)
+    with _action_lock:
+        hits = [t for t in _action_hits.get(key, []) if (now - t) <= window_sec]
+        if len(hits) >= limit:
+            _action_hits[key] = hits
+            return True
+        hits.append(now)
+        _action_hits[key] = hits
+        return False
+
+def _too_many_attempts(ip: str, username: str = "") -> bool:
+    """Return True when login/2FA attempts should be temporarily blocked."""
+    user = (username or "").strip().lower()
     with _login_lock:
-        rec = _login_fail.get(ip, {"n": 0, "t": time.time()})
-        if time.time() - rec["t"] > 10 * 60:
-            _login_fail[ip] = {"n": 0, "t": time.time()}
-            return False
-        return rec["n"] >= 10
+        now = time.time()
+        checks = [ip]
+        if user:
+            checks.extend([f"user:{user}", f"combo:{ip}|{user}"])
+        for key in checks:
+            rec = _login_fail.get(key, {"n": 0, "t": now})
+            if now - rec["t"] > 10 * 60:
+                _login_fail[key] = {"n": 0, "t": now}
+                continue
+            if rec["n"] >= 10:
+                return True
+        return False
 
-def _mark_fail(ip: str):
-    """_mark_fail.
-
-Internal helper function.
-
-This docstring was expanded to make future maintenance easier.
-
-Args:
-    ip: Parameter.
-
-Returns:
-    Varies.
-"""
+def _mark_fail(ip: str, username: str = ""):
+    """Record a failed login/2FA attempt by IP and, when known, by username."""
+    user = (username or "").strip().lower()
     with _login_lock:
-        rec = _login_fail.get(ip, {"n": 0, "t": time.time()})
-        if time.time() - rec["t"] > 10 * 60:
-            rec = {"n": 0, "t": time.time()}
-        rec["n"] += 1
-        _login_fail[ip] = rec
+        now = time.time()
+        keys = [ip]
+        if user:
+            keys.extend([f"user:{user}", f"combo:{ip}|{user}"])
+        for key in keys:
+            rec = _login_fail.get(key, {"n": 0, "t": now})
+            if now - rec["t"] > 10 * 60:
+                rec = {"n": 0, "t": now}
+            rec["n"] += 1
+            _login_fail[key] = rec
+
+def _clear_fail(ip: str, username: str = ""):
+    user = (username or "").strip().lower()
+    with _login_lock:
+        for key in [ip, f"user:{user}" if user else "", f"combo:{ip}|{user}" if user else ""]:
+            if key:
+                _login_fail.pop(key, None)
+
+def _password_strength_error(password: str, username: str = "") -> Optional[str]:
+    pw = str(password or "")
+    if len(pw) < 10:
+        return "Password must be at least 10 characters."
+    if len(pw) > 256:
+        return "Password is too long."
+    low = pw.lower()
+    u = (username or "").strip().lower()
+    if u and u in low:
+        return "Password must not contain your username."
+    score = 0
+    score += bool(re.search(r"[a-z]", pw))
+    score += bool(re.search(r"[A-Z]", pw))
+    score += bool(re.search(r"\d", pw))
+    score += bool(re.search(r"[^A-Za-z0-9]", pw))
+    if score < 3:
+        return "Password must include at least 3 of these: lowercase, uppercase, number, symbol."
+    common = {"password", "123456", "12345678", "qwerty", "letmein", "admin", "dedsec", "welcome"}
+    if any(c in low for c in common):
+        return "Password is too easy to guess."
+    return None
+
+def _host_is_allowed(hostname: str) -> bool:
+    host = (hostname or "").strip().lower()
+    if not host:
+        return False
+    if host in {"localhost", "127.0.0.1", "::1"}:
+        return True
+    if host.endswith(".trycloudflare.com") or host.endswith(".onion"):
+        return True
+    try:
+        ip_obj = ipaddress.ip_address(host)
+        return bool(ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local)
+    except Exception:
+        pass
+    # Allow normal domain names used by reverse proxies / custom domains.
+    if re.fullmatch(r"[a-z0-9.-]{1,253}", host) and "." in host:
+        return True
+    return False
 
 # ---------------------------
 # Routes: auth/home
@@ -9475,12 +10609,16 @@ Returns:
 """
     if request.method == "POST":
         ip = _client_ip() or "?"
-        if _too_many_attempts(ip):
-            flash("Too many attempts. Try again later.")
-            return render_template("login.html", title=_("Login"))
-
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
+
+        if _too_many_attempts(ip, username):
+            log_security_event("login_rate_limited", detail=f"user={username or '-'} ip={ip}", level="warning")
+            flash("Too many attempts. Try again later.")
+            return render_template("login.html", title=_("Login"))
+        if _rate_limit_hit("login_post", ip, limit=20, window_sec=300):
+            flash("Too many attempts. Try again later.")
+            return render_template("login.html", title=_("Login"))
 
         conn = db_connect()
         row = conn.execute("SELECT pw_hash, is_admin, admin_device_id FROM users WHERE username=?", (username,)).fetchone()
@@ -9494,7 +10632,7 @@ Returns:
             if is_admin:
                 bound = (row["admin_device_id"] or "").strip()
                 if bound and bound != DEVICE_ID:
-                    _mark_fail(ip)
+                    _mark_fail(ip, username)
                     flash("This admin profile is bound to a different device.")
                     return render_template("login.html", title=_("Login"))
             # Session capacity (per link/session scope): max 66 users + 1 admin.
@@ -9515,8 +10653,9 @@ Returns:
                 session.permanent = True
                 return redirect(url_for("two_factor"))
 
+            _clear_fail(ip, username)
             return _complete_login_session(username, is_admin)
-        _mark_fail(ip)
+        _mark_fail(ip, username)
         flash("Invalid credentials.")
     return render_template("login.html", title=_("Login"))
 
@@ -9549,6 +10688,11 @@ Returns:
     Varies.
 """
     if request.method == "POST":
+        ip = _client_ip() or "?"
+        if _rate_limit_hit("signup_post", ip, limit=8, window_sec=3600):
+            flash("Too many signup attempts. Try again later.")
+            return render_template("signup.html", title="Request Access")
+
         u1 = (request.form.get("u1") or "").strip()
         u2 = (request.form.get("u2") or "").strip()
         p1 = request.form.get("p1") or ""
@@ -9563,8 +10707,9 @@ Returns:
         if p1 != p2:
             flash("Passwords do not match.")
             return render_template("signup.html", title="Request Access")
-        if len(p1) < 8:
-            flash("Password must be at least 8 characters.")
+        pw_err = _password_strength_error(p1, u1)
+        if pw_err:
+            flash(pw_err)
             return render_template("signup.html", title="Request Access")
         if not re.fullmatch(r"[A-Za-z0-9_.-]{3,32}", u1):
             flash("Username must be 3-32 chars: letters, numbers, _ . -")
@@ -9979,7 +11124,7 @@ Returns:
 @app.route("/settings", methods=["GET"])
 @login_required
 def settings_root():
-    """Redirect to the main settings page."""
+    """Main settings entry point."""
     return redirect(url_for("settings_security"))
 
 @app.route("/settings/security", methods=["GET"])
@@ -10009,6 +11154,7 @@ def settings_security():
         prefs=prefs,
         accent_choices=ACCENT_CHOICES,
         font_choices=FONT_CHOICES,
+        ui_theme_choices=UI_THEME_CHOICES,
     )
 
 @app.route("/settings/password", methods=["POST"])
@@ -10029,6 +11175,10 @@ Returns:
     new_pw2 = request.form.get("new_password2") or ""
     if not new_pw or new_pw != new_pw2:
         flash("Passwords do not match.")
+        return redirect(url_for("settings_security"))
+    pw_err = _password_strength_error(new_pw, me)
+    if pw_err:
+        flash(pw_err)
         return redirect(url_for("settings_security"))
 
     conn = db_connect()
@@ -10095,6 +11245,13 @@ Returns:
     if not u:
         return redirect(url_for("login"))
 
+    ip = _client_ip() or "?"
+    if request.method == "POST" and _too_many_attempts(ip, u):
+        flash("Too many attempts. Try again later.")
+        session.pop("pre_2fa", None)
+        session.pop("two_factor_idxs", None)
+        return redirect(url_for("login"))
+
     conn = db_connect()
     row = conn.execute("SELECT q1,q2,q3 FROM user_security WHERE username=?", (u,)).fetchone()
     conn.close()
@@ -10115,6 +11272,7 @@ Returns:
     for i in idxs:
         answers[f"a{i+1}"] = request.form.get(f"a{i+1}") or ""
     if not verify_security_answers(u, answers):
+        _mark_fail(ip, u)
         flash("Invalid credentials.")
         return redirect(url_for("two_factor"))
 
@@ -10133,25 +11291,42 @@ Returns:
 # Success: finalize login
     session.pop("pre_2fa", None)
     session.pop("two_factor_idxs", None)
-    session["u"] = u
-    session.permanent = True
-    session["login_at"] = now_z()
-    ensure_profile_row(u)
+    _clear_fail(ip, u)
     flash("Logged in.")
-    return redirect(url_for("loading"))
+    return _complete_login_session(u, user_is_admin(u))
 
 
+
+@app.route("/settings/appearance", methods=["GET"])
+@login_required
+def settings_appearance_page():
+    u = current_user()
+    prefs = dict(DEFAULT_PREFS)
+    try:
+        if u:
+            prefs = get_user_prefs(u) or prefs
+    except Exception:
+        pass
+    return render_template(
+        "settings_appearance.html",
+        title="Settings",
+        prefs=prefs,
+        accent_choices=ACCENT_CHOICES,
+        font_choices=FONT_CHOICES,
+        ui_theme_choices=UI_THEME_CHOICES,
+    )
 
 @app.route("/settings/appearance", methods=["POST"])
 @login_required
 def settings_appearance():
-    """Update UI appearance settings (accent color + font) for the current user."""
+    """Update UI appearance settings (theme style, accent color, font) for the current user."""
     me = current_user()
     accent = (request.form.get("accent") or "").strip()
     font = (request.form.get("font") or "").strip()
-    set_user_prefs(me, accent, font)
+    ui_theme = (request.form.get("ui_theme") or "").strip()
+    set_user_prefs(me, accent, font, ui_theme)
     flash("Appearance updated.")
-    return redirect(url_for("settings_security"))
+    return redirect(url_for("settings_appearance_page"))
 
 @app.route("/recover", methods=["GET", "POST"])
 def recover():
@@ -10166,6 +11341,11 @@ Returns:
 """
     # Password recovery using security questions
     if request.method == "GET":
+        return render_template("recover.html", title="Recover")
+
+    ip = _client_ip() or "?"
+    if _rate_limit_hit("recover_post", ip, limit=10, window_sec=1800):
+        flash("Too many recovery attempts. Try again later.")
         return render_template("recover.html", title="Recover")
 
     step = request.form.get("step") or "user"
@@ -10189,6 +11369,10 @@ Returns:
     new_pw2 = request.form.get("new_password2") or ""
     if not username or not new_pw or new_pw != new_pw2:
         flash("Passwords do not match.")
+        return render_template("recover.html", title="Recover")
+    pw_err = _password_strength_error(new_pw, username)
+    if pw_err:
+        flash(pw_err)
         return render_template("recover.html", title="Recover")
 
     answers = {
@@ -10855,6 +12039,30 @@ Returns:
             self.__dict__.update(d)
     return render_template("admin.html", title="Admin", users=[Obj(dict(r)) for r in rows], devreq=[Obj(dict(r)) for r in (devreq or [])], me=current_user())
 
+@app.route("/admin/logs")
+@login_required
+def admin_logs():
+    require_admin()
+    selected_name = os.path.basename((request.args.get("name") or "").strip())
+    files = []
+    try:
+        for name in sorted(os.listdir(LOG_DIR)):
+            path = os.path.join(LOG_DIR, name)
+            if os.path.isfile(path):
+                files.append({"name": name, "size": os.path.getsize(path)})
+    except Exception:
+        files = []
+    selected_content = ""
+    if selected_name:
+        path = os.path.join(LOG_DIR, selected_name)
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                    selected_content = f.read()[-200000:]
+            except Exception as e:
+                selected_content = f"Could not read log: {e}"
+    return render_template("admin_logs.html", title="Admin logs", files=files, selected_name=selected_name, selected_content=selected_content)
+
 
 
 
@@ -10862,6 +12070,10 @@ Returns:
 @login_required
 def admin_device_approve():
     require_admin()
+    try:
+        log_security_event("admin_action", detail="approve_device_request", username=current_user(), level="info")
+    except Exception:
+        pass
     rid = (request.form.get("req_id") or "").strip()
     if not rid.isdigit():
         return redirect(url_for("admin_panel"))
@@ -10888,6 +12100,10 @@ def admin_device_approve():
 @login_required
 def admin_device_deny():
     require_admin()
+    try:
+        log_security_event("admin_action", detail="deny_device_request", username=current_user(), level="info")
+    except Exception:
+        pass
     rid = (request.form.get("req_id") or "").strip()
     if not rid.isdigit():
         return redirect(url_for("admin_panel"))
@@ -10923,6 +12139,10 @@ Returns:
     Varies.
 """
     require_admin()
+    try:
+        log_security_event("admin_action", detail="promote_user", username=current_user(), level="info")
+    except Exception:
+        pass
     u = (request.form.get("username") or "").strip()
     if not u:
         return redirect(url_for("admin_panel"))
@@ -10958,6 +12178,10 @@ Returns:
     Varies.
 """
     require_admin()
+    try:
+        log_security_event("admin_action", detail="demote_user", username=current_user(), level="info")
+    except Exception:
+        pass
     u = (request.form.get("username") or "").strip()
     if not u:
         return redirect(url_for("admin_panel"))
@@ -11002,6 +12226,10 @@ Returns:
     Varies.
 """
     require_admin()
+    try:
+        log_security_event("admin_action", detail="kick_user", username=current_user(), level="info")
+    except Exception:
+        pass
     u = (request.form.get("username") or "").strip()
     if not u or u == current_user():
         return redirect(url_for("admin_panel"))
@@ -11025,6 +12253,10 @@ Returns:
     Varies.
 """
     require_admin()
+    try:
+        log_security_event("admin_action", detail="delete_user", username=current_user(), level="info")
+    except Exception:
+        pass
     u = (request.form.get("username") or "").strip()
     if not u or u == current_user():
         return redirect(url_for("admin_panel"))
@@ -11062,6 +12294,10 @@ Returns:
 def admin_delete_me():
     """Delete the currently logged-in admin account (keeps files)."""
     require_admin()
+    try:
+        log_security_event("admin_action", detail="delete_self_admin", username=current_user(), level="info")
+    except Exception:
+        pass
     me = current_user()
     password = request.form.get("password") or ""
 
@@ -11088,6 +12324,10 @@ def admin_delete_me():
 def admin_self_destruct():
     """Delete all ButSystem data from storage. Admin-only, requires creds."""
     require_admin()
+    try:
+        log_security_event("admin_action", detail="self_destruct_attempt", username=current_user(), level="info")
+    except Exception:
+        pass
     u = (request.form.get("username") or "").strip()
     p = request.form.get("password") or ""
     me = current_user()
@@ -11706,6 +12946,9 @@ def dm_file_stream(fid: int):
     conn.close()
     if not row or (me != row["sender"] and me != row["recipient"]):
         abort(404)
+    peer = row["recipient"] if row["sender"] == me else row["sender"]
+    if not _chat_lock_is_unlocked(me, "dm", peer):
+        return redirect(url_for("chat_with", username=peer))
     sp = row["stored_path"]
     if not sp or not os.path.exists(sp):
         abort(404)
@@ -11750,6 +12993,9 @@ def dm_file_download(fid: int):
     conn.close()
     if not row or (me != row["sender"] and me != row["recipient"]):
         abort(404)
+    peer = row["recipient"] if row["sender"] == me else row["sender"]
+    if not _chat_lock_is_unlocked(me, "dm", peer):
+        return redirect(url_for("chat_with", username=peer))
 
     sp = row["stored_path"]
     if not sp or not os.path.exists(sp):
@@ -11950,7 +13196,6 @@ Returns:
     peer_display = username
     is_self_chat = (username == me)
     if is_self_chat:
-        # Self-chat is allowed and acts as "Saved messages" / personal notes.
         peer_display = "Saved messages"
 
     conn = db_connect()
@@ -11960,7 +13205,21 @@ Returns:
         flash("User not found.")
         return redirect(url_for("chats"))
 
-    # mark received as delivered/read when opening chat
+    has_chat_pin = _chat_lock_exists(me, "dm", username)
+    chat_unlocked = _chat_lock_is_unlocked(me, "dm", username)
+    peer_online = (True if username == me else is_online(username, g.scope))
+    if has_chat_pin and not chat_unlocked:
+        conn.close()
+        return render_template(
+            "chat_locked.html",
+            title=f"Chat {username}",
+            me=me,
+            peer=username,
+            peer_display=peer_display,
+            is_self_chat=is_self_chat,
+            peer_online=peer_online,
+        )
+
     try:
         conn.execute("""
             UPDATE dm_messages SET delivered_at=?
@@ -11980,8 +13239,6 @@ Returns:
             LIMIT 400
         """, (me, username, username, me)).fetchall()
     except sqlite3.OperationalError:
-        # Best-effort: older databases may miss some dm_messages columns.
-        # Run migrations and retry once to avoid an Internal Server Error on open.
         try:
             conn.close()
         except Exception:
@@ -12068,9 +13325,10 @@ Returns:
         peer=username,
         peer_display=peer_display,
         is_self_chat=is_self_chat,
-        peer_online=(True if username==me else is_online(username, g.scope)),
+        peer_online=peer_online,
         messages=msgs,
-        last_id=last_id
+        last_id=last_id,
+        has_chat_pin=has_chat_pin,
     )
 
 
@@ -12350,6 +13608,9 @@ def dm_voice_stream(vid: int):
     conn.close()
     if not row or (me != row["sender"] and me != row["recipient"]):
         abort(404)
+    peer = row["recipient"] if row["sender"] == me else row["sender"]
+    if not _chat_lock_is_unlocked(me, "dm", peer):
+        return redirect(url_for("chat_with", username=peer))
     sp = row["stored_path"]
     if not sp or not os.path.exists(sp):
         abort(404)
@@ -12481,6 +13742,8 @@ Returns:
 """
     me = current_user()
     peer = peer.strip()
+    if not _chat_lock_is_unlocked(me, "dm", peer):
+        return jsonify(ok=False, locked=True, error="PIN required"), 423
     try:
         since_id = int(request.args.get("id") or 0)
     except Exception:
@@ -13428,6 +14691,110 @@ def _group_store_voice_tx(conn, gm_id: int, file_storage) -> Tuple[int, str, str
     conn.execute("UPDATE group_voice SET stored_path=? WHERE id=?", (stored_path, vid))
     return vid, mime, stored_path
 
+@app.route("/chat/<username>/lock/set", methods=["POST"])
+@login_required
+def dm_lock_set(username: str):
+    me = current_user()
+    username = (username or "").strip()
+    conn = db_connect()
+    exists = conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone()
+    conn.close()
+    if not exists:
+        flash("User not found.")
+        return redirect(url_for("chats"))
+    pin = request.form.get("pin") or ""
+    try:
+        _chat_lock_set(me, "dm", username, pin)
+        flash("Chat PIN saved.")
+    except ValueError:
+        flash("PIN must be 4 to 12 digits.")
+    return redirect(url_for("chat_with", username=username))
+
+
+@app.route("/chat/<username>/lock/unlock", methods=["POST"])
+@login_required
+def dm_lock_unlock(username: str):
+    me = current_user()
+    username = (username or "").strip()
+    pin = request.form.get("pin") or ""
+    if _chat_lock_verify_and_unlock(me, "dm", username, pin):
+        flash("Chat unlocked.")
+    else:
+        flash("Wrong PIN.")
+    return redirect(url_for("chat_with", username=username))
+
+
+@app.route("/chat/<username>/lock/remove", methods=["POST"])
+@login_required
+def dm_lock_remove(username: str):
+    me = current_user()
+    username = (username or "").strip()
+    _chat_lock_remove(me, "dm", username)
+    flash("Chat PIN removed.")
+    return redirect(url_for("chat_with", username=username))
+
+
+@app.route("/chat/<username>/lock/close", methods=["POST"])
+@login_required
+def dm_lock_close(username: str):
+    me = current_user()
+    username = (username or "").strip()
+    _chat_lock_clear_session(me, "dm", username)
+    flash("Chat locked.")
+    return redirect(url_for("chat_with", username=username))
+
+
+@app.route("/groups/<int:gid>/lock/set", methods=["POST"])
+@login_required
+def group_lock_set(gid: int):
+    me = current_user()
+    if not group_role(gid, me):
+        abort(403)
+    pin = request.form.get("pin") or ""
+    try:
+        _chat_lock_set(me, "group", gid, pin)
+        flash("Group PIN saved.")
+    except ValueError:
+        flash("PIN must be 4 to 12 digits.")
+    return redirect(url_for("group_chat", gid=gid))
+
+
+@app.route("/groups/<int:gid>/lock/unlock", methods=["POST"])
+@login_required
+def group_lock_unlock(gid: int):
+    me = current_user()
+    if not group_role(gid, me):
+        abort(403)
+    pin = request.form.get("pin") or ""
+    if _chat_lock_verify_and_unlock(me, "group", gid, pin):
+        flash("Group unlocked.")
+    else:
+        flash("Wrong PIN.")
+    return redirect(url_for("group_chat", gid=gid))
+
+
+@app.route("/groups/<int:gid>/lock/remove", methods=["POST"])
+@login_required
+def group_lock_remove(gid: int):
+    me = current_user()
+    if not group_role(gid, me):
+        abort(403)
+    _chat_lock_remove(me, "group", gid)
+    flash("Group PIN removed.")
+    return redirect(url_for("group_chat", gid=gid))
+
+
+@app.route("/groups/<int:gid>/lock/close", methods=["POST"])
+@login_required
+def group_lock_close(gid: int):
+    me = current_user()
+    if not group_role(gid, me):
+        abort(403)
+    _chat_lock_clear_session(me, "group", gid)
+    flash("Group locked.")
+    return redirect(url_for("group_chat", gid=gid))
+
+
 @app.route("/groups/<int:gid>/chat")
 @login_required
 def group_chat(gid: int):
@@ -13459,6 +14826,32 @@ Returns:
     for r in mem_rows:
         members.append({"username": r["username"], "role": r["role"], "online": is_online(r["username"], current_scope())})
 
+    has_group_pin = _chat_lock_exists(me, "group", gid)
+    group_unlocked = _chat_lock_is_unlocked(me, "group", gid)
+
+    class Obj:
+        def __init__(self, r):
+            """__init__.
+
+Internal helper function.
+
+This docstring was added automatically to improve maintainability.
+
+Args:
+    self: Parameter.
+    r: Parameter.
+
+Returns:
+    Varies.
+"""
+            self.__dict__.update(dict(r))
+
+    if has_group_pin and not group_unlocked:
+        conn.close()
+        return render_template("group_locked.html", title="Group chat",
+                               g=Obj(g_row), my_role=role, members=[type("M", (), m)() for m in members],
+                               all_users=all_usernames(), me=me)
+
     msg_rows = conn.execute("""
         SELECT id, sender, body_enc, created_at
         FROM group_messages WHERE group_id=? ORDER BY id ASC LIMIT 400
@@ -13485,25 +14878,9 @@ Returns:
 
     conn.close()
 
-    class Obj:
-        def __init__(self, r):
-            """__init__.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    self: Parameter.
-    r: Parameter.
-
-Returns:
-    Varies.
-"""
-            self.__dict__.update(dict(r))
     return render_template("group_chat.html", title="Group chat",
                            g=Obj(g_row), my_role=role, members=[type("M", (), m)() for m in members],
-                           all_users=all_usernames(), me=me, messages=messages)
+                           all_users=all_usernames(), me=me, messages=messages, has_group_pin=has_group_pin)
 
 @app.route("/groups/<int:gid>/send", methods=["POST"])
 @login_required
@@ -13516,6 +14893,8 @@ def group_send(gid: int):
     """
     me = current_user()
     role = group_role(gid, me)
+    if not _chat_lock_is_unlocked(me, "group", gid):
+        return _locked_json_or_redirect("group", gid)
     if not role:
         abort(403)
 
@@ -13625,6 +15004,8 @@ def group_poll(gid: int):
     """Return new group messages after a given message id (AJAX polling)."""
     me = current_user()
     role = group_role(gid, me)
+    if not _chat_lock_is_unlocked(me, "group", gid):
+        return jsonify(ok=False, locked=True, error="PIN required"), 423
     if not role:
         abort(403)
 
@@ -13690,6 +15071,8 @@ def group_voice_stream(vid: int):
         abort(404)
     if not group_role(int(row["group_id"]), me):
         abort(403)
+    if not _chat_lock_is_unlocked(me, "group", int(row["group_id"])):
+        return redirect(url_for("group_chat", gid=int(row["group_id"])))
 
     sp = row["stored_path"]
     if not sp or not os.path.exists(sp):
@@ -13858,13 +15241,10 @@ def profiler_sync_from_user_profile(username: str):
     """Ensure a user's My Profile is mirrored into their Profiler list.
 
     This creates (or updates) one special encrypted Profiler entry owned by the same user.
-    Exclusion: username 'dedsec1121fk' (requested).
+    No username is excluded from the profile -> profiler sync.
     """
     if not username:
         return
-    if username.strip().lower() == "dedsec1121fk":
-        return
-
     prof = get_profile(username) or {}
     nick = (prof.get("nickname") or "").strip() or username
     first, last = _split_name_from_nick(nick, fallback_last=username)
@@ -14123,9 +15503,15 @@ def _fmt_bounty_price(val: Any) -> str:
     return f"{_bounty_currency_symbol()}{amt}"
 
 def _complete_login_session(username: str, is_admin: bool) -> Response:
+    # Drop stale session data on successful login while keeping a fresh CSRF token.
+    try:
+        session.clear()
+    except Exception:
+        pass
     session["u"] = username
     session.permanent = True
     session["login_at"] = now_z()
+    session["_csrf"] = secrets.token_urlsafe(32)
     ensure_profile_row(username)
     try:
         prof = get_profile(username)
@@ -14187,7 +15573,213 @@ def profiler_all_entries_for_bounty(search_q: str = "") -> List[Dict[str, Any]]:
         out.append(item)
     return out
 
+
+
+def _face_detector_bounty_preview_source(eid: int) -> Optional[Dict[str, Any]]:
+    """Return the best available image source for a bounty profiler entry.
+
+    This is for manual side-by-side review only. It does not perform any
+    biometric comparison or matching.
+    """
+    conn = db_connect()
+    row = conn.execute(
+        "SELECT id, owner, bounty_price FROM profiler_entries WHERE id=?",
+        (eid,),
+    ).fetchone()
+    if not row or row["bounty_price"] is None:
+        conn.close()
+        return None
+
+    att_rows = conn.execute(
+        "SELECT id, filename_enc, mime_enc, stored_path FROM profiler_attachments WHERE entry_id=? ORDER BY id ASC",
+        (eid,),
+    ).fetchall()
+    conn.close()
+
+    for a in att_rows:
+        sp = a["stored_path"]
+        if not sp or not os.path.exists(sp):
+            continue
+        try:
+            mime = (aesgcm_decrypt_text(a["mime_enc"]) or "").strip().lower()
+        except Exception:
+            mime = ""
+        if mime.startswith("image/"):
+            return {"kind": "attachment", "aid": int(a["id"]), "mime": mime, "path": sp, "owner": row["owner"]}
+
+    # Fallback to the owner's profile picture when available.
+    conn = db_connect()
+    prow = conn.execute("SELECT pic_path, pic_mime FROM profiles WHERE username=?", (row["owner"],)).fetchone()
+    conn.close()
+    if prow and prow["pic_path"] and os.path.exists(prow["pic_path"]):
+        return {
+            "kind": "profile_pic",
+            "username": row["owner"],
+            "mime": (prow["pic_mime"] or "image/jpeg"),
+            "path": prow["pic_path"],
+            "owner": row["owner"],
+        }
+    return None
+
+
+def _face_detector_bounty_refs(limit: int = 120) -> List[Dict[str, Any]]:
+    """Admin-only list of bounty entries that have a previewable image."""
+    out: List[Dict[str, Any]] = []
+    for item in profiler_all_entries_for_bounty(""):
+        if item.get("bounty_price") is None:
+            continue
+        src = _face_detector_bounty_preview_source(int(item["id"]))
+        if not src:
+            continue
+        item = dict(item)
+        item["preview_url"] = url_for("face_detector_bounty_preview", eid=int(item["id"]))
+        out.append(item)
+        if len(out) >= int(limit):
+            break
+    return out
+
+def _face_detector_i18n() -> Dict[str, str]:
+    return {
+        "ready": _("Ready."),
+        "readyTapStart": _("Ready. Tap Start camera."),
+        "startingCamera": _("Starting camera..."),
+        "liveCamera": _("Live camera ready."),
+        "cameraError": _("Failed to acquire camera feed."),
+        "cameraBusyTip": _("Tip: On phones, if the camera is busy in another app, close that app first and then tap Start camera again."),
+        "analyzingUpload": _("Analyzing uploaded media..."),
+        "uploadFailed": _("Could not analyze the uploaded media."),
+        "unsupportedFile": _("Please choose a photo or video file."),
+        "nothingToSave": _("Nothing to save yet."),
+        "saveFailed": _("Could not save the result."),
+        "savedTo": _("Saved to"),
+        "serverStandby": _("SERVER: STANDBY"),
+        "serverUploading": _("SERVER: UPLOADING..."),
+        "serverSaved": _("SERVER: SAVED"),
+        "serverDisconnected": _("SERVER: DISCONNECTED"),
+        "serverAnalyzing": _("SERVER: ANALYZING"),
+        "sourceLive": _("SOURCE: LIVE CAMERA"),
+        "sourcePhoto": _("SOURCE: UPLOADED PHOTO"),
+        "sourceVideo": _("SOURCE: UPLOADED VIDEO"),
+        "noFaceDetected": _("No face detected."),
+        "detectedFaces": _("Detected faces"),
+        "saveFacesFailed": _("No detected faces to save yet."),
+        "photoSaved": _("Photo saved."),
+        "recordingSaved": _("Recording saved."),
+        "recordingNotSupported": _("Browser does not support WebM recording."),
+        "videoPlaybackBlocked": _("Video playback blocked."),
+        "live": _("LIVE"),
+        "upload": _("UPLOAD"),
+        "analyzing": _("ANALYZING"),
+        "recording": _("RECORDING"),
+        "face": _("Face"),
+        "faceId": _("ID"),
+        "emotionHappy": _("HAPPY"),
+        "emotionSad": _("SAD"),
+        "emotionAngry": _("ANGRY"),
+        "emotionSurprised": _("SURPRISED"),
+        "emotionNeutral": _("NEUTRAL"),
+        "pose": _("POSE"),
+        "shape": _("SHAPE"),
+        "eyes": _("EYES"),
+        "brows": _("BROWS"),
+        "mouth": _("MOUTH"),
+        "asym": _("ASYM"),
+        "center": _("CENTER"),
+        "left": _("LEFT"),
+        "right": _("RIGHT"),
+        "up": _("UP"),
+        "long": _("LONG"),
+        "round": _("ROUND"),
+        "oval": _("OVAL"),
+        "broad": _("BROAD"),
+        "narrow": _("NARROW"),
+        "wide": _("WIDE"),
+        "close": _("CLOSE"),
+        "avg": _("AVG"),
+        "raise": _("RAISE"),
+        "furrow": _("FURROW"),
+        "neut": _("NEUT"),
+        "manualReview": _("MANUAL REVIEW"),
+        "referenceLoaded": _("Reference photo loaded."),
+        "referenceCleared": _("Reference photo cleared."),
+    }
+
+def _safe_face_detector_filename(name: str) -> str:
+    base = secure_filename((name or "").strip()) or f"FaceDetector_{int(time.time())}.png"
+    root, ext = os.path.splitext(base)
+    ext = ext.lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".webp", ".webm", ".mp4"):
+        ext = ".png"
+    root = (root or "FaceDetector")[:80]
+    return f"{root}{ext}"
+
+@app.route("/face-detector")
+@login_required
+def face_detector_page():
+    bounty_refs = []
+    if user_is_admin(current_user()):
+        try:
+            bounty_refs = _face_detector_bounty_refs()
+        except Exception:
+            bounty_refs = []
+    return render_template(
+        "face_detector.html",
+        title=_("Face Detector"),
+        fd_i18n=_face_detector_i18n(),
+        fd_bounty_refs=bounty_refs,
+    )
+
+@app.route("/face-detector/bounty-preview/<int:eid>")
+@login_required
+def face_detector_bounty_preview(eid: int):
+    require_admin()
+    src = _face_detector_bounty_preview_source(eid)
+    if not src:
+        abort(404)
+    if src.get("kind") == "profile_pic":
+        return redirect(url_for("profile_pic", username=src["username"]))
+    aid = int(src.get("aid") or 0)
+    if not aid:
+        abort(404)
+    row_owner = src.get("owner")
+    sp = src.get("path")
+    mime = src.get("mime") or "image/jpeg"
+    if not sp or not os.path.exists(sp):
+        abort(404)
+    try:
+        if is_encrypted_file(sp):
+            resp = Response(aesgcm_decrypt_generator(sp), mimetype=mime)
+        else:
+            resp = send_file(sp, mimetype=mime, as_attachment=False, conditional=True, max_age=0)
+    except Exception:
+        abort(404)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+@app.route("/face-detector/save", methods=["POST"])
+@login_required
+def face_detector_save():
+    try:
+        data = request.get_json(silent=True) or {}
+        filename = _safe_face_detector_filename(data.get("filename") or "")
+        filedata = (data.get("filedata") or "").strip()
+        m = re.match(r"^data:((?:image/(?:png|jpeg|jpg|webp))|(?:video/(?:webm|mp4)));base64,(.+)$", filedata, flags=re.I | re.S)
+        if not m:
+            return jsonify({"ok": False, "error": "invalid_data"}), 400
+        payload = base64.b64decode(m.group(2), validate=True)
+        if not payload or len(payload) > (35 * 1024 * 1024):
+            return jsonify({"ok": False, "error": "invalid_size"}), 400
+        out_path = os.path.join(FACE_DETECTOR_DIR, filename)
+        with open(out_path, "wb") as f:
+            f.write(payload)
+        return jsonify({"ok": True, "path": out_path})
+    except Exception as e:
+        log.exception("Face detector save failed: %s", e)
+        return jsonify({"ok": False, "error": "save_failed"}), 500
+
+
 @app.route("/bounty")
+
 @login_required
 def bounty():
     """Admin page for adding/editing/removing profiler bounties."""
@@ -15289,7 +16881,7 @@ def start_cloudflared(port: int):
             log.warning("cloudflared not available")
             return
 
-        cmd = ["cloudflared", "tunnel", "--url", f"http://localhost:{port}", "--no-autoupdate"]
+        cmd = ["cloudflared", "tunnel", "--url", f"https://localhost:{port}", "--no-autoupdate", "--no-tls-verify"]
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
         CLOUDFLARED_PROC = proc
 
@@ -15475,21 +17067,75 @@ Returns:
 class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
     daemon_threads = True
 
-def start_server(host: str, port: int):
-    """start_server.
+_LOCAL_CERT_PATH = os.path.join(KEYS_DIR, "local_https_cert.pem")
+_LOCAL_KEY_PATH = os.path.join(KEYS_DIR, "local_https_key.pem")
 
-Route handler or application helper.
+def _write_local_https_cert(cert_path: str, key_path: str, san_hosts: list[str]):
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, u"ButSystem Local HTTPS")])
+    san_entries = []
+    seen = set()
+    for raw in san_hosts:
+        host = str(raw or "").strip()
+        if not host or host in seen:
+            continue
+        seen.add(host)
+        try:
+            san_entries.append(x509.IPAddress(ipaddress.ip_address(host)))
+            continue
+        except Exception:
+            pass
+        san_entries.append(x509.DNSName(host))
+    now = datetime.utcnow()
+    cert = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(days=1))
+        .not_valid_after(now + timedelta(days=3650))
+        .add_extension(x509.SubjectAlternativeName(san_entries), critical=False)
+        .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+        .sign(private_key=key, algorithm=hashes.SHA256())
+    )
+    with open(key_path, "wb") as f:
+        f.write(key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
+    with open(cert_path, "wb") as f:
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
+    try:
+        os.chmod(key_path, 0o600)
+    except Exception:
+        pass
 
-This docstring was expanded to make future maintenance easier.
 
-Args:
-    host: Parameter.
-    port: Parameter.
+def _ensure_local_https_material(lan_ip: str):
+    sans = ["localhost", "127.0.0.1", "::1"]
+    if lan_ip:
+        sans.append(lan_ip)
+    needs_new = True
+    try:
+        if os.path.exists(_LOCAL_CERT_PATH) and os.path.exists(_LOCAL_KEY_PATH):
+            needs_new = False
+    except Exception:
+        needs_new = True
+    if needs_new:
+        _write_local_https_cert(_LOCAL_CERT_PATH, _LOCAL_KEY_PATH, sans)
+    return _LOCAL_CERT_PATH, _LOCAL_KEY_PATH
 
-Returns:
-    Varies.
-"""
-    return make_server(host, port, app, server_class=ThreadingWSGIServer, handler_class=QuietHandler)
+
+def start_server(host: str, port: int, use_https: bool = True, lan_ip: str = ""):
+    httpd = make_server(host, port, app, server_class=ThreadingWSGIServer, handler_class=QuietHandler)
+    if use_https:
+        cert_path, key_path = _ensure_local_https_material(lan_ip)
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.load_cert_chain(certfile=cert_path, keyfile=key_path)
+        httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
+    return httpd
 
 # ---------------------------
 # Main
@@ -15528,14 +17174,15 @@ Returns:
 
     port = find_free_port(6969)
     host = "0.0.0.0"
-    httpd = start_server(host, port)
+    lan = local_ip()
+    httpd = start_server(host, port, use_https=True, lan_ip=lan)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 
     threading.Thread(target=start_cloudflared, args=(port,), daemon=True).start()
     threading.Thread(target=start_tor_hidden_service, args=(port,), daemon=True).start()
 
-    lan = local_ip()
-    local_url = f"http://{lan}:{port}"
+    local_url = f"https://{lan}:{port}"
+    localhost_url = f"https://127.0.0.1:{port}"
 
     deadline = time.time() + 180
     while time.time() < deadline:
@@ -15547,6 +17194,7 @@ Returns:
 
     # Print ONLY the generated links (as requested earlier)
     print(f"LOCAL:       {local_url}")
+    print(f"LOCALHOST:   {localhost_url}")
     print(f"CLOUDFLARED: {CLOUDFLARED_URL or ('UNAVAILABLE (see ' + LOG_PATH + ')')}")
     print(f"TOR:         {('http://' + TOR_ONION) if TOR_ONION else ('UNAVAILABLE (see ' + LOG_PATH + ')')}")
 
@@ -17725,6 +19373,278 @@ TEMPLATES["story_viewer.html"] = r"""
 </script>
 {% endblock %}
 """
+
+try:
+    BUT_CSS += r"""
+body[data-ui-theme="forest"]{ --panel:#08150e; --panel2:rgba(8,21,14,0.68); --nav:#041008; --border:rgba(105,219,124,0.36); --accent:#69db7c; --accent-hover:#b2f2bb; --bubble-them:rgba(8,24,15,0.78);} 
+body.light-theme[data-ui-theme="forest"]{ --panel:#f4fff6; --panel2:rgba(244,255,246,0.88); --nav:#ffffff; --border:rgba(37,123,54,0.22); --accent:#257b36; --accent-hover:#329a46; --bubble-them:rgba(232,246,235,0.95);} 
+body[data-ui-theme="midnight"]{ --panel:#070916; --panel2:rgba(8,10,24,0.70); --nav:#03050f; --border:rgba(108,117,255,0.30); --accent:#8a94ff; --accent-hover:#bac1ff; --bubble-them:rgba(11,14,31,0.82);} 
+body.light-theme[data-ui-theme="midnight"]{ --panel:#f7f8ff; --panel2:rgba(247,248,255,0.90); --nav:#ffffff; --border:rgba(74,82,173,0.20); --accent:#4a52ad; --accent-hover:#5f69d6; --bubble-them:rgba(236,238,252,0.96);} 
+body[data-ui-theme="neon"]{ --panel:#0d0714; --panel2:rgba(13,7,20,0.70); --nav:#09040f; --border:rgba(255,0,191,0.32); --accent:#00f0ff; --accent-hover:#76fbff; --bubble-them:rgba(20,10,29,0.82);} 
+body.light-theme[data-ui-theme="neon"]{ --panel:#fbf9ff; --panel2:rgba(251,249,255,0.90); --nav:#ffffff; --border:rgba(0,145,167,0.20); --accent:#0091a7; --accent-hover:#00b6d0; --bubble-them:rgba(242,237,250,0.96);} 
+body[data-ui-theme="lavender"]{ --panel:#120d1d; --panel2:rgba(18,13,29,0.70); --nav:#0b0714; --border:rgba(205,147,255,0.34); --accent:#cd93ff; --accent-hover:#e2c1ff; --bubble-them:rgba(24,16,39,0.82);} 
+body.light-theme[data-ui-theme="lavender"]{ --panel:#fbf8ff; --panel2:rgba(251,248,255,0.90); --nav:#ffffff; --border:rgba(132,88,173,0.20); --accent:#8458ad; --accent-hover:#9d6ecb; --bubble-them:rgba(242,236,250,0.96);} 
+body[data-ui-theme="cyber"]{ --panel:#091117; --panel2:rgba(9,17,23,0.70); --nav:#050c11; --border:rgba(0,255,214,0.30); --accent:#00ffd6; --accent-hover:#8dfff0; --text-on-accent:#06100f; --bubble-them:rgba(13,22,29,0.82);} 
+body.light-theme[data-ui-theme="cyber"]{ --panel:#f5ffff; --panel2:rgba(245,255,255,0.90); --nav:#ffffff; --border:rgba(0,136,116,0.22); --accent:#008874; --accent-hover:#00a88f; --bubble-them:rgba(232,248,247,0.96);} 
+body[data-ui-theme="emerald"]{ --panel:#071612; --panel2:rgba(7,22,18,0.70); --nav:#04100d; --border:rgba(0,214,143,0.34); --accent:#00d68f; --accent-hover:#7ff0c4; --bubble-them:rgba(10,25,20,0.82);} 
+body.light-theme[data-ui-theme="emerald"]{ --panel:#f3fffb; --panel2:rgba(243,255,251,0.90); --nav:#ffffff; --border:rgba(0,123,87,0.22); --accent:#007b57; --accent-hover:#00996d; --bubble-them:rgba(229,247,240,0.96);} 
+body[data-ui-theme="sunset"]{ --panel:#1a0d08; --panel2:rgba(26,13,8,0.72); --nav:#130805; --border:rgba(255,147,79,0.34); --accent:#ff934f; --accent-hover:#ffc08f; --text-on-accent:#220f06; --bubble-them:rgba(31,15,9,0.82);} 
+body.light-theme[data-ui-theme="sunset"]{ --panel:#fff8f2; --panel2:rgba(255,248,242,0.90); --nav:#ffffff; --border:rgba(196,101,31,0.22); --accent:#c4651f; --accent-hover:#df7b2f; --bubble-them:rgba(252,239,229,0.96);} 
+body[data-ui-theme="ice"]{ --panel:#08131a; --panel2:rgba(8,19,26,0.70); --nav:#041018; --border:rgba(158,221,255,0.34); --accent:#9edcff; --accent-hover:#d5f0ff; --text-on-accent:#08131a; --bubble-them:rgba(10,23,31,0.82);} 
+body.light-theme[data-ui-theme="ice"]{ --panel:#f5fcff; --panel2:rgba(245,252,255,0.90); --nav:#ffffff; --border:rgba(76,128,164,0.22); --accent:#4c80a4; --accent-hover:#639bc4; --bubble-them:rgba(233,244,250,0.96);} 
+body[data-ui-theme="coffee"]{ --panel:#18110b; --panel2:rgba(24,17,11,0.72); --nav:#120d08; --border:rgba(181,135,99,0.34); --accent:#b58763; --accent-hover:#d0ae93; --bubble-them:rgba(30,21,13,0.82);} 
+body.light-theme[data-ui-theme="coffee"]{ --panel:#fdf8f4; --panel2:rgba(253,248,244,0.90); --nav:#ffffff; --border:rgba(124,87,59,0.22); --accent:#7c573b; --accent-hover:#9b6d4a; --bubble-them:rgba(244,235,227,0.96);} 
+body[data-ui-theme="obsidian"]{ --panel:#060606; --panel2:rgba(10,10,10,0.74); --nav:#030303; --border:rgba(255,255,255,0.16); --accent:#d9d9d9; --accent-hover:#ffffff; --text-on-accent:#101010; --bubble-them:rgba(17,17,17,0.86);} 
+body.light-theme[data-ui-theme="obsidian"]{ --panel:#fafafa; --panel2:rgba(250,250,250,0.92); --nav:#ffffff; --border:rgba(90,90,90,0.22); --accent:#4a4a4a; --accent-hover:#666666; --text-on-accent:#ffffff; --bubble-them:rgba(238,238,238,0.96);} 
+body[data-ui-theme="royal"]{ --panel:#0e0b1b; --panel2:rgba(14,11,27,0.72); --nav:#090613; --border:rgba(139,92,246,0.34); --accent:#8b5cf6; --accent-hover:#b39aff; --bubble-them:rgba(20,15,36,0.82);} 
+body.light-theme[data-ui-theme="royal"]{ --panel:#faf7ff; --panel2:rgba(250,247,255,0.90); --nav:#ffffff; --border:rgba(97,69,173,0.20); --accent:#6145ad; --accent-hover:#7b5ccc; --bubble-them:rgba(239,234,250,0.96);} 
+body[data-ui-theme="peach"]{ --panel:#180d0b; --panel2:rgba(24,13,11,0.72); --nav:#120806; --border:rgba(255,172,142,0.34); --accent:#ffac8e; --accent-hover:#ffd0bf; --text-on-accent:#1d0f0b; --bubble-them:rgba(28,16,13,0.82);} 
+body.light-theme[data-ui-theme="peach"]{ --panel:#fff9f7; --panel2:rgba(255,249,247,0.90); --nav:#ffffff; --border:rgba(184,102,75,0.22); --accent:#b8664b; --accent-hover:#d07d5e; --bubble-them:rgba(250,238,234,0.96);} 
+body[data-ui-theme="terminal"]{ --panel:#07100a; --panel2:rgba(7,16,10,0.72); --nav:#040a06; --border:rgba(77,255,125,0.34); --accent:#4dff7d; --accent-hover:#a3ffbb; --text-on-accent:#07100a; --bubble-them:rgba(10,19,12,0.84);} 
+body.light-theme[data-ui-theme="terminal"]{ --panel:#f6fff8; --panel2:rgba(246,255,248,0.90); --nav:#ffffff; --border:rgba(34,128,57,0.22); --accent:#228039; --accent-hover:#2fa64b; --bubble-them:rgba(233,248,236,0.96);} 
+body[data-ui-theme="storm"]{ --panel:#0c1116; --panel2:rgba(12,17,22,0.72); --nav:#080c10; --border:rgba(144,164,174,0.30); --accent:#90a4ae; --accent-hover:#b7c5cb; --bubble-them:rgba(16,22,29,0.84);} 
+body.light-theme[data-ui-theme="storm"]{ --panel:#f7fafc; --panel2:rgba(247,250,252,0.90); --nav:#ffffff; --border:rgba(88,102,112,0.22); --accent:#586670; --accent-hover:#6f7f8a; --bubble-them:rgba(236,241,244,0.96);} 
+body[data-ui-theme="mint"]{ --panel:#081512; --panel2:rgba(8,21,18,0.72); --nav:#04100d; --border:rgba(122,255,206,0.34); --accent:#7affce; --accent-hover:#b7ffe4; --text-on-accent:#07130f; --bubble-them:rgba(10,24,20,0.84);} 
+body.light-theme[data-ui-theme="mint"]{ --panel:#f5fffc; --panel2:rgba(245,255,252,0.90); --nav:#ffffff; --border:rgba(44,141,108,0.22); --accent:#2c8d6c; --accent-hover:#39aa84; --bubble-them:rgba(232,247,242,0.96);} 
+body[data-ui-theme="plum"]{ --panel:#140a16; --panel2:rgba(20,10,22,0.72); --nav:#0d0610; --border:rgba(196,113,237,0.34); --accent:#c471ed; --accent-hover:#e0b0ff; --bubble-them:rgba(23,12,26,0.84);} 
+body.light-theme[data-ui-theme="plum"]{ --panel:#fcf7ff; --panel2:rgba(252,247,255,0.90); --nav:#ffffff; --border:rgba(119,61,152,0.22); --accent:#773d98; --accent-hover:#9250b6; --bubble-them:rgba(242,234,248,0.96);} 
+body[data-ui-theme="gold"]{ --panel:#171304; --panel2:rgba(23,19,4,0.72); --nav:#100d03; --border:rgba(255,215,87,0.34); --accent:#ffd757; --accent-hover:#ffe79d; --text-on-accent:#1c1604; --bubble-them:rgba(28,23,6,0.84);} 
+body.light-theme[data-ui-theme="gold"]{ --panel:#fffdf4; --panel2:rgba(255,253,244,0.90); --nav:#ffffff; --border:rgba(163,126,17,0.22); --accent:#a37e11; --accent-hover:#c59615; --bubble-them:rgba(247,242,222,0.96);} 
+body[data-ui-theme="volcano"]{ --panel:#1b0906; --panel2:rgba(27,9,6,0.72); --nav:#130604; --border:rgba(255,93,56,0.34); --accent:#ff5d38; --accent-hover:#ff9e8a; --bubble-them:rgba(31,11,7,0.84);} 
+body.light-theme[data-ui-theme="volcano"]{ --panel:#fff7f4; --panel2:rgba(255,247,244,0.90); --nav:#ffffff; --border:rgba(180,64,31,0.22); --accent:#b4401f; --accent-hover:#d95b34; --bubble-them:rgba(249,233,227,0.96);} 
+body[data-ui-theme="glacier"]{ --panel:#061118; --panel2:rgba(6,17,24,0.72); --nav:#040b10; --border:rgba(107,208,255,0.34); --accent:#6bd0ff; --accent-hover:#bdeeff; --text-on-accent:#061118; --bubble-them:rgba(9,20,28,0.84);} 
+body.light-theme[data-ui-theme="glacier"]{ --panel:#f4fcff; --panel2:rgba(244,252,255,0.90); --nav:#ffffff; --border:rgba(46,116,148,0.22); --accent:#2e7494; --accent-hover:#3d93bc; --bubble-them:rgba(231,244,249,0.96);} 
+body[data-ui-theme="nightshade"]{ --panel:#100914; --panel2:rgba(16,9,20,0.72); --nav:#09050b; --border:rgba(154,120,255,0.34); --accent:#9a78ff; --accent-hover:#c7b6ff; --bubble-them:rgba(18,11,23,0.84);} 
+body.light-theme[data-ui-theme="nightshade"]{ --panel:#fbf9ff; --panel2:rgba(251,249,255,0.90); --nav:#ffffff; --border:rgba(89,66,155,0.22); --accent:#59429b; --accent-hover:#7157bc; --bubble-them:rgba(239,236,249,0.96);} 
+body[data-ui-theme="sand"]{ --panel:#17110a; --panel2:rgba(23,17,10,0.72); --nav:#100b06; --border:rgba(224,192,137,0.32); --accent:#e0c089; --accent-hover:#f0d8af; --text-on-accent:#181108; --bubble-them:rgba(27,21,13,0.84);} 
+body.light-theme[data-ui-theme="sand"]{ --panel:#fffaf3; --panel2:rgba(255,250,243,0.90); --nav:#ffffff; --border:rgba(145,112,56,0.22); --accent:#917038; --accent-hover:#b38b45; --bubble-them:rgba(246,239,225,0.96);} 
+body[data-ui-theme="aqua"]{ --panel:#071518; --panel2:rgba(7,21,24,0.72); --nav:#040e10; --border:rgba(79,227,214,0.34); --accent:#4fe3d6; --accent-hover:#a6f5ee; --text-on-accent:#071518; --bubble-them:rgba(9,23,27,0.84);} 
+body.light-theme[data-ui-theme="aqua"]{ --panel:#f4fffe; --panel2:rgba(244,255,254,0.90); --nav:#ffffff; --border:rgba(29,127,119,0.22); --accent:#1d7f77; --accent-hover:#28a094; --bubble-them:rgba(229,247,245,0.96);} 
+body[data-ui-theme="orchid"]{ --panel:#140b18; --panel2:rgba(20,11,24,0.72); --nav:#0d0610; --border:rgba(231,140,255,0.34); --accent:#e78cff; --accent-hover:#f3c3ff; --bubble-them:rgba(23,13,28,0.84);} 
+body.light-theme[data-ui-theme="orchid"]{ --panel:#fff7ff; --panel2:rgba(255,247,255,0.90); --nav:#ffffff; --border:rgba(145,71,165,0.22); --accent:#9147a5; --accent-hover:#b05fc6; --bubble-them:rgba(247,235,249,0.96);} 
+
+"""
+except Exception:
+    pass
+
+
+try:
+    BUT_CSS += r"""
+/* Extra saved theme styles (Settings). The top-bar button still toggles only dark/light. */
+body[data-ui-theme="matrix"]{
+  --panel:#07130c;
+  --panel2:rgba(8, 20, 12, 0.64);
+  --nav:#030a05;
+  --border:rgba(110,255,166,0.40);
+  --accent:#74ffaf;
+  --accent-hover:#b0ffd0;
+  --bubble-them:rgba(8,20,12,0.72);
+  --shadow:0 18px 50px rgba(0,24,8,0.42);
+}
+body.light-theme[data-ui-theme="matrix"]{
+  --panel:#f5fff7;
+  --panel2:rgba(245,255,247,0.82);
+  --nav:#ffffff;
+  --border:rgba(25,135,84,0.24);
+  --accent:#198754;
+  --accent-hover:#20a76a;
+  --bubble-them:rgba(232,248,238,0.92);
+}
+body[data-ui-theme="ocean"]{
+  --panel:#08121d;
+  --panel2:rgba(10,22,34,0.66);
+  --nav:#050d16;
+  --border:rgba(116,192,252,0.38);
+  --accent:#74c0fc;
+  --accent-hover:#a5d8ff;
+  --bubble-them:rgba(11,26,40,0.76);
+}
+body.light-theme[data-ui-theme="ocean"]{
+  --panel:#f4fbff;
+  --panel2:rgba(244,251,255,0.84);
+  --nav:#ffffff;
+  --border:rgba(36,112,176,0.22);
+  --accent:#2470b0;
+  --accent-hover:#2f86d0;
+  --bubble-them:rgba(232,243,252,0.94);
+}
+body[data-ui-theme="amber"]{
+  --panel:#1b1205;
+  --panel2:rgba(30,21,8,0.66);
+  --nav:#120b03;
+  --border:rgba(255,193,7,0.34);
+  --accent:#ffc107;
+  --accent-hover:#ffd65c;
+  --text-on-accent:#1b1205;
+  --bubble-them:rgba(30,21,8,0.78);
+}
+body.light-theme[data-ui-theme="amber"]{
+  --panel:#fffaf1;
+  --panel2:rgba(255,250,241,0.86);
+  --nav:#ffffff;
+  --border:rgba(201,129,0,0.22);
+  --accent:#c98100;
+  --accent-hover:#e39f27;
+  --bubble-them:rgba(251,242,221,0.96);
+}
+body[data-ui-theme="crimson"]{
+  --panel:#1a070b;
+  --panel2:rgba(29,10,15,0.66);
+  --nav:#120407;
+  --border:rgba(255,107,107,0.34);
+  --accent:#ff6b6b;
+  --accent-hover:#ffa8a8;
+  --bubble-them:rgba(30,10,15,0.78);
+}
+body.light-theme[data-ui-theme="crimson"]{
+  --panel:#fff5f6;
+  --panel2:rgba(255,245,246,0.84);
+  --nav:#ffffff;
+  --border:rgba(184,53,76,0.22);
+  --accent:#b8354c;
+  --accent-hover:#d5536c;
+  --bubble-them:rgba(252,233,237,0.95);
+}
+body[data-ui-theme="silver"]{
+  --panel:#111318;
+  --panel2:rgba(18,20,25,0.68);
+  --nav:#0b0d10;
+  --border:rgba(210,218,226,0.30);
+  --accent:#d2dae2;
+  --accent-hover:#eef2f5;
+  --text-on-accent:#0b0d10;
+  --bubble-them:rgba(22,24,30,0.82);
+}
+body.light-theme[data-ui-theme="silver"]{
+  --panel:#fbfcfd;
+  --panel2:rgba(251,252,253,0.88);
+  --nav:#ffffff;
+  --border:rgba(97,108,120,0.22);
+  --accent:#616c78;
+  --accent-hover:#778392;
+  --text-on-accent:#ffffff;
+  --bubble-them:rgba(238,241,244,0.96);
+}
+body[data-ui-theme="rose"]{
+  --panel:#180911;
+  --panel2:rgba(25,10,18,0.68);
+  --nav:#10050b;
+  --border:rgba(247,131,172,0.34);
+  --accent:#f783ac;
+  --accent-hover:#ffb3c6;
+  --text-on-accent:#180911;
+  --bubble-them:rgba(26,10,19,0.80);
+}
+body.light-theme[data-ui-theme="rose"]{
+  --panel:#fff7fb;
+  --panel2:rgba(255,247,251,0.88);
+  --nav:#ffffff;
+  --border:rgba(181,72,117,0.22);
+  --accent:#b54875;
+  --accent-hover:#cf5f8f;
+  --bubble-them:rgba(252,237,245,0.96);
+}
+"""
+except Exception:
+    pass
+
+
+
+try:
+    TRANSLATIONS_EL.update({
+        "Face Detector": "Ανιχνευτής προσώπου",
+        "Open the built-in camera or upload a photo/video to detect faces.": "Άνοιξε την ενσωματωμένη κάμερα ή ανέβασε φωτογραφία/βίντεο για ανίχνευση προσώπων.",
+        "Use the save button to store a captured result in your Downloads/ButSystem/Face Detector folder when available.": "Χρησιμοποίησε το κουμπί αποθήκευσης για να αποθηκεύσεις το αποτέλεσμα στον φάκελο Downloads/ButSystem/Face Detector όταν είναι διαθέσιμος.",
+        "The top bar theme button still switches only between dark and light. Extra style presets are available in Settings.": "Το κουμπί θέματος στην πάνω μπάρα συνεχίζει να αλλάζει μόνο μεταξύ σκούρου και φωτεινού. Επιπλέον στυλ υπάρχουν στις Ρυθμίσεις.",
+        "Use the built-in camera or upload a photo/video to detect faces.": "Χρησιμοποίησε την ενσωματωμένη κάμερα ή ανέβασε φωτογραφία/βίντεο για να ανιχνεύσεις πρόσωπα.",
+        "Saved captures go to your Downloads/ButSystem/Face Detector folder when available.": "Οι αποθηκευμένες λήψεις πηγαίνουν στον φάκελο Downloads/ButSystem/Face Detector όταν είναι διαθέσιμος.",
+        "Start camera": "Έναρξη κάμερας",
+        "Switch camera": "Εναλλαγή κάμερας",
+        "Upload photo/video": "Μεταφόρτωση φωτογραφίας/βίντεο",
+        "Save result": "Αποθήκευση αποτελέσματος",
+        "Back to live camera": "Επιστροφή στη ζωντανή κάμερα",
+        "Ready.": "Έτοιμο.",
+        "Tip: On phones, camera access may require HTTPS or the same browser permissions used by the rest of ButSystem.": "Στα τηλέφωνα, η πρόσβαση στην κάμερα μπορεί να απαιτεί HTTPS ή τα ίδια δικαιώματα browser που χρησιμοποιεί το υπόλοιπο ButSystem.",
+        "Starting camera...": "Εκκίνηση κάμερας...",
+        "Live camera ready.": "Η ζωντανή κάμερα είναι έτοιμη.",
+        "Camera access failed. Try HTTPS or grant camera permission.": "Η πρόσβαση στην κάμερα απέτυχε. Δοκίμασε HTTPS ή δώσε άδεια κάμερας.",
+        "Analyzing uploaded media...": "Ανάλυση ανεβασμένου μέσου...",
+        "Could not analyze the uploaded media.": "Δεν ήταν δυνατή η ανάλυση του ανεβασμένου μέσου.",
+        "Please choose a photo or video file.": "Επίλεξε αρχείο φωτογραφίας ή βίντεο.",
+        "Face": "Πρόσωπο",
+        "Detected faces": "Ανιχνευμένα πρόσωπα",
+        "No face detected.": "Δεν ανιχνεύτηκε πρόσωπο.",
+        "Saving result...": "Αποθήκευση αποτελέσματος...",
+        "Saved to": "Αποθηκεύτηκε στο",
+        "Could not save the result.": "Δεν ήταν δυνατή η αποθήκευση του αποτελέσματος.",
+        "Nothing to save yet.": "Δεν υπάρχει ακόμη κάτι για αποθήκευση.",
+        "Theme style": "Στυλ θέματος",
+        "Customize theme style, accent color, and font (saved per account).": "Προσαρμόστε το στυλ θέματος, το χρώμα έμφασης και τη γραμματοσειρά (αποθηκεύεται ανά λογαριασμό).",
+        "This changes the saved color style for the interface. The top button still only switches between dark and light.": "Αυτό αλλάζει το αποθηκευμένο στυλ χρωμάτων της διεπαφής. Το πάνω κουμπί συνεχίζει να αλλάζει μόνο μεταξύ σκούρου και φωτεινού.",
+        "Default": "Προεπιλογή",
+        "Matrix": "Matrix",
+        "Ocean": "Ωκεανός",
+        "Amber": "Κεχριμπάρι",
+        "Crimson": "Βαθυκόκκινο",
+        "Silver": "Ασημί",
+        "Appearance mode": "Λειτουργία εμφάνισης",
+        "Dark": "Σκούρο",
+        "Light": "Φωτεινό",
+        "System": "Συστήματος",
+        "Choose dark/light mode and color style.": "Επίλεξε σκούρο/φωτεινό και στυλ χρωμάτων.",
+        "This changes only the dark/light mode for this browser on this device.": "Αυτό αλλάζει μόνο τη φωτεινή/σκούρα λειτουργία για αυτόν τον browser σε αυτή τη συσκευή.",
+        "This changes the saved color style for the interface.": "Αυτό αλλάζει το αποθηκευμένο στυλ χρωμάτων της διεπαφής.",
+        "Rose": "Ροζ",
+        "Panic": "Πανικός",
+        "Resume": "Συνέχεια",
+        "Panic mode is active. Sensitive content is blurred until you resume.": "Η λειτουργία πανικού είναι ενεργή. Το ευαίσθητο περιεχόμενο είναι θολωμένο μέχρι να συνεχίσεις.",
+        "Appearance": "Εμφάνιση",
+        "Themes and fonts are here. Choose your saved interface style for this account.": "Τα θέματα και οι γραμματοσειρές είναι εδώ. Επίλεξε το αποθηκευμένο στυλ διεπαφής για αυτόν τον λογαριασμό.",
+        "Security settings": "Ρυθμίσεις ασφαλείας",
+        "30 saved color styles are available here.": "Εδώ υπάρχουν 30 αποθηκευμένα χρωματικά στυλ.",
+        "12 Greek and English friendly font stacks are available here.": "Εδώ υπάρχουν 12 στοίβες γραμματοσειρών φιλικές για Ελληνικά και Αγγλικά.",
+        "Open full appearance settings": "Άνοιγμα πλήρων ρυθμίσεων εμφάνισης",
+        "Forest": "Δάσος",
+        "Midnight": "Μεσάνυχτα",
+        "Neon": "Νέον",
+        "Lavender": "Λεβάντα",
+        "Cyber": "Κυβερνο",
+        "Emerald": "Σμαραγδί",
+        "Sunset": "Ηλιοβασίλεμα",
+        "Ice": "Πάγος",
+        "Coffee": "Καφές",
+        "Obsidian": "Οψιδιανός",
+        "Royal": "Βασιλικό",
+        "Peach": "Ροδάκινο",
+        "Terminal": "Τερματικό",
+        "Storm": "Καταιγίδα",
+        "Mint": "Μέντα",
+        "Plum": "Δαμάσκηνο",
+        "Gold": "Χρυσό",
+        "Volcano": "Ηφαίστειο",
+        "Glacier": "Παγετώνας",
+        "Nightshade": "Νυχτολούλουδο",
+        "Sand": "Άμμος",
+        "Aqua": "Aqua",
+        "Orchid": "Ορχιδέα",
+        "System": "Συστήματος",
+        "Clean Sans": "Καθαρό Sans",
+        "Readable Sans": "Ευανάγνωστο Sans",
+        "Compact Sans": "Συμπαγές Sans",
+        "Humanist Sans": "Humanist Sans",
+        "Modern UI": "Μοντέρνο UI",
+        "Rounded UI": "Στρογγυλεμένο UI",
+        "Wide Sans": "Φαρδύ Sans",
+        "News Serif": "News Serif",
+        "Classic Serif": "Κλασικό Serif",
+        "Monospace": "Μονοπλάτος",
+        "Terminal Mono": "Μονοπλάτος Τερματικού",
+        "Back to settings": "Πίσω στις ρυθμίσεις",
+        "Ready. Tap Start camera.": "Έτοιμο. Πάτησε Εκκίνηση κάμερας.",
+        "Tip: On phones, if the camera is busy in another app, close that app first and then tap Start camera again.": "Στα κινητά, αν η κάμερα χρησιμοποιείται από άλλη εφαρμογή, κλείσ' την πρώτα και μετά πάτησε ξανά Εκκίνηση κάμερας.",
+    })
+except Exception:
+    pass
 
 if __name__ == "__main__":
     try:
