@@ -2145,40 +2145,11 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**ButSystem.py** is a self-hosted, **local-first** workspace for Termux that keeps chats, files, profiles, and workflow tools together in one browser interface running on your own device.
+**ButSystem.py** is a self-hosted, **local-first** workspace that runs on your own device through Termux. It is designed to bring private communication, organized files, access control, and structured profile workflows into one browser interface instead of scattering them across separate scripts and menus.
 
-### What it includes
+Rather than being only a chat page, ButSystem combines login and signup flow, user approval, device access control, remembered-device login, optional security-question 2FA, password recovery, direct messages, group chats, discussion space, stories, live-location sharing, file-vault navigation, profile editing, reports, admin controls, and security settings in one place. It also includes the **Profiler** area for encrypted profile entries, export and combine tools, bounty-related management where enabled, chat PIN locks, and the built-in **Face Detector** workflow that fits into the wider ButSystem environment.
 
-- account signup and login flows
-- admin approval for new users
-- device approval requests and remembered-device auto-login
-- optional security-question 2FA and recovery-oriented security settings
-- live direct messages with saved messages, search, online status, delivered/seen states, voice notes, GIFs, and file sharing
-- group chats with membership management and role-based controls
-- discussion, reports, and news pages inside the same interface
-- profile editing with nickname, bio, links, photo, and expandable optional fields
-- private file vault management
-- stories with reactions and 24-hour visibility
-- opt-in live location sharing
-- encrypted **Profiler** entries with local search, export, combine, attachments, and admin bounty management where enabled
-- built-in **Face Detector** support for camera, photo, or video checks with saved captures when available
-- settings for password changes, security questions, accent color, font, theme, and other account controls
-- admin pages for user management, access approval, and logs
-
-### Storage & privacy notes
-
-- ButSystem runs on your own device and keeps its workspace local unless you intentionally share a link.
-- Text messages and **Profiler** entries are stored encrypted at rest.
-- Files and voice items stay on the device for speed and compatibility.
-
-### How to use
-
-1. Run **ButSystem.py** from your DedSec setup.
-2. Open the generated local link in your browser.
-3. Use the burger menu to switch between chats, groups, files, stories, reports, profile, settings, admin, and the other available sections.
-4. Configure **Settings → Security** before inviting other people.
-
-### Reminder
+In practice, you run the script, open the generated local link, and move through the system with the burger menu. That gives you a cleaner way to switch between chats, groups, calls, files, profile pages, Profiler, reports, settings, and admin tools without leaving the same local-first workspace.
 
 Use only on systems you own or where you have explicit permission.
 
@@ -2187,45 +2158,15 @@ Use only on systems you own or where you have explicit permission.
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **ButSystem.py** είναι ένα self-hosted, **local-first** workspace για Termux που κρατά συνομιλίες, αρχεία, προφίλ και εργαλεία workflow μαζί σε ένα browser interface που τρέχει στη δική σου συσκευή.
+Το **ButSystem.py** είναι ένα self-hosted, **local-first** workspace που τρέχει στη δική σου συσκευή μέσω Termux. Έχει σχεδιαστεί για να φέρνει ιδιωτική επικοινωνία, οργανωμένα αρχεία, έλεγχο πρόσβασης και structured profile workflows μέσα σε ένα browser interface αντί να τα σκορπίζει σε ξεχωριστά scripts και μενού.
 
-### Τι περιλαμβάνει
+Δεν είναι απλώς μια σελίδα chat. Το ButSystem ενώνει login και signup flow, user approval, device access control, remembered-device login, προαιρετικό 2FA με security questions, password recovery, direct messages, group chats, discussion space, stories, live-location sharing, file-vault navigation, profile editing, reports, admin controls και security settings σε ένα σημείο. Περιλαμβάνει επίσης την περιοχή **Profiler** για κρυπτογραφημένες profile entries, export και combine tools, bounty-related management όπου είναι ενεργό, chat PIN locks και το ενσωματωμένο **Face Detector** workflow που ταιριάζει μέσα στο ευρύτερο περιβάλλον του ButSystem.
 
-- signup και login flows λογαριασμών
-- admin έγκριση για νέους χρήστες
-- device approval requests και remembered-device auto-login
-- προαιρετικό 2FA με security questions και security settings προσανατολισμένα στην ανάκτηση
-- live direct messages με saved messages, αναζήτηση, online status, delivered/seen states, voice notes, GIFs και file sharing
-- group chats με διαχείριση μελών και role-based controls
-- discussion, reports και news pages μέσα στο ίδιο interface
-- επεξεργασία προφίλ με nickname, bio, links, φωτογραφία και expandable optional fields
-- private file vault management
-- stories με reactions και ορατότητα 24 ωρών
-- προαιρετικό live location sharing
-- κρυπτογραφημένες εγγραφές **Profiler** με local search, export, combine, attachments και admin bounty management όπου είναι ενεργό
-- ενσωματωμένο **Face Detector** για camera, photo ή video checks με αποθήκευση captures όπου είναι διαθέσιμη
-- ρυθμίσεις για αλλαγή κωδικού, security questions, accent color, γραμματοσειρά, theme και άλλα account controls
-- admin pages για διαχείριση χρηστών, approval πρόσβασης και logs
-
-### Σημειώσεις αποθήκευσης & απορρήτου
-
-- Το ButSystem τρέχει στη δική σου συσκευή και κρατά το workspace τοπικά εκτός αν μοιραστείς εσύ επίτηδες κάποιο link.
-- Τα text messages και οι εγγραφές **Profiler** αποθηκεύονται κρυπτογραφημένα at rest.
-- Τα αρχεία και τα voice items μένουν στη συσκευή για ταχύτητα και συμβατότητα.
-
-### Πώς χρησιμοποιείται
-
-1. Τρέξε το **ButSystem.py** μέσα από το DedSec setup σου.
-2. Άνοιξε στο browser το local link που θα δημιουργηθεί.
-3. Χρησιμοποίησε το burger menu για να αλλάζεις ανάμεσα σε chats, groups, files, stories, reports, profile, settings, admin και τις υπόλοιπες διαθέσιμες ενότητες.
-4. Ρύθμισε το **Settings → Security** πριν καλέσεις άλλα άτομα.
-
-### Υπενθύμιση
+Στην πράξη, τρέχεις το script, ανοίγεις το local link που δημιουργεί και κινείσαι μέσα στο σύστημα από το burger menu. Αυτό σου δίνει πιο καθαρό τρόπο να αλλάζεις ανάμεσα σε chats, groups, calls, files, profile pages, Profiler, reports, settings και admin tools χωρίς να βγαίνεις από το ίδιο local-first workspace.
 
 Να χρησιμοποιείται μόνο σε συστήματα που σου ανήκουν ή για τα οποία έχεις ρητή άδεια.
 
 </details>
-
 
 ---
 
