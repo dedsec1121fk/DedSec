@@ -25,12 +25,15 @@ STATE_FILE = DATA_DIR / "state.json"
 USER_AGENT = "DedSec-Market-Termux/1.1"
 GITHUB_API = "https://api.github.com"
 CACHE_TTL_SECONDS = 1800
-PARSER_VERSION = 4
+PARSER_VERSION = 5
 
 REPOSITORIES = [
     {
         "url": "https://github.com/dedsec1121fk/Offline-Survival-Project",
-    }
+    },
+    {
+        "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project",
+    },
 ]
 
 SESSION_CACHE = {}
