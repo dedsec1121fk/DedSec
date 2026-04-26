@@ -17,12 +17,12 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
-APP_NAME = "DedSec Market"
+APP_NAME = "DedSec Market GR"
 SCRIPT_NAME = "DedSec Market GR.py"
-DATA_DIR = Path.home() / "DedSec Market"
-CACHE_DIR = DATA_DIR / "cache_el"
+DATA_DIR = Path.home() / "DedSec Market GR"
+CACHE_DIR = DATA_DIR / "cache"
 STATE_FILE = DATA_DIR / "state.json"
-USER_AGENT = "DedSec-Market-Termux/1.1"
+USER_AGENT = "DedSec-Market-Termux-GR/1.1"
 GITHUB_API = "https://api.github.com"
 CACHE_TTL_SECONDS = 1800
 PARSER_VERSION = 5
@@ -30,7 +30,10 @@ PARSER_VERSION = 5
 REPOSITORIES = [
     {
         "url": "https://github.com/dedsec1121fk/Offline-Survival-Project",
-    }
+    },
+    {
+        "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project",
+    },
 ]
 
 SESSION_CACHE = {}
@@ -89,7 +92,7 @@ def parse_repo_url(url):
     parsed = urllib.parse.urlparse(url)
     parts = [p for p in parsed.path.strip("/").split("/") if p]
     if len(parts) < 2:
-        raise MarketError(f"Invalid GitHub repository URL: {url}")
+        raise MarketError(f"Μη έγκυρο URL αποθετηρίου GitHub: {url}")
     owner, repo = parts[0], parts[1]
     return owner, repo
 
@@ -143,30 +146,6 @@ def english_ratio(text):
         return 0.0
     latin = sum(1 for c in letters if "A" <= c <= "Z" or "a" <= c <= "z")
     return latin / max(len(letters), 1)
-
-
-def greek_ratio(text):
-    letters = [c for c in text if c.isalpha()]
-    if not letters:
-        return 0.0
-    greek = sum(1 for c in letters if (0x0370 <= ord(c) <= 0x03FF) or (0x1F00 <= ord(c) <= 0x1FFF))
-    return greek / max(len(letters), 1)
-
-
-def language_marker_matches(summary_text, language):
-    summary_text = summary_text.lower().strip()
-    if language == "el":
-        return (
-            "ελλην" in summary_text or
-            "greek" in summary_text or
-            "🇬🇷" in summary_text or
-            summary_text in {"el", "gr", "greek", "ελληνικά"}
-        )
-    return (
-        "english" in summary_text or
-        "🇬🇧" in summary_text or
-        summary_text == "en"
-    )
 
 
 class ReadmeHTMLTextExtractor(HTMLParser):
@@ -281,7 +260,7 @@ def strip_markdown(text):
     return text.strip()
 
 
-def extract_details_language_section(readme_text, language):
+def extract_details_english_section(readme_text):
     details_pattern = re.compile(r"<details[^>]*>(.*?)</details>", re.IGNORECASE | re.DOTALL)
     summary_pattern = re.compile(r"<summary[^>]*>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
 
@@ -291,8 +270,8 @@ def extract_details_language_section(readme_text, language):
         summary_match = summary_pattern.search(block)
         if not summary_match:
             continue
-        summary_text = strip_markdown(summary_match.group(1))
-        if language_marker_matches(summary_text, language):
+        summary_text = strip_markdown(summary_match.group(1)).lower()
+        if "english" in summary_text or "🇬🇧" in summary_text or summary_text.strip() == "en":
             inner = summary_pattern.sub("", block, count=1).strip()
             if inner:
                 sections.append(inner)
@@ -302,12 +281,12 @@ def extract_details_language_section(readme_text, language):
     return "\n\n".join(sections)
 
 
-def extract_heading_language_section(readme_text, language):
+def extract_heading_english_section(readme_text):
     lines = readme_text.splitlines()
     sections = []
     capture = []
-    in_target = False
-    target_level = None
+    in_english = False
+    english_level = None
 
     def flush_capture():
         nonlocal capture
@@ -321,21 +300,21 @@ def extract_heading_language_section(readme_text, language):
         heading_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if heading_match:
             hashes, heading_text = heading_match.groups()
-            heading_clean = strip_markdown(heading_text)
-            if language_marker_matches(heading_clean, language):
-                if in_target:
+            heading_lower = strip_markdown(heading_text).lower()
+            if "english" in heading_lower or "🇬🇧" in heading_lower:
+                if in_english:
                     flush_capture()
-                in_target = True
-                target_level = len(hashes)
+                in_english = True
+                english_level = len(hashes)
                 capture = []
                 continue
-            if in_target and len(hashes) <= (target_level or 6):
+            if in_english and len(hashes) <= (english_level or 6):
                 flush_capture()
-                in_target = False
-        if in_target:
+                in_english = False
+        if in_english:
             capture.append(line)
 
-    if in_target:
+    if in_english:
         flush_capture()
 
     if not sections:
@@ -343,52 +322,137 @@ def extract_heading_language_section(readme_text, language):
     return "\n\n".join(sections)
 
 
-def extract_preferred_readme_text(readme_text, repo_description="", preferred_language="el", fallback_language="en"):
-    if not readme_text:
-        return repo_description or "Δεν βρέθηκε περιγραφή README.", fallback_language
+def is_noise_block(block):
+    low = block.lower().strip()
+    stop_headings = [
+        "repository structure", "what each part does", "termux download",
+        "install", "run and update", "main script features", "final note",
+        "license", "contributing", "usage", "requirements"
+    ]
+    return any(low == item or low.startswith(item + ":") for item in stop_headings)
 
-    preferred = extract_details_language_section(readme_text, preferred_language)
+
+def extract_english_summary(readme_text, repo_description=""):
+    if not readme_text:
+        return repo_description or "Δεν υπάρχει διαθέσιμη περιγραφή README."
+
+    preferred = extract_details_english_section(readme_text)
     if not preferred:
-        preferred = extract_heading_language_section(readme_text, preferred_language)
+        preferred = extract_heading_english_section(readme_text)
+
+    # If there is an explicit English section, return all of it after cleaning.
     if preferred:
         cleaned = strip_markdown(preferred)
-        return cleaned or repo_description or "Δεν βρέθηκε περιγραφή README.", preferred_language
+        return cleaned or repo_description or "Δεν υπάρχει διαθέσιμη περιγραφή README."
 
-    fallback = extract_details_language_section(readme_text, fallback_language)
-    if not fallback:
-        fallback = extract_heading_language_section(readme_text, fallback_language)
-    if fallback:
-        cleaned = strip_markdown(fallback)
-        return cleaned or repo_description or "Δεν βρέθηκε περιγραφή README.", fallback_language
+    # Otherwise keep the whole cleaned README, but drop obviously non-English blocks.
+    cleaned = strip_markdown(readme_text)
+    kept_blocks = []
+    for block in re.split(r"\n\s*\n", cleaned):
+        block = block.strip()
+        if not block:
+            continue
+        if contains_greek(block) and english_ratio(block) < 0.6:
+            continue
+        kept_blocks.append(block)
+
+    full_text = "\n\n".join(kept_blocks).strip()
+    return full_text or repo_description or "Δεν υπάρχει διαθέσιμη περιγραφή README."
+
+
+def extract_details_greek_section(readme_text):
+    details_pattern = re.compile(r"<details[^>]*>(.*?)</details>", re.IGNORECASE | re.DOTALL)
+    summary_pattern = re.compile(r"<summary[^>]*>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
+
+    sections = []
+    for block_match in details_pattern.finditer(readme_text):
+        block = block_match.group(1)
+        summary_match = summary_pattern.search(block)
+        if not summary_match:
+            continue
+        summary_text = strip_markdown(summary_match.group(1)).lower()
+        if (
+            "greek" in summary_text
+            or "ελλην" in summary_text
+            or "🇬🇷" in summary_text
+            or summary_text.strip() in {"gr", "el", "ελ"}
+        ):
+            inner = summary_pattern.sub("", block, count=1).strip()
+            if inner:
+                sections.append(inner)
+
+    if not sections:
+        return None
+    return "\n\n".join(sections)
+
+
+def extract_heading_greek_section(readme_text):
+    lines = readme_text.splitlines()
+    sections = []
+    capture = []
+    in_greek = False
+    greek_level = None
+
+    def flush_capture():
+        nonlocal capture
+        result = "\n".join(capture).strip()
+        if result:
+            sections.append(result)
+        capture = []
+
+    for line in lines:
+        stripped = line.strip()
+        heading_match = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading_match:
+            hashes, heading_text = heading_match.groups()
+            heading_lower = strip_markdown(heading_text).lower()
+            if "greek" in heading_lower or "ελλην" in heading_lower or "🇬🇷" in heading_lower:
+                if in_greek:
+                    flush_capture()
+                in_greek = True
+                greek_level = len(hashes)
+                capture = []
+                continue
+            if in_greek and len(hashes) <= (greek_level or 6):
+                flush_capture()
+                in_greek = False
+        if in_greek:
+            capture.append(line)
+
+    if in_greek:
+        flush_capture()
+
+    if not sections:
+        return None
+    return "\n\n".join(sections)
+
+
+def extract_greek_summary(readme_text, repo_description=""):
+    if not readme_text:
+        return repo_description or "Δεν υπάρχει διαθέσιμη περιγραφή README."
+
+    preferred = extract_details_greek_section(readme_text)
+    if not preferred:
+        preferred = extract_heading_greek_section(readme_text)
+
+    if preferred:
+        cleaned = strip_markdown(preferred)
+        return cleaned or repo_description or "Δεν υπάρχει διαθέσιμη περιγραφή README."
 
     cleaned = strip_markdown(readme_text)
-    blocks = []
+    greek_blocks = []
     for block in re.split(r"\n\s*\n", cleaned):
         block = block.strip()
         if not block:
             continue
-        if preferred_language == "el":
-            if greek_ratio(block) >= 0.35:
-                blocks.append(block)
-        else:
-            if english_ratio(block) >= 0.35:
-                blocks.append(block)
+        if contains_greek(block):
+            greek_blocks.append(block)
 
-    if blocks:
-        return "\n\n".join(blocks).strip(), preferred_language
+    greek_text = "\n\n".join(greek_blocks).strip()
+    if greek_text:
+        return greek_text
 
-    fallback_blocks = []
-    for block in re.split(r"\n\s*\n", cleaned):
-        block = block.strip()
-        if not block:
-            continue
-        if english_ratio(block) >= 0.35:
-            fallback_blocks.append(block)
-
-    if fallback_blocks:
-        return "\n\n".join(fallback_blocks).strip(), fallback_language
-
-    return cleaned or repo_description or "Δεν βρέθηκε περιγραφή README.", fallback_language
+    return extract_english_summary(readme_text, repo_description)
 
 
 def run_command(command, cwd=None):
@@ -408,11 +472,11 @@ def ensure_git():
 
     pkg = shutil.which("pkg")
     if not pkg:
-        raise MarketError("Το git δεν είναι εγκατεστημένο και δεν βρέθηκε το Termux pkg.")
+        raise MarketError("Το git δεν είναι εγκατεστημένο και δεν βρέθηκε το pkg του Termux.")
 
     code, output = run_command([pkg, "install", "-y", "git"])
     if code != 0 or not shutil.which("git"):
-        raise MarketError(f"Αποτυχία αυτόματης εγκατάστασης του git.\n{output}")
+        raise MarketError(f"Απέτυχε η αυτόματη εγκατάσταση του git.\n{output}")
 
 
 # -----------------------------
@@ -468,10 +532,10 @@ def cache_is_fresh(cached):
 
 def human_cache_age(cached):
     if not cached:
-        return "No cache"
+        return "Δεν υπάρχει cache"
     cached_at = int(cached.get("_cached_at", 0))
     if cached_at <= 0:
-        return "Unknown"
+        return "Άγνωστο"
     seconds = int(time.time() - cached_at)
     if seconds < 60:
         return f"{seconds}s ago"
@@ -507,7 +571,7 @@ def github_request(url, not_found_ok=False):
             message = payload.get("message", str(e))
         except Exception:
             message = str(e)
-        raise MarketError(f"Το αίτημα προς το GitHub απέτυχε: {message}")
+        raise MarketError(f"Το αίτημα προς GitHub απέτυχε: {message}")
     except urllib.error.URLError as e:
         raise MarketError(f"Σφάλμα δικτύου: {e.reason}")
 
@@ -537,14 +601,14 @@ def github_readme(owner, repo):
             message = payload.get("message", str(e))
         except Exception:
             message = str(e)
-        raise MarketError(f"Αποτυχία λήψης README: {message}")
+        raise MarketError(f"Απέτυχε η λήψη του README: {message}")
     except urllib.error.URLError as e:
         raise MarketError(f"Σφάλμα δικτύου: {e.reason}")
 
 
 def summarize_release_body(body):
     if not body:
-        return "No release notes available."
+        return "Δεν υπάρχουν διαθέσιμες σημειώσεις έκδοσης."
     body = strip_markdown(body)
     parts = []
     for block in re.split(r"\n\s*\n", body):
@@ -555,7 +619,7 @@ def summarize_release_body(body):
         if len(parts) >= 3:
             break
     summary = "\n\n".join(parts).strip()
-    return summary or "No release notes available."
+    return summary or "Δεν υπάρχουν διαθέσιμες σημειώσεις έκδοσης."
 
 
 def get_repo_info(app, refresh=False):
@@ -597,19 +661,12 @@ def get_repo_info(app, refresh=False):
         release_info = None
         if isinstance(release_data, dict):
             release_info = {
-                "tag": release_data.get("tag_name") or "Unknown",
-                "name": release_data.get("name") or "Unnamed release",
-                "published_at": release_data.get("published_at") or "Unknown",
+                "tag": release_data.get("tag_name") or "Άγνωστο",
+                "name": release_data.get("name") or "Ανώνυμη έκδοση",
+                "published_at": release_data.get("published_at") or "Άγνωστο",
                 "notes": summarize_release_body(release_data.get("body", "")),
                 "url": release_data.get("html_url") or "",
             }
-
-        readme_text_clean, readme_lang_used = extract_preferred_readme_text(
-            readme_text,
-            repo_data.get("description", ""),
-            preferred_language="el",
-            fallback_language="en",
-        )
 
         info = {
             "slug": slug,
@@ -617,8 +674,7 @@ def get_repo_info(app, refresh=False):
             "url": app["url"],
             "full_name": repo_data.get("full_name", slug),
             "creator": creator,
-            "description": readme_text_clean,
-            "readme_lang_used": readme_lang_used,
+            "description": extract_greek_summary(readme_text, repo_data.get("description", "")),
             "stars": int(repo_data.get("stargazers_count", 0)),
             "forks": int(repo_data.get("forks_count", 0)),
             "watchers": int(repo_data.get("subscribers_count", repo_data.get("watchers_count", 0))),
@@ -627,11 +683,11 @@ def get_repo_info(app, refresh=False):
             "contributors": contributor_names,
             "default_branch": repo_data.get("default_branch", "main"),
             "release": release_info,
-            "_source": "live",
+            "_source": "ζωντανά",
         }
 
         save_cached_info(slug, info)
-        info["_source"] = f"live (cached now)"
+        info["_source"] = f"ζωντανά (αποθηκεύτηκε τώρα)"
         SESSION_CACHE[slug] = info
         return info
     except Exception:
@@ -672,7 +728,7 @@ def install_app(app, state):
 
     code, output = run_command(["git", "clone", app["url"], str(install_path)])
     if code != 0:
-        raise MarketError(f"Install failed.\n{output}")
+        raise MarketError(f"Η εγκατάσταση απέτυχε.\n{output}")
 
     state["installed"][slug] = {
         "display_name": app["display_name"],
@@ -693,11 +749,11 @@ def update_app(app, state):
 
     path = Path(item["path"])
     if not path.exists():
-        raise MarketError("Δεν βρέθηκε ο εγκατεστημένος φάκελος στον δίσκο.")
+        raise MarketError("Ο εγκατεστημένος φάκελος δεν βρέθηκε στη συσκευή.")
 
     code, output = run_command(["git", "-C", str(path), "pull", "--ff-only"])
     if code != 0:
-        raise MarketError(f"Update failed.\n{output}")
+        raise MarketError(f"Η ενημέρωση απέτυχε.\n{output}")
 
     item["updated_at"] = int(time.time())
     save_state(state)
@@ -797,27 +853,27 @@ def run_installed_app(stdscr, app, state):
 
     install_path = Path(item["path"])
     if not install_path.exists():
-        raise MarketError("Δεν βρέθηκε ο εγκατεστημένος φάκελος στον δίσκο.")
+        raise MarketError("Ο εγκατεστημένος φάκελος δεν βρέθηκε στη συσκευή.")
 
     target = detect_launch_target(app, install_path)
     if not target:
-        raise MarketError("Δεν βρέθηκε αρχείο εκκίνησης μέσα στο εγκατεστημένο repository.")
+        raise MarketError("Δεν εντοπίστηκε αρχείο εκκίνησης στο εγκατεστημένο αποθετήριο.")
 
     if target.suffix.lower() == ".py":
         command = ["python", str(target)]
     elif target.suffix.lower() == ".sh":
         command = ["bash", str(target)]
     else:
-        raise MarketError(f"Μη υποστηριζόμενο αρχείο εκκίνησης: {target.name}")
+        raise MarketError(f"Unsupported launch target: {target.name}")
 
     curses.def_prog_mode()
     curses.endwin()
     try:
-        print(f"\n{APP_NAME} εκκινεί: {target.name}")
-        print(f"Path: {target}")
+        print(f"\n{APP_NAME} ανοίγει: {target.name}")
+        print(f"Διαδρομή: {target}")
         print("\nΠάτα Ctrl+C μέσα στην εφαρμογή αν θέλεις να τη σταματήσεις.\n")
         subprocess.run(command, cwd=str(target.parent))
-        input("\nΠάτα Enter για επιστροφή στο DedSec Market...")
+        input("\nΠάτα Enter για επιστροφή στο DedSec Market GR...")
     finally:
         curses.reset_prog_mode()
         stdscr.refresh()
@@ -953,7 +1009,7 @@ def main_menu(stdscr, state):
     selected = 0
 
     while True:
-        draw_header(stdscr, "Κεντρικό Μενού", f"Data folder: {DATA_DIR}")
+        draw_header(stdscr, "Κύριο Μενού", f"Φάκελος δεδομένων: {DATA_DIR}")
         for idx, item in enumerate(items):
             y = 4 + idx
             attr = curses.A_REVERSE if idx == selected else 0
@@ -1004,7 +1060,7 @@ def app_list_screen(stdscr, state, title, apps, allow_search=True):
         if selected < 0:
             selected = 0
 
-        subtitle = f"Total: {len(filtered)}"
+        subtitle = f"Σύνολο: {len(filtered)}"
         if allow_search:
             subtitle += f" | Αναζήτηση: {query or '(γράψε για αναζήτηση)'}"
         draw_header(stdscr, title, subtitle)
@@ -1023,7 +1079,7 @@ def app_list_screen(stdscr, state, title, apps, allow_search=True):
                 watched = app["slug"] in state["watchlist"]
                 flags = []
                 if installed:
-                    flags.append("Installed")
+                    flags.append("Εγκατεστημένο")
                 if watched:
                     flags.append("Λίστα Παρακολούθησης")
                 line = app["display_name"]
@@ -1034,7 +1090,7 @@ def app_list_screen(stdscr, state, title, apps, allow_search=True):
 
         footer = "Enter: λεπτομέρειες | B: πίσω"
         if allow_search:
-            footer += " | Πληκτρολόγηση: αναζήτηση | Backspace: διαγραφή | Esc: καθαρισμός"
+            footer += " | Γράψε: αναζήτηση | Backspace: διαγραφή | Esc: καθάρισμα"
         draw_footer(stdscr, footer)
         stdscr.refresh()
 
@@ -1071,7 +1127,7 @@ def app_detail_screen(stdscr, state, app):
     while True:
         if info is None and error_message is None:
             draw_header(stdscr, app["display_name"], "Φόρτωση λεπτομερειών αποθετηρίου...")
-            draw_footer(stdscr, "Περίμενε...")
+            draw_footer(stdscr, "Παρακαλώ περίμενε")
             stdscr.refresh()
             try:
                 info = get_repo_info(app)
@@ -1093,41 +1149,40 @@ def app_detail_screen(stdscr, state, app):
         else:
             installed = app["slug"] in state["installed"]
             watched = app["slug"] in state["watchlist"]
-            contributors_text = ", ".join(info["contributors"]) if info["contributors"] else "None"
+            contributors_text = ", ".join(info["contributors"]) if info["contributors"] else "Κανένας"
             release = info.get("release")
-            readme_label = "README (Ελληνικά, καθαρισμένο):" if info.get("readme_lang_used") == "el" else "README (Αγγλικά, καθαρισμένο):"
             if release:
                 release_text = (
-                    f"Tag: {release['tag']}\n"
-                    f"Name: {release['name']}\n"
-                    f"Published: {release['published_at']}\n"
-                    f"Notes:\n{release['notes']}"
+                    f"Ετικέτα: {release['tag']}\n"
+                    f"Όνομα: {release['name']}\n"
+                    f"Δημοσιεύτηκε: {release['published_at']}\n"
+                    f"Σημειώσεις:\n{release['notes']}"
                 )
             else:
-                release_text = "Δεν βρέθηκε GitHub release."
+                release_text = "Δεν βρέθηκε έκδοση στο GitHub."
 
-            install_path = state["installed"].get(app["slug"], {}).get("path", "Not installed")
+            install_path = state["installed"].get(app["slug"], {}).get("path", "Δεν είναι εγκατεστημένο")
 
             body_blocks = [
-                f"Όνομα Project: {info['display_name']}",
-                f"Πλήρες Repository: {info['full_name']}",
+                f"Όνομα Έργου: {info['display_name']}",
+                f"Πλήρες Αποθετήριο: {info['full_name']}",
                 f"Δημιουργός: {info['creator']}",
-                f"Repository: {info['url']}",
-                f"Stars: {info['stars']}  |  Forks: {info['forks']}  |  Watchers: {info['watchers']}",
-                f"Ανοιχτά Issues: {info['issues_count']}",
-                f"Εγκατεστημένο: {'Ναι' if installed else 'Όχι'}  |  Παρακολούθηση: {'Ναι' if watched else 'Όχι'}",
+                f"Αποθετήριο: {info['url']}",
+                f"Αστέρια: {info['stars']}  |  Forks: {info['forks']}  |  Watchers: {info['watchers']}",
+                f"Ανοιχτά Θέματα: {info['issues_count']}",
+                f"Εγκατεστημένο: {'Ναι' if installed else 'Όχι'}  |  Λίστα Παρακολούθησης: {'Ναι' if watched else 'Όχι'}",
                 f"Διαδρομή Εγκατάστασης: {install_path}",
                 "",
-                "Τελευταία Release:",
+                "Τελευταία Έκδοση:",
                 release_text,
                 "",
-                "Contributors:",
+                "Συνεισφέροντες:",
                 contributors_text,
                 "",
-                "Ανοιχτά Issues (τελευταία):",
-                ("\n".join(f"- {title}" for title in info['issues']) if info['issues'] else "Δεν βρέθηκαν ανοιχτά issues."),
+                "Ανοιχτά Θέματα (τελευταία):",
+                ("\n".join(f"- {title}" for title in info['issues']) if info['issues'] else "Δεν βρέθηκαν ανοιχτά θέματα."),
                 "",
-                readme_label,
+                "README (καθαρισμένο):",
                 info["description"],
             ]
 
@@ -1153,7 +1208,7 @@ def app_detail_screen(stdscr, state, app):
                 footer_parts.extend(["U: ενημέρωση", "D: διαγραφή", "X: εκτέλεση"])
             else:
                 footer_parts.append("I: εγκατάσταση")
-            footer_parts.append("W: παρακολούθηση")
+            footer_parts.append("W: λίστα παρακολούθησης")
             footer_parts.append("Βελάκια: κύλιση")
         draw_footer(stdscr, " | ".join(footer_parts))
         stdscr.refresh()
@@ -1187,11 +1242,11 @@ def app_detail_screen(stdscr, state, app):
         elif key in (ord("u"), ord("U")) and app["slug"] in state["installed"]:
             try:
                 output = update_app(app, state)
-                prompt_message(stdscr, app["display_name"], output or "Η ενημέρωση ολοκληρώθηκε.")
+                prompt_message(stdscr, app["display_name"], output or "Ενημερώθηκε με επιτυχία.")
             except Exception as e:
                 prompt_message(stdscr, app["display_name"], str(e))
         elif key in (ord("d"), ord("D")) and app["slug"] in state["installed"]:
-            confirm = prompt_confirm(stdscr, app["display_name"], "Να διαγραφεί αυτή η εγκατεστημένη εφαρμογή από το home directory;")
+            confirm = prompt_confirm(stdscr, app["display_name"], "Να διαγραφεί αυτή η εγκατεστημένη εφαρμογή από τον αρχικό φάκελο;")
             if confirm:
                 try:
                     path = delete_app(app, state)
@@ -1233,7 +1288,7 @@ def main():
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        print(f"{APP_NAME} σταμάτησε με σφάλμα: {e}")
+        print(f"{APP_NAME} κόλλησε: {e}")
 
 
 if __name__ == "__main__":
