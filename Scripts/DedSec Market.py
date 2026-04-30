@@ -9,6 +9,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import textwrap
 import time
 import urllib.error
@@ -17,23 +18,23 @@ import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
-APP_NAME = "DedSec Market"
-SCRIPT_NAME = "DedSec Market.py"
-DATA_DIR = Path.home() / "DedSec Market"
+LANG = "en"
+
+TEXT = {'app_name': 'DedSec Market', 'invalid_repo_url': 'Invalid GitHub repository URL: {url}', 'no_readme_description': 'No README description available.', 'git_missing_and_no_pkg': 'git is not installed and Termux pkg was not found.', 'git_install_failed': 'Failed to install git automatically.\n{output}', 'no_cache': 'No cache', 'unknown': 'Unknown', 'github_request_failed': 'GitHub request failed: {message}', 'network_error': 'Network error: {reason}', 'readme_fetch_failed': 'Failed to fetch README: {message}', 'no_release_notes': 'No release notes available.', 'cache_with_age': 'cache ({age})', 'live_cached_now': 'live (cached now)', 'cache_fallback_with_age': 'cache fallback ({age})', 'unnamed_release': 'Unnamed release', 'download_repo_failed': 'Failed to download the repository again before replacing files.\n{output}', 'already_installed': 'This app is already installed.', 'not_installed': 'This app is not installed.', 'installed_folder_missing': 'Installed folder was not found on disk.', 'update_success_replaced': 'Update completed. The repository was downloaded again and the old files were replaced in:\n{path}', 'no_installed_apps': 'No installed apps were found.', 'no_launch_target': 'No launchable main file was detected in the installed repository.', 'unsupported_launch_target': 'Unsupported launch target: {name}', 'launching_file': 'DedSec Market is launching: {name}', 'path_label': 'Path: {path}', 'ctrlc_stop': 'Press Ctrl+C inside the launched app if you want to stop it.', 'press_enter_return': 'Press Enter to return to DedSec Market...', 'press_any_key_continue': 'Press any key to continue', 'confirm_line': 'Press Y to confirm or N to cancel', 'find_apps': 'Find Apps', 'installed_apps': 'Installed Apps', 'watchlist': 'Watchlist', 'update_all_installed': 'Update All Installed', 'exit': 'Exit', 'main_menu': 'Main Menu', 'data_folder': 'Data folder: {path}', 'main_menu_footer': 'Arrow keys: move | Enter: open | Q: quit', 'total_count': 'Total: {count}', 'search_status': 'Search: {query}', 'type_to_search': '(type to search)', 'no_apps_found': 'No apps found.', 'installed_flag': 'Installed', 'watchlist_flag': 'Watchlist', 'list_footer_basic': 'Enter: details | B: back', 'list_footer_search': 'Type: search | Backspace: delete | Esc: clear', 'loading_repository_details': 'Loading repository details...', 'please_wait': 'Please wait', 'source_label': 'Source: {source}', 'none': 'None', 'tag_label': 'Tag', 'name_label': 'Name', 'published_label': 'Published', 'notes_label': 'Notes', 'no_github_release': 'No GitHub release found.', 'project_name': 'Project Name', 'full_repository': 'Full Repository', 'creator': 'Creator', 'repository_label': 'Repository', 'stars': 'Stars', 'forks': 'Forks', 'watchers': 'Watchers', 'open_issues': 'Open Issues', 'installed_status': 'Installed', 'watchlist_status': 'Watchlist', 'yes': 'Yes', 'no': 'No', 'install_path': 'Install Path', 'latest_release': 'Latest Release:', 'contributors': 'Contributors:', 'latest_open_issues': 'Open Issues (latest):', 'no_open_issues_found': 'No open issues found.', 'readme_english_cleaned': 'README (English cleaned):', 'back_footer': 'B: back', 'refresh_footer': 'R: refresh', 'update_footer': 'U: update', 'delete_footer': 'D: delete', 'run_footer': 'X: run', 'install_footer': 'I: install', 'watchlist_footer': 'W: watchlist', 'scroll_footer': 'Arrows: scroll', 'added_to_watchlist': 'Added to watchlist.', 'removed_from_watchlist': 'Removed from watchlist.', 'installed_successfully_to': 'Installed successfully to:\n{path}', 'updated_successfully': 'Updated successfully.', 'delete_confirm': 'Delete this installed app from your home directory?', 'deleted_path': 'Deleted:\n{path}', 'returned_from': 'Returned from:\n{name}'}
+
+APP_NAME = TEXT["app_name"]
+SCRIPT_NAME = APP_NAME + ".py"
+DATA_DIR = Path.home() / APP_NAME
 CACHE_DIR = DATA_DIR / "cache"
 STATE_FILE = DATA_DIR / "state.json"
-USER_AGENT = "DedSec-Market-Termux/1.1"
+USER_AGENT = "DedSec-Market-Termux/1.2"
 GITHUB_API = "https://api.github.com"
 CACHE_TTL_SECONDS = 1800
-PARSER_VERSION = 5
+PARSER_VERSION = 6
 
 REPOSITORIES = [
-    {
-        "url": "https://github.com/dedsec1121fk/Offline-Survival-Project",
-    },
-    {
-        "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project",
-    },
+    {"url": "https://github.com/dedsec1121fk/Offline-Survival-Project"},
+    {"url": "https://github.com/dedsec1121fk/Corrupted-Files-Project"},
 ]
 
 SESSION_CACHE = {}
@@ -43,9 +44,15 @@ class MarketError(Exception):
     pass
 
 
-# -----------------------------
-# General helpers
-# -----------------------------
+def tr(key, **kwargs):
+    value = TEXT.get(key, key)
+    if kwargs:
+        try:
+            return value.format(**kwargs)
+        except Exception:
+            return value
+    return value
+
 
 def ensure_data_dir():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -53,10 +60,7 @@ def ensure_data_dir():
 
 
 def default_state():
-    return {
-        "installed": {},
-        "watchlist": []
-    }
+    return {"installed": {}, "watchlist": []}
 
 
 def load_state():
@@ -65,7 +69,6 @@ def load_state():
         state = default_state()
         save_state(state)
         return state
-
     try:
         with STATE_FILE.open("r", encoding="utf-8") as f:
             data = json.load(f)
@@ -73,10 +76,8 @@ def load_state():
         data = default_state()
         save_state(data)
         return data
-
     if not isinstance(data, dict):
         data = default_state()
-
     data.setdefault("installed", {})
     data.setdefault("watchlist", [])
     return data
@@ -92,7 +93,7 @@ def parse_repo_url(url):
     parsed = urllib.parse.urlparse(url)
     parts = [p for p in parsed.path.strip("/").split("/") if p]
     if len(parts) < 2:
-        raise MarketError(f"Invalid GitHub repository URL: {url}")
+        raise MarketError(tr("invalid_repo_url", url=url))
     owner, repo = parts[0], parts[1]
     return owner, repo
 
@@ -204,24 +205,15 @@ def html_to_text(text):
 
 
 def strip_markdown(text):
-    # Convert fenced code blocks to plain text content without markdown fences.
     text = re.sub(r"```[^\n]*\n(.*?)```", lambda m: "\n" + m.group(1).strip() + "\n", text, flags=re.DOTALL)
     text = re.sub(r"~~~[^\n]*\n(.*?)~~~", lambda m: "\n" + m.group(1).strip() + "\n", text, flags=re.DOTALL)
-
-    # Remove HTML comments and noisy blocks.
     text = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
     text = re.sub(r"<style.*?>.*?</style>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<script.*?>.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
-
-    # Remove markdown images and convert links to plain text labels.
     text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
-
-    # Convert HTML to plain text for mixed HTML/Markdown READMEs.
     if "<" in text and ">" in text:
         text = html_to_text(text)
-
-    # Remove inline code markers while keeping the text inside them.
     text = re.sub(r"`([^`]+)`", r"\1", text)
 
     cleaned_lines = []
@@ -233,15 +225,12 @@ def strip_markdown(text):
                 cleaned_lines.append("")
             previous_blank = True
             continue
-
         if line in {"---", "***", "___"}:
             continue
         if re.match(r"^\|?\s*[-: ]+\|[-|: ]*$", line):
             continue
-
         line = re.sub(r"^#{1,6}\s*", "", line)
         line = re.sub(r"^>\s*", "", line)
-
         bullet_match = re.match(r"^[-*+]\s+(.*)$", line)
         if bullet_match:
             line = "• " + bullet_match.group(1).strip()
@@ -249,12 +238,10 @@ def strip_markdown(text):
             number_match = re.match(r"^(\d+)\.\s+(.*)$", line)
             if number_match:
                 line = f"{number_match.group(1)}. {number_match.group(2).strip()}"
-
         line = re.sub(r"\s+", " ", line).strip()
         if line:
             cleaned_lines.append(line)
             previous_blank = False
-
     text = "\n".join(cleaned_lines)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
@@ -263,7 +250,6 @@ def strip_markdown(text):
 def extract_details_english_section(readme_text):
     details_pattern = re.compile(r"<details[^>]*>(.*?)</details>", re.IGNORECASE | re.DOTALL)
     summary_pattern = re.compile(r"<summary[^>]*>(.*?)</summary>", re.IGNORECASE | re.DOTALL)
-
     sections = []
     for block_match in details_pattern.finditer(readme_text):
         block = block_match.group(1)
@@ -275,7 +261,6 @@ def extract_details_english_section(readme_text):
             inner = summary_pattern.sub("", block, count=1).strip()
             if inner:
                 sections.append(inner)
-
     if not sections:
         return None
     return "\n\n".join(sections)
@@ -313,39 +298,22 @@ def extract_heading_english_section(readme_text):
                 in_english = False
         if in_english:
             capture.append(line)
-
     if in_english:
         flush_capture()
-
     if not sections:
         return None
     return "\n\n".join(sections)
 
 
-def is_noise_block(block):
-    low = block.lower().strip()
-    stop_headings = [
-        "repository structure", "what each part does", "termux download",
-        "install", "run and update", "main script features", "final note",
-        "license", "contributing", "usage", "requirements"
-    ]
-    return any(low == item or low.startswith(item + ":") for item in stop_headings)
-
-
 def extract_english_summary(readme_text, repo_description=""):
     if not readme_text:
-        return repo_description or "No README description available."
-
+        return repo_description or tr("no_readme_description")
     preferred = extract_details_english_section(readme_text)
     if not preferred:
         preferred = extract_heading_english_section(readme_text)
-
-    # If there is an explicit English section, return all of it after cleaning.
     if preferred:
         cleaned = strip_markdown(preferred)
-        return cleaned or repo_description or "No README description available."
-
-    # Otherwise keep the whole cleaned README, but drop obviously non-English blocks.
+        return cleaned or repo_description or tr("no_readme_description")
     cleaned = strip_markdown(readme_text)
     kept_blocks = []
     for block in re.split(r"\n\s*\n", cleaned):
@@ -355,9 +323,8 @@ def extract_english_summary(readme_text, repo_description=""):
         if contains_greek(block) and english_ratio(block) < 0.6:
             continue
         kept_blocks.append(block)
-
     full_text = "\n\n".join(kept_blocks).strip()
-    return full_text or repo_description or "No README description available."
+    return full_text or repo_description or tr("no_readme_description")
 
 
 def run_command(command, cwd=None):
@@ -374,19 +341,13 @@ def run_command(command, cwd=None):
 def ensure_git():
     if shutil.which("git"):
         return
-
     pkg = shutil.which("pkg")
     if not pkg:
-        raise MarketError("git is not installed and Termux pkg was not found.")
-
+        raise MarketError(tr("git_missing_and_no_pkg"))
     code, output = run_command([pkg, "install", "-y", "git"])
     if code != 0 or not shutil.which("git"):
-        raise MarketError(f"Failed to install git automatically.\n{output}")
+        raise MarketError(tr("git_install_failed", output=output))
 
-
-# -----------------------------
-# Cache helpers
-# -----------------------------
 
 def cache_path_for_slug(slug):
     safe = slug.replace("/", "__")
@@ -437,10 +398,10 @@ def cache_is_fresh(cached):
 
 def human_cache_age(cached):
     if not cached:
-        return "No cache"
+        return tr("no_cache")
     cached_at = int(cached.get("_cached_at", 0))
     if cached_at <= 0:
-        return "Unknown"
+        return tr("unknown")
     seconds = int(time.time() - cached_at)
     if seconds < 60:
         return f"{seconds}s ago"
@@ -451,17 +412,10 @@ def human_cache_age(cached):
     return f"{hours}h ago"
 
 
-# -----------------------------
-# GitHub fetchers
-# -----------------------------
-
 def github_request(url, not_found_ok=False):
     request = urllib.request.Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": USER_AGENT,
-        },
+        headers={"Accept": "application/vnd.github+json", "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
@@ -476,19 +430,16 @@ def github_request(url, not_found_ok=False):
             message = payload.get("message", str(e))
         except Exception:
             message = str(e)
-        raise MarketError(f"GitHub request failed: {message}")
+        raise MarketError(tr("github_request_failed", message=message))
     except urllib.error.URLError as e:
-        raise MarketError(f"Network error: {e.reason}")
+        raise MarketError(tr("network_error", reason=e.reason))
 
 
 def github_readme(owner, repo):
     url = f"{GITHUB_API}/repos/{owner}/{repo}/readme"
     request = urllib.request.Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "User-Agent": USER_AGENT,
-        },
+        headers={"Accept": "application/vnd.github+json", "User-Agent": USER_AGENT},
     )
     try:
         with urllib.request.urlopen(request, timeout=20) as response:
@@ -506,14 +457,14 @@ def github_readme(owner, repo):
             message = payload.get("message", str(e))
         except Exception:
             message = str(e)
-        raise MarketError(f"Failed to fetch README: {message}")
+        raise MarketError(tr("readme_fetch_failed", message=message))
     except urllib.error.URLError as e:
-        raise MarketError(f"Network error: {e.reason}")
+        raise MarketError(tr("network_error", reason=e.reason))
 
 
 def summarize_release_body(body):
     if not body:
-        return "No release notes available."
+        return tr("no_release_notes")
     body = strip_markdown(body)
     parts = []
     for block in re.split(r"\n\s*\n", body):
@@ -524,20 +475,18 @@ def summarize_release_body(body):
         if len(parts) >= 3:
             break
     summary = "\n\n".join(parts).strip()
-    return summary or "No release notes available."
+    return summary or tr("no_release_notes")
 
 
 def get_repo_info(app, refresh=False):
     slug = app["slug"]
     if slug in SESSION_CACHE and not refresh:
         return SESSION_CACHE[slug]
-
     cached = load_cached_info(slug)
     if cached and cache_is_fresh(cached) and not refresh:
-        cached["_source"] = f"cache ({human_cache_age(cached)})"
+        cached["_source"] = tr("cache_with_age", age=human_cache_age(cached))
         SESSION_CACHE[slug] = cached
         return cached
-
     owner, repo = app["owner"], app["repo"]
     try:
         repo_data = github_request(f"{GITHUB_API}/repos/{owner}/{repo}")
@@ -545,7 +494,6 @@ def get_repo_info(app, refresh=False):
         issues_data = github_request(f"{GITHUB_API}/repos/{owner}/{repo}/issues?state=open&per_page=20")
         release_data = github_request(f"{GITHUB_API}/repos/{owner}/{repo}/releases/latest", not_found_ok=True)
         readme_text = github_readme(owner, repo)
-
         creator = repo_data.get("owner", {}).get("login") or owner
         contributor_names = []
         if isinstance(contributors, list):
@@ -553,7 +501,6 @@ def get_repo_info(app, refresh=False):
                 login = person.get("login")
                 if login:
                     contributor_names.append(login)
-
         issue_titles = []
         if isinstance(issues_data, list):
             for item in issues_data:
@@ -562,17 +509,15 @@ def get_repo_info(app, refresh=False):
                 title = item.get("title")
                 if title:
                     issue_titles.append(title)
-
         release_info = None
         if isinstance(release_data, dict):
             release_info = {
-                "tag": release_data.get("tag_name") or "Unknown",
-                "name": release_data.get("name") or "Unnamed release",
-                "published_at": release_data.get("published_at") or "Unknown",
+                "tag": release_data.get("tag_name") or tr("unknown"),
+                "name": release_data.get("name") or tr("unnamed_release"),
+                "published_at": release_data.get("published_at") or tr("unknown"),
                 "notes": summarize_release_body(release_data.get("body", "")),
                 "url": release_data.get("html_url") or "",
             }
-
         info = {
             "slug": slug,
             "display_name": app["display_name"],
@@ -588,24 +533,18 @@ def get_repo_info(app, refresh=False):
             "contributors": contributor_names,
             "default_branch": repo_data.get("default_branch", "main"),
             "release": release_info,
-            "_source": "live",
+            "_source": tr("live_cached_now"),
         }
-
         save_cached_info(slug, info)
-        info["_source"] = f"live (cached now)"
         SESSION_CACHE[slug] = info
         return info
     except Exception:
         if cached:
-            cached["_source"] = f"cache fallback ({human_cache_age(cached)})"
+            cached["_source"] = tr("cache_fallback_with_age", age=human_cache_age(cached))
             SESSION_CACHE[slug] = cached
             return cached
         raise
 
-
-# -----------------------------
-# Install / update / delete / run
-# -----------------------------
 
 def suggested_install_path(app):
     return Path.home() / app["repo"]
@@ -622,19 +561,58 @@ def unique_install_path(base_path):
         counter += 1
 
 
-def install_app(app, state):
+def clone_repo_to_temp(app):
     ensure_git()
+    temp_dir = Path(tempfile.mkdtemp(prefix="dedsec_market_update_"))
+    clone_path = temp_dir / app["repo"]
+    code, output = run_command(["git", "clone", "--depth", "1", app["url"], str(clone_path)])
+    if code != 0:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise MarketError(tr("download_repo_failed", output=output))
+    git_dir = clone_path / ".git"
+    if git_dir.exists():
+        shutil.rmtree(git_dir, ignore_errors=True)
+    return temp_dir, clone_path
+
+
+def clear_directory_contents(path, keep_names=None):
+    keep_names = set(keep_names or [])
+    for entry in path.iterdir():
+        if entry.name in keep_names:
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink(missing_ok=True)
+
+
+def copy_directory_contents(src, dst):
+    for entry in src.iterdir():
+        target = dst / entry.name
+        if entry.is_dir() and not entry.is_symlink():
+            if target.exists():
+                shutil.rmtree(target)
+            shutil.copytree(entry, target)
+        else:
+            if target.exists():
+                if target.is_dir():
+                    shutil.rmtree(target)
+                else:
+                    target.unlink()
+            shutil.copy2(entry, target)
+
+
+def install_app(app, state):
     slug = app["slug"]
     if slug in state["installed"]:
-        raise MarketError("This app is already installed.")
-
+        raise MarketError(tr("already_installed"))
     base_path = suggested_install_path(app)
     install_path = unique_install_path(base_path)
-
-    code, output = run_command(["git", "clone", app["url"], str(install_path)])
-    if code != 0:
-        raise MarketError(f"Install failed.\n{output}")
-
+    temp_dir, clone_path = clone_repo_to_temp(app)
+    try:
+        shutil.move(str(clone_path), str(install_path))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
     state["installed"][slug] = {
         "display_name": app["display_name"],
         "path": str(install_path),
@@ -646,35 +624,48 @@ def install_app(app, state):
 
 
 def update_app(app, state):
-    ensure_git()
     slug = app["slug"]
     item = state["installed"].get(slug)
     if not item:
-        raise MarketError("This app is not installed.")
-
+        raise MarketError(tr("not_installed"))
     path = Path(item["path"])
     if not path.exists():
-        raise MarketError("Installed folder was not found on disk.")
-
-    code, output = run_command(["git", "-C", str(path), "pull", "--ff-only"])
-    if code != 0:
-        raise MarketError(f"Update failed.\n{output}")
-
+        raise MarketError(tr("installed_folder_missing"))
+    temp_dir, clone_path = clone_repo_to_temp(app)
+    try:
+        clear_directory_contents(path, keep_names={".git"})
+        copy_directory_contents(clone_path, path)
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
     item["updated_at"] = int(time.time())
+    item["last_update_mode"] = "full_redownload_replace"
     save_state(state)
-    return output or "Already up to date."
+    return tr("update_success_replaced", path=path)
+
+
+def update_all_installed(state):
+    installed_slugs = [slug for slug in state["installed"] if slug in APP_MAP]
+    if not installed_slugs:
+        return [tr("no_installed_apps")]
+    results = []
+    for slug in installed_slugs:
+        app = APP_MAP[slug]
+        try:
+            message = update_app(app, state)
+            results.append(f"• {app['display_name']}: {message}")
+        except Exception as e:
+            results.append(f"• {app['display_name']}: {e}")
+    return results
 
 
 def delete_app(app, state):
     slug = app["slug"]
     item = state["installed"].get(slug)
     if not item:
-        raise MarketError("This app is not installed.")
-
+        raise MarketError(tr("not_installed"))
     path = Path(item["path"])
     if path.exists():
         shutil.rmtree(path)
-
     state["installed"].pop(slug, None)
     save_state(state)
     return path
@@ -707,25 +698,15 @@ def detect_launch_target(app, install_path):
     install_path = Path(install_path)
     if not install_path.exists():
         return None
-
     repo_name = app["repo"]
     cleaned_name = clean_repo_name(repo_name)
     candidate_names = [
         f"{cleaned_name}.py",
         f"{repo_name}.py",
-        "main.py",
-        "app.py",
-        "run.py",
-        "start.py",
-        "launch.py",
-        "index.py",
-        "install.sh",
-        "setup.sh",
-        "start.sh",
-        "run.sh",
+        "main.py", "app.py", "run.py", "start.py", "launch.py", "index.py",
+        "install.sh", "setup.sh", "start.sh", "run.sh",
     ]
     candidate_names_lower = [name.lower() for name in candidate_names]
-
     scored = []
     for root_path, files in walk_limited(install_path, max_depth=3):
         for file_name in files:
@@ -742,10 +723,8 @@ def detect_launch_target(app, install_path):
                 score += 4
             if score > 0:
                 scored.append((score, file_path))
-
     if not scored:
         return None
-
     scored.sort(key=lambda item: (-item[0], len(str(item[1]))))
     return scored[0][1]
 
@@ -754,41 +733,33 @@ def run_installed_app(stdscr, app, state):
     slug = app["slug"]
     item = state["installed"].get(slug)
     if not item:
-        raise MarketError("This app is not installed.")
-
+        raise MarketError(tr("not_installed"))
     install_path = Path(item["path"])
     if not install_path.exists():
-        raise MarketError("Installed folder was not found on disk.")
-
+        raise MarketError(tr("installed_folder_missing"))
     target = detect_launch_target(app, install_path)
     if not target:
-        raise MarketError("No launchable main file was detected in the installed repository.")
-
+        raise MarketError(tr("no_launch_target"))
     if target.suffix.lower() == ".py":
         command = ["python", str(target)]
     elif target.suffix.lower() == ".sh":
         command = ["bash", str(target)]
     else:
-        raise MarketError(f"Unsupported launch target: {target.name}")
+        raise MarketError(tr("unsupported_launch_target", name=target.name))
 
     curses.def_prog_mode()
     curses.endwin()
     try:
-        print(f"\n{APP_NAME} is launching: {target.name}")
-        print(f"Path: {target}")
-        print("\nPress Ctrl+C inside the launched app if you want to stop it.\n")
+        print("\n" + tr("launching_file", name=target.name))
+        print(tr("path_label", path=target))
+        print("\n" + tr("ctrlc_stop") + "\n")
         subprocess.run(command, cwd=str(target.parent))
-        input("\nPress Enter to return to DedSec Market...")
+        input("\n" + tr("press_enter_return"))
     finally:
         curses.reset_prog_mode()
         stdscr.refresh()
-
     return target
 
-
-# -----------------------------
-# Curses UI helpers
-# -----------------------------
 
 def init_colors():
     if curses.has_colors():
@@ -803,9 +774,7 @@ def init_colors():
 
 def add_line(stdscr, y, x, text, attr=0):
     height, width = stdscr.getmaxyx()
-    if y < 0 or y >= height:
-        return
-    if x >= width:
+    if y < 0 or y >= height or x >= width:
         return
     try:
         stdscr.addnstr(y, x, text, max(0, width - x - 1), attr)
@@ -842,12 +811,12 @@ def prompt_message(stdscr, title, message, wait_for_key=True):
     draw_header(stdscr, title)
     lines = []
     width = max(20, stdscr.getmaxyx()[1] - 6)
-    for block in message.split("\n"):
+    for block in str(message).split("\n"):
         wrapped = textwrap.wrap(block, width=width) or [""]
         lines.extend(wrapped)
     center_message(stdscr, lines, curses.color_pair(2))
     if wait_for_key:
-        draw_footer(stdscr, "Press any key to continue")
+        draw_footer(stdscr, tr("press_any_key_continue"))
     stdscr.refresh()
     if wait_for_key:
         stdscr.getch()
@@ -858,11 +827,11 @@ def prompt_confirm(stdscr, title, message):
         draw_header(stdscr, title)
         lines = []
         width = max(20, stdscr.getmaxyx()[1] - 6)
-        for block in message.split("\n"):
+        for block in str(message).split("\n"):
             wrapped = textwrap.wrap(block, width=width) or [""]
             lines.extend(wrapped)
         lines.append("")
-        lines.append("Press Y to confirm or N to cancel")
+        lines.append(tr("confirm_line"))
         center_message(stdscr, lines, curses.color_pair(4))
         stdscr.refresh()
         key = stdscr.getch()
@@ -884,12 +853,7 @@ def wrap_text_preserving_lines(text, width):
             bullet_prefix = "• "
             content = content[2:].strip()
         line_width = max(10, width - len(bullet_prefix))
-        pieces = textwrap.wrap(
-            content,
-            width=line_width,
-            break_long_words=False,
-            break_on_hyphens=False,
-        ) or [""]
+        pieces = textwrap.wrap(content, width=line_width, break_long_words=False, break_on_hyphens=False) or [""]
         for i, piece in enumerate(pieces):
             if bullet_prefix and i == 0:
                 wrapped.append(bullet_prefix + piece)
@@ -900,30 +864,25 @@ def wrap_text_preserving_lines(text, width):
     return wrapped
 
 
-# -----------------------------
-# Screens
-# -----------------------------
-
 def main_menu(stdscr, state):
     items = [
-        "Find Apps",
-        "Installed Apps",
-        "Watchlist",
-        "Exit",
+        tr("find_apps"),
+        tr("installed_apps"),
+        tr("watchlist"),
+        tr("update_all_installed"),
+        tr("exit"),
     ]
     selected = 0
-
     while True:
-        draw_header(stdscr, "Main Menu", f"Data folder: {DATA_DIR}")
+        draw_header(stdscr, tr("main_menu"), tr("data_folder", path=DATA_DIR))
         for idx, item in enumerate(items):
             y = 4 + idx
             attr = curses.A_REVERSE if idx == selected else 0
-            if item == "Exit":
+            if item == tr("exit"):
                 attr |= curses.color_pair(4)
             add_line(stdscr, y, 2, item, attr)
-        draw_footer(stdscr, "Arrow keys: move | Enter: open | Q: quit")
+        draw_footer(stdscr, tr("main_menu_footer"))
         stdscr.refresh()
-
         key = stdscr.getch()
         if key in (ord("q"), ord("Q")):
             return
@@ -933,45 +892,38 @@ def main_menu(stdscr, state):
             selected = (selected + 1) % len(items)
         elif key in (10, 13, curses.KEY_ENTER):
             choice = items[selected]
-            if choice == "Find Apps":
-                app_list_screen(stdscr, state, "Find Apps", APPS)
-            elif choice == "Installed Apps":
+            if choice == tr("find_apps"):
+                app_list_screen(stdscr, state, tr("find_apps"), APPS)
+            elif choice == tr("installed_apps"):
                 installed = [APP_MAP[slug] for slug in state["installed"] if slug in APP_MAP]
-                app_list_screen(stdscr, state, "Installed Apps", installed, allow_search=False)
-            elif choice == "Watchlist":
+                app_list_screen(stdscr, state, tr("installed_apps"), installed, allow_search=False)
+            elif choice == tr("watchlist"):
                 watched = [APP_MAP[slug] for slug in state["watchlist"] if slug in APP_MAP]
-                app_list_screen(stdscr, state, "Watchlist", watched, allow_search=False)
-            elif choice == "Exit":
+                app_list_screen(stdscr, state, tr("watchlist"), watched, allow_search=False)
+            elif choice == tr("update_all_installed"):
+                prompt_message(stdscr, tr("update_all_installed"), "\n".join(update_all_installed(state)))
+            elif choice == tr("exit"):
                 return
-
 
 
 def app_list_screen(stdscr, state, title, apps, allow_search=True):
     selected = 0
     query = ""
-
     while True:
         if allow_search and query:
-            filtered = [
-                app for app in apps
-                if query.lower() in app["display_name"].lower()
-                or query.lower() in app["slug"].lower()
-            ]
+            filtered = [app for app in apps if query.lower() in app["display_name"].lower() or query.lower() in app["slug"].lower()]
         else:
             filtered = list(apps)
-
         if selected >= len(filtered) and filtered:
             selected = len(filtered) - 1
         if selected < 0:
             selected = 0
-
-        subtitle = f"Total: {len(filtered)}"
+        subtitle = tr("total_count", count=len(filtered))
         if allow_search:
-            subtitle += f" | Search: {query or '(type to search)'}"
+            subtitle += " | " + tr("search_status", query=(query or tr("type_to_search")))
         draw_header(stdscr, title, subtitle)
-
         if not filtered:
-            add_line(stdscr, 4, 2, "No apps found.", curses.color_pair(4))
+            add_line(stdscr, 4, 2, tr("no_apps_found"), curses.color_pair(4))
         else:
             max_rows = max(1, stdscr.getmaxyx()[0] - 7)
             start = 0
@@ -984,21 +936,19 @@ def app_list_screen(stdscr, state, title, apps, allow_search=True):
                 watched = app["slug"] in state["watchlist"]
                 flags = []
                 if installed:
-                    flags.append("Installed")
+                    flags.append(tr("installed_flag"))
                 if watched:
-                    flags.append("Watchlist")
+                    flags.append(tr("watchlist_flag"))
                 line = app["display_name"]
                 if flags:
                     line += "  [" + ", ".join(flags) + "]"
                 attr = curses.A_REVERSE if actual == selected else 0
                 add_line(stdscr, 4 + idx, 2, line, attr)
-
-        footer = "Enter: details | B: back"
+        footer = tr("list_footer_basic")
         if allow_search:
-            footer += " | Type: search | Backspace: delete | Esc: clear"
+            footer += " | " + tr("list_footer_search")
         draw_footer(stdscr, footer)
         stdscr.refresh()
-
         key = stdscr.getch()
         if key in (ord("b"), ord("B"), 27):
             return
@@ -1023,101 +973,89 @@ def app_list_screen(stdscr, state, title, apps, allow_search=True):
                 selected = 0
 
 
-
 def app_detail_screen(stdscr, state, app):
     scroll = 0
     info = None
     error_message = None
-
     while True:
         if info is None and error_message is None:
-            draw_header(stdscr, app["display_name"], "Loading repository details...")
-            draw_footer(stdscr, "Please wait")
+            draw_header(stdscr, app["display_name"], tr("loading_repository_details"))
+            draw_footer(stdscr, tr("please_wait"))
             stdscr.refresh()
             try:
                 info = get_repo_info(app)
             except Exception as e:
                 error_message = str(e)
-
         subtitle = app["slug"]
         if info and info.get("_source"):
-            subtitle = f"{app['slug']} | Source: {info['_source']}"
+            subtitle = f"{app['slug']} | {tr('source_label', source=info['_source'])}"
         draw_header(stdscr, app["display_name"], subtitle)
         height, width = stdscr.getmaxyx()
-
         if error_message:
             wrapped = []
             for block in error_message.split("\n"):
                 wrapped.extend(textwrap.wrap(block, width=max(20, width - 4)) or [""])
-            for idx, line in enumerate(wrapped[: max(1, height - 6)]):
+            for idx, line in enumerate(wrapped[:max(1, height - 6)]):
                 add_line(stdscr, 4 + idx, 2, line, curses.color_pair(4))
         else:
             installed = app["slug"] in state["installed"]
             watched = app["slug"] in state["watchlist"]
-            contributors_text = ", ".join(info["contributors"]) if info["contributors"] else "None"
+            contributors_text = ", ".join(info["contributors"]) if info["contributors"] else tr("none")
             release = info.get("release")
             if release:
                 release_text = (
-                    f"Tag: {release['tag']}\n"
-                    f"Name: {release['name']}\n"
-                    f"Published: {release['published_at']}\n"
-                    f"Notes:\n{release['notes']}"
+                    f"{tr('tag_label')}: {release['tag']}\n"
+                    f"{tr('name_label')}: {release['name']}\n"
+                    f"{tr('published_label')}: {release['published_at']}\n"
+                    f"{tr('notes_label')}:\n{release['notes']}"
                 )
             else:
-                release_text = "No GitHub release found."
-
-            install_path = state["installed"].get(app["slug"], {}).get("path", "Not installed")
-
+                release_text = tr("no_github_release")
+            install_path = state["installed"].get(app["slug"], {}).get("path", tr("not_installed"))
             body_blocks = [
-                f"Project Name: {info['display_name']}",
-                f"Full Repository: {info['full_name']}",
-                f"Creator: {info['creator']}",
-                f"Repository: {info['url']}",
-                f"Stars: {info['stars']}  |  Forks: {info['forks']}  |  Watchers: {info['watchers']}",
-                f"Open Issues: {info['issues_count']}",
-                f"Installed: {'Yes' if installed else 'No'}  |  Watchlist: {'Yes' if watched else 'No'}",
-                f"Install Path: {install_path}",
+                f"{tr('project_name')}: {info['display_name']}",
+                f"{tr('full_repository')}: {info['full_name']}",
+                f"{tr('creator')}: {info['creator']}",
+                f"{tr('repository_label')}: {info['url']}",
+                f"{tr('stars')}: {info['stars']}  |  {tr('forks')}: {info['forks']}  |  {tr('watchers')}: {info['watchers']}",
+                f"{tr('open_issues')}: {info['issues_count']}",
+                f"{tr('installed_status')}: {tr('yes') if installed else tr('no')}  |  {tr('watchlist_status')}: {tr('yes') if watched else tr('no')}",
+                f"{tr('install_path')}: {install_path}",
                 "",
-                "Latest Release:",
+                tr("latest_release"),
                 release_text,
                 "",
-                "Contributors:",
+                tr("contributors"),
                 contributors_text,
                 "",
-                "Open Issues (latest):",
-                ("\n".join(f"- {title}" for title in info['issues']) if info['issues'] else "No open issues found."),
+                tr("latest_open_issues"),
+                ("\n".join(f"• {title}" for title in info['issues']) if info['issues'] else tr("no_open_issues_found")),
                 "",
-                "README (English cleaned):",
+                tr("readme_english_cleaned"),
                 info["description"],
             ]
-
             wrapped_lines = []
             for block in body_blocks:
                 if block == "":
                     wrapped_lines.append("")
                 else:
                     wrapped_lines.extend(wrap_text_preserving_lines(block, max(20, width - 4)))
-
             view_height = max(1, height - 6)
             max_scroll = max(0, len(wrapped_lines) - view_height)
             scroll = min(scroll, max_scroll)
             visible = wrapped_lines[scroll:scroll + view_height]
             for idx, line in enumerate(visible):
                 add_line(stdscr, 4 + idx, 2, line)
-
-        footer_parts = ["B: back", "R: refresh"]
-        if error_message:
-            footer_parts.append("Retry: R")
-        else:
+        footer_parts = [tr("back_footer"), tr("refresh_footer")]
+        if not error_message:
             if app["slug"] in state["installed"]:
-                footer_parts.extend(["U: update", "D: delete", "X: run"])
+                footer_parts.extend([tr("update_footer"), tr("delete_footer"), tr("run_footer")])
             else:
-                footer_parts.append("I: install")
-            footer_parts.append("W: watchlist")
-            footer_parts.append("Arrows: scroll")
+                footer_parts.append(tr("install_footer"))
+            footer_parts.append(tr("watchlist_footer"))
+            footer_parts.append(tr("scroll_footer"))
         draw_footer(stdscr, " | ".join(footer_parts))
         stdscr.refresh()
-
         key = stdscr.getch()
         if key in (ord("b"), ord("B")):
             return
@@ -1136,39 +1074,34 @@ def app_detail_screen(stdscr, state, app):
             scroll += 10
         elif key in (ord("w"), ord("W")):
             added = toggle_watchlist(app, state)
-            message = "Added to watchlist." if added else "Removed from watchlist."
-            prompt_message(stdscr, app["display_name"], message)
+            prompt_message(stdscr, app["display_name"], tr("added_to_watchlist") if added else tr("removed_from_watchlist"))
         elif key in (ord("i"), ord("I")) and app["slug"] not in state["installed"]:
             try:
                 path = install_app(app, state)
-                prompt_message(stdscr, app["display_name"], f"Installed successfully to:\n{path}")
+                prompt_message(stdscr, app["display_name"], tr("installed_successfully_to", path=path))
             except Exception as e:
                 prompt_message(stdscr, app["display_name"], str(e))
         elif key in (ord("u"), ord("U")) and app["slug"] in state["installed"]:
             try:
                 output = update_app(app, state)
-                prompt_message(stdscr, app["display_name"], output or "Updated successfully.")
+                prompt_message(stdscr, app["display_name"], output or tr("updated_successfully"))
             except Exception as e:
                 prompt_message(stdscr, app["display_name"], str(e))
         elif key in (ord("d"), ord("D")) and app["slug"] in state["installed"]:
-            confirm = prompt_confirm(stdscr, app["display_name"], "Delete this installed app from your home directory?")
+            confirm = prompt_confirm(stdscr, app["display_name"], tr("delete_confirm"))
             if confirm:
                 try:
                     path = delete_app(app, state)
-                    prompt_message(stdscr, app["display_name"], f"Deleted:\n{path}")
+                    prompt_message(stdscr, app["display_name"], tr("deleted_path", path=path))
                 except Exception as e:
                     prompt_message(stdscr, app["display_name"], str(e))
         elif key in (ord("x"), ord("X")) and app["slug"] in state["installed"]:
             try:
                 target = run_installed_app(stdscr, app, state)
-                prompt_message(stdscr, app["display_name"], f"Returned from:\n{target.name}")
+                prompt_message(stdscr, app["display_name"], tr("returned_from", name=target.name))
             except Exception as e:
                 prompt_message(stdscr, app["display_name"], str(e))
 
-
-# -----------------------------
-# Entry point
-# -----------------------------
 
 def verify_terminal():
     if not os.environ.get("TERM"):
