@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""
-Free Internet
-- Single whole UI
-- Lightweight Termux build for lower-end phones
-- /browser = local proxy browser with search engines, bookmarks, history, adblock, lite mode, bigger proxy pool, optional Tor mode
-- /vault = lightweight encrypted vault using OpenSSL CLI instead of Python cryptography
-No root required.
-"""
 
 import argparse
 import base64
