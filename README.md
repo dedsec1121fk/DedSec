@@ -444,7 +444,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Toolkit Summary
 
-- **Developer Base:** 9 tools
+- **Developer Base:** 10 tools
 - **Network Tools:** 10 tools
 - **Other Tools:** 6 tools
 - **Games:** 5 tools
@@ -453,7 +453,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **No Category:** 3 tools
 - **Sponsors-Only:** 4 tools
 
-**Total listed on tools page:** 79 tools
+**Total listed on tools page:** 80 tools
 
 </details>
 
@@ -464,7 +464,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Σύνοψη Toolkit
 
-- **Developer Base:** 9 εργαλεία
+- **Developer Base:** 10 εργαλεία
 - **Network Tools:** 10 εργαλεία
 - **Other Tools:** 6 εργαλεία
 - **Games:** 5 εργαλεία
@@ -473,7 +473,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **No Category:** 3 εργαλεία
 - **Sponsors-Only:** 4 εργαλεία
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 79 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 80 εργαλεία
 
 </details>
 
@@ -657,6 +657,27 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 Το **Devices Finder** είναι ένα local-network εργαλείο ανακάλυψης συσκευών για Termux που λειτουργεί χωρίς root. Χωρίζει το live-host discovery από το service scanning ώστε να μειώνει false positives, ταξινομεί συσκευές με βάση ports, banners, hostnames και vendor hints και μπορεί να εξάγει JSON, TXT, CSV και HTML reports.
 
 **Τοποθεσία Αποθήκευσης:** ~/storage/downloads/Devices Finder/ ως devices_scan_[timestamp].json/.txt/.csv/.html (με fallback στο ~/downloads/Devices Finder/ ή στο τρέχον directory)
+
+</details>
+
+
+### • Free Internet
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Free Internet** is a local browser-and-vault web app for Termux that opens on your phone through a local link and keeps browsing tools in one place. It includes search, bookmarks, history, saved pages and files, proxy routing with country selection, optional Tor support, ad and tracking cleanup, lite mode, an encrypted vault powered by OpenSSL, and a built-in website screenshot tool for saving full-page PNG captures.
+
+**Save Location:** ~/Free Internet/ with browser data in ~/Free Internet/browser/, vault data in ~/Free Internet/vault/, saved pages/files in ~/Free Internet/browser/saved/, and screenshots in ~/Free Internet/tools/screenshots/
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **Free Internet** είναι ένα local browser-and-vault web app για Termux που ανοίγει στο κινητό σου μέσω local link και κρατά τα browser εργαλεία σε ένα σημείο. Περιλαμβάνει search, bookmarks, history, saved pages και files, proxy routing με επιλογή χώρας, προαιρετική υποστήριξη Tor, καθαρισμό από ads και tracking, lite mode, encrypted vault μέσω OpenSSL και ενσωματωμένο website screenshot tool για αποθήκευση full-page PNG captures.
+
+**Τοποθεσία Αποθήκευσης:** ~/Free Internet/ με browser data στο ~/Free Internet/browser/, vault data στο ~/Free Internet/vault/, saved pages/files στο ~/Free Internet/browser/saved/ και screenshots στο ~/Free Internet/tools/screenshots/
 
 </details>
 
