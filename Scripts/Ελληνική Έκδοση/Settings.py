@@ -13,6 +13,7 @@ import zipfile
 import time
 import socket
 import hashlib
+import atexit
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -38,6 +39,10 @@ HOME_DIR = "/data/data/com.termux/files/home"
 LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
 BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip")
 SUPPRESS_NEXT_AUTOSTART_PATH = os.path.join(HOME_DIR, ".dedsec_skip_autostart_once")
+GITHUB_ACCOUNT_CONFIG_PATH = os.path.join(HOME_DIR, ".dedsec_github_account.json")
+TERMUX_USAGE_STATS_PATH = os.path.join(HOME_DIR, ".dedsec_termux_usage_stats.json")
+TERMUX_USAGE_SCAN_ROOT = HOME_DIR
+SETTINGS_SESSION_START = time.time()
 
 PROJECT_SAVE_SHARED_STORAGE_PATH = "/storage/emulated/0"
 PROJECT_SAVE_DOWNLOADS_PATH = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, "Download")
@@ -269,6 +274,40 @@ GREEK_STRINGS = {
     "Home Scripts": "Scripts Αρχικής",
     "Enter the number of your choice: ": "Εισάγετε τον αριθμό της επιλογής σας: ",
     "Invalid selection. Please try again.": "Μη έγκυρη επιλογή. Παρακαλώ προσπαθήστε ξανά.",
+    "GitHub Account": "Λογαριασμός GitHub",
+    "Termux Usage Stats": "Στατιστικά Χρήσης Termux",
+    "Connect GitHub Account": "Σύνδεση Λογαριασμού GitHub",
+    "Disconnect GitHub Account": "Αποσύνδεση Λογαριασμού GitHub",
+    "Show GitHub Stats": "Εμφάνιση Στατιστικών GitHub",
+    "GitHub account connected": "Ο λογαριασμός GitHub συνδέθηκε",
+    "GitHub account disconnected": "Ο λογαριασμός GitHub αποσυνδέθηκε",
+    "GitHub is not connected yet.": "Το GitHub δεν έχει συνδεθεί ακόμα.",
+    "GitHub username": "Όνομα χρήστη GitHub",
+    "Total stars": "Σύνολο αστεριών",
+    "Total forks": "Σύνολο forks",
+    "Total watchers": "Σύνολο watchers",
+    "Total commits": "Σύνολο commits",
+    "Rank": "Κατάταξη",
+    "Repositories counted": "Αποθετήρια που μετρήθηκαν",
+    "Prompt automatically updated to GitHub username.": "Το prompt ενημερώθηκε αυτόματα στο όνομα χρήστη GitHub.",
+    "Back": "Πίσω",
+    "Connected as": "Συνδεδεμένος ως",
+    "Not connected": "Μη συνδεδεμένο",
+    "Tracking since": "Παρακολούθηση από",
+    "Tracked time": "Χρόνος παρακολούθησης",
+    "Settings runtime tracked": "Χρόνος χρήσης Settings που καταγράφηκε",
+    "Files scanned": "Αρχεία που σαρώθηκαν",
+    "Files created": "Αρχεία που δημιουργήθηκαν",
+    "Files edited": "Αρχεία που επεξεργάστηκαν",
+    "Files deleted": "Αρχεία που διαγράφηκαν",
+    "Latest created": "Τελευταία δημιουργημένα",
+    "Latest edited": "Τελευταία επεξεργασμένα",
+    "Latest deleted": "Τελευταία διαγραμμένα",
+    "Programming languages used": "Γλώσσες προγραμματισμού που χρησιμοποιήθηκαν",
+    "Shell commands found": "Εντολές shell που βρέθηκαν",
+    "Most active folders": "Πιο ενεργοί φάκελοι",
+    "First scan created. Run this again later to detect created/edited/deleted files.": "Δημιουργήθηκε η πρώτη σάρωση. Τρέξτε το ξανά αργότερα για εντοπισμό δημιουργημένων/επεξεργασμένων/διαγραμμένων αρχείων.",
+    "Press Enter to continue...": "Πατήστε Enter για συνέχεια...",
 }
 
 # ------------------------------
@@ -799,39 +838,641 @@ def remove_motd():
 # ------------------------------
 # Change Prompt
 # ------------------------------
+def sanitize_prompt_username(username):
+    """Keeps the Termux prompt safe while preserving normal GitHub usernames."""
+    username = (username or "").strip()
+    username = re.sub(r"[^A-Za-z0-9_.@-]", "_", username)
+    return username[:48] or "DedSec"
+
+
+def build_dedsec_ps1(username):
+    username = sanitize_prompt_username(username)
+    return (
+        f"PS1='\\[\\e[1;36m\\]\\D{{%d/%m/%Y}}-[\\A]-(\\[\\e[1;34m\\]{username}\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
+    )
+
+
+def set_prompt_username(username):
+    """Updates bash.bashrc PS1 without asking for input."""
+    username = sanitize_prompt_username(username)
+    remove_motd()
+    try:
+        os.makedirs(os.path.dirname(BASHRC_PATH), exist_ok=True)
+        if os.path.exists(BASHRC_PATH):
+            with open(BASHRC_PATH, "r") as bashrc_file:
+                lines = bashrc_file.readlines()
+        else:
+            lines = []
+
+        new_ps1 = build_dedsec_ps1(username)
+        with open(BASHRC_PATH, "w") as bashrc_file:
+            ps1_replaced = False
+            for line in lines:
+                if line.strip().startswith("PS1="):
+                    bashrc_file.write(new_ps1)
+                    ps1_replaced = True
+                else:
+                    bashrc_file.write(line)
+            if not ps1_replaced:
+                bashrc_file.write(new_ps1)
+        return True
+    except Exception as error:
+        print(f"[!] Failed to update prompt: {error}")
+        return False
+
+
 def modify_bashrc():
-    etc_path = "/data/data/com.termux/files/usr/etc"
-    os.chdir(etc_path)
     username = input(f"{_('Prompt Username')}: ").strip()
     while not username:
         print(_("Username cannot be empty. Please enter a valid username."))
         username = input(f"{_('Prompt Username')}: ").strip()
-    with open("bash.bashrc", "r") as bashrc_file:
-        lines = bashrc_file.readlines()
-
-    # New PS1 format
-    new_ps1 = (
-        f"PS1='\\[\\e[1;36m\\]\\D{{%d/%m/%Y}}-[\\A]-(\\[\\e[1;34m\\]{username}\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
-    )
-    
-    with open("bash.bashrc", "w") as bashrc_file:
-        ps1_replaced = False
-        for line in lines:
-            if "PS1=" in line:
-                bashrc_file.write(new_ps1)
-                ps1_replaced = True
-            else:
-                bashrc_file.write(line)
-        
-        if not ps1_replaced:
-            bashrc_file.write(new_ps1)
+    set_prompt_username(username)
 
 
 def change_prompt():
     print(f"\n[+] {_('Changing Prompt...')} \n")
-    remove_motd()
     modify_bashrc()
     print(f"\n[+] {_('Customizations applied successfully! ')}")
+
+# ------------------------------
+# GitHub Account + Stats
+# ------------------------------
+def run_process(command, cwd=None, capture=True, check=False):
+    """Safer subprocess helper for commands that do not need shell expansion."""
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.STDOUT if capture else None,
+            check=check,
+        )
+        return completed.returncode, (completed.stdout or "").strip()
+    except Exception as error:
+        return 1, str(error)
+
+
+def ensure_pkg_command(binary_name, package_name=None):
+    """Install a Termux package only when the binary is missing."""
+    if shutil.which(binary_name):
+        return True
+    package_name = package_name or binary_name
+    print(f"[*] Installing {package_name} ...")
+    run_process(["pkg", "update", "-y"], capture=False, check=False)
+    run_process(["pkg", "install", "-y", package_name], capture=False, check=False)
+    return shutil.which(binary_name) is not None
+
+
+def load_github_account_config():
+    try:
+        if os.path.exists(GITHUB_ACCOUNT_CONFIG_PATH):
+            with open(GITHUB_ACCOUNT_CONFIG_PATH, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return data
+    except Exception:
+        pass
+    return {}
+
+
+def save_github_account_config(data):
+    try:
+        with open(GITHUB_ACCOUNT_CONFIG_PATH, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def remove_github_account_config():
+    try:
+        if os.path.exists(GITHUB_ACCOUNT_CONFIG_PATH):
+            os.remove(GITHUB_ACCOUNT_CONFIG_PATH)
+    except Exception:
+        pass
+
+
+def github_cli_available():
+    return ensure_pkg_command("gh", "gh")
+
+
+def github_auth_status():
+    if not shutil.which("gh"):
+        return False
+    rc, _out = run_process(["gh", "auth", "status", "--hostname", "github.com"], capture=True, check=False)
+    return rc == 0
+
+
+def github_current_username():
+    if not shutil.which("gh"):
+        return ""
+    rc, out = run_process(["gh", "api", "user", "--jq", ".login"], capture=True, check=False)
+    if rc == 0 and out:
+        return out.strip().splitlines()[-1].strip()
+    return ""
+
+
+def github_auth_token():
+    if not shutil.which("gh"):
+        return ""
+    rc, out = run_process(["gh", "auth", "token"], capture=True, check=False)
+    if rc == 0 and out:
+        return out.strip().splitlines()[-1].strip()
+    return ""
+
+
+def connect_github_account():
+    print("=== " + _("Connect GitHub Account") + " ===")
+    if not github_cli_available():
+        print("[!] GitHub CLI (gh) could not be installed. Run manually: pkg install gh")
+        return
+
+    if not github_auth_status():
+        print("[*] Starting GitHub device/web login, same style as Dead Switch.")
+        print("[*] Follow the instructions that GitHub CLI prints in Termux.")
+        run_process(["gh", "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web"], capture=False, check=False)
+
+    if not github_auth_status():
+        print("[!] Login was not completed. Run manually: gh auth login --hostname github.com --git-protocol https --web")
+        return
+
+    username = github_current_username()
+    if not username:
+        print("[!] GitHub connected, but username could not be detected yet.")
+        return
+
+    save_github_account_config({
+        "connected": True,
+        "username": username,
+        "connected_at": time.time(),
+        "prompt_auto_username": True,
+    })
+    if set_prompt_username(username):
+        print("[+] " + _("Prompt automatically updated to GitHub username."))
+    print(f"[+] {_('GitHub account connected')}: {username}")
+
+
+def disconnect_github_account():
+    print("=== " + _("Disconnect GitHub Account") + " ===")
+    config = load_github_account_config()
+    current_user = config.get("username") or github_current_username()
+
+    answer = input("Disconnect GitHub from this Termux device? (y/n): ").strip().lower()
+    if answer not in ("y", "yes"):
+        print("[*] Cancelled.")
+        return
+
+    if shutil.which("gh"):
+        commands = [
+            ["gh", "auth", "logout", "--hostname", "github.com", "--yes"],
+            ["gh", "auth", "logout", "-h", "github.com", "-y"],
+        ]
+        for command in commands:
+            rc, _out = run_process(command, capture=True, check=False)
+            if rc == 0:
+                break
+
+    remove_github_account_config()
+    if current_user:
+        print(f"[+] {_('GitHub account disconnected')}: {current_user}")
+    else:
+        print("[+] " + _("GitHub account disconnected"))
+
+
+def apply_github_prompt_if_connected():
+    """Called at startup so a connected GitHub account keeps the prompt name synced."""
+    config = load_github_account_config()
+    if not config.get("connected") or not config.get("prompt_auto_username", True):
+        return
+    username = config.get("username") or github_current_username()
+    if username:
+        set_prompt_username(username)
+
+
+def fetch_github_account_stats():
+    if not github_cli_available() or not github_auth_status():
+        return None, _("GitHub is not connected yet.")
+
+    username = github_current_username()
+    token = github_auth_token()
+    if not username or not token:
+        return None, "Could not read GitHub username/token from gh."
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "DedSec-Settings-Termux",
+    }
+    query = """
+    query($cursor: String) {
+      viewer {
+        login
+        repositories(first: 100, after: $cursor, ownerAffiliations: OWNER, orderBy: {field: UPDATED_AT, direction: DESC}) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            name
+            stargazerCount
+            forkCount
+            watchers { totalCount }
+            defaultBranchRef {
+              target {
+                ... on Commit {
+                  history { totalCount }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+
+    cursor = None
+    pages = 0
+    repo_count = 0
+    total_stars = 0
+    total_forks = 0
+    total_watchers = 0
+    total_commits = 0
+
+    while True:
+        pages += 1
+        if pages > 25:
+            break
+        try:
+            response = requests.post(
+                "https://api.github.com/graphql",
+                headers=headers,
+                json={"query": query, "variables": {"cursor": cursor}},
+                timeout=35,
+            )
+            if response.status_code >= 400:
+                return None, f"GitHub API error {response.status_code}: {response.text[:300]}"
+            payload = response.json()
+        except Exception as error:
+            return None, str(error)
+
+        if payload.get("errors"):
+            return None, json.dumps(payload.get("errors"), ensure_ascii=False)[:500]
+
+        viewer = payload.get("data", {}).get("viewer", {})
+        repos = viewer.get("repositories", {})
+        for repo in repos.get("nodes") or []:
+            repo_count += 1
+            total_stars += int(repo.get("stargazerCount") or 0)
+            total_forks += int(repo.get("forkCount") or 0)
+            total_watchers += int(((repo.get("watchers") or {}).get("totalCount")) or 0)
+            default_branch = repo.get("defaultBranchRef") or {}
+            target = default_branch.get("target") or {}
+            history = target.get("history") or {}
+            total_commits += int(history.get("totalCount") or 0)
+
+        page_info = repos.get("pageInfo") or {}
+        if not page_info.get("hasNextPage"):
+            break
+        cursor = page_info.get("endCursor")
+        if not cursor:
+            break
+
+    rank = calculate_github_rank(total_stars, total_forks, total_watchers, total_commits, repo_count)
+    return {
+        "username": username,
+        "repositories": repo_count,
+        "stars": total_stars,
+        "forks": total_forks,
+        "watchers": total_watchers,
+        "commits": total_commits,
+        "rank": rank,
+    }, None
+
+
+def calculate_github_rank(stars, forks, watchers, commits, repo_count):
+    score = (stars * 8) + (forks * 5) + (watchers * 2) + (commits * 0.03) + (repo_count * 2)
+    thresholds = [
+        (2500, "S++"), (1600, "S+"), (1000, "S"),
+        (650, "A++"), (400, "A+"), (250, "A"), (150, "A-"),
+        (90, "B+"), (50, "B"), (25, "B-"), (10, "C"),
+    ]
+    for needed, label in thresholds:
+        if score >= needed:
+            return label
+    return "D"
+
+
+def show_github_stats():
+    print("=== " + _("Show GitHub Stats") + " ===")
+    stats, error = fetch_github_account_stats()
+    if error:
+        print("[!] " + str(error))
+        return
+    print(f"{_('GitHub username')}: {stats['username']}")
+    print(f"{_('Repositories counted')}: {stats['repositories']}")
+    print(f"{_('Total stars')}: {stats['stars']}")
+    print(f"{_('Total forks')}: {stats['forks']}")
+    print(f"{_('Total watchers')}: {stats['watchers']}")
+    print(f"{_('Total commits')}: {stats['commits']}")
+    print(f"{_('Rank')}: {stats['rank']}")
+
+
+def github_account_menu():
+    while True:
+        os.system("clear")
+        config = load_github_account_config()
+        detected_user = github_current_username() if shutil.which("gh") and github_auth_status() else ""
+        username = config.get("username") or detected_user
+        status = f"{_('Connected as')}: {username}" if username else _("Not connected")
+        print("=== " + _("GitHub Account") + " ===")
+        print(status + "\n")
+        options = [
+            _("Connect GitHub Account"),
+            _("Disconnect GitHub Account"),
+            _("Show GitHub Stats"),
+            _("Back"),
+        ]
+        for index, option in enumerate(options, start=1):
+            print(f"{index}. {option}")
+        choice = input("\n> ").strip()
+        if choice == "1":
+            connect_github_account()
+        elif choice == "2":
+            disconnect_github_account()
+        elif choice == "3":
+            show_github_stats()
+        elif choice == "4" or choice == "0":
+            return
+        else:
+            print(_("Invalid selection. Please try again."))
+        input("\n" + _("Press Enter to continue..."))
+
+# ------------------------------
+# Termux Usage Stats
+# ------------------------------
+LANGUAGE_BY_EXTENSION = {
+    ".py": "Python", ".sh": "Shell", ".bash": "Bash", ".zsh": "Zsh",
+    ".js": "JavaScript", ".mjs": "JavaScript", ".ts": "TypeScript",
+    ".html": "HTML", ".htm": "HTML", ".css": "CSS", ".scss": "SCSS",
+    ".json": "JSON", ".yaml": "YAML", ".yml": "YAML", ".xml": "XML",
+    ".java": "Java", ".kt": "Kotlin", ".c": "C", ".h": "C/C++ Header",
+    ".cpp": "C++", ".cc": "C++", ".hpp": "C++ Header", ".cs": "C#",
+    ".go": "Go", ".rs": "Rust", ".php": "PHP", ".rb": "Ruby",
+    ".lua": "Lua", ".sql": "SQL", ".md": "Markdown", ".txt": "Text",
+}
+
+TERMUX_STATS_SKIP_DIRS = {
+    ".git", "__pycache__", "node_modules", ".cache", ".npm", ".local",
+    "venv", ".venv", "env", ".env", ".gradle", "build", "dist",
+}
+
+
+def format_duration(seconds):
+    try:
+        seconds = int(max(0, seconds))
+    except Exception:
+        seconds = 0
+    days, rem = divmod(seconds, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, secs = divmod(rem, 60)
+    parts = []
+    if days:
+        parts.append(f"{days}d")
+    if hours:
+        parts.append(f"{hours}h")
+    if minutes:
+        parts.append(f"{minutes}m")
+    if secs or not parts:
+        parts.append(f"{secs}s")
+    return " ".join(parts)
+
+
+def format_timestamp(timestamp):
+    try:
+        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(float(timestamp)))
+    except Exception:
+        return "Unknown"
+
+
+def load_termux_usage_stats():
+    try:
+        if os.path.exists(TERMUX_USAGE_STATS_PATH):
+            with open(TERMUX_USAGE_STATS_PATH, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                if isinstance(data, dict):
+                    return data
+    except Exception:
+        pass
+    return {}
+
+
+def save_termux_usage_stats(data):
+    try:
+        with open(TERMUX_USAGE_STATS_PATH, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def should_skip_stats_path(full_path):
+    base = os.path.basename(full_path)
+    if full_path in (TERMUX_USAGE_STATS_PATH, GITHUB_ACCOUNT_CONFIG_PATH, LANGUAGE_JSON_PATH):
+        return True
+    if base.endswith((".pyc", ".pyo")):
+        return True
+    return False
+
+
+def collect_termux_file_snapshot(max_files=20000):
+    root = TERMUX_USAGE_SCAN_ROOT if os.path.isdir(TERMUX_USAGE_SCAN_ROOT) else os.path.expanduser("~")
+    snapshot = {}
+    language_counts = {}
+    language_bytes = {}
+    folder_counts = {}
+    newest_files = []
+    scanned = 0
+
+    for current_root, dirnames, filenames in os.walk(root, topdown=True, onerror=lambda _e: None):
+        dirnames[:] = [d for d in dirnames if d not in TERMUX_STATS_SKIP_DIRS and not d.startswith(".")]
+        for filename in filenames:
+            if scanned >= max_files:
+                return snapshot, language_counts, language_bytes, folder_counts, newest_files
+            full_path = os.path.join(current_root, filename)
+            if should_skip_stats_path(full_path):
+                continue
+            try:
+                stat = os.stat(full_path)
+                rel_path = os.path.relpath(full_path, root)
+            except Exception:
+                continue
+            ext = os.path.splitext(filename)[1].lower()
+            language = LANGUAGE_BY_EXTENSION.get(ext)
+            snapshot[rel_path] = {
+                "size": int(stat.st_size),
+                "mtime": int(stat.st_mtime),
+                "ext": ext,
+            }
+            if language:
+                language_counts[language] = language_counts.get(language, 0) + 1
+                language_bytes[language] = language_bytes.get(language, 0) + int(stat.st_size)
+            folder = os.path.dirname(rel_path) or "."
+            folder_counts[folder] = folder_counts.get(folder, 0) + 1
+            newest_files.append((int(stat.st_mtime), rel_path))
+            scanned += 1
+
+    newest_files.sort(reverse=True)
+    return snapshot, language_counts, language_bytes, folder_counts, newest_files[:10]
+
+
+def summarize_bash_history():
+    history_paths = [
+        os.path.join(HOME_DIR, ".bash_history"),
+        os.path.join(HOME_DIR, ".zsh_history"),
+    ]
+    total_commands = 0
+    command_counts = {}
+    for history_path in history_paths:
+        try:
+            if not os.path.exists(history_path):
+                continue
+            with open(history_path, "r", encoding="utf-8", errors="ignore") as handle:
+                for raw_line in handle:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    if ";" in line and line.startswith(": "):
+                        line = line.split(";", 1)[1].strip()
+                    command = line.split()[0] if line.split() else ""
+                    if command:
+                        total_commands += 1
+                        command_counts[command] = command_counts.get(command, 0) + 1
+        except Exception:
+            continue
+    top_commands = sorted(command_counts.items(), key=lambda item: item[1], reverse=True)[:10]
+    return total_commands, top_commands
+
+
+def update_termux_usage_stats():
+    now = time.time()
+    stats = load_termux_usage_stats()
+    first_scan = float(stats.get("first_scan") or now)
+    previous_snapshot = stats.get("snapshot") if isinstance(stats.get("snapshot"), dict) else {}
+
+    current_snapshot, language_counts, language_bytes, folder_counts, newest_files = collect_termux_file_snapshot()
+    current_paths = set(current_snapshot.keys())
+    previous_paths = set(previous_snapshot.keys())
+
+    is_first_scan = not bool(previous_snapshot)
+    created = sorted(current_paths - previous_paths) if not is_first_scan else []
+    deleted = sorted(previous_paths - current_paths) if not is_first_scan else []
+    edited = []
+    if not is_first_scan:
+        for rel_path in sorted(current_paths & previous_paths):
+            old = previous_snapshot.get(rel_path) or {}
+            new = current_snapshot.get(rel_path) or {}
+            if old.get("size") != new.get("size") or old.get("mtime") != new.get("mtime"):
+                edited.append(rel_path)
+
+    totals = stats.get("totals") if isinstance(stats.get("totals"), dict) else {}
+    totals["created"] = int(totals.get("created", 0)) + len(created)
+    totals["deleted"] = int(totals.get("deleted", 0)) + len(deleted)
+    totals["edited"] = int(totals.get("edited", 0)) + len(edited)
+
+    total_commands, top_commands = summarize_bash_history()
+    stats.update({
+        "first_scan": first_scan,
+        "last_scan": now,
+        "scan_count": int(stats.get("scan_count", 0)) + 1,
+        "snapshot": current_snapshot,
+        "totals": totals,
+        "latest": {
+            "created": created[:20],
+            "deleted": deleted[:20],
+            "edited": edited[:20],
+            "is_first_scan": is_first_scan,
+        },
+        "language_counts": language_counts,
+        "language_bytes": language_bytes,
+        "folder_counts": folder_counts,
+        "newest_files": newest_files,
+        "total_commands": total_commands,
+        "top_commands": top_commands,
+    })
+    save_termux_usage_stats(stats)
+    return stats
+
+
+def _record_termux_settings_session_time():
+    try:
+        stats = load_termux_usage_stats()
+        runtime = max(0, time.time() - SETTINGS_SESSION_START)
+        stats["settings_runtime_seconds"] = float(stats.get("settings_runtime_seconds", 0.0)) + runtime
+        if "first_scan" not in stats:
+            stats["first_scan"] = SETTINGS_SESSION_START
+        stats["last_seen"] = time.time()
+        save_termux_usage_stats(stats)
+    except Exception:
+        pass
+
+
+def print_limited_paths(title, paths, limit=8):
+    print(f"\n{title}:")
+    if not paths:
+        print("  - None")
+        return
+    for item in paths[:limit]:
+        print(f"  - {item}")
+    if len(paths) > limit:
+        print(f"  - ... +{len(paths) - limit} more")
+
+
+def show_termux_usage_stats():
+    print("=== " + _("Termux Usage Stats") + " ===")
+    stats = update_termux_usage_stats()
+    first_scan = float(stats.get("first_scan") or time.time())
+    tracked_seconds = time.time() - first_scan
+    totals = stats.get("totals", {})
+    latest = stats.get("latest", {})
+
+    print(f"{_('Tracking since')}: {format_timestamp(first_scan)}")
+    print(f"{_('Tracked time')}: {format_duration(tracked_seconds)}")
+    print(f"{_('Settings runtime tracked')}: {format_duration(stats.get('settings_runtime_seconds', 0))}")
+    print(f"{_('Files scanned')}: {len(stats.get('snapshot', {}))}")
+    print(f"{_('Files created')}: {totals.get('created', 0)} (+{len(latest.get('created', []))} latest scan)")
+    print(f"{_('Files edited')}: {totals.get('edited', 0)} (+{len(latest.get('edited', []))} latest scan)")
+    print(f"{_('Files deleted')}: {totals.get('deleted', 0)} (+{len(latest.get('deleted', []))} latest scan)")
+    print(f"{_('Shell commands found')}: {stats.get('total_commands', 0)}")
+
+    if latest.get("is_first_scan"):
+        print("\n[*] " + _("First scan created. Run this again later to detect created/edited/deleted files."))
+
+    print("\n" + _("Programming languages used") + ":")
+    language_counts = stats.get("language_counts", {})
+    language_bytes = stats.get("language_bytes", {})
+    if language_counts:
+        for language, count in sorted(language_counts.items(), key=lambda item: item[1], reverse=True)[:15]:
+            size_kb = language_bytes.get(language, 0) / 1024
+            print(f"  - {language}: {count} files ({size_kb:.1f} KB)")
+    else:
+        print("  - None detected yet")
+
+    print("\nTop shell commands:")
+    top_commands = stats.get("top_commands", [])
+    if top_commands:
+        for command, count in top_commands:
+            print(f"  - {command}: {count}")
+    else:
+        print("  - None detected yet")
+
+    print("\n" + _("Most active folders") + ":")
+    folder_counts = stats.get("folder_counts", {})
+    for folder, count in sorted(folder_counts.items(), key=lambda item: item[1], reverse=True)[:10]:
+        print(f"  - {folder}: {count} files")
+    if not folder_counts:
+        print("  - None")
+
+    print_limited_paths(_("Latest created"), latest.get("created", []))
+    print_limited_paths(_("Latest edited"), latest.get("edited", []))
+    print_limited_paths(_("Latest deleted"), latest.get("deleted", []))
+
+atexit.register(_record_termux_settings_session_time)
 
 # ------------------------------
 # Update bash.bashrc Aliases and Startup
@@ -1722,6 +2363,7 @@ import shutil
 import signal
 import base64
 import hashlib
+import atexit
 import hmac
 import struct
 import pty
@@ -5629,26 +6271,32 @@ def launch_dedsec_os():
 # ------------------------------
 # Settings Menu with Different Styles
 # ------------------------------
+def get_settings_options():
+    return [
+        _("About"),
+        _("DedSec Project Update (Source 1)"),
+        _("DedSec Project Update (Source 2)"),
+        _("Update Packages & Modules"),
+        _("Save DedSec Project"),
+        _("Change Prompt"),
+        _("GitHub Account"),
+        _("Termux Usage Stats"),
+        _("Change Menu Style"),
+        get_menu_autostart_label(),
+        _("Choose Language/Επιλέξτε Γλώσσα"),
+        _("Credits"),
+        _("Uninstall DedSec Project"),
+        _("Exit")
+    ]
+
+
 def run_settings_list_menu():
     """Settings menu using list style (curses)"""
     def menu(stdscr):
         curses.curs_set(0)
         curses.start_color()
         curses.use_default_colors()
-        menu_options = [
-            _("About"),
-            _("DedSec Project Update (Source 1)"),
-            _("DedSec Project Update (Source 2)"),
-            _("Update Packages & Modules"),
-            _("Save DedSec Project"),
-            _("Change Prompt"),
-            _("Change Menu Style"),
-            get_menu_autostart_label(),
-            _("Choose Language/Επιλέξτε Γλώσσα"),
-            _("Credits"),
-            _("Uninstall DedSec Project"),
-            _("Exit")
-        ]
+        menu_options = get_settings_options()
         current_row = 0
         while True:
             stdscr.clear()
@@ -5816,39 +6464,13 @@ def run_settings_grid_menu():
             elif key == curses.KEY_RESIZE:
                 pass
 
-    menu_options = [
-        _("About"),
-        _("DedSec Project Update (Source 1)"),
-        _("DedSec Project Update (Source 2)"),
-        _("Update Packages & Modules"),
-        _("Save DedSec Project"),
-        _("Change Prompt"),
-        _("Change Menu Style"),
-        get_menu_autostart_label(),
-        _("Choose Language/Επιλέξτε Γλώσσα"),
-        _("Credits"),
-        _("Uninstall DedSec Project"),
-        _("Exit")
-    ]
+    menu_options = get_settings_options()
     
     return curses.wrapper(lambda stdscr: draw_settings_grid_menu(stdscr, menu_options))
 
 def run_settings_number_menu():
     """Settings menu using number style"""
-    menu_options = [
-        _("About"),
-        _("DedSec Project Update (Source 1)"),
-        _("DedSec Project Update (Source 2)"),
-        _("Update Packages & Modules"),
-        _("Save DedSec Project"),
-        _("Change Prompt"),
-        _("Change Menu Style"),
-        get_menu_autostart_label(),
-        _("Choose Language/Επιλέξτε Γλώσσα"),
-        _("Credits"),
-        _("Uninstall DedSec Project"),
-        _("Exit")
-    ]
+    menu_options = get_settings_options()
     
     while True:
         os.system("clear")
@@ -5914,18 +6536,22 @@ def main():
         elif selected == 5:
             change_prompt()
         elif selected == 6:
-            change_menu_style()
+            github_account_menu()
         elif selected == 7:
-            toggle_menu_autostart()
+            show_termux_usage_stats()
         elif selected == 8:
-            change_language()
+            change_menu_style()
         elif selected == 9:
-            show_credits()
+            toggle_menu_autostart()
         elif selected == 10:
+            change_language()
+        elif selected == 11:
+            show_credits()
+        elif selected == 12:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 11:
+        elif selected == 13:
             print(_("Exiting..."))
             break
 
@@ -5947,6 +6573,7 @@ if __name__ == "__main__":
         enforce_language_folder_visibility()
         
         create_backup_zip_if_not_exists()
+        apply_github_prompt_if_connected()
         
         if len(sys.argv) > 1 and sys.argv[1] == "--menu":
             if len(sys.argv) > 2:
