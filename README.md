@@ -366,43 +366,40 @@ bash Setup.sh
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-The DedSec Project includes a central **Settings.py** control hub for configuring the project, updating files, changing the menu experience, managing backups, and opening the optional **DedSec OS** web workspace.
+The DedSec Project includes **Settings.py**, the central control panel for keeping the toolkit configured, updated, backed up, and easy to open after installation.
 
 ### Main Settings Menu Options
 
-- **About:** shows the latest DedSec Project update date, Termux storage usage, DedSec Project size, hardware details, Android details, battery status, uptime, and current user.
-- **DedSec Project Update (Source 1):** updates from the main `dedsec1121fk/DedSec` repository.
-- **DedSec Project Update (Source 2):** updates from the backup `sal-scar/DedSec` repository.
-- **Update Packages & Modules:** refreshes Termux packages and Python modules needed by the project.
-- **Save DedSec Project:** creates a recovery zip named **DedSec Project Legacy Save.zip** in phone Downloads.
-- **Change Prompt:** customizes the Termux prompt username and removes the default MOTD when needed.
-- **GitHub Account:** connects or disconnects a GitHub account with GitHub CLI, updates the prompt from the GitHub username, and shows repository stats.
-- **Termux Usage Stats:** scans Termux files to show tracked time, created/edited/deleted files, programming languages used, shell commands found, and most active folders.
-- **Change Menu Style:** switches between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**.
-- **Menu Auto-Start:** enables or disables automatic menu startup when Termux opens.
-- **Choose Language / Επιλέξτε Γλώσσα:** saves the preferred language and hides/shows the Greek folder depending on the selected language.
-- **Credits:** shows creator, contributors, artist, legal documents, Discord maintenance, and past help credits.
-- **Uninstall DedSec Project:** restores backed-up Termux config files when possible, removes project configuration, and gives the final cleanup command.
+- **About:** shows the latest DedSec Project update date, Termux storage usage, DedSec Project size, hardware details, internal storage, processor, RAM, carrier, kernel version, Android version, device model, manufacturer, uptime, battery status, and current Termux user.
+- **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
+- **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
+- **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
+- **Save DedSec Project:** creates a backup zip named **DedSec Project Legacy Save.zip** in your phone Downloads folder.
+- **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
+- **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
+- **Termux Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
+- **Change Menu Style:** lets you switch between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**. The selected style is saved so the project opens the same way next time.
+- **Menu Auto-Start:** enables or disables automatic DedSec menu startup when Termux opens, depending on whether you want Termux to boot straight into the project menu or stay as a normal shell.
+- **Choose Language / Επιλέξτε Γλώσσα:** saves the preferred language in `~/Language.json` and hides or shows the Greek folder depending on whether English or Greek is selected.
+- **Credits:** displays the project creator, contributors, artist, legal document credit, Discord server maintenance credit, and past help credits.
+- **Uninstall DedSec Project:** restores backed-up Termux configuration when possible, removes project configuration files, cleans startup changes, and gives the final command needed to remove the project folder safely.
+- **Exit:** closes Settings.py and returns you to Termux.
 
-### Save DedSec Project
+### GitHub Account Submenu
 
-The **Save DedSec Project** option is a recovery system for the whole DedSec ecosystem. It downloads the recommended APKs, including **F-Droid**, **Termux**, **Termux:API**, and **Termux:Styling**, then clones the main and backup project repositories into one zipped package. The generated archive is saved in **/storage/emulated/0/Download/** and can also be copied to up to six extra storage folders when available.
-
-### GitHub Account & Stats
-
-The GitHub section can install/use `gh`, start GitHub login, save the connected username, disconnect the account, and show combined GitHub stats such as repositories counted, total stars, forks, watchers, commits, and rank. When connected, the Termux prompt can automatically use the GitHub username.
+The GitHub section can install or use `gh`, start the official GitHub login flow, save the connected username, disconnect the saved account, and show combined repository stats such as repositories counted, total stars, forks, watchers, commits, and rank. When connected, the prompt can automatically use the GitHub username.
 
 ### Termux Usage Stats
 
-The usage stats section tracks the local Termux workspace over time. It keeps a snapshot of files, detects new/edited/deleted files between scans, counts file types and languages, checks shell history commands, lists the newest files, and shows the most active folders.
+The usage stats section builds a local activity snapshot of your Termux workspace. On later scans, it compares changes and reports what was created, edited, or deleted. It also detects programming language usage by file extension, checks shell history commands, lists recent file activity, and highlights active folders.
 
 ### DedSec OS Mode
 
-**DedSec OS** turns the settings system into a local browser workspace for Termux. It includes a phone-first interface with files, terminal, sessions, DedSec apps, Linux store actions, settings, wallpaper support, terminal colors, fullscreen/split view, sidebar controls, notifications, password login, optional authenticator-style 2FA, and password recovery through three security questions.
+**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions.
 
 ### First-Time Setup Focus
 
-After installation, the main things to configure are:
+After installation, the most important settings are:
 
 1. choose your preferred language  
 2. choose your menu style  
@@ -421,43 +418,40 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το DedSec Project περιλαμβάνει το κεντρικό εργαλείο **Settings.py**, το οποίο λειτουργεί σαν control hub για ρυθμίσεις, ενημερώσεις, αλλαγές στο menu, backup/recovery και το προαιρετικό web workspace **DedSec OS**.
+Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel για να κρατάς το toolkit ρυθμισμένο, ενημερωμένο, αποθηκευμένο και εύκολο να ανοίξει ξανά μετά την εγκατάσταση.
 
 ### Κύριες Επιλογές του Settings Menu
 
-- **About:** εμφανίζει την τελευταία ενημέρωση του DedSec Project, τον χώρο που χρησιμοποιεί το Termux, το μέγεθος του DedSec Project, λεπτομέρειες hardware, στοιχεία Android, μπαταρία, uptime και τον τρέχοντα χρήστη.
-- **DedSec Project Update (Source 1):** ενημερώνει από το κύριο repository `dedsec1121fk/DedSec`.
-- **DedSec Project Update (Source 2):** ενημερώνει από το backup repository `sal-scar/DedSec`.
-- **Update Packages & Modules:** ανανεώνει τα Termux packages και τα Python modules που χρειάζεται το project.
-- **Save DedSec Project:** δημιουργεί recovery zip με όνομα **DedSec Project Legacy Save.zip** στα Downloads του κινητού.
-- **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt και αφαιρεί το default MOTD όταν χρειάζεται.
-- **GitHub Account:** συνδέει ή αποσυνδέει GitHub account μέσω GitHub CLI, ενημερώνει το prompt από το GitHub username και εμφανίζει repository stats.
-- **Termux Usage Stats:** σαρώνει τα αρχεία του Termux και εμφανίζει tracked time, created/edited/deleted files, γλώσσες προγραμματισμού, shell commands και πιο ενεργούς φακέλους.
-- **Change Menu Style:** αλλάζει ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**.
-- **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του menu όταν ανοίγει το Termux.
-- **Choose Language / Επιλέξτε Γλώσσα:** αποθηκεύει την προτιμώμενη γλώσσα και κρύβει/εμφανίζει τον ελληνικό φάκελο ανάλογα με την επιλογή.
-- **Credits:** εμφανίζει creator, contributors, artist, legal documents, Discord maintenance και past help credits.
-- **Uninstall DedSec Project:** επαναφέρει backed-up Termux config files όπου γίνεται, αφαιρεί το project configuration και δίνει την τελική εντολή καθαρισμού.
+- **About:** εμφανίζει την τελευταία ενημέρωση του DedSec Project, τον χώρο που χρησιμοποιεί το Termux, το μέγεθος του DedSec Project, στοιχεία hardware, internal storage, processor, RAM, carrier, kernel version, Android version, device model, manufacturer, uptime, battery status και τον τρέχοντα Termux user.
+- **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
+- **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
+- **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
+- **Save DedSec Project:** δημιουργεί backup zip με όνομα **DedSec Project Legacy Save.zip** στα Downloads του κινητού.
+- **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
+- **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
+- **Termux Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
+- **Change Menu Style:** επιτρέπει αλλαγή ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**. Το επιλεγμένο style αποθηκεύεται ώστε το project να ανοίγει με τον ίδιο τρόπο την επόμενη φορά.
+- **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του DedSec menu όταν ανοίγει το Termux, ανάλογα με το αν θέλεις το Termux να μπαίνει κατευθείαν στο project menu ή να μένει σαν κανονικό shell.
+- **Choose Language / Επιλέξτε Γλώσσα:** αποθηκεύει την προτιμώμενη γλώσσα στο `~/Language.json` και κρύβει ή εμφανίζει τον ελληνικό φάκελο ανάλογα με το αν επιλεγεί English ή Greek.
+- **Credits:** εμφανίζει creator, contributors, artist, legal document credit, Discord server maintenance credit και past help credits.
+- **Uninstall DedSec Project:** επαναφέρει backed-up Termux configuration όπου γίνεται, αφαιρεί project configuration files, καθαρίζει startup αλλαγές και δίνει την τελική εντολή για ασφαλή αφαίρεση του project folder.
+- **Exit:** κλείνει το Settings.py και σε επιστρέφει στο Termux.
 
-### Save DedSec Project
+### GitHub Account Submenu
 
-Η επιλογή **Save DedSec Project** λειτουργεί σαν recovery system για ολόκληρο το DedSec ecosystem. Κατεβάζει τα προτεινόμενα APKs, όπως **F-Droid**, **Termux**, **Termux:API** και **Termux:Styling**, μετά κάνει clone τα κύρια και backup repositories του project μέσα σε ένα zipped package. Το τελικό archive αποθηκεύεται στο **/storage/emulated/0/Download/** και μπορεί επίσης να αντιγραφεί έως και σε έξι επιπλέον storage folders όταν υπάρχουν.
-
-### GitHub Account & Stats
-
-Η ενότητα GitHub μπορεί να εγκαταστήσει/χρησιμοποιήσει το `gh`, να ξεκινήσει GitHub login, να αποθηκεύσει το connected username, να αποσυνδέσει το account και να εμφανίσει συνδυαστικά GitHub stats όπως repositories counted, total stars, forks, watchers, commits και rank. Όταν υπάρχει σύνδεση, το Termux prompt μπορεί να χρησιμοποιεί αυτόματα το GitHub username.
+Η ενότητα GitHub μπορεί να εγκαταστήσει ή να χρησιμοποιήσει το `gh`, να ξεκινήσει το official GitHub login flow, να αποθηκεύσει το connected username, να αποσυνδέσει το saved account και να εμφανίσει combined repository stats όπως repositories counted, total stars, forks, watchers, commits και rank. Όταν υπάρχει σύνδεση, το prompt μπορεί να χρησιμοποιεί αυτόματα το GitHub username.
 
 ### Termux Usage Stats
 
-Η ενότητα usage stats παρακολουθεί το local Termux workspace με την πάροδο του χρόνου. Κρατά snapshot των αρχείων, εντοπίζει νέα/επεξεργασμένα/διαγραμμένα αρχεία ανάμεσα σε scans, μετρά file types και programming languages, ελέγχει shell history commands, εμφανίζει τα newest files και τους πιο ενεργούς φακέλους.
+Η ενότητα usage stats δημιουργεί local activity snapshot του Termux workspace. Σε επόμενα scans συγκρίνει τις αλλαγές και αναφέρει τι δημιουργήθηκε, επεξεργάστηκε ή διαγράφηκε. Επίσης εντοπίζει programming language usage από file extensions, ελέγχει shell history commands, εμφανίζει πρόσφατη δραστηριότητα αρχείων και δείχνει τους πιο ενεργούς φακέλους.
 
 ### DedSec OS Mode
 
-Το **DedSec OS** μετατρέπει το settings system σε local browser workspace για Termux. Περιλαμβάνει phone-first interface με files, terminal, sessions, DedSec apps, Linux store actions, settings, wallpaper support, terminal colors, fullscreen/split view, sidebar controls, notifications, password login, optional authenticator-style 2FA και password recovery μέσω τριών security questions.
+Το **DedSec OS** είναι το browser-based local workspace mode μέσα στο Settings.py. Προσθέτει phone-first interface με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA και password recovery μέσω τριών security questions.
 
 ### Έμφαση στην Πρώτη Ρύθμιση
 
-Μετά την εγκατάσταση, τα βασικά που χρειάζεται να ρυθμίσεις είναι:
+Μετά την εγκατάσταση, οι πιο σημαντικές ρυθμίσεις είναι:
 
 1. διάλεξε την προτιμώμενη γλώσσα  
 2. διάλεξε menu style  
