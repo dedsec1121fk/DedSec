@@ -5,7 +5,7 @@
     <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
   </p>
   <p>
-    <a href="https://github.com/sponsors/dedsec1121fk"><img src="https://img.shields.io/badge/Sponsor-❤-purple?style=for-the-badge&logo=GitHub" alt="Sponsor Project"></a>
+    <a href="https://github.com/sponsors/dedsec1121fk"><img src="https://img.shields.io/badge/Sponsor-DedSec-purple?style=for-the-badge&logo=GitHub" alt="Sponsor Project"></a>
   </p>
 
   <p>
@@ -36,26 +36,26 @@ This README is structured so the **installation process** and **every listed too
 
 </details>
 
-## 📋 Table of Contents
+## Table of Contents
 
-* [How To Install And Setup The DedSec Project](#-how-to-install-and-setup-the-dedsec-project)
-* [Settings & Configuration](#️-settings--configuration)
-* [Explore The Toolkit](#️-explore-the-toolkit)
-* [Developer Base](#-developer-base)
-* [Network Tools](#-network-tools)
-* [Personal Information Capture](#-personal-information-capture-educational-use-only)
-* [Fake Pages](#-fake-pages-educational-use-only)
-* [Games](#-games)
-* [Other Tools](#️-other-tools)
-* [No Category](#-no-category)
-* [Sponsors-Only](#-sponsors-only)
-* [ButSystem.py (Exclusive)](#-butsystempy-exclusive)
-* [Contact Us & Credits](#-contact-us--credits)
-* [Disclaimer & Terms of Use](#️-disclaimer--terms-of-use)
+* [How To Install And Setup The DedSec Project](#how-to-install-and-setup-the-dedsec-project)
+* [Settings & Configuration](#settings--configuration)
+* [Explore The Toolkit](#explore-the-toolkit)
+* [Developer Base](#developer-base)
+* [Network Tools](#network-tools)
+* [Personal Information Capture](#personal-information-capture-educational-use-only)
+* [Fake Pages](#fake-pages-educational-use-only)
+* [Games](#games)
+* [Other Tools](#other-tools)
+* [No Category](#no-category)
+* [Sponsors-Only](#sponsors-only)
+* [ButSystem.py (Exclusive)](#butsystempy-exclusive)
+* [Contact Us & Credits](#contact-us--credits)
+* [Disclaimer & Terms of Use](#disclaimer--terms-of-use)
 
 ---
 
-## 🚀 How To Install And Setup The DedSec Project
+## How To Install And Setup The DedSec Project
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -361,7 +361,7 @@ bash Setup.sh
 
 ---
 
-## ⚙️ Settings & Configuration
+## Settings & Configuration
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -401,12 +401,12 @@ The usage stats section builds a local activity snapshot of your Termux workspac
 
 After installation, the most important settings are:
 
-1. choose your preferred language  
-2. choose your menu style  
-3. customize the prompt if you want  
-4. run **Save DedSec Project** on your first run  
-5. connect GitHub only if you want GitHub stats and prompt syncing  
-6. enable or disable menu auto-start depending on how you use Termux  
+1. choose your preferred language
+2. choose your menu style
+3. customize the prompt if you want
+4. run **Save DedSec Project** on your first run
+5. connect GitHub only if you want GitHub stats and prompt syncing
+6. enable or disable menu auto-start depending on how you use Termux
 7. use **Update Packages & Modules** when dependencies need refreshing
 
 ### Save DedSec Project Reminder
@@ -453,12 +453,12 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 Μετά την εγκατάσταση, οι πιο σημαντικές ρυθμίσεις είναι:
 
-1. διάλεξε την προτιμώμενη γλώσσα  
-2. διάλεξε menu style  
-3. άλλαξε το prompt αν θέλεις  
-4. τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα  
-5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats και prompt syncing  
-6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux  
+1. διάλεξε την προτιμώμενη γλώσσα
+2. διάλεξε menu style
+3. άλλαξε το prompt αν θέλεις
+4. τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα
+5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats και prompt syncing
+6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux
 7. χρησιμοποίησε το **Update Packages & Modules** όταν χρειάζεται ανανέωση dependencies
 
 ### Υπενθύμιση για το Save DedSec Project
@@ -469,7 +469,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ---
 
-## 🛡️ Explore The Toolkit
+## Explore The Toolkit
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -480,14 +480,14 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 - **Developer Base:** 10 tools
 - **Network Tools:** 10 tools
-- **Other Tools:** 6 tools
+- **Other Tools:** 5 tools
 - **Games:** 5 tools
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
 - **Sponsors-Only:** 4 tools
 
-**Total listed on tools page:** 80 tools
+**Total listed on tools page:** 79 tools
 
 </details>
 
@@ -500,19 +500,19 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 - **Developer Base:** 10 εργαλεία
 - **Network Tools:** 10 εργαλεία
-- **Other Tools:** 6 εργαλεία
+- **Other Tools:** 5 εργαλεία
 - **Games:** 5 εργαλεία
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
 - **Sponsors-Only:** 4 εργαλεία
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 80 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 79 εργαλεία
 
 </details>
 
 ---
-## 🧑‍💻 Developer Base
+## Developer Base
 
 ### • File Converter
 
@@ -718,7 +718,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ---
 
-## 🔧 Network Tools
+## Network Tools
 
 ### • Bug Hunter
 
@@ -923,7 +923,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ---
 
-## 📱 Personal Information Capture (Educational Use Only)
+## Personal Information Capture (Educational Use Only)
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -1282,7 +1282,7 @@ These scripts are training simulations intended to help users understand how dec
 
 ---
 
-## 📱 Fake Pages (Educational Use Only)
+## Fake Pages (Educational Use Only)
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -1801,7 +1801,7 @@ These scripts are educational simulations intended to help users recognize socia
 
 ---
 
-## 🎮 Games
+## Games
 
 ### • Buzz
 
@@ -1906,7 +1906,7 @@ These scripts are educational simulations intended to help users recognize socia
 
 ---
 
-## 🛠️ Other Tools
+## Other Tools
 
 ### • Android App Launcher
 
@@ -2008,11 +2008,7 @@ These scripts are educational simulations intended to help users recognize socia
 
 </details>
 
-### • FaveSites.py
-
----
-
-## 📁 No Category
+## No Category
 
 ### • Extra Content
 
@@ -2034,23 +2030,27 @@ These scripts are educational simulations intended to help users recognize socia
 
 </details>
 
-### • Settings
+### • Settings.py
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**Settings** is the central control hub for the DedSec ecosystem.
+**Settings.py** is the central control panel for the DedSec Project. It lets you view project and device information, update the project from the main or backup source, refresh Termux packages and Python modules, create a DedSec Project backup in Downloads, change the Termux prompt, connect or disconnect a GitHub account, view GitHub stats, sync the prompt with your GitHub username, scan Termux usage stats, switch menu styles, enable or disable menu auto-start, choose English or Greek, view credits, and uninstall the project safely.
 
-**Save Location:** Language config: ~/Language.json | Backups: ~/Termux.zip
+It also includes **DedSec OS**, a browser-based local workspace mode with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, language controls, prompt controls, password login, optional authenticator-style 2FA, and recovery through three security questions.
+
+**Save Location:** Language config: ~/Language.json | Termux config backup: ~/Termux.zip | Save DedSec Project backup: Downloads
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **Settings** είναι ο κεντρικός κόμβος ελέγχου για το οικοσύστημα του DedSec.
+Το **Settings.py** είναι το κεντρικό control panel του DedSec Project. Σου επιτρέπει να βλέπεις πληροφορίες για το project και τη συσκευή, να ενημερώνεις το project από την κύρια ή την backup πηγή, να ανανεώνεις Termux packages και Python modules, να δημιουργείς backup του DedSec Project στα Downloads, να αλλάζεις το Termux prompt, να συνδέεις ή να αποσυνδέεις GitHub account, να βλέπεις GitHub stats, να συγχρονίζεις το prompt με το GitHub username, να σαρώνεις Termux usage stats, να αλλάζεις menu style, να ενεργοποιείς ή να απενεργοποιείς το menu auto-start, να επιλέγεις English ή Greek, να βλέπεις credits και να κάνεις ασφαλή απεγκατάσταση του project.
 
-**Τοποθεσία Αποθήκευσης:** Ρύθμιση γλώσσας: ~/Language.json | Backups: ~/Termux.zip
+Περιλαμβάνει επίσης το **DedSec OS**, ένα browser-based local workspace mode με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, language controls, prompt controls, password login, προαιρετικό authenticator-style 2FA και recovery μέσω τριών security questions.
+
+**Τοποθεσία Αποθήκευσης:** Ρύθμιση γλώσσας: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Save DedSec Project backup: Downloads
 
 </details>
 
@@ -2077,7 +2077,7 @@ These scripts are educational simulations intended to help users recognize socia
 
 ---
 
-## 💜 Sponsors-Only
+## Sponsors-Only
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -2176,7 +2176,7 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 
 ---
 
-## 🦋 ButSystem.py (Exclusive)
+## ButSystem.py (Exclusive)
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -2206,7 +2206,7 @@ Use only on systems you own or where you have explicit permission.
 
 ---
 
-## 💬 Contact Us & Credits
+## Contact Us & Credits
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
@@ -2219,10 +2219,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Main DedSec Project Repository:** [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
 * **Backup Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Backup DedSec Project Repository:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
-* **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
-* **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
-* **💬 Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
+* ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* ** Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
+* ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+* ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
 ### Credits
 
@@ -2246,10 +2246,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Κύριο Repository του DedSec Project:** [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
 * **Εφεδρικό Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Εφεδρικό Repository του DedSec Project:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
-* **📱 WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* **📸 Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
-* **✈️ Telegram:** [@dedsecproject](https://t.me/dedsecproject)
-* **💬 Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
+* ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* ** Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
+* ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+* ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
 ### Συντελεστές
 
@@ -2264,7 +2264,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 ---
 
-## ⚠️ Disclaimer & Terms of Use
+## Disclaimer & Terms of Use
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
