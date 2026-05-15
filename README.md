@@ -366,7 +366,7 @@ bash Setup.sh
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-The DedSec Project includes **Settings.py**, the central control panel for keeping the toolkit configured, updated, backed up, and easy to open after installation.
+The DedSec Project includes **Settings.py**, the central control panel for keeping the toolkit configured, updated, backed up, connected, and easy to open after installation.
 
 ### Main Settings Menu Options
 
@@ -374,10 +374,12 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
-- **Save DedSec Project:** creates a backup zip named **DedSec Project Legacy Save.zip** in your phone Downloads folder.
+- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies access to `DedSec-Project-Official/Sponsors-Only`, and downloads or replaces the local `~/Sponsors-Only` folder when access is confirmed. If the account does not have access, it returns the user to the settings menu without downloading anything.
+- **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
 - **Termux Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
+- **VPN & Tor Utilities:** provides optional no-root network privacy controls. It can enable or disable Tor, enable or disable proxy-based VPN routing, choose a VPN country, renew VPN proxies, update VPN/Tor tools, show connection status, and refresh shell exports so new Termux shells can reuse the selected network settings.
 - **Change Menu Style:** lets you switch between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**. The selected style is saved so the project opens the same way next time.
 - **Menu Auto-Start:** enables or disables automatic DedSec menu startup when Termux opens, depending on whether you want Termux to boot straight into the project menu or stay as a normal shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** saves the preferred language in `~/Language.json` and hides or shows the Greek folder depending on whether English or Greek is selected.
@@ -387,15 +389,23 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 
 ### GitHub Account Submenu
 
-The GitHub section can install or use `gh`, start the official GitHub login flow, save the connected username, disconnect the saved account, and show combined repository stats such as repositories counted, total stars, forks, watchers, commits, and rank. When connected, the prompt can automatically use the GitHub username.
+The GitHub section can install or use `gh`, start the official GitHub login flow, save the connected username, disconnect the saved account, and show combined repository stats such as repositories counted, total stars, forks, watchers, commits, and rank. When connected, the prompt can automatically use the GitHub username, and the same connected account is used by **Access Sponsors-Only Scripts** to check private repository access.
+
+### Access Sponsors-Only Scripts
+
+This option is for sponsors who have access to the private `DedSec-Project-Official/Sponsors-Only` repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. If an older local copy exists, it is replaced only after access is confirmed.
 
 ### Termux Usage Stats
 
 The usage stats section builds a local activity snapshot of your Termux workspace. On later scans, it compares changes and reports what was created, edited, or deleted. It also detects programming language usage by file extension, checks shell history commands, lists recent file activity, and highlights active folders.
 
+### VPN & Tor Utilities
+
+The network utilities section gives you optional controls for Tor and proxy-based VPN routing without root. Tor can be enabled or disabled from the menu. VPN routing can be enabled or disabled separately, uses a selectable country or refreshed proxy pool, and saves the chosen network state so it can be applied again when Termux starts. The status screen shows whether Tor and VPN routing are enabled, what country is selected, and which proxy is currently active.
+
 ### DedSec OS Mode
 
-**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions.
+**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions. It also includes project action buttons for updating both sources, updating packages/modules, accessing Sponsors-Only scripts, and opening credits.
 
 ### First-Time Setup Focus
 
@@ -405,9 +415,10 @@ After installation, the most important settings are:
 2. choose your menu style
 3. customize the prompt if you want
 4. run **Save DedSec Project** on your first run
-5. connect GitHub only if you want GitHub stats and prompt syncing
+5. connect GitHub only if you want GitHub stats, prompt syncing, or Sponsors-Only access
 6. enable or disable menu auto-start depending on how you use Termux
 7. use **Update Packages & Modules** when dependencies need refreshing
+8. use **VPN & Tor Utilities** only when you want those optional network controls
 
 ### Save DedSec Project Reminder
 
@@ -418,7 +429,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel για να κρατάς το toolkit ρυθμισμένο, ενημερωμένο, αποθηκευμένο και εύκολο να ανοίξει ξανά μετά την εγκατάσταση.
+Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel για να κρατάς το toolkit ρυθμισμένο, ενημερωμένο, αποθηκευμένο, συνδεδεμένο και εύκολο να ανοίξει ξανά μετά την εγκατάσταση.
 
 ### Κύριες Επιλογές του Settings Menu
 
@@ -426,10 +437,12 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
 - **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
-- **Save DedSec Project:** δημιουργεί backup zip με όνομα **DedSec Project Legacy Save.zip** στα Downloads του κινητού.
+- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει πρόσβαση στο `DedSec-Project-Official/Sponsors-Only` και κατεβάζει ή αντικαθιστά τον τοπικό φάκελο `~/Sponsors-Only` όταν επιβεβαιωθεί η πρόσβαση. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
+- **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
 - **Termux Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
+- **VPN & Tor Utilities:** παρέχει προαιρετικά no-root network privacy controls. Μπορεί να ενεργοποιήσει ή να απενεργοποιήσει Tor, να ενεργοποιήσει ή να απενεργοποιήσει proxy-based VPN routing, να επιλέξει χώρα VPN, να ανανεώσει VPN proxies, να ενημερώσει VPN/Tor tools, να δείξει connection status και να ανανεώσει shell exports ώστε νέα Termux shells να μπορούν να χρησιμοποιήσουν τις επιλεγμένες network ρυθμίσεις.
 - **Change Menu Style:** επιτρέπει αλλαγή ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**. Το επιλεγμένο style αποθηκεύεται ώστε το project να ανοίγει με τον ίδιο τρόπο την επόμενη φορά.
 - **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του DedSec menu όταν ανοίγει το Termux, ανάλογα με το αν θέλεις το Termux να μπαίνει κατευθείαν στο project menu ή να μένει σαν κανονικό shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** αποθηκεύει την προτιμώμενη γλώσσα στο `~/Language.json` και κρύβει ή εμφανίζει τον ελληνικό φάκελο ανάλογα με το αν επιλεγεί English ή Greek.
@@ -439,15 +452,23 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### GitHub Account Submenu
 
-Η ενότητα GitHub μπορεί να εγκαταστήσει ή να χρησιμοποιήσει το `gh`, να ξεκινήσει το official GitHub login flow, να αποθηκεύσει το connected username, να αποσυνδέσει το saved account και να εμφανίσει combined repository stats όπως repositories counted, total stars, forks, watchers, commits και rank. Όταν υπάρχει σύνδεση, το prompt μπορεί να χρησιμοποιεί αυτόματα το GitHub username.
+Η ενότητα GitHub μπορεί να εγκαταστήσει ή να χρησιμοποιήσει το `gh`, να ξεκινήσει το official GitHub login flow, να αποθηκεύσει το connected username, να αποσυνδέσει το saved account και να εμφανίσει combined repository stats όπως repositories counted, total stars, forks, watchers, commits και rank. Όταν υπάρχει σύνδεση, το prompt μπορεί να χρησιμοποιεί αυτόματα το GitHub username και ο ίδιος συνδεδεμένος λογαριασμός χρησιμοποιείται από το **Access Sponsors-Only Scripts** για έλεγχο πρόσβασης στο private repository.
+
+### Access Sponsors-Only Scripts
+
+Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο private repository `DedSec-Project-Official/Sponsors-Only`. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
 
 ### Termux Usage Stats
 
 Η ενότητα usage stats δημιουργεί local activity snapshot του Termux workspace. Σε επόμενα scans συγκρίνει τις αλλαγές και αναφέρει τι δημιουργήθηκε, επεξεργάστηκε ή διαγράφηκε. Επίσης εντοπίζει programming language usage από file extensions, ελέγχει shell history commands, εμφανίζει πρόσφατη δραστηριότητα αρχείων και δείχνει τους πιο ενεργούς φακέλους.
 
+### VPN & Tor Utilities
+
+Η ενότητα network utilities δίνει προαιρετικά controls για Tor και proxy-based VPN routing χωρίς root. Το Tor μπορεί να ενεργοποιηθεί ή να απενεργοποιηθεί από το menu. Το VPN routing ενεργοποιείται ή απενεργοποιείται ξεχωριστά, χρησιμοποιεί επιλεγμένη χώρα ή ανανεωμένο proxy pool και αποθηκεύει την επιλεγμένη network κατάσταση ώστε να εφαρμόζεται ξανά όταν ξεκινά το Termux. Η οθόνη status δείχνει αν είναι ενεργό το Tor και το VPN routing, ποια χώρα είναι επιλεγμένη και ποιο proxy είναι ενεργό.
+
 ### DedSec OS Mode
 
-Το **DedSec OS** είναι το browser-based local workspace mode μέσα στο Settings.py. Προσθέτει phone-first interface με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA και password recovery μέσω τριών security questions.
+Το **DedSec OS** είναι το browser-based local workspace mode μέσα στο Settings.py. Προσθέτει phone-first interface με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA και password recovery μέσω τριών security questions. Περιλαμβάνει επίσης project action buttons για ενημέρωση και από τις δύο πηγές, ενημέρωση packages/modules, πρόσβαση σε Sponsors-Only scripts και άνοιγμα credits.
 
 ### Έμφαση στην Πρώτη Ρύθμιση
 
@@ -457,9 +478,10 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 2. διάλεξε menu style
 3. άλλαξε το prompt αν θέλεις
 4. τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα
-5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats και prompt syncing
+5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats, prompt syncing ή Sponsors-Only access
 6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux
 7. χρησιμοποίησε το **Update Packages & Modules** όταν χρειάζεται ανανέωση dependencies
+8. χρησιμοποίησε το **VPN & Tor Utilities** μόνο όταν θέλεις αυτά τα προαιρετικά network controls
 
 ### Υπενθύμιση για το Save DedSec Project
 
@@ -2035,9 +2057,9 @@ These scripts are educational simulations intended to help users recognize socia
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**Settings.py** is the central control panel for the DedSec Project. It lets you view project and device information, update the project from the main or backup source, refresh Termux packages and Python modules, create a DedSec Project backup in Downloads, change the Termux prompt, connect or disconnect a GitHub account, view GitHub stats, sync the prompt with your GitHub username, scan Termux usage stats, switch menu styles, enable or disable menu auto-start, choose English or Greek, view credits, and uninstall the project safely.
+**Settings.py** is the central control panel for the DedSec Project. It lets you view project and device information, update the project from the main or backup source, refresh Termux packages and Python modules, access Sponsors-Only scripts through a connected GitHub account, create a DedSec Project backup in Downloads, change the Termux prompt, connect or disconnect a GitHub account, view GitHub stats, sync the prompt with your GitHub username, scan Termux usage stats, manage optional VPN and Tor utilities, switch menu styles, enable or disable menu auto-start, choose English or Greek, view credits, and uninstall the project safely.
 
-It also includes **DedSec OS**, a browser-based local workspace mode with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, language controls, prompt controls, password login, optional authenticator-style 2FA, and recovery through three security questions.
+It also includes **DedSec OS**, a browser-based local workspace mode with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project action buttons, language controls, prompt controls, password login, optional authenticator-style 2FA, and recovery through three security questions.
 
 **Save Location:** Language config: ~/Language.json | Termux config backup: ~/Termux.zip | Save DedSec Project backup: Downloads
 
@@ -2046,9 +2068,9 @@ It also includes **DedSec OS**, a browser-based local workspace mode with a file
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **Settings.py** είναι το κεντρικό control panel του DedSec Project. Σου επιτρέπει να βλέπεις πληροφορίες για το project και τη συσκευή, να ενημερώνεις το project από την κύρια ή την backup πηγή, να ανανεώνεις Termux packages και Python modules, να δημιουργείς backup του DedSec Project στα Downloads, να αλλάζεις το Termux prompt, να συνδέεις ή να αποσυνδέεις GitHub account, να βλέπεις GitHub stats, να συγχρονίζεις το prompt με το GitHub username, να σαρώνεις Termux usage stats, να αλλάζεις menu style, να ενεργοποιείς ή να απενεργοποιείς το menu auto-start, να επιλέγεις English ή Greek, να βλέπεις credits και να κάνεις ασφαλή απεγκατάσταση του project.
+Το **Settings.py** είναι το κεντρικό control panel του DedSec Project. Σου επιτρέπει να βλέπεις πληροφορίες για το project και τη συσκευή, να ενημερώνεις το project από την κύρια ή την backup πηγή, να ανανεώνεις Termux packages και Python modules, να αποκτάς πρόσβαση στα Sponsors-Only scripts μέσα από συνδεδεμένο GitHub account, να δημιουργείς backup του DedSec Project στα Downloads, να αλλάζεις το Termux prompt, να συνδέεις ή να αποσυνδέεις GitHub account, να βλέπεις GitHub stats, να συγχρονίζεις το prompt με το GitHub username, να σαρώνεις Termux usage stats, να διαχειρίζεσαι προαιρετικά VPN και Tor utilities, να αλλάζεις menu style, να ενεργοποιείς ή να απενεργοποιείς το menu auto-start, να επιλέγεις English ή Greek, να βλέπεις credits και να κάνεις ασφαλή απεγκατάσταση του project.
 
-Περιλαμβάνει επίσης το **DedSec OS**, ένα browser-based local workspace mode με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, language controls, prompt controls, password login, προαιρετικό authenticator-style 2FA και recovery μέσω τριών security questions.
+Περιλαμβάνει επίσης το **DedSec OS**, ένα browser-based local workspace mode με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project action buttons, language controls, prompt controls, password login, προαιρετικό authenticator-style 2FA και recovery μέσω τριών security questions.
 
 **Τοποθεσία Αποθήκευσης:** Ρύθμιση γλώσσας: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Save DedSec Project backup: Downloads
 
