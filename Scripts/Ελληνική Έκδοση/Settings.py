@@ -65,8 +65,46 @@ PROJECT_SAVE_REPOSITORIES = [
     {"folder_name": "DedSec_sal-scar", "url": "https://github.com/sal-scar/DedSec.git"},
 ]
 
+# --- VPN / Tor Utilities (taken from Free Internet.py and adapted for Settings.py) ---
+NETWORK_CONFIG_PATH = os.path.join(HOME_DIR, ".dedsec_network_utilities.json")
+NETWORK_DATA_DIR = os.path.join(HOME_DIR, ".dedsec_network_utilities")
+NETWORK_PROXY_CACHE_FILE = os.path.join(NETWORK_DATA_DIR, "proxy_cache.json")
+NETWORK_PROXY_STATE_FILE = os.path.join(NETWORK_DATA_DIR, "proxy_state.json")
+NETWORK_TOR_LOG_PATH = os.path.join(NETWORK_DATA_DIR, "tor.log")
+NETWORK_TOR_DATA_DIR = os.path.join(NETWORK_DATA_DIR, "tor_data")
+NETWORK_PROXY_API = "https://api.proxyscrape.com/v3/free-proxy-list/get"
+NETWORK_PROXY_CACHE_TTL = 240
+NETWORK_BAD_PROXY_TTL = 1800
+NETWORK_MIN_PROXY_POOL = 10
+NETWORK_MAX_PROXY_TESTS = 10
+NETWORK_TOR_SOCKS_PORT = 9050
+NETWORK_BASHRC_START_MARKER = "# --- DedSec VPN and Tor Utilities (Set by Settings.py) ---"
+NETWORK_BASHRC_END_MARKER = "# --- End DedSec VPN and Tor Utilities ---"
+NETWORK_COUNTRIES = {
+    "US": "United States",
+    "DE": "Germany",
+    "GB": "United Kingdom",
+    "FR": "France",
+    "NL": "Netherlands",
+    "JP": "Japan",
+    "IN": "India",
+    "BR": "Brazil",
+    "AU": "Australia",
+    "GR": "Greece",
+    "CA": "Canada",
+    "SE": "Sweden",
+    "CH": "Switzerland",
+    "IT": "Italy",
+    "ES": "Spain",
+}
+NETWORK_TOR_PROCESS = None
+
 # --- Sponsors-Only shortcuts ---
-SPONSORS_ROOT_NAME = "Sponsors-Only-main"
+SPONSORS_REPO_FULL_NAME = "DedSec-Project-Official/Sponsors-Only"
+SPONSORS_REPO_URL = "https://github.com/DedSec-Project-Official/Sponsors-Only"
+SPONSORS_REPO_GIT_URL = SPONSORS_REPO_URL + ".git"
+SPONSORS_ROOT_NAME = "Sponsors-Only"
+SPONSORS_OLD_ROOT_NAMES = ["Sponsors-Only-main"]
 SPONSORS_ROOT_PATH = os.path.join(HOME_DIR, SPONSORS_ROOT_NAME)
 SPONSORS_ENGLISH_FOLDER_NAME = "English Version"
 SPONSORS_GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
@@ -184,6 +222,16 @@ GREEK_STRINGS = {
     "About": "Πληροφορίες",
     "DedSec Project Update (Source 1)": "Ενημέρωση Έργου DedSec (Πηγή 1)",
     "DedSec Project Update (Source 2)": "Ενημέρωση Έργου DedSec (Πηγή 2)",
+    "Access Sponsors-Only Scripts": "Πρόσβαση στα Sponsors-Only Scripts",
+    "Checking Sponsors-Only access...": "Έλεγχος πρόσβασης στα Sponsors-Only...",
+    "GitHub is not connected yet. Connect GitHub now? (y/n): ": "Το GitHub δεν είναι συνδεδεμένο ακόμα. Σύνδεση τώρα; (y/n): ",
+    "GitHub connection is required for Sponsors-Only scripts.": "Απαιτείται σύνδεση GitHub για τα Sponsors-Only scripts.",
+    "Sponsors-Only access confirmed.": "Η πρόσβαση στα Sponsors-Only επιβεβαιώθηκε.",
+    "You do not have access to the Sponsors-Only repository yet.": "Δεν έχετε ακόμα πρόσβαση στο Sponsors-Only repository.",
+    "Make sure you are sponsoring with the connected GitHub account.": "Βεβαιωθείτε ότι είστε sponsor με τον συνδεδεμένο GitHub λογαριασμό.",
+    "Downloading Sponsors-Only scripts...": "Λήψη των Sponsors-Only scripts...",
+    "Sponsors-Only scripts downloaded to": "Τα Sponsors-Only scripts κατέβηκαν στο",
+    "Failed to download Sponsors-Only scripts": "Αποτυχία λήψης των Sponsors-Only scripts",
     "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
     "Save DedSec Project": "Αποθήκευση DedSec Project",
     "A zip with the save of the DedSec Project Legacy is available in your phone downloads.": "Ένα zip με το save του DedSec Project Legacy είναι διαθέσιμο στα Downloads του τηλεφώνου σας.",
@@ -276,6 +324,38 @@ GREEK_STRINGS = {
     "Invalid selection. Please try again.": "Μη έγκυρη επιλογή. Παρακαλώ προσπαθήστε ξανά.",
     "GitHub Account": "Λογαριασμός GitHub",
     "Termux Usage Stats": "Στατιστικά Χρήσης Termux",
+    "VPN & Tor Utilities": "Εργαλεία VPN & Tor",
+    "Network Utilities": "Εργαλεία Δικτύου",
+    "Tor Connection": "Σύνδεση Tor",
+    "VPN Connection": "Σύνδεση VPN",
+    "Enable Tor Connection": "Ενεργοποίηση Σύνδεσης Tor",
+    "Disable Tor Connection": "Απενεργοποίηση Σύνδεσης Tor",
+    "Enable VPN Connection": "Ενεργοποίηση Σύνδεσης VPN",
+    "Disable VPN Connection": "Απενεργοποίηση Σύνδεσης VPN",
+    "Choose VPN Location": "Επιλογή Τοποθεσίας VPN",
+    "Renew VPN Proxies": "Ανανέωση VPN Proxies",
+    "Update VPN/Tor Tools": "Ενημέρωση Εργαλείων VPN/Tor",
+    "Show VPN/Tor Status": "Εμφάνιση Κατάστασης VPN/Tor",
+    "Enabled": "Ενεργό",
+    "Disabled": "Ανενεργό",
+    "Running": "Τρέχει",
+    "Stopped": "Σταματημένο",
+    "Country": "Χώρα",
+    "Current proxy": "Τρέχον proxy",
+    "No proxy selected": "Δεν έχει επιλεγεί proxy",
+    "Network exports updated. Restart Termux or open a new shell to apply them everywhere.": "Οι ρυθμίσεις δικτύου ενημερώθηκαν. Κάντε επανεκκίνηση του Termux ή ανοίξτε νέο shell για να εφαρμοστούν παντού.",
+    "Tor support ready.": "Η υποστήριξη Tor είναι έτοιμη.",
+    "Tor started on 127.0.0.1:9050.": "Το Tor ξεκίνησε στο 127.0.0.1:9050.",
+    "Tor is already running.": "Το Tor ήδη τρέχει.",
+    "Tor stopped.": "Το Tor σταμάτησε.",
+    "Tor was not started by this app.": "Το Tor δεν ξεκίνησε από αυτή την εφαρμογή.",
+    "VPN proxy ready": "Το VPN proxy είναι έτοιμο",
+    "Saved VPN proxy reused without retesting.": "Το αποθηκευμένο VPN proxy χρησιμοποιήθηκε ξανά χωρίς νέο τεστ.",
+    "Saved proxy was previously marked as bad. Searching for a new one.": "Το αποθηκευμένο proxy είχε σημειωθεί ως προβληματικό. Αναζήτηση νέου.",
+    "VPN is disabled. Proxies were refreshed but no proxy was activated.": "Το VPN είναι ανενεργό. Τα proxies ανανεώθηκαν αλλά δεν ενεργοποιήθηκε κανένα proxy.",
+    "No working proxy found for this country right now. Try renew or choose another location.": "Δεν βρέθηκε λειτουργικό proxy για αυτή τη χώρα τώρα. Δοκιμάστε ανανέωση ή επιλέξτε άλλη τοποθεσία.",
+    "Selected VPN location": "Επιλεγμένη τοποθεσία VPN",
+    "Network tools checked.": "Τα εργαλεία δικτύου ελέγχθηκαν.",
     "Connect GitHub Account": "Σύνδεση Λογαριασμού GitHub",
     "Disconnect GitHub Account": "Αποσύνδεση Λογαριασμού GitHub",
     "Show GitHub Stats": "Εμφάνιση Στατιστικών GitHub",
@@ -307,7 +387,15 @@ GREEK_STRINGS = {
     "Shell commands found": "Εντολές shell που βρέθηκαν",
     "Most active folders": "Πιο ενεργοί φάκελοι",
     "First scan created. Run this again later to detect created/edited/deleted files.": "Δημιουργήθηκε η πρώτη σάρωση. Τρέξτε το ξανά αργότερα για εντοπισμό δημιουργημένων/επεξεργασμένων/διαγραμμένων αρχείων.",
-    "Press Enter to continue...": "Πατήστε Enter για συνέχεια...",
+    "Press Enter to continue...": "Πατήστε Enter για συνέχεια...",    "Update process completed successfully": "Η διαδικασία ενημέρωσης ολοκληρώθηκε με επιτυχία",
+    "Forcing a full update...": "Επιβολή πλήρους ενημέρωσης...",
+    "Customizations applied successfully! ": "Οι προσαρμογές εφαρμόστηκαν με επιτυχία! ",
+    "Please restart Termux for changes to take full effect": "Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως οι αλλαγές",
+    "Invalid selection or non-executable script.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script.",
+    "Terminal window is too small.": "Το παράθυρο του τερματικού είναι πολύ μικρό.",
+    "Unknown": "Άγνωστο",
+    "\nScript terminated by KeyboardInterrupt. Exiting gracefully...": "\nΤο script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος με ασφάλεια...",
+
 }
 
 # ------------------------------
@@ -357,6 +445,26 @@ def _(text):
     if current_lang == 'greek':
         return GREEK_STRINGS.get(text, text)
     return text
+
+
+def safe_curses_addstr(stdscr, y, x, text, attr=0):
+    """Draws curses text safely on small/mobile terminal sizes."""
+    try:
+        height, width = stdscr.getmaxyx()
+        if y < 0 or y >= height or width <= 0:
+            return
+        x = max(0, x)
+        if x >= width:
+            return
+        safe_text = str(text)[:max(0, width - x - 1)]
+        if not safe_text:
+            return
+        if attr:
+            stdscr.addstr(y, x, safe_text, attr)
+        else:
+            stdscr.addstr(y, x, safe_text)
+    except Exception:
+        pass
 
 # ------------------------------
 
@@ -818,7 +926,6 @@ def show_credits():
 Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
 Art Artist: Christina Chatzidimitriou
-Testers: MR-x
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
 Past Help: lamprouil, UKI_hunter
@@ -1203,6 +1310,180 @@ def github_account_menu():
         else:
             print(_("Invalid selection. Please try again."))
         input("\n" + _("Press Enter to continue..."))
+
+
+
+def ensure_github_connected_for_sponsors():
+    """Uses the existing gh login flow before accessing Sponsors-Only content."""
+    if not github_cli_available():
+        print("[!] GitHub CLI (gh) could not be installed. Run manually: pkg install gh")
+        return False
+
+    if github_auth_status():
+        username = github_current_username()
+        config = load_github_account_config()
+        if username and (not config.get("connected") or config.get("username") != username):
+            save_github_account_config({
+                "connected": True,
+                "username": username,
+                "connected_at": config.get("connected_at", time.time()),
+                "prompt_auto_username": config.get("prompt_auto_username", True),
+            })
+        return True
+
+    answer = input(_("GitHub is not connected yet. Connect GitHub now? (y/n): ")).strip().lower()
+    if answer not in ("y", "yes"):
+        print(_("GitHub connection is required for Sponsors-Only scripts."))
+        return False
+
+    connect_github_account()
+    return github_auth_status()
+
+
+def github_token_for_sponsors():
+    """Returns the active gh token without printing it."""
+    token = github_auth_token()
+    return (token or "").strip()
+
+
+def _write_sponsors_git_askpass(token):
+    """Creates a temporary GIT_ASKPASS helper so private git access avoids gh GraphQL."""
+    askpass_path = os.path.join(HOME_DIR, f".dedsec_sponsors_askpass_{os.getpid()}.py")
+    script = """#!/usr/bin/env python3
+import os
+import sys
+prompt = " ".join(sys.argv[1:]).lower()
+if "username" in prompt:
+    print("x-access-token")
+else:
+    print(os.environ.get("DEDSEC_GITHUB_TOKEN", ""))
+"""
+    with open(askpass_path, "w", encoding="utf-8") as handle:
+        handle.write(script)
+    try:
+        os.chmod(askpass_path, 0o700)
+    except Exception:
+        pass
+    return askpass_path
+
+
+def run_sponsors_git_command(git_args, token, cwd=None):
+    """Runs git with the authenticated GitHub token using GIT_ASKPASS."""
+    askpass_path = _write_sponsors_git_askpass(token)
+    env = os.environ.copy()
+    env["GIT_ASKPASS"] = askpass_path
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["DEDSEC_GITHUB_TOKEN"] = token
+    try:
+        completed = subprocess.run(
+            ["git"] + list(git_args),
+            cwd=cwd,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            check=False,
+            env=env,
+        )
+        return completed.returncode, (completed.stdout or "").strip()
+    except Exception as error:
+        return 1, str(error)
+    finally:
+        try:
+            os.remove(askpass_path)
+        except Exception:
+            pass
+
+
+def sponsors_repo_access_status():
+    """Returns (has_access, message) for the private Sponsors-Only repository."""
+    if not github_cli_available() or not github_auth_status():
+        return False, _("GitHub is not connected yet.")
+
+    if not ensure_pkg_command("git", "git"):
+        return False, "git could not be installed. Run manually: pkg install git"
+
+    token = github_token_for_sponsors()
+    if not token:
+        return False, "Could not read GitHub token. Run manually: gh auth refresh -h github.com -s repo"
+
+    rc, out = run_sponsors_git_command(["ls-remote", SPONSORS_REPO_GIT_URL, "HEAD"], token)
+    if rc == 0:
+        return True, _("Sponsors-Only access confirmed.")
+
+    message = (out or "").strip()
+    if "saml" in message.lower() or "sso" in message.lower():
+        message = "GitHub access exists but the token may need SSO approval for the organization. Open GitHub in browser and authorize the gh token for this organization."
+    elif not message or "repository not found" in message.lower() or "authentication failed" in message.lower():
+        message = _("You do not have access to the Sponsors-Only repository yet.")
+    return False, message
+
+
+def remove_old_sponsors_copies(include_final=True):
+    names = list(SPONSORS_OLD_ROOT_NAMES)
+    if include_final:
+        names.insert(0, SPONSORS_ROOT_NAME)
+    seen = set()
+    for name in names:
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        target = os.path.join(HOME_DIR, name)
+        _remove_path_if_exists(target)
+
+
+def clone_sponsors_repository():
+    if not ensure_pkg_command("git", "git"):
+        return False, "git could not be installed. Run manually: pkg install git"
+
+    token = github_token_for_sponsors()
+    if not token:
+        return False, "Could not read GitHub token. Run manually: gh auth refresh -h github.com -s repo"
+
+    temp_target = SPONSORS_ROOT_PATH + ".download"
+    _remove_path_if_exists(temp_target)
+
+    rc, out = run_sponsors_git_command(
+        ["clone", "--depth", "1", SPONSORS_REPO_GIT_URL, temp_target],
+        token,
+    )
+    if rc == 0 and os.path.isdir(temp_target):
+        remove_old_sponsors_copies(include_final=True)
+        try:
+            os.rename(temp_target, SPONSORS_ROOT_PATH)
+        except Exception:
+            shutil.move(temp_target, SPONSORS_ROOT_PATH)
+        return True, _("Sponsors-Only scripts downloaded to") + ": " + SPONSORS_ROOT_PATH
+
+    _remove_path_if_exists(temp_target)
+    message = (out or "").strip()
+    if not message:
+        message = "git clone failed"
+    if "unexpected eof" in message.lower():
+        message += "\nNetwork dropped during download. Try again; the old Sponsors-Only folder was kept if it existed."
+    return False, message
+
+def access_sponsors_only_scripts():
+    print("=== " + _("Access Sponsors-Only Scripts") + " ===")
+
+    if not ensure_github_connected_for_sponsors():
+        return
+
+    print(_("Checking Sponsors-Only access..."))
+    has_access, access_message = sponsors_repo_access_status()
+    if not has_access:
+        print("[!] " + _("You do not have access to the Sponsors-Only repository yet."))
+        if access_message:
+            print(access_message)
+        print(_("Make sure you are sponsoring with the connected GitHub account."))
+        return
+
+    print(access_message)
+    print(_("Downloading Sponsors-Only scripts..."))
+    ok, message = clone_sponsors_repository()
+    if ok:
+        print("[+] " + message)
+    else:
+        print("[!] " + _("Failed to download Sponsors-Only scripts") + ": " + message)
 
 # ------------------------------
 # Termux Usage Stats
@@ -1602,17 +1883,17 @@ def choose_menu_style(stdscr):
         stdscr.clear()
         height, width = stdscr.getmaxyx()
         title = _("Choose Menu Style")
-        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        safe_curses_addstr(stdscr, 1, width // 2 - len(title) // 2, title)
         
         for idx, option in enumerate(options):
             x = width // 2 - len(option) // 2
             y = height // 2 - len(options) // 2 + idx
             if idx == current:
                 stdscr.attron(curses.A_REVERSE)
-                stdscr.addstr(y, x, option)
+                safe_curses_addstr(stdscr, y, x, option)
                 stdscr.attroff(curses.A_REVERSE)
             else:
-                stdscr.addstr(y, x, option)
+                safe_curses_addstr(stdscr, y, x, option)
         
         stdscr.refresh()
         key = stdscr.getch()
@@ -1689,17 +1970,17 @@ def choose_language(stdscr):
         stdscr.clear()
         height, width = stdscr.getmaxyx()
         title = _("Choose Language/Επιλέξτε Γλώσσα")
-        stdscr.addstr(1, width // 2 - len(title) // 2, title)
+        safe_curses_addstr(stdscr, 1, width // 2 - len(title) // 2, title)
         
         for idx, option in enumerate(options):
             x = width // 2 - len(option) // 2
             y = height // 2 - len(options) // 2 + idx
             if idx == current:
                 stdscr.attron(curses.A_REVERSE)
-                stdscr.addstr(y, x, option)
+                safe_curses_addstr(stdscr, y, x, option)
                 stdscr.attroff(curses.A_REVERSE)
             else:
-                stdscr.addstr(y, x, option)
+                safe_curses_addstr(stdscr, y, x, option)
         
         stdscr.refresh()
         key = stdscr.getch()
@@ -2113,7 +2394,7 @@ def run_grid_menu():
             total_visible_cells = max_cols * rows_per_page
             
             if total_visible_cells <= 0:
-                stdscr.addstr(0, 0, _("Terminal window is too small."))
+                safe_curses_addstr(stdscr, 0, 0, _("Terminal window is too small."))
                 stdscr.refresh()
                 key = stdscr.getch()
                 if key in [ord('q'), ord('Q'), 10, 13]:
@@ -2151,14 +2432,14 @@ def run_grid_menu():
                     if line_y < term_height - 1 and line_x < term_width:
                         try:
                             display_line = line[:term_width - line_x]
-                            stdscr.addstr(line_y, line_x, display_line, curses.color_pair(3))
+                            safe_curses_addstr(stdscr, line_y, line_x, display_line, curses.color_pair(3))
                         except curses.error:
                             pass
             
             page_info = f" Page {(current_index // total_visible_cells) + 1} / {math.ceil(num_items / total_visible_cells)} "
             instructions = f"Arrow Keys: Move | P/N: Prev/Next Page | Enter: Select | q: Quit | {page_info}"
             try:
-                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
+                safe_curses_addstr(stdscr, term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
             except curses.error:
                 pass
             
@@ -2271,7 +2552,7 @@ def update_packages_modules():
     
     # 4. Python Dependencies (Exact list from Setup.sh including psutil)
     # Added 'psutil' to the list
-    python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow"
+    python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks"
     
     run_command(f"pip install {python_packages} --break-system-packages")
     
@@ -2883,7 +3164,7 @@ def update_prompt_server(username):
         lines = open(BASHRC_PATH, 'r', encoding='utf-8').readlines()
     except Exception:
         lines = []
-    new_ps1 = "PS1='\[\e[1;36m\]\D{%d/%m/%Y}-[\A]-(\[\e[1;34m\]" + username + "\[\e[0m\])-(\[\e[1;33m\]\W\[\e[0m\]) : '\n"
+    new_ps1 = "PS1='\\[\\e[1;36m\\]\\D{%d/%m/%Y}-[\\A]-(\\[\\e[1;34m\\]" + username + "\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\\n"
     replaced = False
     out = []
     for line in lines:
@@ -2907,8 +3188,7 @@ def settings_meta():
         'credits': {
             'creator': 'dedsec1121fk',
             'contributors': 'gr3ysec, Sal Scar',
-            'artist': 'Christina Chatzidimitriou',
-            'testers': 'MR-x'
+            'artist': 'Christina Chatzidimitriou'
         }
     }
 
@@ -2923,8 +3203,50 @@ def run_settings_action(action, payload):
         cmd = 'git remote set-url origin ' + REPO_URL_SOURCE_2 + ' && git fetch --all && git reset --hard origin/main && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull'
         return launch_job(label='Settings: Update Project [Source 2]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_packages':
-        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow --break-system-packages'
+        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=HOME_DIR, kind='settings-packages', prefer_termux=False)
+    if action == 'access_sponsors':
+        cmd = """pkg install -y gh git >/dev/null 2>&1 || true
+if ! gh auth status --hostname github.com >/dev/null 2>&1; then
+  echo "GitHub is not connected. Open Settings.py from Termux and use Access Sponsors-Only Scripts so it can ask you to connect."
+  exit 1
+fi
+TOKEN="$(gh auth token 2>/dev/null)"
+if [ -z "$TOKEN" ]; then
+  echo "Could not read GitHub token. Run: gh auth refresh -h github.com -s repo"
+  exit 1
+fi
+ASK="$HOME/.dedsec_sponsors_askpass_$$.sh"
+TMP="$HOME/Sponsors-Only.download"
+FINAL="$HOME/Sponsors-Only"
+OLD="$HOME/Sponsors-Only-main"
+cleanup(){ rm -f "$ASK"; }
+trap cleanup EXIT
+cat > "$ASK" <<'DEDSEC_ASKPASS'
+#!/usr/bin/env sh
+case "$1" in
+  *Username*) echo x-access-token ;;
+  *) echo "$DEDSEC_GITHUB_TOKEN" ;;
+esac
+DEDSEC_ASKPASS
+chmod 700 "$ASK"
+if ! GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git ls-remote https://github.com/DedSec-Project-Official/Sponsors-Only.git HEAD >/dev/null 2>&1; then
+  echo "You do not have access to the Sponsors-Only repository yet, or GitHub SSO/token access must be approved."
+  exit 1
+fi
+rm -rf "$TMP"
+if GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git clone --depth 1 https://github.com/DedSec-Project-Official/Sponsors-Only.git "$TMP"; then
+  rm -rf "$FINAL" "$OLD"
+  mv "$TMP" "$FINAL"
+  echo "Sponsors-Only scripts downloaded to: $FINAL"
+else
+  echo "Failed to download Sponsors-Only scripts. Old copy was kept if it existed."
+  rm -rf "$TMP"
+  exit 1
+fi
+"""
+
+        return launch_job(label='Settings: Access Sponsors-Only Scripts', shell_command=cmd, cwd=HOME_DIR, kind='settings-sponsors', prefer_termux=False)
     if action == 'save_menu_style':
         style = payload.get('menu_style') or 'list'
         update_bashrc_server(current_language_path_from_pref(), style)
@@ -4694,14 +5016,14 @@ INDEX_HTML = r"""
               <button class="btn" id="updateSource1Btn">Update Project (Source 1)</button>
               <button class="btn" id="updateSource2Btn">Update Project (Source 2)</button>
               <button class="btn" id="updatePackagesBtn">Update Packages & Modules</button>
+              <button class="btn" id="accessSponsorsBtn">Access Sponsors-Only Scripts</button>
             </div>
           </div>
           <div class="panel">
             <div class="screen-title" style="font-size:0.92rem;">Credits</div>
             <div class="subtle" id="creditsBlock">Creator: dedsec1121fk
 Contributors: gr3ysec, Sal Scar
-Art Artist: Christina Chatzidimitriou
-Testers: MR-x</div>
+Art Artist: Christina Chatzidimitriou</div>
           </div>
         </div>
       </section>
@@ -4737,10 +5059,10 @@ Testers: MR-x</div>
 
     var I18N = {
       en: {
-        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
+        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Access Sponsors-Only Scripts':'Access Sponsors-Only Scripts','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
       },
       el: {
-        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
+        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Access Sponsors-Only Scripts':'Πρόσβαση στα Sponsors-Only Scripts','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
       }
     };
 
@@ -5734,6 +6056,7 @@ Testers: MR-x</div>
       var updateSource1Btn = document.getElementById('updateSource1Btn'); if (updateSource1Btn) updateSource1Btn.addEventListener('click', function(){ runSettingsAction('update_source_1').catch(handleError); });
       var updateSource2Btn = document.getElementById('updateSource2Btn'); if (updateSource2Btn) updateSource2Btn.addEventListener('click', function(){ runSettingsAction('update_source_2').catch(handleError); });
       var updatePackagesBtn = document.getElementById('updatePackagesBtn'); if (updatePackagesBtn) updatePackagesBtn.addEventListener('click', function(){ runSettingsAction('update_packages').catch(handleError); });
+      var accessSponsorsBtn = document.getElementById('accessSponsorsBtn'); if (accessSponsorsBtn) accessSponsorsBtn.addEventListener('click', function(){ runSettingsAction('access_sponsors').catch(handleError); });
       var exitDedsecOsBtn = document.getElementById('exitDedsecOsBtn'); if (exitDedsecOsBtn) exitDedsecOsBtn.addEventListener('click', function(){ exitDedsecOs().catch(handleError); });
       document.getElementById('resetWallpaperBtn').addEventListener('click', async function(){
         try {
@@ -6268,19 +6591,700 @@ def launch_dedsec_os():
     return url
 
 
+
+# ------------------------------
+# VPN / Tor Utilities
+# ------------------------------
+def network_ensure_dirs():
+    try:
+        os.makedirs(NETWORK_DATA_DIR, exist_ok=True)
+        os.makedirs(NETWORK_TOR_DATA_DIR, exist_ok=True)
+    except Exception:
+        pass
+
+
+def network_load_json(path, default_value):
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+                return data
+    except Exception:
+        pass
+    return default_value
+
+
+def network_save_json(path, data):
+    network_ensure_dirs()
+    try:
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def network_default_config():
+    return {
+        "tor_enabled": False,
+        "vpn_enabled": False,
+        "country": "US",
+        "proxy": "",
+        "last_proxy_refresh": 0,
+        "last_tools_update": 0,
+    }
+
+
+def network_load_config():
+    config = network_default_config()
+    saved = network_load_json(NETWORK_CONFIG_PATH, {})
+    if isinstance(saved, dict):
+        config.update(saved)
+    country = str(config.get("country") or "US").upper()
+    if country not in NETWORK_COUNTRIES:
+        country = "US"
+    config["country"] = country
+    config["tor_enabled"] = bool(config.get("tor_enabled", False))
+    config["vpn_enabled"] = bool(config.get("vpn_enabled", False))
+    config["proxy"] = str(config.get("proxy") or "")
+    return config
+
+
+def network_save_config(config):
+    clean = network_default_config()
+    if isinstance(config, dict):
+        clean.update(config)
+    clean["country"] = str(clean.get("country") or "US").upper()
+    clean["tor_enabled"] = bool(clean.get("tor_enabled", False))
+    clean["vpn_enabled"] = bool(clean.get("vpn_enabled", False))
+    clean["proxy"] = str(clean.get("proxy") or "")
+    network_save_json(NETWORK_CONFIG_PATH, clean)
+
+
+def network_run(command, capture=False):
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE if capture else None,
+            stderr=subprocess.STDOUT if capture else None,
+        )
+    except Exception:
+        return None
+
+
+def network_is_termux():
+    prefix = os.environ.get("PREFIX", "")
+    return "com.termux" in prefix or "TERMUX_VERSION" in os.environ or os.path.isdir("/data/data/com.termux")
+
+
+def network_install_python_package(package_name):
+    result = network_run([sys.executable, "-m", "pip", "install", "--upgrade", package_name], capture=True)
+    return bool(result and result.returncode == 0)
+
+
+def network_update_tools(silent=False):
+    messages = []
+    if network_is_termux() and shutil.which("pkg"):
+        if not silent:
+            print("[*] pkg update ...")
+        network_run(["pkg", "update", "-y"])
+        network_run(["pkg", "install", "-y", "tor", "openssl", "curl", "wget"])
+        messages.append("Termux packages checked")
+    if not network_pysocks_available():
+        if not silent:
+            print("[*] Installing PySocks ...")
+        if network_install_python_package("pysocks"):
+            messages.append("PySocks checked")
+    if not silent:
+        print(_("Network tools checked."))
+    config = network_load_config()
+    config["last_tools_update"] = int(time.time())
+    network_save_config(config)
+    return messages
+
+
+def network_local_port_open(host, port, timeout=0.5):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def network_tor_binary():
+    return shutil.which("tor")
+
+
+def network_pysocks_available():
+    try:
+        import socks  # noqa: F401
+        return True
+    except Exception:
+        return False
+
+
+def network_tor_running():
+    global NETWORK_TOR_PROCESS
+    if NETWORK_TOR_PROCESS and NETWORK_TOR_PROCESS.poll() is None and network_local_port_open("127.0.0.1", NETWORK_TOR_SOCKS_PORT):
+        return True
+    if network_local_port_open("127.0.0.1", NETWORK_TOR_SOCKS_PORT):
+        return True
+    if NETWORK_TOR_PROCESS and NETWORK_TOR_PROCESS.poll() is not None:
+        NETWORK_TOR_PROCESS = None
+    return False
+
+
+def network_install_tor_support(silent=False):
+    if not network_tor_binary() or not network_pysocks_available():
+        network_update_tools(silent=silent)
+    if not network_tor_binary():
+        return False, "Tor binary not found. In Termux run: pkg install tor"
+    if not network_pysocks_available():
+        return False, "PySocks is missing. Run: pip install pysocks"
+    return True, _("Tor support ready.")
+
+
+def network_start_tor(silent=False):
+    global NETWORK_TOR_PROCESS
+    ok, msg = network_install_tor_support(silent=silent)
+    if not ok:
+        return False, msg
+    if network_tor_running():
+        return True, _("Tor is already running.")
+    try:
+        network_ensure_dirs()
+        log_handle = open(NETWORK_TOR_LOG_PATH, "ab")
+        NETWORK_TOR_PROCESS = subprocess.Popen(
+            [
+                network_tor_binary(),
+                "--SocksPort", "127.0.0.1:" + str(NETWORK_TOR_SOCKS_PORT),
+                "--DataDirectory", NETWORK_TOR_DATA_DIR,
+            ],
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        for _ in range(40):
+            if network_tor_running():
+                return True, _("Tor started on 127.0.0.1:9050.")
+            if NETWORK_TOR_PROCESS and NETWORK_TOR_PROCESS.poll() is not None:
+                break
+            time.sleep(0.5)
+        return False, "Tor did not finish bootstrapping yet. Check " + NETWORK_TOR_LOG_PATH
+    except Exception as error:
+        return False, "Could not start Tor: " + str(error)
+
+
+def network_stop_tor():
+    global NETWORK_TOR_PROCESS
+    stopped = False
+    if NETWORK_TOR_PROCESS and NETWORK_TOR_PROCESS.poll() is None:
+        try:
+            NETWORK_TOR_PROCESS.terminate()
+            NETWORK_TOR_PROCESS.wait(timeout=5)
+            stopped = True
+        except Exception:
+            try:
+                NETWORK_TOR_PROCESS.kill()
+                stopped = True
+            except Exception:
+                pass
+        NETWORK_TOR_PROCESS = None
+
+    # If Tor is still listening but was started earlier, try a safe pkill in Termux.
+    if network_local_port_open("127.0.0.1", NETWORK_TOR_SOCKS_PORT) and shutil.which("pkill"):
+        try:
+            subprocess.run(["pkill", "-f", "tor.*SocksPort"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            time.sleep(0.4)
+            stopped = True
+        except Exception:
+            pass
+
+    if stopped:
+        return True, _("Tor stopped.")
+    return False, _("Tor was not started by this app.")
+
+
+def network_tor_proxy():
+    return "socks5h://127.0.0.1:" + str(NETWORK_TOR_SOCKS_PORT)
+
+
+def network_fetch_proxies_from_proxyscrape_v4(country):
+    params = {
+        "request": "display_proxies",
+        "proxy_format": "protocolipport",
+        "format": "json",
+        "protocol": "http",
+        "timeout": 10000,
+        "country": (country or "all").lower(),
+        "anonymity": "elite",
+    }
+    out = []
+    try:
+        response = requests.get("https://api.proxyscrape.com/v4/free-proxy-list/get", params=params, timeout=12)
+        data = response.json()
+        for item in data.get("proxies", [])[:80]:
+            ip = item.get("ip")
+            port = item.get("port")
+            proto = item.get("protocol") or "http"
+            if ip and port and proto in ("http", "https"):
+                out.append(proto + "://" + str(ip) + ":" + str(port))
+    except Exception:
+        pass
+    return out
+
+
+def network_fetch_proxies_from_proxyscrape_legacy(country):
+    params = {
+        "protocol": "http",
+        "country": str(country or "US").upper(),
+        "anonymity": "elite",
+        "timeout": 10000,
+        "format": "json",
+    }
+    out = []
+    try:
+        response = requests.get(NETWORK_PROXY_API, params=params, timeout=12)
+        data = response.json()
+        for item in data.get("proxies", [])[:60]:
+            ip = item.get("ip")
+            port = item.get("port")
+            proto = item.get("protocol") or "http"
+            if ip and port and proto in ("http", "https"):
+                out.append(proto + "://" + str(ip) + ":" + str(port))
+    except Exception:
+        pass
+    return out
+
+
+def network_fetch_proxies_from_geonode(country):
+    params = {
+        "limit": 80,
+        "page": 1,
+        "sort_by": "lastChecked",
+        "sort_type": "desc",
+        "filterLastChecked": 90,
+        "country": str(country or "US").upper(),
+        "protocols": "http,https",
+    }
+    out = []
+    try:
+        response = requests.get("https://proxylist.geonode.com/api/proxy-list", params=params, timeout=12)
+        data = response.json()
+        for item in data.get("data", [])[:80]:
+            ip = item.get("ip")
+            port = item.get("port")
+            protocols = item.get("protocols") or []
+            proto = "https" if "https" in protocols else "http"
+            if ip and port:
+                out.append(proto + "://" + str(ip) + ":" + str(port))
+    except Exception:
+        pass
+    return out
+
+
+def network_load_proxy_state():
+    state = network_load_json(NETWORK_PROXY_STATE_FILE, {})
+    return state if isinstance(state, dict) else {}
+
+
+def network_save_proxy_state(state):
+    network_save_json(NETWORK_PROXY_STATE_FILE, state)
+
+
+def network_get_bad_proxy_map(country):
+    key = str(country or "US").upper()
+    state = network_load_proxy_state()
+    bucket = state.get(key, {}) if isinstance(state.get(key, {}), dict) else {}
+    now = int(time.time())
+    cleaned = {}
+    for proxy, expiry in bucket.items():
+        try:
+            if int(expiry) > now:
+                cleaned[proxy] = int(expiry)
+        except Exception:
+            pass
+    if cleaned != bucket:
+        if cleaned:
+            state[key] = cleaned
+        elif key in state:
+            del state[key]
+        network_save_proxy_state(state)
+    return cleaned
+
+
+def network_mark_proxy_bad(country, proxy, ttl=NETWORK_BAD_PROXY_TTL):
+    if not proxy:
+        return
+    state = network_load_proxy_state()
+    key = str(country or "US").upper()
+    bucket = state.setdefault(key, {})
+    bucket[proxy] = int(time.time()) + int(ttl)
+    network_save_proxy_state(state)
+
+
+def network_mark_proxy_good(country, proxy):
+    state = network_load_proxy_state()
+    key = str(country or "US").upper()
+    bucket = state.get(key, {})
+    if proxy in bucket:
+        del bucket[proxy]
+        if bucket:
+            state[key] = bucket
+        elif key in state:
+            del state[key]
+        network_save_proxy_state(state)
+
+
+def network_is_proxy_marked_bad(country, proxy):
+    if not proxy:
+        return True
+    return proxy in network_get_bad_proxy_map(country)
+
+
+def network_fetch_proxy_pool(country, force_refresh=False):
+    network_ensure_dirs()
+    cache = network_load_json(NETWORK_PROXY_CACHE_FILE, {})
+    key = str(country or "US").upper()
+    now = int(time.time())
+    cached = cache.get(key) if isinstance(cache, dict) else None
+    gathered = []
+
+    if (not force_refresh) and cached and now - int(cached.get("ts", 0)) < NETWORK_PROXY_CACHE_TTL:
+        gathered = cached.get("items", [])
+    else:
+        seen = set()
+        for loader in (network_fetch_proxies_from_proxyscrape_v4, network_fetch_proxies_from_geonode, network_fetch_proxies_from_proxyscrape_legacy):
+            for proxy in loader(key):
+                if proxy and proxy not in seen:
+                    seen.add(proxy)
+                    gathered.append(proxy)
+        if isinstance(cache, dict):
+            cache[key] = {"ts": now, "items": gathered}
+            network_save_json(NETWORK_PROXY_CACHE_FILE, cache)
+
+    bad = network_get_bad_proxy_map(key)
+    clean = [proxy for proxy in gathered if proxy not in bad]
+    return clean
+
+
+def network_test_proxy(proxy):
+    try:
+        response = requests.get(
+            "https://api.ipify.org",
+            timeout=7,
+            proxies={"http": proxy, "https": proxy},
+            headers={"User-Agent": "DedSec Settings Network Check/1.0"},
+        )
+        return response.status_code == 200 and bool(response.text.strip())
+    except Exception:
+        return False
+
+
+def network_select_working_proxy(country, force_refresh=False, silent=False):
+    pool = network_fetch_proxy_pool(country, force_refresh=force_refresh)
+    if not pool:
+        return "", _("No working proxy found for this country right now. Try renew or choose another location.")
+    tests = 0
+    for proxy in pool:
+        tests += 1
+        if not silent:
+            print("[*] Testing VPN proxy " + str(tests) + "/" + str(min(len(pool), NETWORK_MAX_PROXY_TESTS)) + " ...")
+        if network_test_proxy(proxy):
+            network_mark_proxy_good(country, proxy)
+            return proxy, _("VPN proxy ready") + ": " + proxy
+        network_mark_proxy_bad(country, proxy)
+        if tests >= NETWORK_MAX_PROXY_TESTS:
+            break
+
+    return "", _("No working proxy found for this country right now. Try renew or choose another location.")
+
+
+def network_remove_bashrc_export_block(content):
+    pattern = re.compile(
+        re.escape(NETWORK_BASHRC_START_MARKER) + r".*?" + re.escape(NETWORK_BASHRC_END_MARKER) + r"\n?",
+        re.DOTALL,
+    )
+    return pattern.sub("", content)
+
+
+def network_apply_bashrc_exports():
+    config = network_load_config()
+    try:
+        os.makedirs(os.path.dirname(BASHRC_PATH), exist_ok=True)
+        if os.path.exists(BASHRC_PATH):
+            with open(BASHRC_PATH, "r", encoding="utf-8") as handle:
+                content = handle.read()
+        else:
+            content = ""
+        content = network_remove_bashrc_export_block(content).rstrip() + "\n\n"
+
+        exports = []
+        if config.get("tor_enabled"):
+            tor_proxy = network_tor_proxy()
+            exports.extend([
+                'export ALL_PROXY="' + tor_proxy + '"',
+                'export all_proxy="' + tor_proxy + '"',
+            ])
+        elif config.get("vpn_enabled") and config.get("proxy"):
+            proxy = str(config.get("proxy"))
+            exports.extend([
+                'export HTTP_PROXY="' + proxy + '"',
+                'export HTTPS_PROXY="' + proxy + '"',
+                'export http_proxy="' + proxy + '"',
+                'export https_proxy="' + proxy + '"',
+                "unset ALL_PROXY",
+                "unset all_proxy",
+            ])
+        else:
+            exports.extend([
+                "unset HTTP_PROXY",
+                "unset HTTPS_PROXY",
+                "unset http_proxy",
+                "unset https_proxy",
+                "unset ALL_PROXY",
+                "unset all_proxy",
+            ])
+
+        block = NETWORK_BASHRC_START_MARKER + "\n" + "\n".join(exports) + "\n" + NETWORK_BASHRC_END_MARKER + "\n"
+        with open(BASHRC_PATH, "w", encoding="utf-8") as handle:
+            handle.write(content + block)
+    except Exception as error:
+        print("[!] Failed to update network exports: " + str(error))
+
+
+def network_status_lines():
+    config = network_load_config()
+    country = config.get("country", "US")
+    lines = [
+        _("Tor Connection") + ": " + (_("Enabled") if config.get("tor_enabled") else _("Disabled")) + " / " + (_("Running") if network_tor_running() else _("Stopped")),
+        _("VPN Connection") + ": " + (_("Enabled") if config.get("vpn_enabled") else _("Disabled")),
+        _("Country") + ": " + country + " - " + NETWORK_COUNTRIES.get(country, country),
+        _("Current proxy") + ": " + (config.get("proxy") or _("No proxy selected")),
+    ]
+    return lines
+
+
+def network_print_status():
+    print("=== " + _("Network Utilities") + " ===")
+    for line in network_status_lines():
+        print(line)
+
+
+def network_enable_tor():
+    config = network_load_config()
+    ok, msg = network_start_tor(silent=False)
+    if ok:
+        config["tor_enabled"] = True
+        # Tor takes priority over the HTTP proxy because it is more private when active.
+        network_save_config(config)
+        network_apply_bashrc_exports()
+    print(msg)
+    if ok:
+        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+
+
+def network_disable_tor():
+    config = network_load_config()
+    ok, msg = network_stop_tor()
+    config["tor_enabled"] = False
+    network_save_config(config)
+    network_apply_bashrc_exports()
+    print(msg)
+    print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+
+
+def network_enable_vpn(force_refresh=False):
+    config = network_load_config()
+    country = config.get("country", "US")
+    existing_proxy = str(config.get("proxy") or "").strip()
+
+    # Do not test the saved proxy every time. Reuse it unless the user renews
+    # proxies, changes country, has no saved proxy, or it was previously marked bad.
+    if existing_proxy and not force_refresh and not network_is_proxy_marked_bad(country, existing_proxy):
+        config["vpn_enabled"] = True
+        config["proxy"] = existing_proxy
+        network_save_config(config)
+        network_apply_bashrc_exports()
+        print(_("VPN proxy ready") + ": " + existing_proxy)
+        print(_("Saved VPN proxy reused without retesting."))
+        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+        return
+
+    if existing_proxy and network_is_proxy_marked_bad(country, existing_proxy):
+        print(_("Saved proxy was previously marked as bad. Searching for a new one."))
+
+    proxy, msg = network_select_working_proxy(country, force_refresh=force_refresh, silent=False)
+    if proxy:
+        config["vpn_enabled"] = True
+        config["proxy"] = proxy
+        config["last_proxy_refresh"] = int(time.time())
+        network_save_config(config)
+        network_apply_bashrc_exports()
+    print(msg)
+    if proxy:
+        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+
+
+def network_disable_vpn():
+    config = network_load_config()
+    config["vpn_enabled"] = False
+    config["proxy"] = ""
+    network_save_config(config)
+    network_apply_bashrc_exports()
+    print(_("VPN Connection") + ": " + _("Disabled"))
+    print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+
+
+def network_choose_vpn_location():
+    config = network_load_config()
+    countries = sorted(NETWORK_COUNTRIES.items(), key=lambda item: item[1].lower())
+    print("=== " + _("Choose VPN Location") + " ===")
+    for index, (code, name) in enumerate(countries, start=1):
+        current = " *" if code == config.get("country") else ""
+        print(str(index) + ". " + code + " - " + name + current)
+    choice = input(_("Enter the number of your choice: ")).strip()
+    try:
+        selected_index = int(choice) - 1
+        if selected_index < 0 or selected_index >= len(countries):
+            raise ValueError()
+    except Exception:
+        print(_("Invalid selection. Please try again."))
+        return
+
+    country_code, country_name = countries[selected_index]
+    config["country"] = country_code
+    config["proxy"] = ""
+    network_save_config(config)
+    print(_("Selected VPN location") + ": " + country_code + " - " + country_name)
+
+    if config.get("vpn_enabled"):
+        network_enable_vpn(force_refresh=True)
+
+
+def network_renew_vpn_proxies():
+    config = network_load_config()
+    country = config.get("country", "US")
+    if config.get("vpn_enabled"):
+        network_enable_vpn(force_refresh=True)
+        return
+
+    # Refresh the pool without turning VPN on when the user has VPN disabled.
+    pool = network_fetch_proxy_pool(country, force_refresh=True)
+    print(str(len(pool)) + " proxies cached for " + country + ".")
+    print(_("VPN is disabled. Proxies were refreshed but no proxy was activated."))
+
+
+def network_renew_tools_and_connections():
+    network_update_tools(silent=False)
+    config = network_load_config()
+    if config.get("tor_enabled"):
+        ok, msg = network_start_tor(silent=False)
+        print(msg)
+    if config.get("vpn_enabled"):
+        network_enable_vpn(force_refresh=True)
+    else:
+        # Refresh the currently selected country pool even if VPN is off.
+        country = config.get("country", "US")
+        pool = network_fetch_proxy_pool(country, force_refresh=True)
+        print(str(len(pool)) + " proxies cached for " + country + ".")
+    network_apply_bashrc_exports()
+
+
+def network_autostart_if_enabled(silent=True):
+    config = network_load_config()
+    changed = False
+    if config.get("tor_enabled"):
+        network_start_tor(silent=silent)
+        changed = True
+    if config.get("vpn_enabled"):
+        country = config.get("country", "US")
+        proxy = str(config.get("proxy") or "").strip()
+        if (not proxy) or network_is_proxy_marked_bad(country, proxy):
+            new_proxy, _msg = network_select_working_proxy(country, force_refresh=False, silent=True)
+            if new_proxy:
+                config["proxy"] = new_proxy
+                config["last_proxy_refresh"] = int(time.time())
+                network_save_config(config)
+                changed = True
+        # When a saved proxy exists and is not marked bad, do not test it on startup.
+    if changed or config.get("tor_enabled") or config.get("vpn_enabled"):
+        network_apply_bashrc_exports()
+
+
+def network_utilities_menu():
+    while True:
+        os.system("clear")
+        network_print_status()
+        config = network_load_config()
+        options = [
+            _("Disable Tor Connection") if config.get("tor_enabled") else _("Enable Tor Connection"),
+            _("Disable VPN Connection") if config.get("vpn_enabled") else _("Enable VPN Connection"),
+            _("Choose VPN Location"),
+            _("Renew VPN Proxies"),
+            _("Update VPN/Tor Tools"),
+            _("Show VPN/Tor Status"),
+            _("Back"),
+        ]
+        print("")
+        for index, option in enumerate(options, start=1):
+            print(str(index) + ". " + option)
+        choice = input("\n" + _("Enter the number of your choice: ")).strip()
+
+        os.system("clear")
+        if choice == "1":
+            if config.get("tor_enabled"):
+                network_disable_tor()
+            else:
+                network_enable_tor()
+        elif choice == "2":
+            if config.get("vpn_enabled"):
+                network_disable_vpn()
+            else:
+                network_enable_vpn(force_refresh=False)
+        elif choice == "3":
+            network_choose_vpn_location()
+        elif choice == "4":
+            network_renew_vpn_proxies()
+        elif choice == "5":
+            network_renew_tools_and_connections()
+        elif choice == "6":
+            network_print_status()
+        elif choice == "7" or choice.lower() in ("b", "back", "q", "quit"):
+            break
+        else:
+            print(_("Invalid selection. Please try again."))
+        input("\n" + _("Press Enter to continue..."))
+
+
 # ------------------------------
 # Settings Menu with Different Styles
 # ------------------------------
+def ensure_required_settings_menu_items(options):
+    """Keeps important Settings entries visible even if older lists are reused."""
+    sponsors_label = _("Access Sponsors-Only Scripts")
+    if sponsors_label not in options:
+        try:
+            update_packages_index = options.index(_("Update Packages & Modules"))
+            options.insert(update_packages_index + 1, sponsors_label)
+        except ValueError:
+            options.insert(4, sponsors_label)
+    return options
+
 def get_settings_options():
-    return [
+    options = [
         _("About"),
         _("DedSec Project Update (Source 1)"),
         _("DedSec Project Update (Source 2)"),
         _("Update Packages & Modules"),
+        _("Access Sponsors-Only Scripts"),
         _("Save DedSec Project"),
         _("Change Prompt"),
         _("GitHub Account"),
         _("Termux Usage Stats"),
+        _("VPN & Tor Utilities"),
         _("Change Menu Style"),
         get_menu_autostart_label(),
         _("Choose Language/Επιλέξτε Γλώσσα"),
@@ -6288,6 +7292,7 @@ def get_settings_options():
         _("Uninstall DedSec Project"),
         _("Exit")
     ]
+    return ensure_required_settings_menu_items(options)
 
 
 def run_settings_list_menu():
@@ -6302,16 +7307,16 @@ def run_settings_list_menu():
             stdscr.clear()
             height, width = stdscr.getmaxyx()
             title = _("Select an option")
-            stdscr.addstr(1, width // 2 - len(title) // 2, title)
+            safe_curses_addstr(stdscr, 1, width // 2 - len(title) // 2, title)
             for idx, option in enumerate(menu_options):
                 x = width // 2 - len(option) // 2
                 y = height // 2 - len(menu_options) // 2 + idx
                 if idx == current_row:
                     stdscr.attron(curses.A_REVERSE)
-                    stdscr.addstr(y, x, option)
+                    safe_curses_addstr(stdscr, y, x, option)
                     stdscr.attroff(curses.A_REVERSE)
                 else:
-                    stdscr.addstr(y, x, option)
+                    safe_curses_addstr(stdscr, y, x, option)
             stdscr.refresh()
             key = stdscr.getch()
             if key == curses.KEY_UP and current_row > 0:
@@ -6320,6 +7325,8 @@ def run_settings_list_menu():
                 current_row += 1
             elif key in [curses.KEY_ENTER, 10, 13]:
                 return current_row
+            elif key in [ord('q'), ord('Q')]:
+                return None
     
     return curses.wrapper(menu)
 
@@ -6355,7 +7362,7 @@ def run_settings_grid_menu():
             total_visible_cells = max_cols * rows_per_page
             
             if total_visible_cells <= 0:
-                stdscr.addstr(0, 0, _("Terminal window is too small."))
+                safe_curses_addstr(stdscr, 0, 0, _("Terminal window is too small."))
                 stdscr.refresh()
                 key = stdscr.getch()
                 if key in [ord('q'), ord('Q'), 10, 13]:
@@ -6365,7 +7372,7 @@ def run_settings_grid_menu():
             # Draw title
             title = _("Select an option")
             try:
-                stdscr.addstr(0, term_width // 2 - len(title) // 2, title, curses.color_pair(3))
+                safe_curses_addstr(stdscr, 0, term_width // 2 - len(title) // 2, title, curses.color_pair(3))
             except curses.error:
                 pass
 
@@ -6434,14 +7441,14 @@ def run_settings_grid_menu():
                     if line_y < term_height - 1 and line_x < term_width:
                         try:
                             color = curses.color_pair(1) if actual_index == current_index else curses.color_pair(3)
-                            stdscr.addstr(line_y, line_x, line[:term_width - line_x], color)
+                            safe_curses_addstr(stdscr, line_y, line_x, line[:term_width - line_x], color)
                         except curses.error:
                             pass
             
             # Draw instructions
             instructions = f"Arrow Keys: Move | Enter: Select | q: Quit"
             try:
-                stdscr.addstr(term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
+                safe_curses_addstr(stdscr, term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
             except curses.error:
                 pass
             
@@ -6531,27 +7538,31 @@ def main():
         elif selected == 3:
             update_packages_modules()
         elif selected == 4:
+            access_sponsors_only_scripts()
+        elif selected == 5:
             save_project()
             pause_without_text = True
-        elif selected == 5:
-            change_prompt()
         elif selected == 6:
-            github_account_menu()
+            change_prompt()
         elif selected == 7:
-            show_termux_usage_stats()
+            github_account_menu()
         elif selected == 8:
-            change_menu_style()
+            show_termux_usage_stats()
         elif selected == 9:
-            toggle_menu_autostart()
+            network_utilities_menu()
         elif selected == 10:
-            change_language()
+            change_menu_style()
         elif selected == 11:
-            show_credits()
+            toggle_menu_autostart()
         elif selected == 12:
+            change_language()
+        elif selected == 13:
+            show_credits()
+        elif selected == 14:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 13:
+        elif selected == 15:
             print(_("Exiting..."))
             break
 
@@ -6574,6 +7585,7 @@ if __name__ == "__main__":
         
         create_backup_zip_if_not_exists()
         apply_github_prompt_if_connected()
+        network_autostart_if_enabled(silent=True)
         
         if len(sys.argv) > 1 and sys.argv[1] == "--menu":
             if len(sys.argv) > 2:
