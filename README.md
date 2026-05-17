@@ -507,9 +507,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
-- **Sponsors-Only:** 4 tools
+- **Sponsors-Only:** 5 tools
 
-**Total listed on tools page:** 79 tools
+**Total listed on tools page:** 80 tools
 
 </details>
 
@@ -527,9 +527,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
-- **Sponsors-Only:** 4 εργαλεία
+- **Sponsors-Only:** 5 εργαλεία
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 79 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 80 εργαλεία
 
 </details>
 
@@ -2152,6 +2152,26 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 Το **Face Detector Heavy.py** είναι η πιο βαριά και επεκταμένη έκδοση ανάλυσης του face detector για Termux, χωρίς ανάγκη για root. Εκτός από live χρήση κάμερας, εναλλαγή μπροστινής/πίσω κάμερας, upload φωτογραφιών και βίντεο, PNG snapshots, WEBM recording και αποθήκευση face crops, ανεβάζει την παρακολούθηση έως και σε 30 πρόσωπα και προσθέτει TensorFlow COCO-SSD object detection πάνω στο pipeline του MediaPipe face mesh. Εμφανίζει πιο πλούσιο on-screen telemetry όπως face count, animal/object detection, εκτιμήσεις pose και gaze, facial proportions, κατάσταση στόματος και φρυδιών, asymmetry scoring και άλλα visual analysis στοιχεία, ενώ συνεχίζει να υποστηρίζει local network link και προαιρετικό δημόσιο Cloudflare link.
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures, recordings, uploaded results και τα αποθηκευμένα face crops μπαίνουν στο `~/storage/downloads/Face Detector/`. Αν το Termux storage δεν είναι διαθέσιμο, γίνεται fallback στο `~/Face Detector/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/Face Detector/`, με fallback στο `~/Face Detector/`. Τα internal web files, τα certificates και τα helper binaries αποθηκεύονται στο `~/.face_detector_studio/`.
+
+</details>
+
+### • Face Swap.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Face Swap.py** is a local browser-based face swap tool for Termux that works without root. It opens a local camera page, lets you upload a source face image, switch between the front and back camera, and blend the uploaded face over the live camera using MediaPipe Face Mesh. The current version focuses on a smooth face-lock approach: it locks the uploaded face once, follows the live face, moves key feature patches for expressions, includes smoothing, feathering, opacity, blend, and skin-tone matching controls, and can save PNG snapshots from the browser. Use it only with your own images or with clear permission.
+
+**Save Location:** On Termux, saved photos are stored in `/storage/emulated/0/Download/Face Swap/` or `~/storage/downloads/Face Swap/`, with fallback to `~/Face Swap/`. On non-Termux systems it uses `~/Downloads/Face Swap/`, with fallback to `~/Face Swap/`.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **Face Swap.py** είναι ένα τοπικό browser-based εργαλείο face swap για Termux που λειτουργεί χωρίς root. Ανοίγει μια local camera σελίδα, σου επιτρέπει να ανεβάσεις μια source face εικόνα, να αλλάξεις ανάμεσα σε μπροστινή και πίσω κάμερα και να κάνεις blend το ανεβασμένο πρόσωπο πάνω στο live camera feed με MediaPipe Face Mesh. Η τρέχουσα έκδοση εστιάζει σε smooth face-lock λογική: κλειδώνει το ανεβασμένο πρόσωπο μία φορά, ακολουθεί το live πρόσωπο, κινεί βασικά feature patches για expressions, περιλαμβάνει smoothing, feathering, opacity, blend και skin-tone matching controls και μπορεί να αποθηκεύει PNG snapshots από τον browser. Χρησιμοποίησέ το μόνο με δικές σου εικόνες ή με ξεκάθαρη άδεια.
+
+**Τοποθεσία Αποθήκευσης:** Στο Termux, οι αποθηκευμένες φωτογραφίες μπαίνουν στο `/storage/emulated/0/Download/Face Swap/` ή στο `~/storage/downloads/Face Swap/`, με fallback στο `~/Face Swap/`. Σε συστήματα εκτός Termux χρησιμοποιείται το `~/Downloads/Face Swap/`, με fallback στο `~/Face Swap/`.
 
 </details>
 
