@@ -2269,11 +2269,11 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 ### Credits
 
 * **Creator:** dedsec1121fk
-* **Contributors:** gr3ysec, Sal Scar
+* **Contributors:** gr3ysec
 * **Art Artists:** Christina Chatzidimitriou
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
-* **Past Help:** lamprouil, UKI_hunter
+* **Past Help:** lamprouil, UKI_hunter, Sal Scar
 
 </details>
 
@@ -2296,11 +2296,11 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 ### Συντελεστές
 
 * **Creator:** dedsec1121fk
-* **Contributors:** gr3ysec, Sal Scar
+* **Contributors:** gr3ysec
 * **Art Artists:** Christina Chatzidimitriou
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
-* **Past Help:** lamprouil, UKI_hunter
+* **Past Help:** lamprouil, UKI_hunter, Sal Scar
 
 </details>
 
