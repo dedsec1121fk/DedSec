@@ -924,11 +924,11 @@ def show_credits():
                 {_('Credits').upper()}
 =======================================
 Creator: dedsec1121fk
-Contributors: gr3ysec, Sal Scar
-Art Artist: Christina Chatzidimitriou
+Contributors: gr3ysec
+Art Artists: Christina Chatzidimitriou, 3A
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
-Past Help: lamprouil, UKI_hunter
+Past Help: Sal Scar, lamprouil, UKI_hunter
 =======================================
 """
     print(credits)
@@ -5022,8 +5022,11 @@ INDEX_HTML = r"""
           <div class="panel">
             <div class="screen-title" style="font-size:0.92rem;">Credits</div>
             <div class="subtle" id="creditsBlock">Creator: dedsec1121fk
-Contributors: gr3ysec, Sal Scar
-Art Artist: Christina Chatzidimitriou</div>
+Contributors: gr3ysec
+Art Artists: Christina Chatzidimitriou, 3A
+Legal Documents: Lampros Spyrou
+Discord Server Maintenance: Talha
+Past Help: Sal Scar, lamprouil, UKI_hunter</div>
           </div>
         </div>
       </section>
