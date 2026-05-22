@@ -2270,10 +2270,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec
-* **Art Artists:** Christina Chatzidimitriou
+* **Art Artists:** Christina Chatzidimitriou, 3A
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
-* **Past Help:** lamprouil, UKI_hunter, Sal Scar
+* **Past Help:** Sal Scar, lamprouil, UKI_hunter
 
 </details>
 
@@ -2297,10 +2297,10 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 * **Creator:** dedsec1121fk
 * **Contributors:** gr3ysec
-* **Art Artists:** Christina Chatzidimitriou
+* **Art Artists:** Christina Chatzidimitriou, 3A
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
-* **Past Help:** lamprouil, UKI_hunter, Sal Scar
+* **Past Help:** Sal Scar, lamprouil, UKI_hunter
 
 </details>
 
