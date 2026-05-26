@@ -374,7 +374,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
-- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies access to `DedSec-Project-Official/Sponsors-Only`, and downloads or replaces the local `~/Sponsors-Only` folder when access is confirmed. If the account does not have access, it returns the user to the settings menu without downloading anything.
+- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, while the $9 tier includes all $3 scripts plus Widget Maker.py and Kraken Trader.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
@@ -393,7 +393,7 @@ The GitHub section can install or use `gh`, start the official GitHub login flow
 
 ### Access Sponsors-Only Scripts
 
-This option is for sponsors who have access to the private `DedSec-Project-Official/Sponsors-Only` repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. If an older local copy exists, it is replaced only after access is confirmed.
+This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts. The $9 tier contains every $3 script plus Widget Maker.py and Kraken Trader.py. If an older local copy exists, it is replaced only after access is confirmed.
 
 ### Termux Usage Stats
 
@@ -437,7 +437,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
 - **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
-- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει πρόσβαση στο `DedSec-Project-Official/Sponsors-Only` και κατεβάζει ή αντικαθιστά τον τοπικό φάκελο `~/Sponsors-Only` όταν επιβεβαιωθεί η πρόσβαση. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
+- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py και Kraken Trader.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
@@ -456,7 +456,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Access Sponsors-Only Scripts
 
-Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο private repository `DedSec-Project-Official/Sponsors-Only`. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
+Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py και Kraken Trader.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
 
 ### Termux Usage Stats
 
@@ -507,9 +507,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
-- **Sponsors-Only:** 5 tools
+- **Sponsors-Only:** 5 tools in the $3 tier / 7 tools in the $9 tier
 
-**Total listed on tools page:** 80 tools
+**Total listed on tools page:** 82 tools
 
 </details>
 
@@ -527,9 +527,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
-- **Sponsors-Only:** 5 εργαλεία
+- **Sponsors-Only:** 5 εργαλεία στο $3 tier / 7 εργαλεία στο $9 tier
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 80 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 82 εργαλεία
 
 </details>
 
@@ -2104,16 +2104,28 @@ It also includes **DedSec OS**, a browser-based local workspace mode with a file
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-To access the scripts in this category, you need an active monthly GitHub subscription starting from **$3**.
+Sponsors-Only access is now split into two GitHub Sponsors tiers:
+
+| Tier | What it includes |
+| :--- | :--------------- |
+| **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, and AR Terror.py. |
+| **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py** and **Kraken Trader.py**. |
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Για να αποκτήσεις πρόσβαση στα scripts αυτής της κατηγορίας, χρειάζεσαι ενεργή μηνιαία GitHub συνδρομή από **$3** και πάνω.
+Το Sponsors-Only access χωρίζεται πλέον σε δύο GitHub Sponsors tiers:
+
+| Tier | Τι περιλαμβάνει |
+| :--- | :-------------- |
+| **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py και AR Terror.py. |
+| **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py** και **Kraken Trader.py**. |
 
 </details>
+
+### $3 Sponsor Scripts
 
 ### • Face Detector.py
 
@@ -2216,6 +2228,62 @@ To access the scripts in this category, you need an active monthly GitHub subscr
 
 </details>
 
+### $9 Pro Supporter Extras
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+The **$9 Pro Supporter** tier includes every **$3 Sponsor** script plus these two extra scripts.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το tier **$9 Pro Supporter** περιλαμβάνει κάθε script του **$3 Sponsor** tier και επιπλέον τα δύο παρακάτω scripts.
+
+</details>
+
+### • Widget Maker.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Widget Maker.py** is a no-root Termux helper that creates Android home-screen launchers for DedSec Project scripts through **Termux:Widget**. It recursively scans Termux home, shared storage, and common phone folders for DedSec, sponsor, exclusive, and related Python scripts, including scripts inside every accessible folder and subfolder. It then creates managed shortcuts in `~/.shortcuts`. Each widget opens a small menu with **Run**, **Show Script Path**, and **Exit**, validates the Python file before launching it, keeps a manifest, and can update or delete all managed widgets when your script collection changes.
+
+**Save Location:** Managed widget launchers are created in `~/.shortcuts/`. State and manifest data are stored in `~/.dedsec_widget_maker/manifest.json`. The original scripts are not moved; each widget points back to the detected source file.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **Widget Maker.py** είναι no-root helper για Termux που δημιουργεί Android home-screen launchers για scripts του DedSec Project μέσω **Termux:Widget**. Σαρώνει αναδρομικά το Termux home, το shared storage και συνηθισμένους φακέλους του κινητού για DedSec, sponsor, exclusive και σχετικά Python scripts, μαζί με scripts μέσα σε κάθε προσβάσιμο φάκελο και υποφάκελο. Μετά δημιουργεί managed shortcuts στο `~/.shortcuts`. Κάθε widget ανοίγει μικρό menu με **Run**, **Show Script Path** και **Exit**, ελέγχει το Python αρχείο πριν το τρέξει, κρατά manifest και μπορεί να κάνει update ή delete όλα τα managed widgets όταν αλλάζει η συλλογή των scripts σου.
+
+**Τοποθεσία Αποθήκευσης:** Τα managed widget launchers δημιουργούνται στο `~/.shortcuts/`. Το state και το manifest αποθηκεύονται στο `~/.dedsec_widget_maker/manifest.json`. Τα αρχικά scripts δεν μετακινούνται· κάθε widget δείχνει πίσω στο detected source file.
+
+</details>
+
+### • Kraken Trader.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Kraken Trader.py** is a Termux trading research and portfolio assistant for the Kraken API. It starts in paper mode by default, shows a 10-second risk disclaimer, stores everything under `~/Kraken Trader/`, and uses numbered menus for pair analysis, market scanning, dashboards, Sage-style strategy labs, advanced tools, beginner guides, risk/reward calculators, backtests, DCA and grid tools, paper wallet trading, paper bot loops, Kraken account tools, live order menus, order management, watchlists, crypto plus stock/ETF monitoring, reports, journals, logs, mode switching, diagnostics, and settings. It is built for education, organization, and safer paper testing; it is not financial advice and it does not guarantee profit.
+
+**Save Location:** Main folder: `~/Kraken Trader/`. Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Το **Kraken Trader.py** είναι Termux trading research και portfolio assistant για το Kraken API. Ξεκινά σε paper mode από προεπιλογή, εμφανίζει risk disclaimer με countdown 10 δευτερολέπτων, αποθηκεύει τα πάντα στο `~/Kraken Trader/` και χρησιμοποιεί numbered menus για pair analysis, market scanning, dashboards, Sage-style strategy labs, advanced tools, beginner guides, risk/reward calculators, backtests, DCA και grid tools, paper wallet trading, paper bot loops, Kraken account tools, live order menus, order management, watchlists, crypto μαζί με stock/ETF monitoring, reports, journals, logs, mode switching, diagnostics και settings. Είναι φτιαγμένο για εκπαίδευση, οργάνωση και πιο ασφαλές paper testing· δεν είναι financial advice και δεν εγγυάται κέρδος.
+
+**Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: `~/Kraken Trader/`. Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs και error logs αποθηκεύονται μέσα σε αυτόν. Προαιρετικά report copies μπορούν να αποθηκευτούν στα Downloads αν ενεργοποιηθεί αυτή η επιλογή.
+
+</details>
+
 ---
 
 ## ButSystem.py (Exclusive)
@@ -2262,7 +2330,6 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Backup Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Backup DedSec Project Repository:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
 * ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* ** Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
 * ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
@@ -2289,7 +2356,6 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Εφεδρικό Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Εφεδρικό Repository του DedSec Project:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
 * ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* ** Instagram:** [@dedsec_project_official](https://www.instagram.com/dedsec_project_official)
 * ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
 * ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
