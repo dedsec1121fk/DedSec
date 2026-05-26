@@ -100,11 +100,35 @@ NETWORK_COUNTRIES = {
 NETWORK_TOR_PROCESS = None
 
 # --- Sponsors-Only shortcuts ---
-SPONSORS_REPO_FULL_NAME = "DedSec-Project-Official/Sponsors-Only"
-SPONSORS_REPO_URL = "https://github.com/DedSec-Project-Official/Sponsors-Only"
-SPONSORS_REPO_GIT_URL = SPONSORS_REPO_URL + ".git"
-SPONSORS_ROOT_NAME = "Sponsors-Only"
-SPONSORS_OLD_ROOT_NAMES = ["Sponsors-Only-main"]
+SPONSORS_TIERS = {
+    "3": {
+        "key": "3",
+        "label": "Sponsors-Only $3 Tier",
+        "short_label": "$3 Tier",
+        "repo_full_name": "DedSec-Project-Official/Sponsors-Only-3",
+        "repo_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-3",
+        "git_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-3.git",
+        "root_name": "Sponsors-Only-3",
+        "old_root_names": ["Sponsors-Only-3-main", "Sponsors-Only-main", "Sponsors-Only"],
+    },
+    "9": {
+        "key": "9",
+        "label": "Sponsors-Only $9 Tier",
+        "short_label": "$9 Tier",
+        "repo_full_name": "DedSec-Project-Official/Sponsors-Only-9",
+        "repo_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-9",
+        "git_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-9.git",
+        "root_name": "Sponsors-Only-9",
+        "old_root_names": ["Sponsors-Only-9-main"],
+    },
+}
+SPONSORS_TIER_ORDER = ("3", "9")
+# Backwards-compatible aliases for older code paths. The default points to the $3 tier.
+SPONSORS_REPO_FULL_NAME = SPONSORS_TIERS["3"]["repo_full_name"]
+SPONSORS_REPO_URL = SPONSORS_TIERS["3"]["repo_url"]
+SPONSORS_REPO_GIT_URL = SPONSORS_TIERS["3"]["git_url"]
+SPONSORS_ROOT_NAME = SPONSORS_TIERS["3"]["root_name"]
+SPONSORS_OLD_ROOT_NAMES = SPONSORS_TIERS["3"]["old_root_names"]
 SPONSORS_ROOT_PATH = os.path.join(HOME_DIR, SPONSORS_ROOT_NAME)
 SPONSORS_ENGLISH_FOLDER_NAME = "English Version"
 SPONSORS_GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
@@ -229,6 +253,14 @@ GREEK_STRINGS = {
     "Sponsors-Only access confirmed.": "Η πρόσβαση στα Sponsors-Only επιβεβαιώθηκε.",
     "You do not have access to the Sponsors-Only repository yet.": "Δεν έχετε ακόμα πρόσβαση στο Sponsors-Only repository.",
     "Make sure you are sponsoring with the connected GitHub account.": "Βεβαιωθείτε ότι είστε sponsor με τον συνδεδεμένο GitHub λογαριασμό.",
+    "Choose Sponsors-Only tier": "Επιλέξτε Sponsors-Only tier",
+    "Download Sponsors-Only $3 Tier": "Λήψη Sponsors-Only $3 Tier",
+    "Download Sponsors-Only $9 Tier": "Λήψη Sponsors-Only $9 Tier",
+    "Check access to both sponsor tiers": "Έλεγχος πρόσβασης και στα δύο sponsor tiers",
+    "Checking Sponsors-Only access for": "Έλεγχος πρόσβασης Sponsors-Only για",
+    "Access available": "Η πρόσβαση είναι διαθέσιμη",
+    "Access denied": "Η πρόσβαση απορρίφθηκε",
+    "Invalid sponsor tier.": "Μη έγκυρο sponsor tier.",
     "Downloading Sponsors-Only scripts...": "Λήψη των Sponsors-Only scripts...",
     "Sponsors-Only scripts downloaded to": "Τα Sponsors-Only scripts κατέβηκαν στο",
     "Failed to download Sponsors-Only scripts": "Αποτυχία λήψης των Sponsors-Only scripts",
@@ -490,15 +522,67 @@ def format_display_name(filename, full_path):
     icon = get_file_icon(filename, full_path)
     return f"{icon} {filename}"
 
+def get_sponsor_tier_config(tier_key):
+    """Returns the sponsor tier configuration for 3 or 9."""
+    tier_key = str(tier_key or "").replace("$", "").strip()
+    return SPONSORS_TIERS.get(tier_key)
+
+
+def get_sponsors_tier_root_path(tier_key):
+    """Returns the Termux home folder path for a sponsor tier."""
+    config = get_sponsor_tier_config(tier_key)
+    if not config:
+        return None
+    return os.path.join(HOME_DIR, config["root_name"])
+
+
+def get_sponsors_display_entries():
+    """Returns visible Sponsors-Only folders as menu entries."""
+    entries = []
+    for tier_key in SPONSORS_TIER_ORDER:
+        config = get_sponsor_tier_config(tier_key)
+        root_path = get_sponsors_tier_root_path(tier_key)
+        if config and root_path and os.path.isdir(root_path):
+            entries.append((format_display_name(config["root_name"], root_path), f"go_sponsors:{tier_key}"))
+    return entries
+
+
 def get_sponsors_display_name():
-    """Returns the Sponsors-Only entry label when the folder exists."""
-    if os.path.isdir(SPONSORS_ROOT_PATH):
-        return format_display_name(SPONSORS_ROOT_NAME, SPONSORS_ROOT_PATH)
+    """Backwards-compatible single Sponsors-Only label for older code paths."""
+    entries = get_sponsors_display_entries()
+    return entries[0][0] if entries else None
+
+
+def get_sponsors_go_token_for_display_name(display_name):
+    """Maps a visible Sponsors-Only menu label back to its tier navigation token."""
+    for label, go_token in get_sponsors_display_entries():
+        if display_name == label:
+            return go_token
     return None
 
-def get_sponsors_preferred_path():
+
+def get_sponsors_existing_root_paths():
+    """Returns all downloaded Sponsors-Only tier root folders."""
+    paths = []
+    for tier_key in SPONSORS_TIER_ORDER:
+        root_path = get_sponsors_tier_root_path(tier_key)
+        if root_path and os.path.isdir(root_path):
+            paths.append(root_path)
+    return paths
+
+
+def get_sponsors_preferred_path(tier_key=None):
     """Returns the preferred Sponsors-Only language path, with safe fallbacks."""
-    if not os.path.isdir(SPONSORS_ROOT_PATH):
+    if tier_key is None:
+        for candidate_tier in SPONSORS_TIER_ORDER:
+            candidate_root = get_sponsors_tier_root_path(candidate_tier)
+            if candidate_root and os.path.isdir(candidate_root):
+                tier_key = candidate_tier
+                break
+
+    config = get_sponsor_tier_config(tier_key)
+    root_path = get_sponsors_tier_root_path(tier_key)
+    if not config or not root_path or not os.path.isdir(root_path):
         return None
 
     preferred_language = load_language_preference()
@@ -510,7 +594,7 @@ def get_sponsors_preferred_path():
         if preferred_language == 'english'
         else SPONSORS_GREEK_FOLDER_NAME
     )
-    preferred_path = os.path.join(SPONSORS_ROOT_PATH, preferred_folder)
+    preferred_path = os.path.join(root_path, preferred_folder)
     if os.path.isdir(preferred_path):
         return preferred_path
 
@@ -519,11 +603,11 @@ def get_sponsors_preferred_path():
         if preferred_folder == SPONSORS_ENGLISH_FOLDER_NAME
         else SPONSORS_ENGLISH_FOLDER_NAME
     )
-    fallback_path = os.path.join(SPONSORS_ROOT_PATH, fallback_folder)
+    fallback_path = os.path.join(root_path, fallback_folder)
     if os.path.isdir(fallback_path):
         return fallback_path
 
-    return SPONSORS_ROOT_PATH
+    return root_path
 
 # --- Utility Functions ---
 
@@ -853,6 +937,69 @@ def _copy_project_archive_to_selected_folders(archive_path):
             pass
 
 
+
+def _add_accessible_sponsor_repositories_to_project_save(repos_dir):
+    """Checks both Sponsors-Only tiers and adds the ones the connected GitHub account can access."""
+    status_lines = ["Sponsors-Only access check for DedSec Project Legacy Save:"]
+    try:
+        if not shutil.which("gh") or not github_auth_status():
+            status_lines.append("- GitHub is not connected in gh, so sponsor repositories were not included.")
+            status_path = os.path.join(repos_dir, "Sponsors-Only Access Status.txt")
+            with open(status_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(status_lines) + "\n")
+            return
+
+        if not shutil.which("git") and not ensure_pkg_command("git", "git"):
+            status_lines.append("- git is not available, so sponsor repositories were not included.")
+            status_path = os.path.join(repos_dir, "Sponsors-Only Access Status.txt")
+            with open(status_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(status_lines) + "\n")
+            return
+
+        token = github_token_for_sponsors()
+        if not token:
+            status_lines.append("- GitHub token could not be read, so sponsor repositories were not included.")
+            status_path = os.path.join(repos_dir, "Sponsors-Only Access Status.txt")
+            with open(status_path, "w", encoding="utf-8") as handle:
+                handle.write("\n".join(status_lines) + "\n")
+            return
+
+        for tier_key in SPONSORS_TIER_ORDER:
+            config = get_sponsor_tier_config(tier_key)
+            if not config:
+                continue
+
+            rc, out = run_sponsors_git_command(["ls-remote", config["git_url"], "HEAD"], token)
+            target_dir = os.path.join(repos_dir, config["root_name"])
+            if rc == 0:
+                _remove_path_if_exists(target_dir)
+                clone_rc, clone_out = run_sponsors_git_command(
+                    ["clone", "--depth", "1", config["git_url"], target_dir],
+                    token
+                )
+                if clone_rc == 0 and os.path.isdir(target_dir):
+                    git_dir = os.path.join(target_dir, ".git")
+                    if os.path.isdir(git_dir):
+                        shutil.rmtree(git_dir, ignore_errors=True)
+                    status_lines.append(f"- {config['label']}: access confirmed and repository included.")
+                else:
+                    _remove_path_if_exists(target_dir)
+                    status_lines.append(f"- {config['label']}: access confirmed, but clone failed.")
+            else:
+                message = (out or "no access").strip().splitlines()[-1]
+                status_lines.append(f"- {config['label']}: no access or token approval required. ({message})")
+
+    except Exception as error:
+        status_lines.append("- Sponsor access check failed: " + str(error))
+
+    status_path = os.path.join(repos_dir, "Sponsors-Only Access Status.txt")
+    try:
+        with open(status_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(status_lines) + "\n")
+    except Exception:
+        pass
+
+
 def _build_project_save_archive(archive_path):
     _remove_path_if_exists(PROJECT_SAVE_WORKDIR)
     os.makedirs(PROJECT_SAVE_WORKDIR, exist_ok=True)
@@ -874,6 +1021,8 @@ def _build_project_save_archive(archive_path):
     for repo_source in PROJECT_SAVE_REPOSITORIES:
         repo_target_dir = os.path.join(repos_dir, repo_source["folder_name"])
         _clone_repository_silent(repo_source["url"], repo_target_dir)
+
+    _add_accessible_sponsor_repositories_to_project_save(repos_dir)
 
     os.makedirs(os.path.dirname(archive_path), exist_ok=True)
     _remove_path_if_exists(archive_path)
@@ -924,11 +1073,11 @@ def show_credits():
                 {_('Credits').upper()}
 =======================================
 Creator: dedsec1121fk
-Contributors: gr3ysec
-Art Artists: Christina Chatzidimitriou, 3A
+Contributors: gr3ysec, Sal Scar
+Art Artists: Christina Chatzidimitriou
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
-Past Help: Sal Scar, lamprouil, UKI_hunter
+Past Help: lamprouil, UKI_hunter
 =======================================
 """
     print(credits)
@@ -1394,8 +1543,12 @@ def run_sponsors_git_command(git_args, token, cwd=None):
             pass
 
 
-def sponsors_repo_access_status():
-    """Returns (has_access, message) for the private Sponsors-Only repository."""
+def sponsors_repo_access_status(tier_key="3"):
+    """Returns (has_access, message) for a private Sponsors-Only tier repository."""
+    config = get_sponsor_tier_config(tier_key)
+    if not config:
+        return False, _("Invalid sponsor tier.")
+
     if not github_cli_available() or not github_auth_status():
         return False, _("GitHub is not connected yet.")
 
@@ -1406,9 +1559,9 @@ def sponsors_repo_access_status():
     if not token:
         return False, "Could not read GitHub token. Run manually: gh auth refresh -h github.com -s repo"
 
-    rc, out = run_sponsors_git_command(["ls-remote", SPONSORS_REPO_GIT_URL, "HEAD"], token)
+    rc, out = run_sponsors_git_command(["ls-remote", config["git_url"], "HEAD"], token)
     if rc == 0:
-        return True, _("Sponsors-Only access confirmed.")
+        return True, _("Sponsors-Only access confirmed.") + f" ({config['label']})"
 
     message = (out or "").strip()
     if "saml" in message.lower() or "sso" in message.lower():
@@ -1418,10 +1571,15 @@ def sponsors_repo_access_status():
     return False, message
 
 
-def remove_old_sponsors_copies(include_final=True):
-    names = list(SPONSORS_OLD_ROOT_NAMES)
+def remove_old_sponsors_copies(tier_key="3", include_final=True):
+    config = get_sponsor_tier_config(tier_key)
+    if not config:
+        return
+
+    names = list(config.get("old_root_names") or [])
     if include_final:
-        names.insert(0, SPONSORS_ROOT_NAME)
+        names.insert(0, config["root_name"])
+
     seen = set()
     for name in names:
         if not name or name in seen:
@@ -1431,7 +1589,11 @@ def remove_old_sponsors_copies(include_final=True):
         _remove_path_if_exists(target)
 
 
-def clone_sponsors_repository():
+def clone_sponsors_repository(tier_key="3"):
+    config = get_sponsor_tier_config(tier_key)
+    if not config:
+        return False, _("Invalid sponsor tier.")
+
     if not ensure_pkg_command("git", "git"):
         return False, "git could not be installed. Run manually: pkg install git"
 
@@ -1439,37 +1601,82 @@ def clone_sponsors_repository():
     if not token:
         return False, "Could not read GitHub token. Run manually: gh auth refresh -h github.com -s repo"
 
-    temp_target = SPONSORS_ROOT_PATH + ".download"
+    root_path = get_sponsors_tier_root_path(tier_key)
+    temp_target = root_path + ".download"
     _remove_path_if_exists(temp_target)
 
     rc, out = run_sponsors_git_command(
-        ["clone", "--depth", "1", SPONSORS_REPO_GIT_URL, temp_target],
+        ["clone", "--depth", "1", config["git_url"], temp_target],
         token,
     )
     if rc == 0 and os.path.isdir(temp_target):
-        remove_old_sponsors_copies(include_final=True)
+        remove_old_sponsors_copies(tier_key=tier_key, include_final=True)
         try:
-            os.rename(temp_target, SPONSORS_ROOT_PATH)
+            os.rename(temp_target, root_path)
         except Exception:
-            shutil.move(temp_target, SPONSORS_ROOT_PATH)
-        return True, _("Sponsors-Only scripts downloaded to") + ": " + SPONSORS_ROOT_PATH
+            shutil.move(temp_target, root_path)
+        return True, _("Sponsors-Only scripts downloaded to") + ": " + root_path
 
     _remove_path_if_exists(temp_target)
     message = (out or "").strip()
     if not message:
         message = "git clone failed"
     if "unexpected eof" in message.lower():
-        message += "\nNetwork dropped during download. Try again; the old Sponsors-Only folder was kept if it existed."
+        message += "\\nNetwork dropped during download. Try again; the old Sponsors-Only folder was kept if it existed."
     return False, message
 
-def access_sponsors_only_scripts():
+
+def check_all_sponsor_tier_access():
+    for tier_key in SPONSORS_TIER_ORDER:
+        config = get_sponsor_tier_config(tier_key)
+        if not config:
+            continue
+        print(f"\n[*] {_('Checking Sponsors-Only access for')} {config['label']}...")
+        has_access, access_message = sponsors_repo_access_status(tier_key)
+        if has_access:
+            print("[+] " + _("Access available") + ": " + config["label"])
+        else:
+            print("[!] " + _("Access denied") + ": " + config["label"])
+        if access_message:
+            print(access_message)
+
+
+def access_sponsors_only_scripts(tier_key=None):
     print("=== " + _("Access Sponsors-Only Scripts") + " ===")
 
     if not ensure_github_connected_for_sponsors():
         return
 
-    print(_("Checking Sponsors-Only access..."))
-    has_access, access_message = sponsors_repo_access_status()
+    selected_tier = str(tier_key or "").replace("$", "").strip()
+    if not selected_tier:
+        while True:
+            print("\n" + _("Choose Sponsors-Only tier"))
+            print("1. " + _("Download Sponsors-Only $3 Tier"))
+            print("2. " + _("Download Sponsors-Only $9 Tier"))
+            print("3. " + _("Check access to both sponsor tiers"))
+            print("0. " + _("Back"))
+            choice = input(_("Enter the number of your choice: ")).strip().lower()
+
+            if choice == "1":
+                selected_tier = "3"
+                break
+            if choice == "2":
+                selected_tier = "9"
+                break
+            if choice == "3":
+                check_all_sponsor_tier_access()
+                return
+            if choice in ("0", "b", "back", "q", "quit"):
+                return
+            print(_("Invalid selection. Please try again."))
+
+    config = get_sponsor_tier_config(selected_tier)
+    if not config:
+        print("[!] " + _("Invalid sponsor tier."))
+        return
+
+    print(f"{_('Checking Sponsors-Only access for')} {config['label']}...")
+    has_access, access_message = sponsors_repo_access_status(selected_tier)
     if not has_access:
         print("[!] " + _("You do not have access to the Sponsors-Only repository yet."))
         if access_message:
@@ -1479,7 +1686,7 @@ def access_sponsors_only_scripts():
 
     print(access_message)
     print(_("Downloading Sponsors-Only scripts..."))
-    ok, message = clone_sponsors_repository()
+    ok, message = clone_sponsors_repository(selected_tier)
     if ok:
         print("[+] " + message)
     else:
@@ -2050,8 +2257,7 @@ def browse_directory_list_menu(current_path, base_path):
         items.append(go_back_text)
         listing_dir = HOME_DIR
     elif os.path.abspath(current_path) == os.path.abspath(base_path):
-        sponsors_display_name = get_sponsors_display_name()
-        if sponsors_display_name:
+        for sponsors_display_name, _go_token in get_sponsors_display_entries():
             items.append(sponsors_display_name)
         items.append(f"{HOME_ICON} {_('Home Scripts')}")
         listing_dir = base_path
@@ -2100,9 +2306,9 @@ def browse_directory_list_menu(current_path, base_path):
     if selected.startswith(".."):
         return "back"
 
-    sponsors_display_name = get_sponsors_display_name()
-    if sponsors_display_name and selected == sponsors_display_name:
-        return "go_sponsors"
+    sponsors_go_token = get_sponsors_go_token_for_display_name(selected)
+    if sponsors_go_token:
+        return sponsors_go_token
 
     if selected == f"{HOME_ICON} {_('Home Scripts')}":
         return "go_home"
@@ -2141,8 +2347,8 @@ def run_list_menu():
                     current_path = base_path
             continue
         
-        if selected == "go_sponsors":
-            sponsors_path = get_sponsors_preferred_path()
+        if isinstance(selected, str) and selected.startswith("go_sponsors:"):
+            sponsors_path = get_sponsors_preferred_path(selected.split(":", 1)[1])
             if sponsors_path:
                 current_path = sponsors_path
             continue
@@ -2192,9 +2398,8 @@ def run_number_menu():
             items.append((".. (" + _("Go Back") + ")", "back"))
         elif os.path.abspath(current_path) == os.path.abspath(base_path):
             listing_dir = base_path
-            sponsors_display_name = get_sponsors_display_name()
-            if sponsors_display_name:
-                items.append((sponsors_display_name, "go_sponsors"))
+            for sponsors_display_name, sponsors_go_token in get_sponsors_display_entries():
+                items.append((sponsors_display_name, sponsors_go_token))
             items.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         else:
             listing_dir = current_path
@@ -2260,8 +2465,8 @@ def run_number_menu():
                         current_path = base_path
                 continue
 
-            if selected_path == "go_sponsors":
-                sponsors_path = get_sponsors_preferred_path()
+            if isinstance(selected_path, str) and selected_path.startswith("go_sponsors:"):
+                sponsors_path = get_sponsors_preferred_path(selected_path.split(":", 1)[1])
                 if sponsors_path:
                     current_path = sponsors_path
                 continue
@@ -2305,9 +2510,8 @@ def list_directory_entries(path, base_path):
         entries.append((go_back_text, "back"))
         listing_dir = HOME_DIR
     elif os.path.abspath(path) == os.path.abspath(base_path):
-        sponsors_display_name = get_sponsors_display_name()
-        if sponsors_display_name:
-            entries.append((sponsors_display_name, "go_sponsors"))
+        for sponsors_display_name, sponsors_go_token in get_sponsors_display_entries():
+            entries.append((sponsors_display_name, sponsors_go_token))
         entries.append((f"{HOME_ICON} {_('Home Scripts')}", "go_home"))
         listing_dir = base_path
     else:
@@ -2498,8 +2702,8 @@ def run_grid_menu():
                     current_path = base_path
             continue
 
-        if selected_path == "go_sponsors":
-            sponsors_path = get_sponsors_preferred_path()
+        if isinstance(selected_path, str) and selected_path.startswith("go_sponsors:"):
+            sponsors_path = get_sponsors_preferred_path(selected_path.split(":", 1)[1])
             if sponsors_path:
                 current_path = sponsors_path
             continue
@@ -2670,7 +2874,8 @@ REPO_URL_SOURCE_1 = __REPO_URL_SOURCE_1__
 REPO_URL_SOURCE_2 = __REPO_URL_SOURCE_2__
 BASHRC_START_MARKER = __BASHRC_START_MARKER__
 BASHRC_END_MARKER = __BASHRC_END_MARKER__
-SPONSORS_ROOT_PATH = __SPONSORS_ROOT_PATH__
+SPONSORS_TIERS = __SPONSORS_TIERS__
+SPONSORS_TIER_ORDER = __SPONSORS_TIER_ORDER__
 SPONSORS_ENGLISH_FOLDER_NAME = __SPONSORS_ENGLISH_FOLDER_NAME__
 SPONSORS_GREEK_FOLDER_NAME = __SPONSORS_GREEK_FOLDER_NAME__
 DEDSEC_OS_ROOT = __DEDSEC_OS_ROOT__
@@ -3188,7 +3393,10 @@ def settings_meta():
         'credits': {
             'creator': 'dedsec1121fk',
             'contributors': 'gr3ysec, Sal Scar',
-            'artist': 'Christina Chatzidimitriou'
+            'art_artists': 'Christina Chatzidimitriou',
+            'legal_documents': 'Lampros Spyrou',
+            'discord_server_maintenance': 'Talha',
+            'past_help': 'lamprouil, UKI_hunter'
         }
     }
 
@@ -3206,7 +3414,16 @@ def run_settings_action(action, payload):
         cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=HOME_DIR, kind='settings-packages', prefer_termux=False)
     if action == 'access_sponsors':
-        cmd = """pkg install -y gh git >/dev/null 2>&1 || true
+        tier = str(payload.get('tier') or '3').replace('$', '').strip()
+        config = SPONSORS_TIERS.get(tier)
+        if not config:
+            raise ValueError('Invalid sponsor tier.')
+        repo_url = config['git_url']
+        final_path = os.path.join(HOME_DIR, config['root_name'])
+        temp_path = final_path + '.download'
+        old_paths = [os.path.join(HOME_DIR, item) for item in (config.get('old_root_names') or [])]
+        old_paths_text = ' '.join(shlex.quote(item) for item in old_paths)
+        cmd = f"""pkg install -y gh git >/dev/null 2>&1 || true
 if ! gh auth status --hostname github.com >/dev/null 2>&1; then
   echo "GitHub is not connected. Open Settings.py from Termux and use Access Sponsors-Only Scripts so it can ask you to connect."
   exit 1
@@ -3217,10 +3434,7 @@ if [ -z "$TOKEN" ]; then
   exit 1
 fi
 ASK="$HOME/.dedsec_sponsors_askpass_$$.sh"
-TMP="$HOME/Sponsors-Only.download"
-FINAL="$HOME/Sponsors-Only"
-OLD="$HOME/Sponsors-Only-main"
-cleanup(){ rm -f "$ASK"; }
+cleanup(){{ rm -f "$ASK"; }}
 trap cleanup EXIT
 cat > "$ASK" <<'DEDSEC_ASKPASS'
 #!/usr/bin/env sh
@@ -3230,23 +3444,22 @@ case "$1" in
 esac
 DEDSEC_ASKPASS
 chmod 700 "$ASK"
-if ! GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git ls-remote https://github.com/DedSec-Project-Official/Sponsors-Only.git HEAD >/dev/null 2>&1; then
-  echo "You do not have access to the Sponsors-Only repository yet, or GitHub SSO/token access must be approved."
+if ! GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git ls-remote {shlex.quote(repo_url)} HEAD >/dev/null 2>&1; then
+  echo "You do not have access to {config['label']} yet, or GitHub SSO/token access must be approved."
   exit 1
 fi
-rm -rf "$TMP"
-if GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git clone --depth 1 https://github.com/DedSec-Project-Official/Sponsors-Only.git "$TMP"; then
-  rm -rf "$FINAL" "$OLD"
-  mv "$TMP" "$FINAL"
-  echo "Sponsors-Only scripts downloaded to: $FINAL"
+rm -rf {shlex.quote(temp_path)}
+if GIT_ASKPASS="$ASK" GIT_TERMINAL_PROMPT=0 DEDSEC_GITHUB_TOKEN="$TOKEN" git clone --depth 1 {shlex.quote(repo_url)} {shlex.quote(temp_path)}; then
+  rm -rf {shlex.quote(final_path)} {old_paths_text}
+  mv {shlex.quote(temp_path)} {shlex.quote(final_path)}
+  echo "Sponsors-Only {config['short_label']} scripts downloaded to: {final_path}"
 else
-  echo "Failed to download Sponsors-Only scripts. Old copy was kept if it existed."
-  rm -rf "$TMP"
+  echo "Failed to download Sponsors-Only {config['short_label']} scripts. Old copy was kept if it existed."
+  rm -rf {shlex.quote(temp_path)}
   exit 1
 fi
 """
-
-        return launch_job(label='Settings: Access Sponsors-Only Scripts', shell_command=cmd, cwd=HOME_DIR, kind='settings-sponsors', prefer_termux=False)
+        return launch_job(label='Settings: Access Sponsors-Only ' + config['short_label'], shell_command=cmd, cwd=HOME_DIR, kind='settings-sponsors', prefer_termux=False)
     if action == 'save_menu_style':
         style = payload.get('menu_style') or 'list'
         update_bashrc_server(current_language_path_from_pref(), style)
@@ -3277,23 +3490,55 @@ def get_preferred_dedsec_root():
     return HOME_DIR
 
 
-def get_sponsors_path():
-    if not os.path.isdir(SPONSORS_ROOT_PATH):
+def get_sponsor_tier_config(tier_key):
+    return SPONSORS_TIERS.get(str(tier_key or '').replace('$', '').strip())
+
+
+def get_sponsors_tier_root_path(tier_key):
+    config = get_sponsor_tier_config(tier_key)
+    if not config:
         return None
+    return os.path.join(HOME_DIR, config['root_name'])
+
+
+def get_sponsors_path(tier_key=None):
+    if tier_key is None:
+        for candidate in SPONSORS_TIER_ORDER:
+            root = get_sponsors_tier_root_path(candidate)
+            if root and os.path.isdir(root):
+                tier_key = candidate
+                break
+
+    root_path = get_sponsors_tier_root_path(tier_key)
+    if not root_path or not os.path.isdir(root_path):
+        return None
+
     preferred = load_language_preference()
     preferred_name = SPONSORS_ENGLISH_FOLDER_NAME if preferred == 'english' else SPONSORS_GREEK_FOLDER_NAME
-    preferred_path = os.path.join(SPONSORS_ROOT_PATH, preferred_name)
+    preferred_path = os.path.join(root_path, preferred_name)
     if os.path.isdir(preferred_path):
         return preferred_path
+
     fallback_name = SPONSORS_GREEK_FOLDER_NAME if preferred_name == SPONSORS_ENGLISH_FOLDER_NAME else SPONSORS_ENGLISH_FOLDER_NAME
-    fallback_path = os.path.join(SPONSORS_ROOT_PATH, fallback_name)
+    fallback_path = os.path.join(root_path, fallback_name)
     if os.path.isdir(fallback_path):
         return fallback_path
-    return SPONSORS_ROOT_PATH
+    return root_path
+
+
+def get_existing_sponsors_paths():
+    paths = []
+    for tier_key in SPONSORS_TIER_ORDER:
+        root = get_sponsors_tier_root_path(tier_key)
+        if root and os.path.isdir(root):
+            paths.append(root)
+    return paths
 
 
 def allowed_roots():
-    return [os.path.realpath(user_workspace_path()), os.path.realpath(get_preferred_dedsec_root()), os.path.realpath(DEDSEC_OS_ROOT)]
+    roots = [os.path.realpath(user_workspace_path()), os.path.realpath(get_preferred_dedsec_root()), os.path.realpath(DEDSEC_OS_ROOT)]
+    roots.extend(os.path.realpath(path) for path in get_existing_sponsors_paths())
+    return roots
 
 
 def safe_realpath(raw_path, must_exist=True, allow_empty=False):
@@ -3378,9 +3623,11 @@ def list_directory(path):
         {'label': 'DedSec', 'path': get_preferred_dedsec_root()},
         {'label': 'DedSec OS', 'path': DEDSEC_OS_ROOT}
     ]
-    sponsors_path = get_sponsors_path()
-    if sponsors_path:
-        roots.append({'label': 'Sponsors-Only', 'path': sponsors_path})
+    for tier_key in SPONSORS_TIER_ORDER:
+        config = SPONSORS_TIERS.get(tier_key)
+        sponsors_path = get_sponsors_path(tier_key)
+        if config and sponsors_path:
+            roots.append({'label': config['root_name'], 'path': sponsors_path})
     parent = os.path.dirname(resolved) if os.path.realpath(resolved) != os.path.realpath(HOME_DIR) else ''
     return {
         'current_path': resolved,
@@ -5016,17 +5263,18 @@ INDEX_HTML = r"""
               <button class="btn" id="updateSource1Btn">Update Project (Source 1)</button>
               <button class="btn" id="updateSource2Btn">Update Project (Source 2)</button>
               <button class="btn" id="updatePackagesBtn">Update Packages & Modules</button>
-              <button class="btn" id="accessSponsorsBtn">Access Sponsors-Only Scripts</button>
+              <button class="btn" id="accessSponsors3Btn">Download Sponsors $3 Tier</button>
+              <button class="btn" id="accessSponsors9Btn">Download Sponsors $9 Tier</button>
             </div>
           </div>
           <div class="panel">
             <div class="screen-title" style="font-size:0.92rem;">Credits</div>
             <div class="subtle" id="creditsBlock">Creator: dedsec1121fk
-Contributors: gr3ysec
-Art Artists: Christina Chatzidimitriou, 3A
+Contributors: gr3ysec, Sal Scar
+Art Artists: Christina Chatzidimitriou
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
-Past Help: Sal Scar, lamprouil, UKI_hunter</div>
+Past Help: lamprouil, UKI_hunter</div>
           </div>
         </div>
       </section>
@@ -5062,10 +5310,10 @@ Past Help: Sal Scar, lamprouil, UKI_hunter</div>
 
     var I18N = {
       en: {
-        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Access Sponsors-Only Scripts':'Access Sponsors-Only Scripts','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
+        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Download Sponsors $3 Tier':'Download Sponsors $3 Tier','Download Sponsors $9 Tier':'Download Sponsors $9 Tier','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
       },
       el: {
-        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Access Sponsors-Only Scripts':'Πρόσβαση στα Sponsors-Only Scripts','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
+        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Download Sponsors $3 Tier':'Λήψη Sponsors $3 Tier','Download Sponsors $9 Tier':'Λήψη Sponsors $9 Tier','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
       }
     };
 
@@ -6059,7 +6307,8 @@ Past Help: Sal Scar, lamprouil, UKI_hunter</div>
       var updateSource1Btn = document.getElementById('updateSource1Btn'); if (updateSource1Btn) updateSource1Btn.addEventListener('click', function(){ runSettingsAction('update_source_1').catch(handleError); });
       var updateSource2Btn = document.getElementById('updateSource2Btn'); if (updateSource2Btn) updateSource2Btn.addEventListener('click', function(){ runSettingsAction('update_source_2').catch(handleError); });
       var updatePackagesBtn = document.getElementById('updatePackagesBtn'); if (updatePackagesBtn) updatePackagesBtn.addEventListener('click', function(){ runSettingsAction('update_packages').catch(handleError); });
-      var accessSponsorsBtn = document.getElementById('accessSponsorsBtn'); if (accessSponsorsBtn) accessSponsorsBtn.addEventListener('click', function(){ runSettingsAction('access_sponsors').catch(handleError); });
+      var accessSponsors3Btn = document.getElementById('accessSponsors3Btn'); if (accessSponsors3Btn) accessSponsors3Btn.addEventListener('click', function(){ runSettingsAction('access_sponsors', { tier: '3' }).catch(handleError); });
+      var accessSponsors9Btn = document.getElementById('accessSponsors9Btn'); if (accessSponsors9Btn) accessSponsors9Btn.addEventListener('click', function(){ runSettingsAction('access_sponsors', { tier: '9' }).catch(handleError); });
       var exitDedsecOsBtn = document.getElementById('exitDedsecOsBtn'); if (exitDedsecOsBtn) exitDedsecOsBtn.addEventListener('click', function(){ exitDedsecOs().catch(handleError); });
       document.getElementById('resetWallpaperBtn').addEventListener('click', async function(){
         try {
@@ -6447,7 +6696,8 @@ if __name__ == '__main__':
         '__REPO_URL_SOURCE_2__': repr(REPO_URL_SOURCE_2),
         '__BASHRC_START_MARKER__': repr(BASHRC_START_MARKER),
         '__BASHRC_END_MARKER__': repr(BASHRC_END_MARKER),
-        '__SPONSORS_ROOT_PATH__': repr(SPONSORS_ROOT_PATH),
+        '__SPONSORS_TIERS__': repr(SPONSORS_TIERS),
+        '__SPONSORS_TIER_ORDER__': repr(SPONSORS_TIER_ORDER),
         '__SPONSORS_ENGLISH_FOLDER_NAME__': repr(SPONSORS_ENGLISH_FOLDER_NAME),
         '__SPONSORS_GREEK_FOLDER_NAME__': repr(SPONSORS_GREEK_FOLDER_NAME),
         '__DEDSEC_OS_ROOT__': repr(DEDSEC_OS_ROOT),
