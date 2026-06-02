@@ -39,6 +39,7 @@ This README is structured so the **installation process** and **every listed too
 ## Table of Contents
 
 * [How To Install And Setup The DedSec Project](#how-to-install-and-setup-the-dedsec-project)
+* [Website Help Paths](#website-help-paths)
 * [Settings & Configuration](#settings--configuration)
 * [Explore The Toolkit](#explore-the-toolkit)
 * [Developer Base](#developer-base)
@@ -361,6 +362,32 @@ bash Setup.sh
 
 ---
 
+## Website Help Paths
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+Use these website paths when you need help opening, installing, or fixing the DedSec Project from the public website:
+
+- **Website index:** `https://ded-sec.space/index.html`
+- **Installation guide:** `https://ded-sec.space/Pages/guide-for-installation.html`
+- **Assistance help hub:** `https://ded-sec.space/assistance.html`
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+Χρησιμοποίησε αυτά τα paths από το website όταν χρειάζεσαι βοήθεια για άνοιγμα, εγκατάσταση ή διόρθωση του DedSec Project:
+
+- **Website index:** `https://ded-sec.space/index.html`
+- **Οδηγός εγκατάστασης:** `https://ded-sec.space/Pages/guide-for-installation.html`
+- **Κέντρο βοήθειας:** `https://ded-sec.space/assistance.html`
+
+</details>
+
+---
+
 ## Settings & Configuration
 
 <details>
@@ -656,23 +683,23 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 </details>
 
-### • Dead Switch
+### • Dead Man's Switch
 
 <details>
 <summary><strong>🇬🇧 English</strong></summary>
 
-**Dead Switch** syncs your `~/storage/downloads/Dead Switch/` folder to a GitHub repository with safety controls such as create-only-new uploads, overwrite sync, visibility toggle, and a one-click kill switch.
+**Dead Man's Switch.py** syncs your `~/storage/downloads/Dead Man's Switch/` folder to a GitHub repository named `dead-mans-switch` with safety controls such as create-only-new uploads, overwrite sync, visibility toggle, legacy repository migration, and a one-click kill switch. It is meant for keeping a last-resort backup copy of important files or instructions under your control.
 
-**Save Location:** ~/storage/downloads/Dead Switch/
+**Save Location:** ~/storage/downloads/Dead Man's Switch/
 
 </details>
 
 <details>
 <summary><strong>🇬🇷 Ελληνικά</strong></summary>
 
-Το **Dead Switch** συγχρονίζει τον φάκελο `~/storage/downloads/Dead Switch/` με ένα GitHub repository, με safety controls όπως create-only-new uploads, overwrite sync, visibility toggle και one-click kill switch.
+Το **Dead Man's Switch.py** συγχρονίζει τον φάκελο `~/storage/downloads/Dead Man's Switch/` με ένα GitHub repository με όνομα `dead-mans-switch`, με safety controls όπως create-only-new uploads, overwrite sync, visibility toggle, migration από παλιό repository name και one-click kill switch. Είναι φτιαγμένο για να κρατάς ένα last-resort backup σημαντικών αρχείων ή οδηγιών υπό τον δικό σου έλεγχο.
 
-**Τοποθεσία Αποθήκευσης:** ~/storage/downloads/Dead Switch/
+**Τοποθεσία Αποθήκευσης:** ~/storage/downloads/Dead Man's Switch/
 
 </details>
 
