@@ -48,7 +48,6 @@ ACHIEVEMENTS_PID_PATH = os.path.join(HOME_DIR, ".dedsec_achievements.pid")
 ACHIEVEMENTS_WATCHDOG_PID_PATH = os.path.join(HOME_DIR, ".dedsec_achievements_watchdog.pid")
 ACHIEVEMENTS_ENSURE_LOCK_PATH = os.path.join(HOME_DIR, ".dedsec_achievements_ensure.lock")
 ACHIEVEMENTS_LOG_PATH = os.path.join(HOME_DIR, ".dedsec_achievements.log")
-ACHIEVEMENTS_NOTIFICATION_DEBUG_PATH = os.path.join(HOME_DIR, ".dedsec_achievements_notification_debug.log")
 ACHIEVEMENTS_NOTIFICATION_MAX_INDIVIDUAL = 5
 ACHIEVEMENTS_NOTIFICATION_ID_BASE = 112100
 ACHIEVEMENTS_SCAN_INTERVAL_SECONDS = 60
@@ -134,6 +133,8 @@ NETWORK_MAX_PROXY_TESTS = 10
 NETWORK_TOR_SOCKS_PORT = 9050
 NETWORK_BASHRC_START_MARKER = "# --- DedSec VPN and Tor Utilities (Set by Settings.py) ---"
 NETWORK_BASHRC_END_MARKER = "# --- End DedSec VPN and Tor Utilities ---"
+NETWORK_SESSION_GUARD_INTERVAL_SECONDS = 30
+NETWORK_SESSION_GUARD_COMMAND = "--network-session-guard"
 NETWORK_COUNTRIES = {
     "US": "United States",
     "DE": "Germany",
@@ -382,9 +383,6 @@ GREEK_STRINGS = {
     "Notifications sent": "Ειδοποιήσεις που στάλθηκαν",
     "Supported": "Υποστηρίζεται",
     "Not available": "Μη διαθέσιμο",
-    "Command installed": "Η εντολή είναι εγκατεστημένη",
-    "Command missing": "Η εντολή λείπει",
-    "If notifications do not appear, run notification doctor.": "Αν δεν εμφανίζονται ειδοποιήσεις, τρέξε τον γιατρό ειδοποιήσεων.",
     "Unlocked achievements": "Ξεκλειδωμένα επιτεύγματα",
     "new achievements unlocked": "νέα επιτεύγματα ξεκλειδώθηκαν",
     "Tap or return to Termux to view your trophies.": "Πάτησε ή γύρνα στο Termux για να δεις τα τρόπαιά σου.",
@@ -414,36 +412,18 @@ GREEK_STRINGS = {
     "Achievement test notification sent.": "Η δοκιμαστική ειδοποίηση επιτεύγματος στάλθηκε.",
     "Achievement test notification could not be sent. Install Termux:API and pkg install termux-api.": "Η δοκιμαστική ειδοποίηση επιτεύγματος δεν μπόρεσε να σταλεί. Εγκατέστησε το Termux:API και κάνε pkg install termux-api.",
     "Unknown achievement test. Use Test 1 to Test 6.": "Άγνωστη δοκιμή επιτεύγματος. Χρησιμοποίησε Test 1 έως Test 6.",
-    "Notification doctor": "Γιατρός ειδοποιήσεων",
-    "Run notification doctor": "Εκτέλεση γιατρού ειδοποιήσεων",
-    "Achievement notification doctor": "Γιατρός ειδοποιήσεων επιτευγμάτων",
-    "termux-notification path": "Διαδρομή termux-notification",
-    "termux-toast path": "Διαδρομή termux-toast",
-    "Missing": "Λείπει",
-    "Notification command result": "Αποτέλεσμα εντολής ειδοποίησης",
-    "Exit code": "Κωδικός εξόδου",
-    "stdout": "stdout",
-    "stderr": "stderr",
-    "No stderr returned.": "Δεν επιστράφηκε stderr.",
-    "Direct notification test sent successfully.": "Η άμεση δοκιμαστική ειδοποίηση στάλθηκε επιτυχώς.",
-    "Direct notification test failed.": "Η άμεση δοκιμαστική ειδοποίηση απέτυχε.",
-    "Run this command to diagnose notifications:": "Τρέξε αυτή την εντολή για διάγνωση ειδοποιήσεων:",
-    "Install the package with:": "Εγκατέστησε το πακέτο με:",
-    "Also install the Termux:API Android app and allow notification permission.": "Εγκατέστησε επίσης την εφαρμογή Android Termux:API και δώσε άδεια ειδοποιήσεων.",
-    "If the command succeeds but no phone notification appears, Android is probably blocking Termux:API notifications.": "Αν η εντολή πετυχαίνει αλλά δεν εμφανίζεται ειδοποίηση στο κινητό, πιθανότατα το Android μπλοκάρει τις ειδοποιήσεις του Termux:API.",
-    "Open Android settings for Termux and Termux:API, allow notifications, and disable battery restriction for both.": "Άνοιξε τις ρυθμίσεις Android για Termux και Termux:API, επίτρεψε ειδοποιήσεις και απενεργοποίησε τον περιορισμό μπαταρίας και για τα δύο.",
     "Test 1 Achievement": "Επίτευγμα Test 1",
     "Test 2 Achievement": "Επίτευγμα Test 2",
     "Test 3 Achievement": "Επίτευγμα Test 3",
     "Test 4 Achievement": "Επίτευγμα Test 4",
     "Test 5 Achievement": "Επίτευγμα Test 5",
     "Test 6 Achievement": "Επίτευγμα Test 6",
-    "Run Test 1 in Termux to verify Beginner trophy notifications.": "Τρέξε Test 1 στο Termux για να δοκιμάσεις τις ειδοποιήσεις αρχάριου τροπαίου.",
-    "Run Test 2 in Termux to verify Easy trophy notifications.": "Τρέξε Test 2 στο Termux για να δοκιμάσεις τις ειδοποιήσεις εύκολου τροπαίου.",
-    "Run Test 3 in Termux to verify Normal trophy notifications.": "Τρέξε Test 3 στο Termux για να δοκιμάσεις τις ειδοποιήσεις κανονικού τροπαίου.",
-    "Run Test 4 in Termux to verify Hard trophy notifications.": "Τρέξε Test 4 στο Termux για να δοκιμάσεις τις ειδοποιήσεις δύσκολου τροπαίου.",
-    "Run Test 5 in Termux to verify Very Hard trophy notifications.": "Τρέξε Test 5 στο Termux για να δοκιμάσεις τις ειδοποιήσεις πολύ δύσκολου τροπαίου.",
-    "Run Test 6 in Termux to verify Godlike trophy notifications.": "Τρέξε Test 6 στο Termux για να δοκιμάσεις τις ειδοποιήσεις θεϊκού τροπαίου.",
+    "Run Test 1 in Termux to verify Beginner trophy notifications.": "Τρέξε Test 1 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Beginner.",
+    "Run Test 2 in Termux to verify Easy trophy notifications.": "Τρέξε Test 2 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Easy.",
+    "Run Test 3 in Termux to verify Normal trophy notifications.": "Τρέξε Test 3 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Normal.",
+    "Run Test 4 in Termux to verify Hard trophy notifications.": "Τρέξε Test 4 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Hard.",
+    "Run Test 5 in Termux to verify Very Hard trophy notifications.": "Τρέξε Test 5 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Very Hard.",
+    "Run Test 6 in Termux to verify Godlike trophy notifications.": "Τρέξε Test 6 στο Termux για να δοκιμάσεις τις ειδοποιήσεις τροπαίου Godlike.",
     "First Launch": "Πρώτη Εκκίνηση",
     "Open Settings.py and start the DedSec control center.": "Άνοιξε το Settings.py και ξεκίνα το κέντρο ελέγχου του DedSec.",
     "Trophy Room": "Δωμάτιο Τροπαίων",
@@ -576,6 +556,8 @@ GREEK_STRINGS = {
     "Country": "Χώρα",
     "Current proxy": "Τρέχον proxy",
     "No proxy selected": "Δεν έχει επιλεγεί proxy",
+    "New sessions": "Νέες συνεδρίες",
+    "Covered by bash.bashrc hook": "Καλύπτονται από hook στο bash.bashrc",
     "Network exports updated. Restart Termux or open a new shell to apply them everywhere.": "Οι ρυθμίσεις δικτύου ενημερώθηκαν. Κάντε επανεκκίνηση του Termux ή ανοίξτε νέο shell για να εφαρμοστούν παντού.",
     "Tor support ready.": "Η υποστήριξη Tor είναι έτοιμη.",
     "Tor started on 127.0.0.1:9050.": "Το Tor ξεκίνησε στο 127.0.0.1:9050.",
@@ -4179,10 +4161,89 @@ def achievements_record_event(event_name, amount=1):
     return state
 
 
+def achievements_deduplicate_paths(paths):
+    cleaned = []
+    seen = set()
+    for path in paths or []:
+        if not path:
+            continue
+        try:
+            path_abs = os.path.abspath(os.path.expanduser(str(path)))
+        except Exception:
+            continue
+        if path_abs in seen:
+            continue
+        seen.add(path_abs)
+        cleaned.append(path_abs)
+    return cleaned
+
+
+def achievements_project_root_from_cwd():
+    """Return a DedSec project root only when the current folder is clearly inside it.
+
+    Line-by-line review note: v8 scanned os.getcwd() directly. That could become
+    very slow if the user opened Termux inside a huge folder like Downloads.
+    Keep the always-on achievement checker light by only accepting cwd when it
+    is inside the known DedSec project tree.
+    """
+    try:
+        cwd = os.path.abspath(os.getcwd())
+        known_roots = achievements_deduplicate_paths([
+            ACHIEVEMENTS_PROJECT_ROOT,
+            os.path.join(HOME_DIR, "DedSec"),
+            os.path.dirname(ENGLISH_BASE_PATH),
+            ENGLISH_BASE_PATH,
+        ])
+        for root in known_roots:
+            if cwd == root or cwd.startswith(root + os.sep):
+                return root if os.path.basename(root).lower() != "scripts" else os.path.dirname(root)
+        parts = cwd.split(os.sep)
+        for index, part in enumerate(parts):
+            if part.lower() == "dedsec":
+                candidate = os.sep.join(parts[:index + 1]) or os.sep
+                if candidate.startswith(HOME_DIR):
+                    return candidate
+    except Exception:
+        pass
+    return None
+
+
+def achievements_safe_scan_roots(extra_roots=None, include_sponsors=True):
+    """Small, safe root list for the constant background checker.
+
+    Future updates must avoid full-device scans here. The daemon runs forever,
+    so scanning /storage/emulated/0, /sdcard, HOME, or random cwd folders can
+    drain battery and make Termux feel frozen.
+    """
+    roots = [
+        ACHIEVEMENTS_PROJECT_ROOT,
+        os.path.join(HOME_DIR, "DedSec"),
+        os.path.dirname(ENGLISH_BASE_PATH),
+        ENGLISH_BASE_PATH,
+    ]
+    cwd_project = achievements_project_root_from_cwd()
+    if cwd_project:
+        roots.append(cwd_project)
+    if include_sponsors:
+        try:
+            roots.append(SPONSORS_ROOT_PATH)
+            for tier_key in SPONSORS_TIERS.keys():
+                preferred = get_sponsors_preferred_path(tier_key)
+                root_path = get_sponsors_tier_root_path(tier_key)
+                if preferred:
+                    roots.append(preferred)
+                if root_path:
+                    roots.append(root_path)
+        except Exception:
+            pass
+    if extra_roots:
+        roots.extend(extra_roots)
+    return [root for root in achievements_deduplicate_paths(roots) if os.path.isdir(root)]
+
+
 def achievements_count_files(roots, extensions=None, executable_only=False, limit=ACHIEVEMENTS_FILE_SCAN_LIMIT):
     count = 0
     seen = set()
-    seen_files = set()
     extensions = tuple(extensions or [])
     for root in roots:
         if not root or not os.path.isdir(root):
@@ -4197,10 +4258,6 @@ def achievements_count_files(roots, extensions=None, executable_only=False, limi
                 if filename.startswith("."):
                     continue
                 full_path = os.path.join(current_root, filename)
-                full_abs = os.path.abspath(full_path)
-                if full_abs in seen_files:
-                    continue
-                seen_files.add(full_abs)
                 if extensions and not filename.lower().endswith(extensions):
                     continue
                 if executable_only and not (os.access(full_path, os.X_OK) or filename.endswith((".py", ".sh"))):
@@ -4253,30 +4310,8 @@ def achievements_sponsors_local_exists():
 
 
 def achievements_project_roots():
-    """Returns likely DedSec project roots without doing expensive full-device scans."""
-    roots = []
-    candidates = [
-        ACHIEVEMENTS_PROJECT_ROOT,
-        os.path.join(HOME_DIR, "DedSec"),
-        os.path.dirname(ENGLISH_BASE_PATH),
-        os.getcwd(),
-    ]
-    try:
-        cwd = os.getcwd()
-        if os.path.basename(cwd).lower() == "scripts":
-            candidates.append(os.path.dirname(cwd))
-    except Exception:
-        pass
-    seen = set()
-    for candidate in candidates:
-        if not candidate:
-            continue
-        candidate = os.path.abspath(candidate)
-        if candidate in seen:
-            continue
-        seen.add(candidate)
-        roots.append(candidate)
-    return roots
+    """Returns likely DedSec project roots without expensive full-device scans."""
+    return achievements_safe_scan_roots(include_sponsors=False)
 
 
 def achievements_component_exists(component):
@@ -4443,14 +4478,7 @@ def achievements_count_project_save_archives():
 
 def achievements_build_context(state):
     stats = load_termux_usage_stats()
-    script_roots = [ENGLISH_BASE_PATH, os.getcwd(), SPONSORS_ROOT_PATH]
-    try:
-        for tier_key in SPONSORS_TIERS.keys():
-            preferred = get_sponsors_preferred_path(tier_key)
-            if preferred:
-                script_roots.append(preferred)
-    except Exception:
-        pass
+    script_roots = achievements_safe_scan_roots(include_sponsors=True)
 
     github_config = load_github_account_config()
     language = load_language_preference() or get_current_display_language() or "english"
@@ -4599,12 +4627,13 @@ def achievements_condition_met(achievement, context, state):
 
 
 def achievements_notifications_available():
-    """Return True when the Termux:API notification command is installed."""
+    """Return True when Termux:API notification command is available.
+
+    Termux notifications require both the Termux:API Android app and the
+    termux-api package inside Termux. Missing support must never break
+    achievement unlocks or the always-on daemon.
+    """
     return bool(shutil.which("termux-notification"))
-
-
-def achievements_notification_command_path():
-    return shutil.which("termux-notification") or ""
 
 
 def achievements_notification_text(achievement):
@@ -4620,150 +4649,41 @@ def achievements_notification_text(achievement):
     return title, content
 
 
-def achievements_write_notification_debug(message):
-    try:
-        with open(ACHIEVEMENTS_NOTIFICATION_DEBUG_PATH, "a", encoding="utf-8") as handle:
-            handle.write(format_timestamp(time.time()) + " - " + str(message) + "\n")
-    except Exception:
-        pass
-
-
-def achievements_build_notification_commands(safe_title, safe_content, notification_id, command_path=None):
-    """Build multiple compatible Termux:API command variants.
-
-    Some Termux:API versions behave differently with long flags, short flags,
-    or priority values. The notification system tries safe variants before it
-    reports failure, so unlock notifications do not silently fail.
-    """
-    binary = command_path or "termux-notification"
-    return [
-        [
-            binary,
-            "--id", str(notification_id),
-            "--title", safe_title,
-            "--content", safe_content,
-            "--priority", "high",
-        ],
-        [
-            binary,
-            "--id", str(notification_id),
-            "--title", safe_title,
-            "--content", safe_content,
-        ],
-        [
-            binary,
-            "--id", str(notification_id),
-            "-t", safe_title,
-            "-c", safe_content,
-        ],
-    ]
-
-
-def achievements_try_toast_fallback(title, content):
-    """Show a Termux:API toast when notification posting fails.
-
-    This is not counted as a trophy notification. It is only a visible clue
-    during debugging, because Android can block notification permission while
-    still allowing other Termux:API calls.
-    """
-    toast = shutil.which("termux-toast")
-    if not toast:
-        return False
-    try:
-        text = (str(title) + ": " + str(content))[:220]
-        result = subprocess.run(["termux-toast", text], capture_output=True, text=True, timeout=8)
-        if result.returncode == 0:
-            achievements_write_notification_debug("toast fallback shown")
-            return True
-        achievements_write_notification_debug("toast fallback failed rc=" + str(result.returncode) + " stderr=" + str(result.stderr or ""))
-    except Exception as error:
-        achievements_write_notification_debug("toast fallback error: " + str(error))
-    return False
-
-
-def achievements_send_notification(title, content, notification_id=None, debug_print=False):
-    command_path = achievements_notification_command_path()
-    if not command_path:
-        message = _("Install Termux:API and the termux-api package to receive unlock notifications.")
-        achievements_log(message)
-        achievements_write_notification_debug("termux-notification missing from PATH=" + os.environ.get("PATH", ""))
+def achievements_send_notification(title, content, notification_id=None):
+    if not achievements_notifications_available():
+        achievements_log(_("Install Termux:API and the termux-api package to receive unlock notifications."))
         achievements_record_event("notification_unavailable")
-        achievements_try_toast_fallback("DedSec Achievements", message)
-        if debug_print:
-            print(message)
-            print(_("Install the package with:") + " pkg install termux-api")
-            print(_("Also install the Termux:API Android app and allow notification permission."))
         return False
-
     try:
         if notification_id is None:
             digest = hashlib.sha1((str(title) + str(content) + str(time.time())).encode("utf-8", errors="ignore")).hexdigest()
             notification_id = ACHIEVEMENTS_NOTIFICATION_ID_BASE + (int(digest[:5], 16) % 10000)
         safe_title = str(title)[:80]
         safe_content = str(content)[:240]
-        attempts = achievements_build_notification_commands(safe_title, safe_content, notification_id, command_path)
-        last_result = None
-        for command in attempts:
-            result = subprocess.run(command, capture_output=True, text=True, timeout=10)
-            last_result = result
-            achievements_write_notification_debug(
-                "command=" + " ".join(command) +
-                " rc=" + str(result.returncode) +
-                " stdout=" + str(result.stdout or "").strip()[:300] +
-                " stderr=" + str(result.stderr or "").strip()[:500]
-            )
-            if result.returncode == 0:
-                achievements_record_event("notification_success")
-                achievements_log(_("Achievement notifications") + ": " + safe_title)
-                if debug_print:
-                    print(_("Notification command result") + ": OK")
-                return True
-
-        achievements_record_event("notification_errors")
-        stderr_text = str(getattr(last_result, "stderr", "") or "").strip()
-        stdout_text = str(getattr(last_result, "stdout", "") or "").strip()
-        rc = str(getattr(last_result, "returncode", "?"))
-        achievements_log("Achievement notification command failed with exit code " + rc + ": " + (stderr_text or stdout_text or "no output"))
-        achievements_try_toast_fallback(title, content)
-        if debug_print:
-            print(_("Notification command result") + ": FAILED")
-            print(_("Exit code") + ": " + rc)
-            print(_("stdout") + ": " + (stdout_text if stdout_text else "-"))
-            print(_("stderr") + ": " + (stderr_text if stderr_text else _("No stderr returned.")))
-            print(_("If the command succeeds but no phone notification appears, Android is probably blocking Termux:API notifications."))
-            print(_("Open Android settings for Termux and Termux:API, allow notifications, and disable battery restriction for both."))
-        return False
+        command = [
+            "termux-notification",
+            "--id",
+            str(notification_id),
+            "--title",
+            safe_title,
+            "--content",
+            safe_content,
+            "--priority",
+            "high",
+        ]
+        result = subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=8)
+        if result.returncode != 0:
+            achievements_record_event("notification_errors")
+            achievements_log("Achievement notification command failed with exit code: " + str(result.returncode))
+            return False
+        achievements_record_event("notification_success")
+        achievements_log(_("Achievement notifications") + ": " + safe_title)
+        return True
     except Exception as error:
         achievements_record_event("notification_errors")
         achievements_log("Achievement notification failed: " + str(error))
-        achievements_write_notification_debug("exception: " + str(error))
-        achievements_try_toast_fallback(title, content)
-        if debug_print:
-            print(_("Notification command result") + ": FAILED")
-            print(str(error))
         return False
 
-
-def achievements_notification_doctor():
-    print("=== " + _("Achievement notification doctor") + " ===")
-    notification_path = achievements_notification_command_path()
-    toast_path = shutil.which("termux-toast") or ""
-    print(_("termux-notification path") + ": " + (notification_path if notification_path else _("Missing")))
-    print(_("termux-toast path") + ": " + (toast_path if toast_path else _("Missing")))
-    print("PATH: " + os.environ.get("PATH", ""))
-    if not notification_path:
-        print("\n" + _("Install the package with:") + " pkg install termux-api")
-        print(_("Also install the Termux:API Android app and allow notification permission."))
-        return False
-    title = "DedSec Achievement Test"
-    content = _("Achievement unlocked") + " - " + _("Difficulty") + ": " + achievements_trophy_tier_label("beginner")
-    ok = achievements_send_notification(title, content, ACHIEVEMENTS_NOTIFICATION_ID_BASE + 999, debug_print=True)
-    print("\n" + (_("Direct notification test sent successfully.") if ok else _("Direct notification test failed.")))
-    if not ok:
-        print(_("Also install the Termux:API Android app and allow notification permission."))
-    print(_("Open Android settings for Termux and Termux:API, allow notifications, and disable battery restriction for both."))
-    print("Debug log: " + ACHIEVEMENTS_NOTIFICATION_DEBUG_PATH)
-    return ok
 
 def achievements_notify_unlocks(newly_unlocked):
     if not newly_unlocked:
@@ -4785,34 +4705,6 @@ def achievements_notify_unlocks(newly_unlocked):
         summary_content += ": " + ", ".join(sample_titles)
     summary_content += ". " + _("Tap or return to Termux to view your trophies.")
     achievements_send_notification(summary_title, summary_content, ACHIEVEMENTS_NOTIFICATION_ID_BASE)
-
-
-def achievements_unlock_specific(achievement_id, source="manual"):
-    """Unlock one achievement ID directly without running the full scanner.
-
-    Used by notification test commands so tests are instant and do not wait for
-    the complete DedSec Project scan. Future updates must keep this helper safe:
-    never remove old achievement IDs from user save files.
-    """
-    achievement = ACHIEVEMENTS_BY_ID.get(achievement_id)
-    if not achievement:
-        return None, False
-    state = achievements_load_state()
-    unlocked = state.setdefault("unlocked", {})
-    was_unlocked = achievement_id in unlocked
-    state["last_checked"] = time.time()
-    if not was_unlocked:
-        unlocked[achievement_id] = {
-            "unlocked_at": time.time(),
-            "source": source,
-            "title": achievement.get("title", achievement_id),
-        }
-        achievements_log(_("Achievement unlocked") + ": " + achievement.get("title", achievement_id))
-    language = load_language_preference() or get_current_display_language() or "english"
-    if language not in state.setdefault("seen_languages", []):
-        state["seen_languages"].append(language)
-    achievements_save_state(state)
-    return achievement, was_unlocked
 
 
 def achievements_test_command(value):
@@ -4849,27 +4741,23 @@ def achievements_test_command(value):
         return False
 
     achievement_id = selected["id"]
+    state = achievements_load_state()
+    was_unlocked = achievement_id in (state.get("unlocked", {}) if isinstance(state.get("unlocked"), dict) else {})
 
     achievements_record_event(selected["event"])
     achievements_record_event("achievement_test_commands")
-    achievement, was_unlocked = achievements_unlock_specific(achievement_id, source="test_" + selected["number"])
-    if achievement and not was_unlocked:
-        achievements_print_unlock(achievement)
+    newly_unlocked = achievements_check_and_unlock(silent=False, source="test_" + selected["number"])
 
     tier_label = achievements_trophy_tier_label(selected["difficulty"])
+    notification_title = _("Achievement unlocked") if not was_unlocked else _("Achievement already unlocked")
     # Keep the test notification simple and clear, exactly for checking Termux:API.
-    # The phone notification should read like: "Test 1 Achievement - Unlocked"
-    # with a second line: "Difficulty: Beginner".
-    notification_title = _(selected["title"]) + " - " + _("Unlocked")
-    notification_content = _("Difficulty") + ": " + tier_label
+    notification_content = _(selected["title"]) + " - " + _("Difficulty") + ": " + tier_label
 
-    # Always send one explicit test notification and report the real command result.
-    # This avoids false "sent" messages when Termux:API or Android permissions fail.
-    try:
-        test_notification_id = ACHIEVEMENTS_NOTIFICATION_ID_BASE + int(selected["number"])
-    except Exception:
-        test_notification_id = ACHIEVEMENTS_NOTIFICATION_ID_BASE + 1
-    sent = achievements_send_notification(notification_title, notification_content, test_notification_id, debug_print=True)
+    # Always send one explicit test ping. This avoids the v8 false-positive case
+    # where a fresh unlock could print "sent" even when Termux:API was missing.
+    # It may create one extra notification on a fresh test unlock, but it makes
+    # the command a reliable notification test for every difficulty.
+    sent = achievements_send_notification(notification_title, notification_content)
 
     print("=== " + _("Achievement Test Commands") + " ===")
     print(_(selected["title"]))
@@ -4880,8 +4768,7 @@ def achievements_test_command(value):
         print(_("Achievement test notification sent."))
     else:
         print(_("Achievement test notification could not be sent. Install Termux:API and pkg install termux-api."))
-        print(_("Run this command to diagnose notifications:") + " python3 Settings.py --achievement-notification-doctor")
-    return sent
+    return True
 
 
 def achievements_print_unlock(achievement):
@@ -4900,7 +4787,7 @@ def achievements_print_unlock(achievement):
     print("=" * width + "\n")
 
 
-def achievements_check_and_unlock(silent=False, source="manual", send_notifications=True):
+def achievements_check_and_unlock(silent=False, source="manual"):
     state = achievements_load_state()
     state["last_checked"] = time.time()
     events = state.setdefault("events", {})
@@ -4935,7 +4822,7 @@ def achievements_check_and_unlock(silent=False, source="manual", send_notificati
 
     achievements_save_state(state)
 
-    if newly_unlocked and send_notifications:
+    if newly_unlocked:
         achievements_notify_unlocks(newly_unlocked)
 
     if newly_unlocked and not silent:
@@ -5183,15 +5070,6 @@ def achievements_update_startup_hook():
             "Test4() { Test 4; }",
             "Test5() { Test 5; }",
             "Test6() { Test 6; }",
-            "AchievementDoctor() {",
-            "    if [ -f \"$DEDSEC_ACHIEVEMENTS_SETTINGS\" ]; then",
-            "        python3 \"$DEDSEC_ACHIEVEMENTS_SETTINGS\" --achievement-notification-doctor",
-            "    else",
-            "        echo \"DedSec Settings.py not found.\"",
-            "    fi",
-            "}",
-            "AchDoctor() { AchievementDoctor; }",
-            "NotifyDoctor() { AchievementDoctor; }",
             "case \"$PROMPT_COMMAND\" in",
             "    *dedsec_achievements_constant_guard*) ;;",
             "    *) PROMPT_COMMAND=\"dedsec_achievements_constant_guard${PROMPT_COMMAND:+;$PROMPT_COMMAND}\" ;;",
@@ -5496,12 +5374,11 @@ def achievements_menu():
             print("  - " + achievements_trophy_tier_label(tier_key) + f": {data.get('unlocked', 0)}/{data.get('total', 0)}")
         print(_("Background checker") + f": {checker_status}")
         print(_("Daemon status") + f": {daemon_status}")
-        notification_status = _("Command installed") if achievements_notifications_available() else _("Command missing")
+        notification_status = _("Supported") if achievements_notifications_available() else _("Not available")
         notification_count = int(state.get("events", {}).get("notification_success", 0)) if isinstance(state.get("events"), dict) else 0
         print(_("Watchdog status") + f": {watchdog_status}")
         print(_("Termux:API notification support") + f": {notification_status}")
         print(_("Notifications sent") + f": {notification_count}")
-        print(_("If notifications do not appear, run notification doctor."))
         print("\n" + _("Achievement Test Commands") + ":")
         print("  " + _("Run these in Termux to test each difficulty notification:"))
         print("  Test 1 = " + achievements_trophy_tier_label("beginner"))
@@ -5518,7 +5395,6 @@ def achievements_menu():
             _("Check achievements now"),
             _("Restart constant checker"),
             _("Show achievement log"),
-            _("Run notification doctor"),
             _("Back"),
         ]
         for index, option in enumerate(options, start=1):
@@ -5534,10 +5410,7 @@ def achievements_menu():
         elif choice == "3":
             achievements_show_log()
             achievements_check_and_unlock(silent=False, source="menu")
-        elif choice == "4":
-            achievements_notification_doctor()
-            achievements_check_and_unlock(silent=False, source="menu")
-        elif choice == "5" or choice.lower() in ("b", "back", "q", "quit", "0"):
+        elif choice == "4" or choice.lower() in ("b", "back", "q", "quit", "0"):
             break
         else:
             print(_("Invalid selection. Please try again."))
@@ -5624,10 +5497,10 @@ def cleanup_bashrc():
     in_marked_block = False
 
     for line in lines:
-        if BASHRC_START_MARKER in line or ACHIEVEMENTS_BASHRC_START_MARKER in line:
+        if BASHRC_START_MARKER in line or ACHIEVEMENTS_BASHRC_START_MARKER in line or NETWORK_BASHRC_START_MARKER in line:
             in_marked_block = True
             continue
-        if BASHRC_END_MARKER in line or ACHIEVEMENTS_BASHRC_END_MARKER in line:
+        if BASHRC_END_MARKER in line or ACHIEVEMENTS_BASHRC_END_MARKER in line or NETWORK_BASHRC_END_MARKER in line:
             in_marked_block = False
             continue
         
@@ -10907,6 +10780,14 @@ def network_remove_bashrc_export_block(content):
 
 
 def network_apply_bashrc_exports():
+    """Write VPN/Tor proxy exports and a new-session guard into bash.bashrc.
+
+    New shells cannot inherit variables from the already-running Settings.py
+    process, so this writes the current proxy state into bash.bashrc. It also
+    installs a small shell guard that quietly starts Tor again when Tor is
+    enabled and a new Termux session opens. Tor takes priority over the HTTP
+    proxy because it is the safer route when both are enabled.
+    """
     config = network_load_config()
     try:
         os.makedirs(os.path.dirname(BASHRC_PATH), exist_ok=True)
@@ -10923,6 +10804,11 @@ def network_apply_bashrc_exports():
             exports.extend([
                 'export ALL_PROXY="' + tor_proxy + '"',
                 'export all_proxy="' + tor_proxy + '"',
+                'export HTTP_PROXY="' + tor_proxy + '"',
+                'export HTTPS_PROXY="' + tor_proxy + '"',
+                'export http_proxy="' + tor_proxy + '"',
+                'export https_proxy="' + tor_proxy + '"',
+                'export DEDSEC_NETWORK_MODE="tor"',
             ])
         elif config.get("vpn_enabled") and config.get("proxy"):
             proxy = str(config.get("proxy"))
@@ -10933,6 +10819,7 @@ def network_apply_bashrc_exports():
                 'export https_proxy="' + proxy + '"',
                 "unset ALL_PROXY",
                 "unset all_proxy",
+                'export DEDSEC_NETWORK_MODE="vpn"',
             ])
         else:
             exports.extend([
@@ -10942,14 +10829,37 @@ def network_apply_bashrc_exports():
                 "unset https_proxy",
                 "unset ALL_PROXY",
                 "unset all_proxy",
+                'export DEDSEC_NETWORK_MODE="off"',
             ])
 
-        block = NETWORK_BASHRC_START_MARKER + "\n" + "\n".join(exports) + "\n" + NETWORK_BASHRC_END_MARKER + "\n"
+        safe_settings_path = SETTINGS_SCRIPT_PATH.replace('"', '\\"')
+        guard_lines = [
+            'DEDSEC_NETWORK_SETTINGS="' + safe_settings_path + '"',
+            "DEDSEC_NETWORK_LAST=0",
+            "dedsec_network_session_guard() {",
+            "    local now=\"$(date +%s 2>/dev/null || echo 0)\"",
+            "    local interval=\"" + str(NETWORK_SESSION_GUARD_INTERVAL_SECONDS) + "\"",
+            "    if [ -z \"$now\" ]; then now=0; fi",
+            "    if [ -z \"$DEDSEC_NETWORK_LAST\" ]; then DEDSEC_NETWORK_LAST=0; fi",
+            "    if [ $((now - DEDSEC_NETWORK_LAST)) -ge $interval ]; then",
+            "        DEDSEC_NETWORK_LAST=\"$now\"",
+            "        if [ -f \"$DEDSEC_NETWORK_SETTINGS\" ]; then",
+            "            (python3 \"$DEDSEC_NETWORK_SETTINGS\" " + NETWORK_SESSION_GUARD_COMMAND + " >/dev/null 2>&1 &)",
+            "        fi",
+            "    fi",
+            "}",
+            "dedsec_network_session_guard",
+            "case \"$PROMPT_COMMAND\" in",
+            "    *dedsec_network_session_guard*) ;;",
+            "    *) PROMPT_COMMAND=\"dedsec_network_session_guard${PROMPT_COMMAND:+;$PROMPT_COMMAND}\" ;;",
+            "esac",
+        ]
+
+        block = NETWORK_BASHRC_START_MARKER + "\n" + "\n".join(exports + guard_lines) + "\n" + NETWORK_BASHRC_END_MARKER + "\n"
         with open(BASHRC_PATH, "w", encoding="utf-8") as handle:
             handle.write(content + block)
     except Exception as error:
         print("[!] Failed to update network exports: " + str(error))
-
 
 def network_status_lines():
     config = network_load_config()
@@ -10959,6 +10869,7 @@ def network_status_lines():
         _("VPN Connection") + ": " + (_("Enabled") if config.get("vpn_enabled") else _("Disabled")),
         _("Country") + ": " + country + " - " + NETWORK_COUNTRIES.get(country, country),
         _("Current proxy") + ": " + (config.get("proxy") or _("No proxy selected")),
+        _("New sessions") + ": " + _("Covered by bash.bashrc hook"),
     ]
     return lines
 
@@ -11110,6 +11021,21 @@ def network_autostart_if_enabled(silent=True):
         network_apply_bashrc_exports()
 
 
+def network_session_guard():
+    """Quietly refresh VPN/Tor support for new Termux sessions.
+
+    This is called from bash.bashrc. It keeps the saved proxy exports current and
+    restarts Tor if Tor was enabled but the process is not listening anymore. It
+    does not print anything because it runs during shell startup/prompt repair.
+    """
+    try:
+        network_autostart_if_enabled(silent=True)
+        network_apply_bashrc_exports()
+        return True
+    except Exception:
+        return False
+
+
 def network_utilities_menu():
     while True:
         os.system("clear")
@@ -11154,6 +11080,112 @@ def network_utilities_menu():
             print(_("Invalid selection. Please try again."))
         input("\n" + _("Press Enter to continue..."))
 
+
+# ----------------------------------------------------------------------
+# --- QUIET INTERNAL SECTION: ORTHODOX PRAYER REFERENCE NOTES ---
+# ----------------------------------------------------------------------
+# Ordinary source comments only. This section is not connected to menus,
+# logs, notifications, achievements, prompts, startup hooks, or UI output.
+# Future updates should keep this section non-executable and should not
+# treat these notes as feature logic.
+#
+# Greek - Πάτερ ἡμῶν:
+# Πάτερ ἡμῶν ὁ ἐν τοῖς οὐρανοῖς,
+# ἁγιασθήτω τὸ ὄνομά σου·
+# ἐλθέτω ἡ βασιλεία σου·
+# γενηθήτω τὸ θέλημά σου,
+# ὡς ἐν οὐρανῷ καὶ ἐπὶ τῆς γῆς·
+# τὸν ἄρτον ἡμῶν τὸν ἐπιούσιον
+# δὸς ἡμῖν σήμερον·
+# καὶ ἄφες ἡμῖν τὰ ὀφειλήματα ἡμῶν,
+# ὡς καὶ ἡμεῖς ἀφίεμεν τοῖς ὀφειλέταις ἡμῶν·
+# καὶ μὴ εἰσενέγκῃς ἡμᾶς εἰς πειρασμόν,
+# ἀλλὰ ῥῦσαι ἡμᾶς ἀπὸ τοῦ πονηροῦ.
+# Ἀμήν.
+#
+# English - The Lord's Prayer:
+# Our Father, who art in heaven,
+# hallowed be Thy name;
+# Thy kingdom come;
+# Thy will be done on earth as it is in heaven;
+# give us this day our daily bread;
+# and forgive us our debts, as we forgive our debtors;
+# and lead us not into temptation,
+# but deliver us from the evil one.
+# Amen.
+#
+# Greek - Πιστεύω εἰς ἕνα Θεόν:
+# Πιστεύω εἰς ἕνα Θεόν, Πατέρα, Παντοκράτορα,
+# ποιητὴν οὐρανοῦ καὶ γῆς, ὁρατῶν τε πάντων καὶ ἀοράτων.
+# Καὶ εἰς ἕνα Κύριον Ἰησοῦν Χριστόν,
+# τὸν Υἱὸν τοῦ Θεοῦ τὸν Μονογενῆ,
+# τὸν ἐκ τοῦ Πατρὸς γεννηθέντα πρὸ πάντων τῶν αἰώνων.
+# Φῶς ἐκ Φωτός, Θεὸν ἀληθινὸν ἐκ Θεοῦ ἀληθινοῦ,
+# γεννηθέντα, οὐ ποιηθέντα, ὁμοούσιον τῷ Πατρί,
+# δι' οὗ τὰ πάντα ἐγένετο.
+# Τὸν δι' ἡμᾶς τοὺς ἀνθρώπους καὶ διὰ τὴν ἡμετέραν σωτηρίαν
+# κατελθόντα ἐκ τῶν οὐρανῶν,
+# καὶ σαρκωθέντα ἐκ Πνεύματος Ἁγίου καὶ Μαρίας τῆς Παρθένου,
+# καὶ ἐνανθρωπήσαντα.
+# Σταυρωθέντα τε ὑπὲρ ἡμῶν ἐπὶ Ποντίου Πιλάτου,
+# καὶ παθόντα, καὶ ταφέντα.
+# Καὶ ἀναστάντα τῇ τρίτῃ ἡμέρᾳ κατὰ τὰς Γραφάς.
+# Καὶ ἀνελθόντα εἰς τοὺς οὐρανούς,
+# καὶ καθεζόμενον ἐκ δεξιῶν τοῦ Πατρός.
+# Καὶ πάλιν ἐρχόμενον μετὰ δόξης κρῖναι ζῶντας καὶ νεκρούς,
+# οὗ τῆς βασιλείας οὐκ ἔσται τέλος.
+# Καὶ εἰς τὸ Πνεῦμα τὸ Ἅγιον, τὸ Κύριον, τὸ Ζωοποιόν,
+# τὸ ἐκ τοῦ Πατρὸς ἐκπορευόμενον,
+# τὸ σὺν Πατρὶ καὶ Υἱῷ συμπροσκυνούμενον καὶ συνδοξαζόμενον,
+# τὸ λαλῆσαν διὰ τῶν Προφητῶν.
+# Εἰς μίαν, ἁγίαν, καθολικὴν καὶ ἀποστολικὴν Ἐκκλησίαν.
+# Ὁμολογῶ ἓν βάπτισμα εἰς ἄφεσιν ἁμαρτιῶν.
+# Προσδοκῶ ἀνάστασιν νεκρῶν.
+# Καὶ ζωὴν τοῦ μέλλοντος αἰῶνος. Ἀμήν.
+#
+# English - The Creed:
+# I believe in one God, the Father Almighty,
+# Maker of heaven and earth, and of all things visible and invisible.
+# And in one Lord Jesus Christ, the only-begotten Son of God,
+# begotten of the Father before all ages.
+# Light from Light, true God from true God,
+# begotten, not made, of one essence with the Father,
+# through whom all things were made.
+# For us human beings and for our salvation He came down from heaven,
+# and was incarnate by the Holy Spirit and the Virgin Mary,
+# and became human.
+# He was crucified for us under Pontius Pilate, suffered, and was buried.
+# And He rose on the third day according to the Scriptures.
+# And He ascended into heaven and sits at the right hand of the Father.
+# And He shall come again with glory to judge the living and the dead,
+# and His kingdom shall have no end.
+# And in the Holy Spirit, the Lord, the Giver of Life,
+# who proceeds from the Father,
+# who together with the Father and the Son is worshipped and glorified,
+# who spoke through the Prophets.
+# In one, holy, catholic, and apostolic Church.
+# I confess one baptism for the forgiveness of sins.
+# I await the resurrection of the dead.
+# And the life of the age to come. Amen.
+#
+# Greek - Δόξα σοι / Ἀναστήτω ὁ Θεός:
+# Δόξα σοι, ὁ Θεὸς ἡμῶν, δόξα σοι.
+# Ἀναστήτω ὁ Θεός, καὶ διασκορπισθήτωσαν οἱ ἐχθροὶ αὐτοῦ,
+# καὶ φυγέτωσαν ἀπὸ προσώπου αὐτοῦ οἱ μισοῦντες αὐτόν.
+# Ὡς ἐκλείπει καπνός, ἐκλιπέτωσαν·
+# ὡς τήκεται κηρὸς ἀπὸ προσώπου πυρός,
+# οὕτως ἀπολοῦνται οἱ ἁμαρτωλοὶ ἀπὸ προσώπου τοῦ Θεοῦ·
+# καὶ οἱ δίκαιοι εὐφρανθήτωσαν.
+#
+# English - Glory to You / Let God arise:
+# Glory to You, our God, glory to You.
+# Let God arise, and let His enemies be scattered;
+# let those who hate Him flee from before His face.
+# As smoke vanishes, so let them vanish;
+# as wax melts before fire,
+# so let sinners perish before the face of God;
+# and let the righteous rejoice.
+# ----------------------------------------------------------------------
 
 # ------------------------------
 # Settings Menu with Different Styles
@@ -11488,9 +11520,9 @@ if __name__ == "__main__":
         # --- NEW: Enforce Language Folder Visibility ---
         enforce_language_folder_visibility()
 
-        if len(sys.argv) > 1 and sys.argv[1] in ("--achievement-notification-doctor", "--achievements-notification-doctor", "--notification-doctor", "--achievements-doctor"):
-            ok = achievements_notification_doctor()
-            sys.exit(0 if ok else 1)
+        if len(sys.argv) > 1 and sys.argv[1] == NETWORK_SESSION_GUARD_COMMAND:
+            network_session_guard()
+            sys.exit(0)
 
         if len(sys.argv) > 1 and sys.argv[1] in ("--achievement-test", "--achievements-test", "--test-achievement"):
             test_value = sys.argv[2] if len(sys.argv) > 2 else "1"
