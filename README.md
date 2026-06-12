@@ -439,7 +439,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
-- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, while the $9 tier includes all $3 scripts plus Widget Maker.py and Kraken Trader.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
+- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
@@ -458,7 +458,7 @@ The GitHub section can install or use `gh`, start the official GitHub login flow
 
 ### Access Sponsors-Only Scripts
 
-This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts. The $9 tier contains every $3 script plus Widget Maker.py and Kraken Trader.py. If an older local copy exists, it is replaced only after access is confirmed.
+This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts. The $9 tier contains every $3 script plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If an older local copy exists, it is replaced only after access is confirmed.
 
 ### Termux Usage Stats
 
@@ -502,7 +502,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
 - **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
-- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py και Kraken Trader.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
+- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
@@ -521,7 +521,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Access Sponsors-Only Scripts
 
-Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py και Kraken Trader.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
+Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
 
 ### Termux Usage Stats
 
@@ -572,9 +572,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
-- **Sponsors-Only:** 5 tools in the $3 tier / 7 tools in the $9 tier
+- **Sponsors-Only:** 5 tools in the $3 tier / 8 tools in the $9 tier
 
-**Total listed on tools page:** 82 tools
+**Total listed on tools page:** 83 tools
 
 </details>
 
@@ -592,9 +592,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
-- **Sponsors-Only:** 5 εργαλεία στο $3 tier / 7 εργαλεία στο $9 tier
+- **Sponsors-Only:** 5 εργαλεία στο $3 tier / 8 εργαλεία στο $9 tier
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 82 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 83 εργαλεία
 
 </details>
 
@@ -2451,7 +2451,7 @@ Sponsors-Only access is now split into two GitHub Sponsors tiers:
 | Tier | What it includes |
 | :--- | :--------------- |
 | **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, and AR Terror.py. |
-| **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py** and **Kraken Trader.py**. |
+| **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py**, **Kraken Trader.py**, and **Noob Hacker.py**. |
 
 </details>
 
@@ -2463,7 +2463,7 @@ Sponsors-Only access is now split into two GitHub Sponsors tiers:
 | Tier | Τι περιλαμβάνει |
 | :--- | :-------------- |
 | **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py και AR Terror.py. |
-| **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py** και **Kraken Trader.py**. |
+| **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py**, **Kraken Trader.py** και **Noob Hacker.py**. |
 
 </details>
 
@@ -2634,6 +2634,30 @@ Problem it solved for me: I wanted a single phone-friendly trading lab that keep
 Πρόβλημα που μου έλυσε: ήθελα ένα ενιαίο phone-friendly trading lab που κρατά τα πραγματικά χρήματα πίσω από προειδοποιήσεις, ενώ μου επιτρέπει να μελετάω αγορές, να δοκιμάζω στρατηγικές, να κρατάω journal αποφάσεων και να κάνω practice πρώτα με paper mode.
 
 **Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs και error logs αποθηκεύονται μέσα σε αυτόν. Προαιρετικά report copies μπορούν να αποθηκευτούν στα Downloads αν ενεργοποιηθεί αυτή η επιλογή.
+
+</details>
+
+### • Noob Hacker.py
+
+<details>
+<summary><strong>🇬🇧 English</strong></summary>
+
+**Description:** Noob Hacker.py is a safe offline terminal learning game for Termux that teaches absolute beginners programming, Python basics, Termux/Bash habits, debugging, local-only cybersecurity thinking, defender workflows, report writing, projects, quizzes, and playable practice games. It is built as a single Python script, works without root, keeps practice inside fictional/local labs, includes English and Greek versions, supports self-tests, save migration, progress tracking, and many beginner-friendly lessons designed to guide someone from zero knowledge into practical safe skills. It does not attack real targets, scan the internet, steal accounts, or teach malware.
+
+Problem it solved for me: I wanted one serious beginner-friendly learning game that can teach someone from zero without sending them to random unsafe tutorials. Example: open Termux, run one Python file, follow slow lessons, play safe practice games, learn Python/commands/debugging, and build confidence without touching real targets.
+
+**Save Location:** Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/
+
+</details>
+
+<details>
+<summary><strong>🇬🇷 Ελληνικά</strong></summary>
+
+**Περιγραφή:** Το Noob Hacker.py είναι ασφαλές offline terminal learning game για Termux που μαθαίνει σε απόλυτους αρχάριους προγραμματισμό, βασικά Python, συνήθειες Termux/Bash, debugging, local-only cybersecurity thinking, defender workflows, report writing, projects, quizzes και playable practice games. Είναι φτιαγμένο ως ένα μόνο Python script, λειτουργεί χωρίς root, κρατά την εξάσκηση σε φανταστικά/local labs, περιλαμβάνει English και Greek εκδόσεις, υποστηρίζει self-tests, save migration, progress tracking και πολλά beginner-friendly μαθήματα που οδηγούν κάποιον από μηδενική γνώση σε πρακτικές ασφαλείς δεξιότητες. Δεν επιτίθεται σε πραγματικούς στόχους, δεν σαρώνει το internet, δεν κλέβει λογαριασμούς και δεν μαθαίνει malware.
+
+Πρόβλημα που μου έλυσε: ήθελα ένα σοβαρό beginner-friendly learning game που μπορεί να μάθει κάποιον από το μηδέν χωρίς να τον στέλνει σε τυχαία unsafe tutorials. Παράδειγμα: ανοίγεις Termux, τρέχεις ένα Python αρχείο, ακολουθείς αργά μαθήματα, παίζεις ασφαλή practice games, μαθαίνεις Python/commands/debugging και χτίζεις αυτοπεποίθηση χωρίς να αγγίζεις πραγματικούς στόχους.
+
+**Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/
 
 </details>
 
