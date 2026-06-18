@@ -49,7 +49,7 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 
 <a id="how-to-install-and-setup-the-dedsec-project"></a>
 
-<details>
+<details open>
 <summary><strong>How To Install And Setup The DedSec Project</strong></summary>
 
 
@@ -203,7 +203,7 @@ bash Setup.sh
 
 <a id="website-help-paths"></a>
 
-<details>
+<details open>
 <summary><strong>Website Help Paths</strong></summary>
 
 
@@ -236,7 +236,7 @@ Check the menu (the three lines at the top right) to find more stuff like assist
 
 <a id="settings--configuration"></a>
 
-<details>
+<details open>
 <summary><strong>Settings & Configuration</strong></summary>
 
 
@@ -302,7 +302,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 <a id="explore-the-toolkit"></a>
 
-<details>
+<details open>
 <summary><strong>Explore The Toolkit</strong></summary>
 
 
@@ -1398,7 +1398,7 @@ Use only on systems you own or where you have explicit permission.
 
 <a id="contact-us--credits"></a>
 
-<details>
+<details open>
 <summary><strong>Contact Us & Credits</strong></summary>
 
 
@@ -1427,7 +1427,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 <a id="disclaimer--terms-of-use"></a>
 
-<details>
+<details open>
 <summary><strong>Disclaimer & Terms of Use</strong></summary>
 
 
@@ -1472,7 +1472,7 @@ This project, including all associated tools, scripts, and documentation, is pro
 
 <a id="greek-installation"></a>
 
-<details>
+<details open>
 <summary><strong>Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project</strong></summary>
 
 
@@ -1626,7 +1626,7 @@ bash Setup.sh
 
 <a id="greek-website-help"></a>
 
-<details>
+<details open>
 <summary><strong>Διαδρομές Βοήθειας Ιστοσελίδας</strong></summary>
 
 
@@ -1659,7 +1659,7 @@ bash Setup.sh
 
 <a id="greek-settings"></a>
 
-<details>
+<details open>
 <summary><strong>Ρυθμίσεις και Παραμετροποίηση</strong></summary>
 
 
@@ -1725,7 +1725,7 @@ bash Setup.sh
 
 <a id="greek-toolkit"></a>
 
-<details>
+<details open>
 <summary><strong>Εξερευνήστε την Εργαλειοθήκη</strong></summary>
 
 
@@ -2821,7 +2821,7 @@ bash Setup.sh
 
 <a id="greek-contact"></a>
 
-<details>
+<details open>
 <summary><strong>Επικοινωνία και Συντελεστές</strong></summary>
 
 
@@ -2850,7 +2850,7 @@ bash Setup.sh
 
 <a id="greek-disclaimer"></a>
 
-<details>
+<details open>
 <summary><strong>Αποποίηση Ευθύνης και Όροι Χρήσης</strong></summary>
 
 
