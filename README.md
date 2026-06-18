@@ -24,7 +24,11 @@
 
 The **DedSec Project** is a broad educational toolkit built for **Android + Termux**, bringing together many scripts, utilities, local web interfaces, and practice environments in one place. Its purpose is to help users learn how tools work, understand defensive awareness, and organize common Termux workflows from a single project.
 
-## Table of Contents
+<a id="table-of-contents"></a>
+
+<details>
+<summary><strong><big><big>• Table of Contents</big></big></strong></summary>
+
 
 * [How To Install And Setup The DedSec Project](#how-to-install-and-setup-the-dedsec-project)
 * [Website Help Paths](#website-help-paths)
@@ -42,9 +46,13 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 * [Contact Us & Credits](#contact-us--credits)
 * [Disclaimer & Terms of Use](#disclaimer--terms-of-use)
 
----
+</details>
 
-## How To Install And Setup The DedSec Project
+<a id="how-to-install-and-setup-the-dedsec-project"></a>
+
+<details>
+<summary><strong><big><big>• How To Install And Setup The DedSec Project</big></big></strong></summary>
+
 
 This section follows the installation HTML and shows the full setup flow for the **DedSec Project** on **Android with Termux**. It covers first-time installation, the exact post-setup steps you should follow, how to update an existing copy, and how to open the project again later without reinstalling it.
 
@@ -192,9 +200,13 @@ bash Setup.sh
 - If you are already inside the DedSec folder, you do not need to clone the repository again.
 - Using the F-Droid version of Termux is strongly recommended because some Play Store versions are outdated.
 
----
+</details>
 
-## Website Help Paths
+<a id="website-help-paths"></a>
+
+<details>
+<summary><strong><big><big>• Website Help Paths</big></big></strong></summary>
+
 
 This follows the same starter/help path from the website `index.html`, but here the website buttons are written as normal linked text. Each link also shows the exact website path.
 
@@ -221,9 +233,13 @@ If Termux or DedSec breaks, open Assistance first. If you need anything custom-m
 
 Check the menu (the three lines at the top right) to find more stuff like assistance, frequently asked questions, our vision, contact ways, etc.
 
----
+</details>
 
-## Settings & Configuration
+<a id="settings--configuration"></a>
+
+<details>
+<summary><strong><big><big>• Settings & Configuration</big></big></strong></summary>
+
 
 The DedSec Project includes **Settings.py**, the central control panel for keeping the toolkit configured, updated, backed up, connected, and easy to open after installation.
 
@@ -283,9 +299,13 @@ After installation, the most important settings are:
 
 Use **Save DedSec Project** on your first run, then run it again a few times every year so your saved DedSec Project package stays fresh and ready if you ever need to restore it. It may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 
----
+</details>
 
-## Explore The Toolkit
+<a id="explore-the-toolkit"></a>
+
+<details>
+<summary><strong><big><big>• Explore The Toolkit</big></big></strong></summary>
+
 
 > **CRITICAL NOTICE:** The following scripts are included for **educational and defensive purposes only**. Their role is to help users understand how tools, lures, and simulations work so they can improve awareness, testing discipline, and self-protection in controlled environments.
 
@@ -306,7 +326,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 <a id="developer-base"></a>
 
 <details>
-<summary><h2>• Developer Base</h2></summary>
+<summary><strong><big>• Developer Base</big></strong></summary>
 
 
 <details>
@@ -434,7 +454,7 @@ Problem it solved for me: I wanted one light browser workspace inside my phone s
 <a id="network-tools"></a>
 
 <details>
-<summary><h2>• Network Tools</h2></summary>
+<summary><strong><big>• Network Tools</big></strong></summary>
 
 
 <details>
@@ -562,7 +582,7 @@ Problem it solved for me: product research from a phone gets messy fast. Example
 <a id="personal-information-capture-educational-use-only"></a>
 
 <details>
-<summary><h2>• Personal Information Capture (Educational Use Only)</h2></summary>
+<summary><strong><big>• Personal Information Capture (Educational Use Only)</big></strong></summary>
 
 
 These scripts are training simulations intended to help users understand how deceptive personal-data collection pages may be presented, so they can better recognize and defend against them in controlled environments.
@@ -776,7 +796,7 @@ Problem it solved for me: people often miss the risk behind YouTube verification
 <a id="fake-pages-educational-use-only"></a>
 
 <details>
-<summary><h2>• Fake Pages (Educational Use Only)</h2></summary>
+<summary><strong><big>• Fake Pages (Educational Use Only)</big></strong></summary>
 
 
 These scripts are educational simulations intended to help users recognize social-engineering patterns, fake reward pages, fake verification flows, and imitation brand pages often used to pressure people into unsafe actions.
@@ -1086,7 +1106,7 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 <a id="games"></a>
 
 <details>
-<summary><h2>• Games</h2></summary>
+<summary><strong><big>• Games</big></strong></summary>
 
 
 <details>
@@ -1154,7 +1174,7 @@ Problem it solved for me: I did not want ten different small game files everywhe
 <a id="other-tools"></a>
 
 <details>
-<summary><h2>• Other Tools</h2></summary>
+<summary><strong><big>• Other Tools</big></strong></summary>
 
 
 <details>
@@ -1222,7 +1242,7 @@ Problem it solved for me: random fix commands can make Termux worse. Example: us
 <a id="no-category"></a>
 
 <details>
-<summary><h2>• No Category</h2></summary>
+<summary><strong><big>• No Category</big></strong></summary>
 
 
 <details>
@@ -1266,7 +1286,7 @@ Problem it solved for me: I did not want to remember every GitHub repo name and 
 <a id="sponsors-only"></a>
 
 <details>
-<summary><h2>• Sponsors-Only</h2></summary>
+<summary><strong><big>• Sponsors-Only</big></strong></summary>
 
 
 Sponsors-Only access is now split into two GitHub Sponsors tiers:
@@ -1380,7 +1400,7 @@ Problem it solved for me: I wanted one serious beginner-friendly learning game t
 <a id="butsystempy-exclusive"></a>
 
 <details>
-<summary><h2>• ButSystem.py (Exclusive)</h2></summary>
+<summary><strong><big>• ButSystem.py (Exclusive)</big></strong></summary>
 
 
 **ButSystem.py** is a self-hosted, **local-first** workspace that runs on your own device through Termux. It is designed to bring private communication, organized files, access control, and structured profile workflows into one browser interface instead of scattering them across separate scripts and menus.
@@ -1393,9 +1413,13 @@ Use only on systems you own or where you have explicit permission.
 
 </details>
 
----
+</details>
 
-## Contact Us & Credits
+<a id="contact-us--credits"></a>
+
+<details>
+<summary><strong><big><big>• Contact Us & Credits</big></big></strong></summary>
+
 
 ### Contact Us
 
@@ -1405,9 +1429,9 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Main DedSec Project Repository:** [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
 * **Backup Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Backup DedSec Project Repository:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
-* ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
-* ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
+* **WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* **Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+* **Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
 ### Credits
 
@@ -1418,9 +1442,13 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 * **Discord Server Maintenance:** Talha
 * **Past Help:** Sal Scar, lamprouil, UKI_hunter
 
----
+</details>
 
-## Disclaimer & Terms of Use
+<a id="disclaimer--terms-of-use"></a>
+
+<details>
+<summary><strong><big><big>• Disclaimer & Terms of Use</big></big></strong></summary>
+
 
 > **PLEASE READ CAREFULLY BEFORE PROCEEDING.**
 
@@ -1431,7 +1459,7 @@ This project, including all associated tools, scripts, and documentation, is pro
 3. **No Warranty:** The software is provided **AS IS** without guarantees.
 4. **Limitation of Liability:** The developers, contributors, and distributors are not liable for claims, damages, or losses arising from the software or its use.
 
----
+</details>
 
 <a id="greek-readme"></a>
 
@@ -1439,7 +1467,11 @@ This project, including all associated tools, scripts, and documentation, is pro
 
 Το **DedSec Project** είναι ένα ευρύ εκπαιδευτικό toolkit για **Android + Termux**, που συγκεντρώνει πολλά scripts, utilities, local web interfaces και περιβάλλοντα εξάσκησης σε ένα σημείο. Ο σκοπός του είναι να βοηθά τους χρήστες να μαθαίνουν πώς λειτουργούν τα εργαλεία, να κατανοούν καλύτερα την αμυντική επίγνωση και να οργανώνουν συνηθισμένα Termux workflows μέσα από ένα ενιαίο project.
 
-## Περιεχόμενα
+<a id="greek-table-of-contents"></a>
+
+<details>
+<summary><strong><big><big>• Περιεχόμενα</big></big></strong></summary>
+
 
 * [Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project](#greek-installation)
 * [Διαδρομές Βοήθειας Ιστοσελίδας](#greek-website-help)
@@ -1457,11 +1489,13 @@ This project, including all associated tools, scripts, and documentation, is pro
 * [Επικοινωνία και Συντελεστές](#greek-contact)
 * [Αποποίηση Ευθύνης και Όροι Χρήσης](#greek-disclaimer)
 
----
+</details>
 
 <a id="greek-installation"></a>
 
-## Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project
+<details>
+<summary><strong><big><big>• Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project</big></big></strong></summary>
+
 
 Αυτή η ενότητα ακολουθεί το installation HTML και δείχνει ολόκληρη τη ροή εγκατάστασης του **DedSec Project** σε **Android με Termux**. Περιλαμβάνει την πρώτη εγκατάσταση, τα ακριβή βήματα που πρέπει να ακολουθήσεις μετά το setup, τον τρόπο ενημέρωσης μιας υπάρχουσας εγκατάστασης και το πώς να ανοίγεις ξανά το project αργότερα χωρίς νέα εγκατάσταση.
 
@@ -1609,11 +1643,13 @@ bash Setup.sh
 - Αν βρίσκεσαι ήδη μέσα στον φάκελο DedSec, δεν χρειάζεται να ξανακάνεις clone το repository.
 - Προτείνεται έντονα η έκδοση του Termux από το F-Droid, επειδή κάποιες εκδόσεις του Play Store είναι παλιές.
 
----
+</details>
 
 <a id="greek-website-help"></a>
 
-## Διαδρομές Βοήθειας Ιστοσελίδας
+<details>
+<summary><strong><big><big>• Διαδρομές Βοήθειας Ιστοσελίδας</big></big></strong></summary>
+
 
 Αυτή η ενότητα ακολουθεί το ίδιο starter/help path από το website `index.html`, αλλά εδώ τα website buttons είναι γραμμένα ως απλό linked text. Κάθε link δείχνει επίσης το ακριβές website path.
 
@@ -1640,11 +1676,13 @@ bash Setup.sh
 
 Δες το μενού (τις τρεις γραμμές πάνω δεξιά) για να βρεις περισσότερα όπως βοήθεια, συχνές ερωτήσεις, το όραμά μας, τρόπους επικοινωνίας, κτλ.
 
----
+</details>
 
 <a id="greek-settings"></a>
 
-## Ρυθμίσεις και Παραμετροποίηση
+<details>
+<summary><strong><big><big>• Ρυθμίσεις και Παραμετροποίηση</big></big></strong></summary>
+
 
 Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel για να κρατάς το toolkit ρυθμισμένο, ενημερωμένο, αποθηκευμένο, συνδεδεμένο και εύκολο να ανοίξει ξανά μετά την εγκατάσταση.
 
@@ -1704,11 +1742,13 @@ bash Setup.sh
 
 Χρησιμοποίησε το **Save DedSec Project** στο πρώτο σου άνοιγμα και μετά τρέχε το ξανά λίγες φορές κάθε χρόνο, ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει ενημερωμένο και έτοιμο αν χρειαστεί επαναφορά. Μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
 
----
+</details>
 
 <a id="greek-toolkit"></a>
 
-## Εξερευνήστε την Εργαλειοθήκη
+<details>
+<summary><strong><big><big>• Εξερευνήστε την Εργαλειοθήκη</big></big></strong></summary>
+
 
 > **ΚΡΙΣΙΜΗ ΣΗΜΕΙΩΣΗ:** Τα παρακάτω scripts περιλαμβάνονται μόνο για **εκπαιδευτικούς και αμυντικούς σκοπούς**. Ο ρόλος τους είναι να βοηθούν τους χρήστες να κατανοούν πώς λειτουργούν εργαλεία, lures και simulations, ώστε να βελτιώνουν την επίγνωση, την πειθαρχία στις δοκιμές και την αυτοπροστασία τους μέσα σε ελεγχόμενα περιβάλλοντα.
 
@@ -1729,7 +1769,7 @@ bash Setup.sh
 <a id="greek-developer-base"></a>
 
 <details>
-<summary><h2>• Βάση Προγραμματιστή</h2></summary>
+<summary><strong><big>• Βάση Προγραμματιστή</big></strong></summary>
 
 
 <details>
@@ -1857,7 +1897,7 @@ bash Setup.sh
 <a id="greek-network-tools"></a>
 
 <details>
-<summary><h2>• Εργαλεία Δικτύου</h2></summary>
+<summary><strong><big>• Εργαλεία Δικτύου</big></strong></summary>
 
 
 <details>
@@ -1985,7 +2025,7 @@ bash Setup.sh
 <a id="greek-personal-information-capture"></a>
 
 <details>
-<summary><h2>• Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)</h2></summary>
+<summary><strong><big>• Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)</big></strong></summary>
 
 
 Αυτά τα scripts είναι training simulations που έχουν στόχο να βοηθούν τους χρήστες να κατανοούν πώς μπορεί να παρουσιάζονται παραπλανητικές σελίδες συλλογής προσωπικών δεδομένων, ώστε να τις αναγνωρίζουν και να αμύνονται καλύτερα απέναντί τους σε ελεγχόμενα περιβάλλοντα.
@@ -2199,7 +2239,7 @@ bash Setup.sh
 <a id="greek-fake-pages"></a>
 
 <details>
-<summary><h2>• Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)</h2></summary>
+<summary><strong><big>• Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)</big></strong></summary>
 
 
 Αυτά τα scripts είναι εκπαιδευτικά simulations που έχουν στόχο να βοηθούν τους χρήστες να αναγνωρίζουν social-engineering patterns, ψεύτικες reward pages, ψεύτικες verification flows και imitation brand pages που συχνά χρησιμοποιούνται για να πιέζουν ανθρώπους σε μη ασφαλείς ενέργειες.
@@ -2509,7 +2549,7 @@ bash Setup.sh
 <a id="greek-games"></a>
 
 <details>
-<summary><h2>• Παιχνίδια</h2></summary>
+<summary><strong><big>• Παιχνίδια</big></strong></summary>
 
 
 <details>
@@ -2577,7 +2617,7 @@ bash Setup.sh
 <a id="greek-other-tools"></a>
 
 <details>
-<summary><h2>• Άλλα Εργαλεία</h2></summary>
+<summary><strong><big>• Άλλα Εργαλεία</big></strong></summary>
 
 
 <details>
@@ -2645,7 +2685,7 @@ bash Setup.sh
 <a id="greek-no-category"></a>
 
 <details>
-<summary><h2>• Χωρίς Κατηγορία</h2></summary>
+<summary><strong><big>• Χωρίς Κατηγορία</big></strong></summary>
 
 
 <details>
@@ -2689,7 +2729,7 @@ bash Setup.sh
 <a id="greek-sponsors-only"></a>
 
 <details>
-<summary><h2>• Μόνο για Χορηγούς</h2></summary>
+<summary><strong><big>• Μόνο για Χορηγούς</big></strong></summary>
 
 
 Το Sponsors-Only access χωρίζεται πλέον σε δύο GitHub Sponsors tiers:
@@ -2803,7 +2843,7 @@ bash Setup.sh
 <a id="greek-butsystem"></a>
 
 <details>
-<summary><h2>• ButSystem.py (Αποκλειστικό)</h2></summary>
+<summary><strong><big>• ButSystem.py (Αποκλειστικό)</big></strong></summary>
 
 
 Το **ButSystem.py** είναι ένα self-hosted, **local-first** workspace που τρέχει στη δική σου συσκευή μέσω Termux. Έχει σχεδιαστεί για να φέρνει ιδιωτική επικοινωνία, οργανωμένα αρχεία, έλεγχο πρόσβασης και structured profile workflows μέσα σε ένα browser interface αντί να τα σκορπίζει σε ξεχωριστά scripts και μενού.
@@ -2816,11 +2856,13 @@ bash Setup.sh
 
 </details>
 
----
+</details>
 
 <a id="greek-contact"></a>
 
-## Επικοινωνία και Συντελεστές
+<details>
+<summary><strong><big><big>• Επικοινωνία και Συντελεστές</big></big></strong></summary>
+
 
 ### Επικοινωνία
 
@@ -2830,9 +2872,9 @@ bash Setup.sh
 * **Κύριο Repository του DedSec Project:** [https://github.com/dedsec1121fk/DedSec](https://github.com/dedsec1121fk/DedSec)
 * **Εφεδρικό Website:** [https://ded-sec.online](https://ded-sec.online)
 * **Εφεδρικό Repository του DedSec Project:** [https://github.com/sal-scar/DedSec](https://github.com/sal-scar/DedSec)
-* ** WhatsApp:** [+37257263676](https://wa.me/37257263676)
-* ** Telegram:** [@dedsecproject](https://t.me/dedsecproject)
-* ** Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
+* **WhatsApp:** [+37257263676](https://wa.me/37257263676)
+* **Telegram:** [@dedsecproject](https://t.me/dedsecproject)
+* **Discord Server:** [https://discord.gg/fcAuYS4JEv](https://discord.gg/fcAuYS4JEv)
 
 ### Συντελεστές
 
@@ -2843,11 +2885,13 @@ bash Setup.sh
 * **Discord Server Maintenance:** Talha
 * **Past Help:** Sal Scar, lamprouil, UKI_hunter
 
----
+</details>
 
 <a id="greek-disclaimer"></a>
 
-## Αποποίηση Ευθύνης και Όροι Χρήσης
+<details>
+<summary><strong><big><big>• Αποποίηση Ευθύνης και Όροι Χρήσης</big></big></strong></summary>
+
 
 > **ΠΑΡΑΚΑΛΩ ΔΙΑΒΑΣΕ ΠΡΟΣΕΚΤΙΚΑ ΠΡΙΝ ΣΥΝΕΧΙΣΕΙΣ.**
 
@@ -2857,3 +2901,5 @@ bash Setup.sh
 2. **Απαγορευμένες Δραστηριότητες:** Οποιαδήποτε μη εξουσιοδοτημένη ή κακόβουλη δραστηριότητα απαγορεύεται αυστηρά.
 3. **Καμία Εγγύηση:** Το λογισμικό παρέχεται **ΩΣ ΕΧΕΙ** χωρίς εγγυήσεις.
 4. **Περιορισμός Ευθύνης:** Οι δημιουργοί, οι contributors και οι διανομείς δεν φέρουν ευθύνη για απαιτήσεις, ζημιές ή απώλειες που προκύπτουν από το λογισμικό ή τη χρήση του.
+
+</details>
