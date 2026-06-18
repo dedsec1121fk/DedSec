@@ -29,9 +29,7 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 
 <a id="table-of-contents"></a>
 
-<details>
-<summary><strong>Table of Contents</strong></summary>
-
+<h2>Table of Contents</h2>
 
 * [How To Install And Setup The DedSec Project](#how-to-install-and-setup-the-dedsec-project)
 * [Website Help Paths](#website-help-paths)
@@ -48,8 +46,6 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 * [ButSystem.py (Exclusive)](#butsystempy-exclusive)
 * [Contact Us & Credits](#contact-us--credits)
 * [Disclaimer & Terms of Use](#disclaimer--terms-of-use)
-
-</details>
 
 <a id="how-to-install-and-setup-the-dedsec-project"></a>
 
@@ -1456,9 +1452,7 @@ This project, including all associated tools, scripts, and documentation, is pro
 
 <a id="greek-table-of-contents"></a>
 
-<details>
-<summary><strong>Περιεχόμενα</strong></summary>
-
+<h2>Περιεχόμενα</h2>
 
 * [Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project](#greek-installation)
 * [Διαδρομές Βοήθειας Ιστοσελίδας](#greek-website-help)
@@ -1475,8 +1469,6 @@ This project, including all associated tools, scripts, and documentation, is pro
 * [ButSystem.py (Αποκλειστικό)](#greek-butsystem)
 * [Επικοινωνία και Συντελεστές](#greek-contact)
 * [Αποποίηση Ευθύνης και Όροι Χρήσης](#greek-disclaimer)
-
-</details>
 
 <a id="greek-installation"></a>
 
