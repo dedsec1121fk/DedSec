@@ -328,8 +328,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 ---
 <a id="developer-base"></a>
 
-<details>
-<summary><strong><big><big>Developer Base</big></big></strong></summary>
+<h2>Developer Base</h2>
 
 
 <details>
@@ -452,12 +451,10 @@ Problem it solved for me: I wanted one light browser workspace inside my phone s
 
 </details>
 
-</details>
 
 <a id="network-tools"></a>
 
-<details>
-<summary><strong><big><big>Network Tools</big></big></strong></summary>
+<h2>Network Tools</h2>
 
 
 <details>
@@ -580,12 +577,10 @@ Problem it solved for me: product research from a phone gets messy fast. Example
 
 </details>
 
-</details>
 
 <a id="personal-information-capture-educational-use-only"></a>
 
-<details>
-<summary><strong><big><big>Personal Information Capture (Educational Use Only)</big></big></strong></summary>
+<h2>Personal Information Capture (Educational Use Only)</h2>
 
 
 These scripts are training simulations intended to help users understand how deceptive personal-data collection pages may be presented, so they can better recognize and defend against them in controlled environments.
@@ -794,12 +789,10 @@ Problem it solved for me: people often miss the risk behind YouTube verification
 
 </details>
 
-</details>
 
 <a id="fake-pages-educational-use-only"></a>
 
-<details>
-<summary><strong><big><big>Fake Pages (Educational Use Only)</big></big></strong></summary>
+<h2>Fake Pages (Educational Use Only)</h2>
 
 
 These scripts are educational simulations intended to help users recognize social-engineering patterns, fake reward pages, fake verification flows, and imitation brand pages often used to pressure people into unsafe actions.
@@ -1104,12 +1097,10 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 </details>
 
-</details>
 
 <a id="games"></a>
 
-<details>
-<summary><strong><big><big>Games</big></big></strong></summary>
+<h2>Games</h2>
 
 
 <details>
@@ -1172,12 +1163,10 @@ Problem it solved for me: I did not want ten different small game files everywhe
 
 </details>
 
-</details>
 
 <a id="other-tools"></a>
 
-<details>
-<summary><strong><big><big>Other Tools</big></big></strong></summary>
+<h2>Other Tools</h2>
 
 
 <details>
@@ -1240,12 +1229,10 @@ Problem it solved for me: random fix commands can make Termux worse. Example: us
 
 </details>
 
-</details>
 
 <a id="no-category"></a>
 
-<details>
-<summary><strong><big><big>No Category</big></big></strong></summary>
+<h2>No Category</h2>
 
 
 <details>
@@ -1284,12 +1271,10 @@ Problem it solved for me: I did not want to remember every GitHub repo name and 
 
 </details>
 
-</details>
 
 <a id="sponsors-only"></a>
 
-<details>
-<summary><strong><big><big>Sponsors-Only</big></big></strong></summary>
+<h2>Sponsors-Only</h2>
 
 
 Sponsors-Only access is now split into two GitHub Sponsors tiers:
@@ -1398,12 +1383,10 @@ Problem it solved for me: I wanted one serious beginner-friendly learning game t
 
 </details>
 
-</details>
 
 <a id="butsystempy-exclusive"></a>
 
-<details>
-<summary><strong><big><big>ButSystem.py (Exclusive)</big></big></strong></summary>
+<h2>ButSystem.py (Exclusive)</h2>
 
 
 **ButSystem.py** is a self-hosted, **local-first** workspace that runs on your own device through Termux. It is designed to bring private communication, organized files, access control, and structured profile workflows into one browser interface instead of scattering them across separate scripts and menus.
@@ -1414,7 +1397,6 @@ In practice, you run the script, open the generated local link, and move through
 
 Use only on systems you own or where you have explicit permission.
 
-</details>
 
 </details>
 
@@ -1773,8 +1755,7 @@ bash Setup.sh
 ---
 <a id="greek-developer-base"></a>
 
-<details>
-<summary><strong><big><big>Βάση Προγραμματιστή</big></big></strong></summary>
+<h2>Βάση Προγραμματιστή</h2>
 
 
 <details>
@@ -1897,12 +1878,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-network-tools"></a>
 
-<details>
-<summary><strong><big><big>Εργαλεία Δικτύου</big></big></strong></summary>
+<h2>Εργαλεία Δικτύου</h2>
 
 
 <details>
@@ -2025,12 +2004,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-personal-information-capture"></a>
 
-<details>
-<summary><strong><big><big>Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)</big></big></strong></summary>
+<h2>Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)</h2>
 
 
 Αυτά τα scripts είναι training simulations που έχουν στόχο να βοηθούν τους χρήστες να κατανοούν πώς μπορεί να παρουσιάζονται παραπλανητικές σελίδες συλλογής προσωπικών δεδομένων, ώστε να τις αναγνωρίζουν και να αμύνονται καλύτερα απέναντί τους σε ελεγχόμενα περιβάλλοντα.
@@ -2239,12 +2216,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-fake-pages"></a>
 
-<details>
-<summary><strong><big><big>Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)</big></big></strong></summary>
+<h2>Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)</h2>
 
 
 Αυτά τα scripts είναι εκπαιδευτικά simulations που έχουν στόχο να βοηθούν τους χρήστες να αναγνωρίζουν social-engineering patterns, ψεύτικες reward pages, ψεύτικες verification flows και imitation brand pages που συχνά χρησιμοποιούνται για να πιέζουν ανθρώπους σε μη ασφαλείς ενέργειες.
@@ -2549,12 +2524,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-games"></a>
 
-<details>
-<summary><strong><big><big>Παιχνίδια</big></big></strong></summary>
+<h2>Παιχνίδια</h2>
 
 
 <details>
@@ -2617,12 +2590,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-other-tools"></a>
 
-<details>
-<summary><strong><big><big>Άλλα Εργαλεία</big></big></strong></summary>
+<h2>Άλλα Εργαλεία</h2>
 
 
 <details>
@@ -2685,12 +2656,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-no-category"></a>
 
-<details>
-<summary><strong><big><big>Χωρίς Κατηγορία</big></big></strong></summary>
+<h2>Χωρίς Κατηγορία</h2>
 
 
 <details>
@@ -2729,12 +2698,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-sponsors-only"></a>
 
-<details>
-<summary><strong><big><big>Μόνο για Χορηγούς</big></big></strong></summary>
+<h2>Μόνο για Χορηγούς</h2>
 
 
 Το Sponsors-Only access χωρίζεται πλέον σε δύο GitHub Sponsors tiers:
@@ -2843,12 +2810,10 @@ bash Setup.sh
 
 </details>
 
-</details>
 
 <a id="greek-butsystem"></a>
 
-<details>
-<summary><strong><big><big>ButSystem.py (Αποκλειστικό)</big></big></strong></summary>
+<h2>ButSystem.py (Αποκλειστικό)</h2>
 
 
 Το **ButSystem.py** είναι ένα self-hosted, **local-first** workspace που τρέχει στη δική σου συσκευή μέσω Termux. Έχει σχεδιαστεί για να φέρνει ιδιωτική επικοινωνία, οργανωμένα αρχεία, έλεγχο πρόσβασης και structured profile workflows μέσα σε ένα browser interface αντί να τα σκορπίζει σε ξεχωριστά scripts και μενού.
@@ -2859,7 +2824,6 @@ bash Setup.sh
 
 Να χρησιμοποιείται μόνο σε συστήματα που σου ανήκουν ή για τα οποία έχεις ρητή άδεια.
 
-</details>
 
 </details>
 
