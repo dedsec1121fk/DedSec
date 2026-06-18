@@ -31,25 +31,25 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 
 <h2>Table of Contents</h2>
 
-* [How To Install And Setup The DedSec Project](#how-to-install-and-setup-the-dedsec-project)
-* [Website Help Paths](#website-help-paths)
-* [Settings & Configuration](#settings--configuration)
-* [Explore The Toolkit](#explore-the-toolkit)
-* [Developer Base](#developer-base)
-* [Network Tools](#network-tools)
-* [Personal Information Capture](#personal-information-capture-educational-use-only)
-* [Fake Pages](#fake-pages-educational-use-only)
-* [Games](#games)
-* [Other Tools](#other-tools)
-* [No Category](#no-category)
-* [Sponsors-Only](#sponsors-only)
-* [ButSystem.py (Exclusive)](#butsystempy-exclusive)
-* [Contact Us & Credits](#contact-us--credits)
-* [Disclaimer & Terms of Use](#disclaimer--terms-of-use)
+* How To Install And Setup The DedSec Project
+* Website Help Paths
+* Settings & Configuration
+* Explore The Toolkit
+* Developer Base
+* Network Tools
+* Personal Information Capture
+* Fake Pages
+* Games
+* Other Tools
+* No Category
+* Sponsors-Only
+* ButSystem.py (Exclusive)
+* Contact Us & Credits
+* Disclaimer & Terms of Use
 
 <a id="how-to-install-and-setup-the-dedsec-project"></a>
 
-<details open>
+<details>
 <summary><strong>How To Install And Setup The DedSec Project</strong></summary>
 
 
@@ -203,7 +203,7 @@ bash Setup.sh
 
 <a id="website-help-paths"></a>
 
-<details open>
+<details>
 <summary><strong>Website Help Paths</strong></summary>
 
 
@@ -236,7 +236,7 @@ Check the menu (the three lines at the top right) to find more stuff like assist
 
 <a id="settings--configuration"></a>
 
-<details open>
+<details>
 <summary><strong>Settings & Configuration</strong></summary>
 
 
@@ -302,7 +302,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 <a id="explore-the-toolkit"></a>
 
-<details open>
+<details>
 <summary><strong>Explore The Toolkit</strong></summary>
 
 
@@ -1398,7 +1398,7 @@ Use only on systems you own or where you have explicit permission.
 
 <a id="contact-us--credits"></a>
 
-<details open>
+<details>
 <summary><strong>Contact Us & Credits</strong></summary>
 
 
@@ -1427,7 +1427,7 @@ For questions, support, or general inquiries, connect with the DedSec Project co
 
 <a id="disclaimer--terms-of-use"></a>
 
-<details open>
+<details>
 <summary><strong>Disclaimer & Terms of Use</strong></summary>
 
 
@@ -1454,25 +1454,25 @@ This project, including all associated tools, scripts, and documentation, is pro
 
 <h2>Περιεχόμενα</h2>
 
-* [Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project](#greek-installation)
-* [Διαδρομές Βοήθειας Ιστοσελίδας](#greek-website-help)
-* [Ρυθμίσεις και Παραμετροποίηση](#greek-settings)
-* [Εξερευνήστε την Εργαλειοθήκη](#greek-toolkit)
-* [Βάση Προγραμματιστή](#greek-developer-base)
-* [Εργαλεία Δικτύου](#greek-network-tools)
-* [Συλλογή Προσωπικών Πληροφοριών](#greek-personal-information-capture)
-* [Ψεύτικες Σελίδες](#greek-fake-pages)
-* [Παιχνίδια](#greek-games)
-* [Άλλα Εργαλεία](#greek-other-tools)
-* [Χωρίς Κατηγορία](#greek-no-category)
-* [Μόνο για Χορηγούς](#greek-sponsors-only)
-* [ButSystem.py (Αποκλειστικό)](#greek-butsystem)
-* [Επικοινωνία και Συντελεστές](#greek-contact)
-* [Αποποίηση Ευθύνης και Όροι Χρήσης](#greek-disclaimer)
+* Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project
+* Διαδρομές Βοήθειας Ιστοσελίδας
+* Ρυθμίσεις και Παραμετροποίηση
+* Εξερευνήστε την Εργαλειοθήκη
+* Βάση Προγραμματιστή
+* Εργαλεία Δικτύου
+* Συλλογή Προσωπικών Πληροφοριών
+* Ψεύτικες Σελίδες
+* Παιχνίδια
+* Άλλα Εργαλεία
+* Χωρίς Κατηγορία
+* Μόνο για Χορηγούς
+* ButSystem.py (Αποκλειστικό)
+* Επικοινωνία και Συντελεστές
+* Αποποίηση Ευθύνης και Όροι Χρήσης
 
 <a id="greek-installation"></a>
 
-<details open>
+<details>
 <summary><strong>Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project</strong></summary>
 
 
@@ -1626,7 +1626,7 @@ bash Setup.sh
 
 <a id="greek-website-help"></a>
 
-<details open>
+<details>
 <summary><strong>Διαδρομές Βοήθειας Ιστοσελίδας</strong></summary>
 
 
@@ -1659,7 +1659,7 @@ bash Setup.sh
 
 <a id="greek-settings"></a>
 
-<details open>
+<details>
 <summary><strong>Ρυθμίσεις και Παραμετροποίηση</strong></summary>
 
 
@@ -1725,7 +1725,7 @@ bash Setup.sh
 
 <a id="greek-toolkit"></a>
 
-<details open>
+<details>
 <summary><strong>Εξερευνήστε την Εργαλειοθήκη</strong></summary>
 
 
@@ -2821,7 +2821,7 @@ bash Setup.sh
 
 <a id="greek-contact"></a>
 
-<details open>
+<details>
 <summary><strong>Επικοινωνία και Συντελεστές</strong></summary>
 
 
@@ -2850,7 +2850,7 @@ bash Setup.sh
 
 <a id="greek-disclaimer"></a>
 
-<details open>
+<details>
 <summary><strong>Αποποίηση Ευθύνης και Όροι Χρήσης</strong></summary>
 
 
