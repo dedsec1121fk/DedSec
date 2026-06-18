@@ -20,7 +20,7 @@
 
 # DedSec Project
 
-## 🇬🇷 [Διαβάστε το πλήρες README στα Ελληνικά](#greek-readme)
+## [Διαβάστε το πλήρες README στα Ελληνικά](#greek-readme)
 
 The **DedSec Project** is a broad educational toolkit built for **Android + Termux**, bringing together many scripts, utilities, local web interfaces, and practice environments in one place. Its purpose is to help users learn how tools work, understand defensive awareness, and organize common Termux workflows from a single project.
 
@@ -305,9 +305,13 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 ---
 <a id="developer-base"></a>
 
-## • Developer Base
+<details>
+<summary><strong>• Developer Base</strong></summary>
 
-### • File Converter
+
+<details>
+<summary><strong>• File Converter</strong></summary>
+
 
 **Description:** A powerful file converter supporting 40+ formats. Organizes Downloads. Advanced interactive file converter for Termux using curses interface. Supports 40 different file formats across images, documents, audio, video, and archives. Features automatic dependency installation, organized folder structure, and comprehensive conversion capabilities. Built for Termux with clear prompts and organized outputs.
 
@@ -315,7 +319,11 @@ Problem it solved for me: my phone kept receiving files in the wrong format. Exa
 
 **Save Location:** ~/storage/downloads/File Converter/
 
-### • File Type Checker
+</details>
+
+<details>
+<summary><strong>• File Type Checker</strong></summary>
+
 
 **Description:** Advanced file analysis and security scanner that detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats. Features magic byte detection, entropy analysis, steganography detection, virus scanning via VirusTotal API, and automatic quarantine of suspicious files. Supports analysis of files up to 50GB. Built for Termux with clear prompts and organized outputs.
 
@@ -323,7 +331,11 @@ Problem it solved for me: I did not want to trust a file just because its name l
 
 **Save Location:** Scan folder: ~/Downloads/File Type Checker/ | Quarantined files: .dangerous extension
 
-### • Mobile Desktop
+</details>
+
+<details>
+<summary><strong>• Mobile Desktop</strong></summary>
+
 
 **Description:** Termux Linux Desktop Manager (no root): sets up a proot-distro desktop environment with VNC/X11 options and a built-in program manager for install/update/remove. Built for Termux with clear prompts and organized outputs.
 
@@ -331,7 +343,11 @@ Problem it solved for me: working only from a phone felt too small for serious w
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Mobile Developer Setup
+</details>
+
+<details>
+<summary><strong>• Mobile Developer Setup</strong></summary>
+
 
 **Description:** Automates a mobile web-dev environment in Termux: installs common dev tools, configures paths, and provides quick-start project scaffolding. Built for Termux with clear prompts and organized outputs.
 
@@ -339,7 +355,11 @@ Problem it solved for me: every clean Termux install wasted time with missing pa
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Simple Websites Creator
+</details>
+
+<details>
+<summary><strong>• Simple Websites Creator</strong></summary>
+
 
 **Description:** A comprehensive website builder that creates responsive HTML websites with customizable layouts, colors, fonts, and SEO settings. Features include multiple hosting guides, real-time preview, mobile-friendly designs, and professional templates. Perfect for creating portfolios, business sites, or personal blogs directly from your terminal. Built for Termux with clear prompts and organized outputs.
 
@@ -347,7 +367,11 @@ Problem it solved for me: I often needed a quick page before I had time for a fu
 
 **Save Location:** Websites are saved in: ~/storage/downloads/Websites/
 
-### • Smart Notes
+</details>
+
+<details>
+<summary><strong>• Smart Notes</strong></summary>
+
 
 **Description:** Terminal note-taking app with reminders. Advanced note-taking application with reminder functionality, featuring both TUI (Text User Interface) and CLI support. Includes sophisticated reminder system with due dates, automatic command execution, external editor integration, and comprehensive note organization capabilities. Built for Termux with clear prompts and organized outputs.
 
@@ -355,7 +379,11 @@ Problem it solved for me: I kept losing the exact commands that fixed something.
 
 **Save Location:** ~/.smart_notes.json
 
-### • Dead Man's Switch
+</details>
+
+<details>
+<summary><strong>• Dead Man's Switch</strong></summary>
+
 
 **Description:** Termux emergency/SOS helper built around the I Need Help mode. After first-time setup and clear user confirmations, it can make the dead-mans-switch GitHub repository public, generate a GitHub Pages emergency website, upload organized emergency files, capture available camera photos, microphone recordings, and location updates at adjustable intervals through Termux:API permissions, and send SMS alerts with the website/repository link to configured trusted contacts. It also includes create/update uploads, overwrite sync, visibility controls, legacy repository migration, previous-history backups, logs, and a kill/cleanup option.
 
@@ -363,7 +391,11 @@ Problem solved for me: if something happens to me or I need help fast, I can qui
 
 **Save Location:** `Local folder: ~/storage/downloads/Dead Man's Switch/ | Settings: ~/.dead_switch_settings.json | Repo: github.com/<you>/dead-mans-switch`
 
-### • Tree Explorer
+</details>
+
+<details>
+<summary><strong>• Tree Explorer</strong></summary>
+
 
 **Description:** File-system explorer for Termux: browse folders, search files, find duplicates by hash, and clean empty directories with safe prompts. Built for Termux with clear prompts and organized outputs.
 
@@ -371,7 +403,11 @@ Problem it solved for me: my Downloads and Scripts folders became a maze. Exampl
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Devices Finder
+</details>
+
+<details>
+<summary><strong>• Devices Finder</strong></summary>
+
 
 **Description:** Local-network device discovery tool for Termux that works without root. Separates live-host discovery from service scanning to reduce false positives, classifies devices using ports, banners, hostnames, and vendor hints, includes interactive scan profiles and type filters, and can optionally enrich results with mDNS, UPnP, SNMP, and NetBIOS clues. Exports JSON, TXT, CSV, and HTML reports. Built for Termux with clear prompts and organized outputs.
 
@@ -379,7 +415,11 @@ Problem it solved for me: when my Wi-Fi felt slow, I wanted to know what was act
 
 **Save Location:** Results are saved in: ~/storage/downloads/Devices Finder/ as devices_scan_[timestamp].json/.txt/.csv/.html (falls back to ~/downloads/Devices Finder/ or the current directory)
 
-### • Free Internet
+</details>
+
+<details>
+<summary><strong>• Free Internet</strong></summary>
+
 
 **Description:** Local-first browser and secure vault for Termux. It combines multiple search engines, bookmarks, history, saved pages, ad/tracker cleanup, Lite mode, country-based proxy routing with smart/strict/direct modes, optional Tor support, encrypted vault entries powered by OpenSSL, and a built-in full-page website screenshot tool. Built for Termux with clear prompts and organized outputs.
 
@@ -387,11 +427,19 @@ Problem it solved for me: I wanted one light browser workspace inside my phone s
 
 **Save Location:** ~/Free Internet/ (browser/, vault/, browser/saved/, tools/screenshots/)
 
+</details>
+
+</details>
+
 <a id="network-tools"></a>
 
-## • Network Tools
+<details>
+<summary><strong>• Network Tools</strong></summary>
 
-### • Bug Hunter
+
+<details>
+<summary><strong>• Bug Hunter</strong></summary>
+
 
 **Description:** Bug Hunter (no-root) — an authorized web security recon & misconfiguration scanner. Audits security headers and cookie flags, fingerprints technologies, checks DNS (SPF/DMARC/CAA), analyzes TLS/certificate expiry, tests CORS and HTTP methods, finds exposed sensitive files, crawls the site, and analyzes JavaScript for endpoints and leaked secrets. Includes optional directory discovery and Wayback URL recon, plus de-duplicated reports (JSON/CSV/HTML/PDF). Use only on targets you own or have explicit permission to test.
 
@@ -399,7 +447,11 @@ Problem it solved for me: before sharing my own site, I wanted to catch obvious 
 
 **Save Location:** Reports are saved in the output folder (default: bughunter_out/): report.json, report.csv, report.html (and report.pdf if enabled)
 
-### • Dark
+</details>
+
+<details>
+<summary><strong>• Dark</strong></summary>
+
 
 **Description:** A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. It features automated Tor connectivity, an Ahmia search integration, and a recursive crawler for .onion sites. The tool utilizes a modular plugin system to extract specific data types (Emails, BTC/XMR addresses, PGP keys, Phones) and supports saving snapshots. It offers both a Curses TUI and CLI mode, with results exportable to JSON, CSV, and TXT. Use only on systems you own or have explicit permission to test.
 
@@ -407,7 +459,11 @@ Problem it solved for me: I wanted to understand dark-web OSINT without treating
 
 **Save Location:** Results are saved in: /sdcard/Download/DarkNet (or ~/DarkNet if storage is inaccessible)
 
-### • DedSec's Network
+</details>
+
+<details>
+<summary><strong>• DedSec's Network</strong></summary>
+
 
 **Description:** An advanced, non-root network toolkit optimized for speed and stability. Features a recursive website downloader with ZIP support, multi-threaded port scanner, internet speed testing, subnet calculator, and extensive OSINT tools (WHOIS, DNS, Reverse IP, Subdomain Enum). Includes web auditing scanners for SQLi, XSS, CMS detection, and SSH brute-forcing. Maintains a local SQLite audit log. Use only on systems you own or have explicit permission to test.
 
@@ -415,7 +471,11 @@ Problem it solved for me: network checks were scattered across too many commands
 
 **Save Location:** Reports and logs are saved in: ~/DedSec's Network
 
-### • Digital Footprint Finder
+</details>
+
+<details>
+<summary><strong>• Digital Footprint Finder</strong></summary>
+
 
 **Description:** Conservative OSINT username checker built for best practical results with low false-positives. Scans a large site list via packs (core/extended) with optional Sherlock database, using multi-signal scoring (status/redirects, title/meta/canonical/text) and per-domain concurrency limits for stability. Detects anti-bot/JS challenges as POSSIBLE (never falsely FOUND), supports optional search-engine dorking, and can import/export custom site lists. Exports reports to TXT/JSON/CSV and optional HTML. Use only on systems you own or have explicit permission to test.
 
@@ -423,7 +483,11 @@ Problem it solved for me: I wanted to know where my username or project name app
 
 **Save Location:** Results are saved in: ~/storage/downloads/Digital Footprint Finder/[username]_v12.txt
 
-### • Connections.py
+</details>
+
+<details>
+<summary><strong>• Connections.py</strong></summary>
+
 
 **Description:** Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Butterfly Chat and DedSec's Database with single secret key authentication. Provides real-time messaging, file sharing, video calls, and integrated file management. Features 50GB file uploads, WebRTC video calls, cloudflare tunneling, and unified login system. Use only on systems you own or have explicit permission to test.
 
@@ -431,7 +495,11 @@ Problem it solved for me: I wanted a simple private space for chat and files wit
 
 **Save Location:** Downloads to `~/Downloads/DedSec's Database`.
 
-### • Link Shield
+</details>
+
+<details>
+<summary><strong>• Link Shield</strong></summary>
+
 
 **Description:** Security-focused URL inspector: follows redirects, checks HTTPS/SSL, flags suspicious domains/patterns, and generates a risk report before you open a link. Use only on systems you own or have explicit permission to test.
 
@@ -439,7 +507,11 @@ Problem it solved for me: people send links that look harmless but hide redirect
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Masker
+</details>
+
+<details>
+<summary><strong>• Masker</strong></summary>
+
 
 **Description:** URL helper for creating clean, readable test links and checking redirect behavior in your own workflows. It is presented for organization, demos, and authorized awareness training only, never to disguise harmful links or trick people.
 
@@ -447,7 +519,11 @@ Problem it solved for me: I needed clean test links for awareness demos without 
 
 **Save Location:** N/A (Output to screen).
 
-### • QR Code Generator
+</details>
+
+<details>
+<summary><strong>• QR Code Generator</strong></summary>
+
 
 **Description:** Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation, user-friendly interface, and error handling for reliable operation. Use only on systems you own or have explicit permission to test.
 
@@ -455,7 +531,11 @@ Problem it solved for me: typing local links from Termux into another device is 
 
 **Save Location:** Images are saved to: ~/storage/downloads/QR Codes/
 
-### • Sod
+</details>
+
+<details>
+<summary><strong>• Sod</strong></summary>
+
 
 **Description:** A comprehensive load testing tool for web applications, featuring multiple testing methods (HTTP, WebSocket, database simulation, file upload, mixed workload), real-time metrics, and auto-dependency installation. Advanced performance testing framework with realistic user behavior simulation, detailed analytics, and system resource monitoring. Use only on systems you own or have explicit permission to test.
 
@@ -463,7 +543,11 @@ Problem it solved for me: I wanted to know if my own web apps could handle real 
 
 **Save Location:** Configuration: load_test_config.json in script directory | Results: Displayed in terminal
 
-### • Store Scrapper
+</details>
+
+<details>
+<summary><strong>• Store Scrapper</strong></summary>
+
 
 **Description:** Single-file Python store scraper for Termux that works without root. Tries multiple ways to discover categories and products across regular HTML pages and many JS-style stores by reading HTML, JSON-LD, embedded JSON, sitemaps, Shopify endpoints, WooCommerce APIs, generic product cards, breadcrumbs, OpenGraph/meta tags, and internal links. Saves while running, starts full product scraping the moment each product is found, shows live terminal status, uses Enter as the default for prompts, and organizes results into store/category/product folders with downloaded images. Use only on systems you own or have explicit permission to test.
 
@@ -471,13 +555,21 @@ Problem it solved for me: product research from a phone gets messy fast. Example
 
 **Save Location:** `Creates folders in: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/ (product folders can include FOUND.txt, metadata.json, summary.txt, description.txt, images/, images.json, plus discovery/state files).`
 
+</details>
+
+</details>
+
 <a id="personal-information-capture-educational-use-only"></a>
 
-## • Personal Information Capture (Educational Use Only)
+<details>
+<summary><strong>• Personal Information Capture (Educational Use Only)</strong></summary>
+
 
 These scripts are training simulations intended to help users understand how deceptive personal-data collection pages may be presented, so they can better recognize and defend against them in controlled environments.
 
-### • Fake Back Camera Page
+<details>
+<summary><strong>• Fake Back Camera Page</strong></summary>
+
 
 **Description:** Fake Back Camera Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Back Camera. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -485,7 +577,11 @@ Problem it solved for me: people often miss the risk behind camera permission fr
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Back Camera Video Page
+</details>
+
+<details>
+<summary><strong>• Fake Back Camera Video Page</strong></summary>
+
 
 **Description:** Fake Back Camera Video Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Back Camera Video. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -493,7 +589,11 @@ Problem it solved for me: people often miss the risk behind video-recording perm
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Card Details Page
+</details>
+
+<details>
+<summary><strong>• Fake Card Details Page</strong></summary>
+
 
 **Description:** Fake Card Details Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Card Details. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -501,7 +601,11 @@ Problem it solved for me: people often miss the risk behind card-detail forms. E
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Chrome Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Chrome Verification Page</strong></summary>
+
 
 **Description:** Fake Chrome Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Chrome Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -509,7 +613,11 @@ Problem it solved for me: people often miss the risk behind fake browser verific
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Data Grabber Page
+</details>
+
+<details>
+<summary><strong>• Fake Data Grabber Page</strong></summary>
+
 
 **Description:** Fake Data Grabber Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Data Grabber. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -517,7 +625,11 @@ Problem it solved for me: people often miss the risk behind overreaching data fo
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Discord Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Discord Verification Page</strong></summary>
+
 
 **Description:** Fake Discord Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Discord Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -525,7 +637,11 @@ Problem it solved for me: people often miss the risk behind Discord verification
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Facebook Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Facebook Verification Page</strong></summary>
+
 
 **Description:** Fake Facebook Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Facebook Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -533,7 +649,11 @@ Problem it solved for me: people often miss the risk behind Facebook verificatio
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Front Camera Page
+</details>
+
+<details>
+<summary><strong>• Fake Front Camera Page</strong></summary>
+
 
 **Description:** Fake Front Camera Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Front Camera. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -541,7 +661,11 @@ Problem it solved for me: people often miss the risk behind front-camera permiss
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Front Camera Video Page
+</details>
+
+<details>
+<summary><strong>• Fake Front Camera Video Page</strong></summary>
+
 
 **Description:** Fake Front Camera Video Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Front Camera Video. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -549,7 +673,11 @@ Problem it solved for me: people often miss the risk behind front-camera video r
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Google Location Page
+</details>
+
+<details>
+<summary><strong>• Fake Google Location Page</strong></summary>
+
 
 **Description:** Fake Google Location Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Google Location. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -557,7 +685,11 @@ Problem it solved for me: people often miss the risk behind Google-style locatio
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Instagram Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Instagram Verification Page</strong></summary>
+
 
 **Description:** Fake Instagram Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Instagram Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -565,7 +697,11 @@ Problem it solved for me: people often miss the risk behind Instagram verificati
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Location Page
+</details>
+
+<details>
+<summary><strong>• Fake Location Page</strong></summary>
+
 
 **Description:** Fake Location Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Location. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -573,7 +709,11 @@ Problem it solved for me: people often miss the risk behind plain location promp
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Microphone Page
+</details>
+
+<details>
+<summary><strong>• Fake Microphone Page</strong></summary>
+
 
 **Description:** Fake Microphone Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Microphone. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -581,7 +721,11 @@ Problem it solved for me: people often miss the risk behind microphone permissio
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake OnlyFans Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake OnlyFans Verification Page</strong></summary>
+
 
 **Description:** Fake OnlyFans Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around OnlyFans Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -589,7 +733,11 @@ Problem it solved for me: people often miss the risk behind OnlyFans verificatio
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Steam Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Verification Page</strong></summary>
+
 
 **Description:** Fake Steam Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Steam Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -597,7 +745,11 @@ Problem it solved for me: people often miss the risk behind Steam verification t
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Twitch Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitch Verification Page</strong></summary>
+
 
 **Description:** Fake Twitch Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Twitch Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -605,7 +757,11 @@ Problem it solved for me: people often miss the risk behind Twitch verification 
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake YouTube Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake YouTube Verification Page</strong></summary>
+
 
 **Description:** Fake YouTube Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around YouTube Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
@@ -613,13 +769,21 @@ Problem it solved for me: people often miss the risk behind YouTube verification
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
+</details>
+
+</details>
+
 <a id="fake-pages-educational-use-only"></a>
 
-## • Fake Pages (Educational Use Only)
+<details>
+<summary><strong>• Fake Pages (Educational Use Only)</strong></summary>
+
 
 These scripts are educational simulations intended to help users recognize social-engineering patterns, fake reward pages, fake verification flows, and imitation brand pages often used to pressure people into unsafe actions.
 
-### • Fake Apple iCloud Page
+<details>
+<summary><strong>• Fake Apple iCloud Page</strong></summary>
+
 
 **Description:** Fake Apple iCloud Page is a mock phishing-awareness page for teaching how fake Apple iCloud offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -627,7 +791,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Discord Nitro Page
+</details>
+
+<details>
+<summary><strong>• Fake Discord Nitro Page</strong></summary>
+
 
 **Description:** Fake Discord Nitro Page is a mock phishing-awareness page for teaching how fake Discord Nitro offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -635,7 +803,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Epic Games Page
+</details>
+
+<details>
+<summary><strong>• Fake Epic Games Page</strong></summary>
+
 
 **Description:** Fake Epic Games Page is a mock phishing-awareness page for teaching how fake Epic Games offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -643,7 +815,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Facebook Friends Page
+</details>
+
+<details>
+<summary><strong>• Fake Facebook Friends Page</strong></summary>
+
 
 **Description:** Fake Facebook Friends Page is a mock phishing-awareness page for teaching how fake Facebook Friends offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -651,7 +827,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Free Robux Page
+</details>
+
+<details>
+<summary><strong>• Fake Free Robux Page</strong></summary>
+
 
 **Description:** Fake Free Robux Page is a mock phishing-awareness page for teaching how fake Free Robux offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -659,7 +839,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake GitHub Pro Page
+</details>
+
+<details>
+<summary><strong>• Fake GitHub Pro Page</strong></summary>
+
 
 **Description:** Fake GitHub Pro Page is a mock phishing-awareness page for teaching how fake GitHub Pro offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -667,7 +851,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Google Free Money Page
+</details>
+
+<details>
+<summary><strong>• Fake Google Free Money Page</strong></summary>
+
 
 **Description:** Fake Google Free Money Page is a mock phishing-awareness page for teaching how fake Google Free Money offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -675,7 +863,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Instagram Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake Instagram Followers Page</strong></summary>
+
 
 **Description:** Fake Instagram Followers Page is a mock phishing-awareness page for teaching how fake Instagram Followers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -683,7 +875,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake MetaMask Page
+</details>
+
+<details>
+<summary><strong>• Fake MetaMask Page</strong></summary>
+
 
 **Description:** Fake MetaMask Page is a mock phishing-awareness page for teaching how fake MetaMask offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -691,7 +887,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Microsoft 365 Page
+</details>
+
+<details>
+<summary><strong>• Fake Microsoft 365 Page</strong></summary>
+
 
 **Description:** Fake Microsoft 365 Page is a mock phishing-awareness page for teaching how fake Microsoft 365 offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -699,7 +899,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake OnlyFans Page
+</details>
+
+<details>
+<summary><strong>• Fake OnlyFans Page</strong></summary>
+
 
 **Description:** Fake OnlyFans Page is a mock phishing-awareness page for teaching how fake OnlyFans offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -707,7 +911,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake PayPal Page
+</details>
+
+<details>
+<summary><strong>• Fake PayPal Page</strong></summary>
+
 
 **Description:** Fake PayPal Page is a mock phishing-awareness page for teaching how fake PayPal offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -715,7 +923,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Pinterest Pro Page
+</details>
+
+<details>
+<summary><strong>• Fake Pinterest Pro Page</strong></summary>
+
 
 **Description:** Fake Pinterest Pro Page is a mock phishing-awareness page for teaching how fake Pinterest Pro offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -723,7 +935,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake PlayStation Network Page
+</details>
+
+<details>
+<summary><strong>• Fake PlayStation Network Page</strong></summary>
+
 
 **Description:** Fake PlayStation Network Page is a mock phishing-awareness page for teaching how fake PlayStation Network offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -731,7 +947,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Reddit Karma Page
+</details>
+
+<details>
+<summary><strong>• Fake Reddit Karma Page</strong></summary>
+
 
 **Description:** Fake Reddit Karma Page is a mock phishing-awareness page for teaching how fake Reddit Karma offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -739,7 +959,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Snapchat Friends Page
+</details>
+
+<details>
+<summary><strong>• Fake Snapchat Friends Page</strong></summary>
+
 
 **Description:** Fake Snapchat Friends Page is a mock phishing-awareness page for teaching how fake Snapchat Friends offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -747,7 +971,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Steam Games Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Games Page</strong></summary>
+
 
 **Description:** Fake Steam Games Page is a mock phishing-awareness page for teaching how fake Steam Games offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -755,7 +983,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Steam Wallet Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Wallet Page</strong></summary>
+
 
 **Description:** Fake Steam Wallet Page is a mock phishing-awareness page for teaching how fake Steam Wallet offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -763,7 +995,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake TikTok Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake TikTok Followers Page</strong></summary>
+
 
 **Description:** Fake TikTok Followers Page is a mock phishing-awareness page for teaching how fake TikTok Followers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -771,7 +1007,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Trust Wallet Page
+</details>
+
+<details>
+<summary><strong>• Fake Trust Wallet Page</strong></summary>
+
 
 **Description:** Fake Trust Wallet Page is a mock phishing-awareness page for teaching how fake Trust Wallet offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -779,7 +1019,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Twitch Subs Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitch Subs Page</strong></summary>
+
 
 **Description:** Fake Twitch Subs Page is a mock phishing-awareness page for teaching how fake Twitch Subs offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -787,7 +1031,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Twitter Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitter Followers Page</strong></summary>
+
 
 **Description:** Fake Twitter Followers Page is a mock phishing-awareness page for teaching how fake Twitter Followers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -795,7 +1043,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake What's Up Dude Page
+</details>
+
+<details>
+<summary><strong>• Fake What's Up Dude Page</strong></summary>
+
 
 **Description:** Fake What's Up Dude Page is a mock phishing-awareness page for teaching how fake What's Up Dude offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -803,7 +1055,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake Xbox Live Page
+</details>
+
+<details>
+<summary><strong>• Fake Xbox Live Page</strong></summary>
+
 
 **Description:** Fake Xbox Live Page is a mock phishing-awareness page for teaching how fake Xbox Live offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -811,7 +1067,11 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
-### • Fake YouTube Subscribers Page
+</details>
+
+<details>
+<summary><strong>• Fake YouTube Subscribers Page</strong></summary>
+
 
 **Description:** Fake YouTube Subscribers Page is a mock phishing-awareness page for teaching how fake YouTube Subscribers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
@@ -819,11 +1079,19 @@ Problem it solved for me: scams work because the bait looks normal. Example: sho
 
 **Save Location:** Training output should stay local to your own lab folder. Use dummy data only and never collect real private information.
 
+</details>
+
+</details>
+
 <a id="games"></a>
 
-## • Games
+<details>
+<summary><strong>• Games</strong></summary>
 
-### • Buzz
+
+<details>
+<summary><strong>• Buzz</strong></summary>
+
 
 **Description:** A text-only trivia party game for Termux with a fixed built-in database of 15,000 questions (no runtime generation). Supports 1–2 players (pass-and-play), multiple round types, difficulty filtering (All/Easy/Medium/Hard), profiles, settings, and highscores. Lightweight terminal game with quick controls and replay value.
 
@@ -831,7 +1099,11 @@ Problem it solved for me: I wanted a no-internet game that still teaches somethi
 
 **Save Location:** ~/Buzz/ (data/ for DB, profiles, settings, highscores)
 
-### • CTF God
+</details>
+
+<details>
+<summary><strong>• CTF God</strong></summary>
+
 
 **Description:** Full‑screen Curses CTF game for Termux with story mode, missions, daily challenges, random boss levels, hint shop economy, achievements & ranks, challenge pack import/export, tournament mode, and anti‑cheat/integrity checks. Includes a built‑in level editor. Lightweight terminal game with quick controls and replay value.
 
@@ -839,7 +1111,11 @@ Problem it solved for me: I wanted cybersecurity practice without touching real 
 
 **Save Location:** `User workspaces & challenge files: /storage/emulated/0/Download/CTF God/<username>/files (fallback: ~/storage/downloads/CTF God/...). Game state & packs: ~/.ctf_god/ (state.json, packs/, custom.json).`
 
-### • Detective
+</details>
+
+<details>
+<summary><strong>• Detective</strong></summary>
+
 
 **Description:** A story-driven Terminal detective game for Termux with an expanded fixed case library, richer lore dossiers, district rumors, side stories, and bonus story threads. Track evidence, interrogate suspects, review suspect rosters, build an ASCII case board and timeline, and manage progress with 3 save slots plus autosave. Includes 4 difficulties, note/evidence tracking, checkpoint hints, and quick commands like :help, :guide, :lore, :suspects, :board, :timeline, :hint, and :save.
 
@@ -847,7 +1123,11 @@ Problem it solved for me: I wanted a story game that trains attention instead of
 
 **Save Location:** ~/Detective/ (player profile, slots, autosave, and case progress)
 
-### • Tamagotchi
+</details>
+
+<details>
+<summary><strong>• Tamagotchi</strong></summary>
+
 
 **Description:** A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement. Includes detailed statistics tracking. Lightweight terminal game with quick controls and replay value.
 
@@ -855,7 +1135,11 @@ Problem it solved for me: I wanted a tiny daily game that runs even on a simple 
 
 **Save Location:** ~/.termux_tamagotchi_v8.json
 
-### • Terminal Arcade
+</details>
+
+<details>
+<summary><strong>• Terminal Arcade</strong></summary>
+
 
 **Description:** All-in-one terminal arcade pack with multiple mini-games in a single script. Saves data in ~/Terminal Arcade/ and runs smoothly on Termux/Linux terminals. Lightweight terminal game with quick controls and replay value.
 
@@ -863,11 +1147,19 @@ Problem it solved for me: I did not want ten different small game files everywhe
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
+</details>
+
+</details>
+
 <a id="other-tools"></a>
 
-## • Other Tools
+<details>
+<summary><strong>• Other Tools</strong></summary>
 
-### • Android App Launcher
+
+<details>
+<summary><strong>• Android App Launcher</strong></summary>
+
 
 **Description:** A utility to manage Android apps directly from the terminal. It can launch apps, extract APK files, uninstall apps, and analyze security permissions. Advanced Android application management and security analysis tool. Features include app launching, APK extraction, permission inspection, security analysis, and tracker detection. Includes comprehensive security reporting for installed applications. Built for Termux with clear prompts and organized outputs.
 
@@ -875,7 +1167,11 @@ Problem it solved for me: switching between terminal work and Android apps slowe
 
 **Save Location:** Extracted APKs: ~/storage/shared/Download/Extracted APK's | Reports: ~/storage/shared/Download/App_Security_Reports
 
-### • Loading Screen
+</details>
+
+<details>
+<summary><strong>• Loading Screen</strong></summary>
+
 
 **Description:** Customize your Termux startup with ASCII art loading screens. Supports custom art, delay timers, and automated setup/cleanup for one-time display. Built for Termux with clear prompts and organized outputs.
 
@@ -883,7 +1179,11 @@ Problem it solved for me: scripts felt unfinished when they opened with plain te
 
 **Save Location:** Modifies `.bash_profile` and `bash.bashrc`.
 
-### • Password Master
+</details>
+
+<details>
+<summary><strong>• Password Master</strong></summary>
+
 
 **Description:** Comprehensive password management suite featuring encrypted vault storage, password generation, strength analysis, and improvement tools. Includes AES-256 encrypted vault with master password protection, random password generator, passphrase generator, password strength analyzer, and password improvement suggestions. Features clipboard integration. Built for Termux with clear prompts and organized outputs.
 
@@ -891,7 +1191,11 @@ Problem it solved for me: project passwords, test logins, and tokens were too ea
 
 **Save Location:** Vault file: my_vault.enc in script directory | Backups: ~/Download/Password Master Backup
 
-### • Termux Backup Restore
+</details>
+
+<details>
+<summary><strong>• Termux Backup Restore</strong></summary>
+
 
 **Description:** Backup & restore for Termux: creates a zipped backup of your Termux files to Downloads and can restore them with integrity checks. Built for Termux with clear prompts and organized outputs.
 
@@ -899,7 +1203,11 @@ Problem it solved for me: one phone problem could destroy days of Termux work. E
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Termux Repair Wizard
+</details>
+
+<details>
+<summary><strong>• Termux Repair Wizard</strong></summary>
+
 
 **Description:** Troubleshooting wizard for Termux: checks common issues (mirrors, packages, permissions), suggests fixes, and runs safe repair commands step-by-step. Built for Termux with clear prompts and organized outputs.
 
@@ -907,11 +1215,19 @@ Problem it solved for me: random fix commands can make Termux worse. Example: us
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
+</details>
+
+</details>
+
 <a id="no-category"></a>
 
-## • No Category
+<details>
+<summary><strong>• No Category</strong></summary>
 
-### • Extra Content
+
+<details>
+<summary><strong>• Extra Content</strong></summary>
+
 
 **Description:** Extra bonus content hub: quick access to additional resources, templates, and optional add-ons included in the DedSec toolkit. Built for Termux with clear prompts and organized outputs.
 
@@ -919,7 +1235,11 @@ Problem it solved for me: extra resources were scattered and easy to forget. Exa
 
 **Save Location:** Scan folders created in current directory (scan_[target]_[date])
 
-### • Settings.py
+</details>
+
+<details>
+<summary><strong>• Settings.py</strong></summary>
+
 
 **Description:** Settings.py is the central control panel for the DedSec Project. It shows project and device information; updates the project from the main or backup source; refreshes Termux packages and Python modules; checks and downloads Sponsors-Only scripts through a connected GitHub account; creates a DedSec Project backup in Downloads; changes the Termux prompt; connects or disconnects GitHub; shows GitHub stats; syncs the prompt with the GitHub username; scans Termux usage stats; manages optional VPN and Tor utilities; switches between List, Grid, Choose By Number, and DedSec OS menu styles; controls menu auto-start; saves the English or Greek language choice; displays credits; and safely uninstalls the project. DedSec OS adds a browser-based local workspace with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project action buttons, language controls, prompt controls, password login, optional authenticator-style 2FA, and recovery through three security questions. Built for Termux with clear prompts and organized outputs.
 
@@ -927,7 +1247,11 @@ Problem it solved for me: DedSec became too big to control from memory. Example:
 
 **Save Location:** Language config: ~/Language.json | Termux config backup: ~/Termux.zip | Save DedSec Project backup: Downloads
 
-### • DedSec Market
+</details>
+
+<details>
+<summary><strong>• DedSec Market</strong></summary>
+
 
 **Description:** Curses-based GitHub repository market for Termux that displays projects by project name instead of raw repository name. It fetches README text cleanly, shows releases and issues, supports install/update/delete and launch actions, keeps a watchlist, and stores cache/state for faster reuse. Built for Termux with clear prompts and organized outputs.
 
@@ -935,9 +1259,15 @@ Problem it solved for me: I did not want to remember every GitHub repo name and 
 
 **Save Location:** `App data: ~/DedSec Market/ (cache/, state.json) | Installed repositories: ~/<repo-name>`
 
+</details>
+
+</details>
+
 <a id="sponsors-only"></a>
 
-## • Sponsors-Only
+<details>
+<summary><strong>• Sponsors-Only</strong></summary>
+
 
 Sponsors-Only access is now split into two GitHub Sponsors tiers:
 
@@ -946,9 +1276,12 @@ Sponsors-Only access is now split into two GitHub Sponsors tiers:
 | **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, and AR Terror.py. |
 | **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py**, **Kraken Trader.py**, and **Noob Hacker.py**. |
 
-### • $3 Sponsor Scripts
+**• $3 Sponsor Scripts**
 
-### • Face Detector.py
+
+<details>
+<summary><strong>• Face Detector.py</strong></summary>
+
 
 **Description:** Local browser-based face analysis tool for Termux that works without root. It uses MediaPipe Face Mesh on the live camera feed, supports both front and back camera, tracks up to 3 faces, draws detailed facial landmark overlays instead of simple boxes, and also lets you upload photos or videos for analysis directly from the interface. It can capture PNG snapshots, record WEBM video, save cropped detected faces separately, and provide both a local network link and an optional Cloudflare public link.
 
@@ -956,7 +1289,11 @@ Problem it solved for me: I wanted a real browser camera demo from Termux withou
 
 **Save Location:** On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.
 
-### • Face Detector Heavy.py
+</details>
+
+<details>
+<summary><strong>• Face Detector Heavy.py</strong></summary>
+
 
 **Description:** Expanded heavy-analysis version of the face detector for Termux, built without root. Along with live camera use, front/back camera switching, photo and video uploads, PNG snapshots, WEBM recording, and saved face crops, it raises tracking up to 30 faces and adds TensorFlow COCO-SSD object detection on top of the MediaPipe face mesh pipeline. It shows richer on-screen telemetry such as face count, animal/object detection, pose and gaze estimates, facial proportions, mouth and brow state, asymmetry scoring, and other visual analysis details, while still supporting both a local network link and an optional Cloudflare public link.
 
@@ -964,7 +1301,11 @@ Problem it solved for me: I wanted to push the camera tool further for richer de
 
 **Save Location:** On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.
 
-### • Face Swap.py
+</details>
+
+<details>
+<summary><strong>• Face Swap.py</strong></summary>
+
 
 **Description:** Local browser-based face swap tool for Termux that works without root. It opens a local camera page, lets you upload a source face image, switch between the front and back camera, and blend the uploaded face over the live camera using MediaPipe Face Mesh. The current version focuses on a smooth face-lock approach: it locks the uploaded face once, follows the live face, moves key feature patches for expressions, includes smoothing, feathering, opacity, blend, and skin-tone matching controls, and can save PNG snapshots from the browser. Use it only with your own images or with clear permission.
 
@@ -972,7 +1313,11 @@ Problem it solved for me: I wanted a local phone-friendly face swap demo without
 
 **Save Location:** On Termux, saved photos are stored in: /storage/emulated/0/Download/Face Swap/ or ~/storage/downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.
 
-### • Steganography.py
+</details>
+
+<details>
+<summary><strong>• Steganography.py</strong></summary>
+
 
 **Description:** Password-based steganography suite for Termux. It can generate random black-and-white PNG carrier images, encrypt secret text with a password-derived Fernet key, hide the encrypted text inside PNG images using LSB steganography, and batch-decode hidden messages from all images placed in the Decrypt folder. Extracted messages are automatically saved as separate .txt files, and the script can also optionally clean processed images from the decode folder after scanning.
 
@@ -980,7 +1325,11 @@ Problem it solved for me: I wanted to understand hidden-message techniques safel
 
 **Save Location:** Main folder: /storage/emulated/0/Download/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts
 
-### • AR Terror.py
+</details>
+
+<details>
+<summary><strong>• AR Terror.py</strong></summary>
+
 
 **Description:** Local browser-based AR horror experience for Termux that works without root. It launches a full-screen camera-driven web page where you explore the environment, collect hidden logs into an archive/inventory system, use atmospheric visual and audio effects, switch between front and back camera, and record evidence as WEBM while the experience runs. It can also expose both a local network link and an optional Cloudflare public link.
 
@@ -988,7 +1337,11 @@ Problem it solved for me: I wanted to prove Termux can run creative browser expe
 
 **Save Location:** On Termux, recorded evidence is saved in: ~/storage/downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.
 
-### • Widget Maker.py
+</details>
+
+<details>
+<summary><strong>• Widget Maker.py</strong></summary>
+
 
 **Description:** DedSec Widget Maker is a no-root Termux helper that creates Android home-screen launchers for DedSec Project scripts through Termux:Widget. It recursively scans Termux home, shared storage, and common phone folders for DedSec, sponsor, exclusive, and related Python scripts, including scripts inside every accessible folder and subfolder. It then creates managed shortcuts in ~/.shortcuts. Each widget opens a small menu with Run, Show Script Path, and Exit, validates the Python file before launching it, keeps a manifest in ~/.dedsec_widget_maker/, and can update or delete all managed widgets when your script collection changes.
 
@@ -996,7 +1349,11 @@ Problem it solved for me: I wanted one-tap Android shortcuts for every DedSec an
 
 **Save Location:** Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.
 
-### • Kraken Trader.py
+</details>
+
+<details>
+<summary><strong>• Kraken Trader.py</strong></summary>
+
 
 **Description:** Kraken Trader.py is a Termux trading research and portfolio assistant for the Kraken API. It starts in paper mode by default, shows a 10-second risk disclaimer, stores everything under ~/Kraken Trader/, and uses numbered menus for pair analysis, market scanning, dashboards, Sage-style strategy labs, advanced tools, beginner guides, risk/reward calculators, backtests, DCA and grid tools, paper wallet trading, paper bot loops, Kraken account tools, live order menus, order management, watchlists, crypto plus stock/ETF monitoring, reports, journals, logs, mode switching, diagnostics, and settings. It is built for education, organization, and safer paper testing; it is not financial advice and it does not guarantee profit.
 
@@ -1004,7 +1361,11 @@ Problem it solved for me: I wanted a single phone-friendly trading lab that keep
 
 **Save Location:** Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.
 
-### • Noob Hacker.py
+</details>
+
+<details>
+<summary><strong>• Noob Hacker.py</strong></summary>
+
 
 **Description:** Noob Hacker.py is a safe offline terminal learning game for Termux that teaches absolute beginners programming, Python basics, Termux/Bash habits, debugging, local-only cybersecurity thinking, defender workflows, report writing, projects, quizzes, and playable practice games. It is built as a single Python script, works without root, keeps practice inside fictional/local labs, includes English and Greek versions, supports self-tests, save migration, progress tracking, and many beginner-friendly lessons designed to guide someone from zero knowledge into practical safe skills. It does not attack real targets, scan the internet, steal accounts, or teach malware.
 
@@ -1012,9 +1373,15 @@ Problem it solved for me: I wanted one serious beginner-friendly learning game t
 
 **Save Location:** Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/
 
+</details>
+
+</details>
+
 <a id="butsystempy-exclusive"></a>
 
-## • ButSystem.py (Exclusive)
+<details>
+<summary><strong>• ButSystem.py (Exclusive)</strong></summary>
+
 
 **ButSystem.py** is a self-hosted, **local-first** workspace that runs on your own device through Termux. It is designed to bring private communication, organized files, access control, and structured profile workflows into one browser interface instead of scattering them across separate scripts and menus.
 
@@ -1023,6 +1390,8 @@ Rather than being only a chat page, ButSystem combines login and signup flow, us
 In practice, you run the script, open the generated local link, and move through the system with the burger menu. That gives you a cleaner way to switch between chats, groups, calls, files, profile pages, Profiler, reports, settings, and admin tools without leaving the same local-first workspace.
 
 Use only on systems you own or where you have explicit permission.
+
+</details>
 
 ---
 
@@ -1359,9 +1728,13 @@ bash Setup.sh
 ---
 <a id="greek-developer-base"></a>
 
-## • Βάση Προγραμματιστή
+<details>
+<summary><strong>• Βάση Προγραμματιστή</strong></summary>
 
-### • File Converter
+
+<details>
+<summary><strong>• File Converter</strong></summary>
+
 
 **Περιγραφή:** Ένας ισχυρός μετατροπέας αρχείων που υποστηρίζει 40+ μορφές. Οργανώνει τις Λήψεις. Προηγμένος διαδραστικός μετατροπέας αρχείων για Termux χρησιμοποιώντας διεπαφή curses. Υποστηρίζει 40 διαφορετικές μορφές αρχείων σε εικόνες, έγγραφα, ήχο, βίντεο και αρχεία. Διαθέτει αυτόματη εγκατάσταση εξαρτήσεων, οργανωμένη δομή φακέλων και ολοκληρωμένες δυνατότητες μετατροπής. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1369,7 +1742,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/storage/downloads/File Converter/
 
-### • File Type Checker
+</details>
+
+<details>
+<summary><strong>• File Type Checker</strong></summary>
+
 
 **Περιγραφή:** Προηγμένος αναλυτής αρχείων και σαρωτής ασφαλείας που εντοπίζει τύπους αρχείων, εξάγει μεταδεδομένα, υπολογίζει κρυπτογραφικά hashes και αναγνωρίζει πιθανές απειλές. Διαθέτει ανίχνευση magic byte, ανάλυση εντροπίας, ανίχνευση steganography, σάρωση ιών μέσω VirusTotal API και αυτόματη καραντίνα ύποπτων αρχείων. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1377,7 +1754,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελος σάρωσης: ~/Downloads/File Type Checker/ | Αρχεία σε καραντίνα: κατάληξη .dangerous
 
-### • Mobile Desktop
+</details>
+
+<details>
+<summary><strong>• Mobile Desktop</strong></summary>
+
 
 **Περιγραφή:** Διαχειριστής Linux Desktop για Termux (χωρίς root): στήνει proot-distro περιβάλλον με επιλογές VNC/X11 και πρόγραμμα διαχείρισης εφαρμογών (install/update/remove). Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1385,7 +1766,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Mobile Developer Setup
+</details>
+
+<details>
+<summary><strong>• Mobile Developer Setup</strong></summary>
+
 
 **Περιγραφή:** Αυτοματοποιεί web-dev περιβάλλον σε Termux: εγκαθιστά βασικά εργαλεία, ρυθμίζει paths και δίνει γρήγορο project scaffolding. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1393,7 +1778,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Simple Websites Creator
+</details>
+
+<details>
+<summary><strong>• Simple Websites Creator</strong></summary>
+
 
 **Περιγραφή:** Ένας ολοκληρωμένος δημιουργός ιστοσελίδων που δημιουργεί ανταποκρινόμενες HTML ιστοσελίδες με προσαρμόσιμη διάταξη, χρώματα, γραμματοσειρές και ρυθμίσεις SEO. Χαρακτηριστικά περιλαμβάνουν πολλαπλούς οδηγούς φιλοξενίας, προεπισκόπηση σε πραγματικό χρόνο, φιλικά για κινητά σχέδια και επαγγελματικά πρότυπα. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1401,7 +1790,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Οι ιστοσελίδες αποθηκεύονται σε: ~/storage/downloads/Websites/
 
-### • Smart Notes
+</details>
+
+<details>
+<summary><strong>• Smart Notes</strong></summary>
+
 
 **Περιγραφή:** Εφαρμογή σημειώσεων terminal με υπενθυμίσεις. Προηγμένη εφαρμογή σημειώσεων με λειτουργικότητα υπενθύμισης, που διαθέτει τόσο TUI (Διεπαφή Κειμένου) όσο και υποστήριξη CLI. Περιλαμβάνει εξελιγμένο σύστημα υπενθυμίσεων με ημερομηνίες λήξης, αυτόματη εκτέλεση εντολών, ενσωμάτωση εξωτερικού επεξεργαστή και ολοκληρωμένες δυνατότητες οργάνωσης σημειώσεων. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1409,7 +1802,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/.smart_notes.json
 
-### • Dead Man's Switch
+</details>
+
+<details>
+<summary><strong>• Dead Man's Switch</strong></summary>
+
 
 **Περιγραφή:** Emergency/SOS εργαλείο για Termux που βασίζεται στη λειτουργία I Need Help. Μετά το first-time setup και καθαρές επιβεβαιώσεις από τον χρήστη, μπορεί να κάνει public το dead-mans-switch GitHub repository, να δημιουργήσει GitHub Pages emergency website, να ανεβάσει οργανωμένα emergency αρχεία, να τραβήξει διαθέσιμες φωτογραφίες από κάμερες, ηχογραφήσεις μικροφώνου και location updates σε ρυθμιζόμενα χρονικά διαστήματα μέσω Termux:API permissions, και να στείλει SMS alerts με το website/repository link σε configured trusted contacts. Περιλαμβάνει επίσης create/update uploads, overwrite sync, visibility controls, legacy repository migration, previous-history backups, logs και kill/cleanup option.
 
@@ -1417,7 +1814,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** `Τοπικός φάκελος: ~/storage/downloads/Dead Man's Switch/ | Ρυθμίσεις: ~/.dead_switch_settings.json | Repo: github.com/<you>/dead-mans-switch`
 
-### • Tree Explorer
+</details>
+
+<details>
+<summary><strong>• Tree Explorer</strong></summary>
+
 
 **Περιγραφή:** Εξερευνητής αρχείων για Termux: περιήγηση φακέλων, αναζήτηση αρχείων, εύρεση διπλότυπων με hash και καθαρισμός άδειων φακέλων με ασφαλείς επιλογές. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1425,7 +1826,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Devices Finder
+</details>
+
+<details>
+<summary><strong>• Devices Finder</strong></summary>
+
 
 **Περιγραφή:** Εργαλείο ανακάλυψης συσκευών τοπικού δικτύου για Termux που λειτουργεί χωρίς root. Διαχωρίζει τον εντοπισμό live hosts από το service scanning για να μειώνει τα false positives, αναγνωρίζει τύπους συσκευών με βάση ports, banners, hostnames και vendor hints, περιλαμβάνει interactive scan profiles και φίλτρα τύπου, και προαιρετικά εμπλουτίζει τα αποτελέσματα με mDNS, UPnP, SNMP και NetBIOS clues. Εξάγει αναφορές JSON, TXT, CSV και HTML. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1433,7 +1838,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα αποτελέσματα αποθηκεύονται στο: ~/storage/downloads/Devices Finder/ ως devices_scan_[timestamp].json/.txt/.csv/.html (fallback στο ~/downloads/Devices Finder/ ή στον τρέχοντα κατάλογο)
 
-### • Free Internet
+</details>
+
+<details>
+<summary><strong>• Free Internet</strong></summary>
+
 
 **Περιγραφή:** Local-first browser και ασφαλές vault για Termux. Συνδυάζει πολλαπλές μηχανές αναζήτησης, bookmarks, ιστορικό, αποθηκευμένες σελίδες, καθαρισμό διαφημίσεων και trackers, Lite mode, δρομολόγηση μέσω proxy ανά χώρα με smart/strict/direct modes, προαιρετική υποστήριξη Tor, κρυπτογραφημένες εγγραφές vault μέσω OpenSSL και ενσωματωμένο εργαλείο full-page screenshots ιστοσελίδων. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1441,11 +1850,19 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/Free Internet/ (browser/, vault/, browser/saved/, tools/screenshots/)
 
+</details>
+
+</details>
+
 <a id="greek-network-tools"></a>
 
-## • Εργαλεία Δικτύου
+<details>
+<summary><strong>• Εργαλεία Δικτύου</strong></summary>
 
-### • Bug Hunter
+
+<details>
+<summary><strong>• Bug Hunter</strong></summary>
+
 
 **Περιγραφή:** Bug Hunter (χωρίς root) — εξουσιοδοτημένο εργαλείο αναγνώρισης web ασφάλειας και ελέγχου κακής ρύθμισης. Ελέγχει security headers και cookie flags, ανιχνεύει τεχνολογίες, κάνει DNS ελέγχους (SPF/DMARC/CAA), αναλύει TLS/λήξη πιστοποιητικού, ελέγχει CORS και HTTP μεθόδους, βρίσκει εκτεθειμένα ευαίσθητα αρχεία, κάνει crawl στο site και αναλύει JavaScript για endpoints και πιθανές διαρροές μυστικών. Υποστηρίζει προαιρετικό directory discovery και Wayback recon, και παράγει απο-διπλοποιημένες αναφορές (JSON/CSV/HTML/PDF). Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1453,7 +1870,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Οι αναφορές αποθηκεύονται στον φάκελο εξόδου (προεπιλογή: bughunter_out/): report.json, report.csv, report.html (και report.pdf αν είναι διαθέσιμο)
 
-### • Dark
+</details>
+
+<details>
+<summary><strong>• Dark</strong></summary>
+
 
 **Περιγραφή:** Ένα εξειδικευμένο εργαλείο OSINT και crawler για το Dark Web, σχεδιασμένο για ανάλυση δικτύου Tor. Διαθέτει αυτοματοποιημένη σύνδεση Tor, ενσωμάτωση αναζήτησης Ahmia και αναδρομικό crawler για ιστοσελίδες .onion. Το εργαλείο χρησιμοποιεί ένα αρθρωτό σύστημα πρόσθετων για την εξαγωγή συγκεκριμένων τύπων δεδομένων (Email, διευθύνσεις BTC/XMR, κλειδιά PGP, Τηλέφωνα) και υποστηρίζει την αποθήκευση στιγμιότυπων. Προσφέρει λειτουργία Curses TUI και CLI, με αποτελέσματα εξαγώγιμα σε JSON, CSV και TXT. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1461,7 +1882,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα αποτελέσματα αποθηκεύονται σε: /sdcard/Download/DarkNet
 
-### • DedSec's Network
+</details>
+
+<details>
+<summary><strong>• DedSec's Network</strong></summary>
+
 
 **Περιγραφή:** Μια προηγμένη εργαλειοθήκη δικτύου χωρίς root. Διαθέτει αναδρομικό πρόγραμμα λήψης ιστοσελίδων με υποστήριξη ZIP, πολυνηματικό σαρωτή θυρών, δοκιμή ταχύτητας internet και εργαλεία OSINT (WHOIS, DNS, Reverse IP). Περιλαμβάνει σαρωτές ελέγχου ιστού για SQLi, XSS, ανίχνευση CMS και SSH brute-force. Διατηρεί τοπικό αρχείο καταγραφής ελέγχου SQLite. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1469,7 +1894,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Οι αναφορές και τα αρχεία καταγραφής αποθηκεύονται σε: ~/DedSec's Network
 
-### • Digital Footprint Finder
+</details>
+
+<details>
+<summary><strong>• Digital Footprint Finder</strong></summary>
+
 
 **Περιγραφή:** Συντηρητικό εργαλείο OSINT ελέγχου usernames με στόχο τα καλύτερα πρακτικά αποτελέσματα και ελάχιστα ψευδώς θετικά. Σαρώνει μεγάλο πλήθος sites μέσω packs (core/extended) με προαιρετική βάση Sherlock, χρησιμοποιώντας βαθμολόγηση πολλαπλών σημάτων (status/redirects, title/meta/canonical/text) και όρια ταυτόχρονης σύνδεσης ανά domain για σταθερότητα. Ανιχνεύει anti-bot/JS challenges ως POSSIBLE (ποτέ ψευδώς FOUND), υποστηρίζει προαιρετικό search-engine dorking και εισαγωγή/εξαγωγή προσαρμοσμένων λιστών sites. Εξάγει αναφορές σε TXT/JSON/CSV και προαιρετικά HTML. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1477,7 +1906,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα αποτελέσματα αποθηκεύονται σε: ~/storage/downloads/Digital Footprint Finder/[username]_v12.txt
 
-### • Connections.py
+</details>
+
+<details>
+<summary><strong>• Connections.py</strong></summary>
+
 
 **Περιγραφή:** Ασφαλής διακομιστής συνομιλίας/κοινής χρήσης αρχείων. Κλήσεις βίντεο, κοινή χρήση αρχείων (όριο 50GB). Ενοποιημένη εφαρμογή που συνδυάζει το Butterfly Chat και τη Βάση Δεδομένων DedSec με μοναδικό μυστικό κλειδί πιστοποίησης. Παρέχει ανταλλαγή μηνυμάτων σε πραγματικό χρόνο, κοινή χρήση αρχείων, κλήσεις βίντεο και ολοκληρωμένη διαχείριση αρχείων. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1485,7 +1918,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Λήψεις στο `~/Downloads/DedSec's Database`.
 
-### • Link Shield
+</details>
+
+<details>
+<summary><strong>• Link Shield</strong></summary>
+
 
 **Περιγραφή:** Εργαλείο ελέγχου συνδέσμων: ακολουθεί redirects, ελέγχει HTTPS/SSL, εντοπίζει ύποπτα domains/μοτίβα και βγάζει αναφορά ρίσκου πριν ανοίξεις σύνδεσμο. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1493,7 +1930,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Masker
+</details>
+
+<details>
+<summary><strong>• Masker</strong></summary>
+
 
 **Περιγραφή:** URL helper για καθαρά, readable test links και έλεγχο redirect behavior στα δικά σου workflows. Παρουσιάζεται μόνο για οργάνωση, demos και authorized awareness training, ποτέ για να κρύψει κακόβουλα links ή να ξεγελάσει κόσμο.
 
@@ -1501,7 +1942,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Δ/Υ (Έξοδος στην οθόνη).
 
-### • QR Code Generator
+</details>
+
+<details>
+<summary><strong>• QR Code Generator</strong></summary>
+
 
 **Περιγραφή:** Δημιουργός κωδικού QR βασισμένος σε Python που δημιουργεί κωδικούς QR για URLs και τους αποθηκεύει στο φάκελο Downloads/QR Codes. Διαθέτει αυτόματη εγκατάσταση εξαρτήσεων, φιλική προς τον χρήστη διεπαφή και χειρισμό σφαλμάτων για αξιόπιστη λειτουργία. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1509,7 +1954,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Οι εικόνες αποθηκεύονται σε: ~/storage/downloads/QR Codes/
 
-### • Sod
+</details>
+
+<details>
+<summary><strong>• Sod</strong></summary>
+
 
 **Περιγραφή:** Ένα ολοκληρωμένο εργαλείο δοκιμής φόρτου για εφαρμογές web, με πολλαπλές μεθόδους δοκιμής (HTTP, WebSocket, προσομοίωση βάσης δεδομένων, μεταφόρτωση αρχείων, μικτό φόρτο εργασίας), μετρήσεις σε πραγματικό χρόνο και αυτόματη εγκατάσταση εξαρτήσεων. Προηγμένο πλαίσιο δοκιμής απόδοσης με ρεαλιστική προσομοίωση συμπεριφοράς χρήστη. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1517,7 +1966,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Διαμόρφωση: load_test_config.json στον κατάλογο σεναρίου | Αποτελέσματα: Εμφανίζονται στο terminal
 
-### • Store Scrapper
+</details>
+
+<details>
+<summary><strong>• Store Scrapper</strong></summary>
+
 
 **Περιγραφή:** Μονοαρχείο Python store scrapper για Termux που λειτουργεί χωρίς root. Δοκιμάζει πολλούς τρόπους για να βρίσκει κατηγορίες και προϊόντα σε απλές HTML σελίδες αλλά και σε πολλά JS-style stores, διαβάζοντας HTML, JSON-LD, embedded JSON, sitemaps, Shopify endpoints, WooCommerce APIs, generic product cards, breadcrumbs, OpenGraph/meta tags και εσωτερικούς συνδέσμους. Αποθηκεύει όσο τρέχει, ξεκινά πλήρες scraping προϊόντος μόλις βρεθεί κάθε προϊόν, δείχνει live κατάσταση στο terminal, χρησιμοποιεί το Enter ως προεπιλογή στα prompts και οργανώνει τα αποτελέσματα σε φακέλους store/category/product με κατεβασμένες εικόνες. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
 
@@ -1525,13 +1978,21 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** `Δημιουργεί φακέλους στο: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/ (οι φάκελοι προϊόντων μπορούν να περιλαμβάνουν FOUND.txt, metadata.json, summary.txt, description.txt, images/, images.json, καθώς και αρχεία discovery/state).`
 
+</details>
+
+</details>
+
 <a id="greek-personal-information-capture"></a>
 
-## • Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)
+<details>
+<summary><strong>• Συλλογή Προσωπικών Πληροφοριών (Μόνο για Εκπαιδευτική Χρήση)</strong></summary>
+
 
 Αυτά τα scripts είναι training simulations που έχουν στόχο να βοηθούν τους χρήστες να κατανοούν πώς μπορεί να παρουσιάζονται παραπλανητικές σελίδες συλλογής προσωπικών δεδομένων, ώστε να τις αναγνωρίζουν και να αμύνονται καλύτερα απέναντί τους σε ελεγχόμενα περιβάλλοντα.
 
-### • Fake Back Camera Page
+<details>
+<summary><strong>• Fake Back Camera Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Back Camera Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Back Camera. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1539,7 +2000,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Back Camera Video Page
+</details>
+
+<details>
+<summary><strong>• Fake Back Camera Video Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Back Camera Video Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Back Camera Video. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1547,7 +2012,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Card Details Page
+</details>
+
+<details>
+<summary><strong>• Fake Card Details Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Card Details Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Card Details. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1555,7 +2024,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Chrome Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Chrome Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Chrome Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Chrome Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1563,7 +2036,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Data Grabber Page
+</details>
+
+<details>
+<summary><strong>• Fake Data Grabber Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Data Grabber Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Data Grabber. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1571,7 +2048,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Discord Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Discord Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Discord Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Discord Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1579,7 +2060,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Facebook Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Facebook Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Facebook Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Facebook Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1587,7 +2072,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Front Camera Page
+</details>
+
+<details>
+<summary><strong>• Fake Front Camera Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Front Camera Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Front Camera. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1595,7 +2084,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Front Camera Video Page
+</details>
+
+<details>
+<summary><strong>• Fake Front Camera Video Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Front Camera Video Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Front Camera Video. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1603,7 +2096,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Google Location Page
+</details>
+
+<details>
+<summary><strong>• Fake Google Location Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Google Location Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Google Location. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1611,7 +2108,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Instagram Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Instagram Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Instagram Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Instagram Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1619,7 +2120,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Location Page
+</details>
+
+<details>
+<summary><strong>• Fake Location Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Location Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Location. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1627,7 +2132,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Microphone Page
+</details>
+
+<details>
+<summary><strong>• Fake Microphone Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Microphone Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Microphone. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1635,7 +2144,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake OnlyFans Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake OnlyFans Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake OnlyFans Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από OnlyFans Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1643,7 +2156,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Steam Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Steam Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Steam Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1651,7 +2168,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Twitch Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitch Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Twitch Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από Twitch Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1659,7 +2180,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake YouTube Verification Page
+</details>
+
+<details>
+<summary><strong>• Fake YouTube Verification Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake YouTube Verification Page είναι consent-based awareness demo για να δείχνει πώς παραπλανητικά permission prompts μπορούν να πιέσουν κάποιον να μοιραστεί ευαίσθητη πρόσβαση γύρω από YouTube Verification. Χρησιμοποίησέ το μόνο σε lab, με dummy data, screenshots ή καθαρή άδεια από συμμετέχοντες. Δεν παρουσιάζεται ως εργαλείο κλοπής πληροφοριών.
 
@@ -1667,13 +2192,21 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
+</details>
+
+</details>
+
 <a id="greek-fake-pages"></a>
 
-## • Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)
+<details>
+<summary><strong>• Ψεύτικες Σελίδες (Μόνο για Εκπαιδευτική Χρήση)</strong></summary>
+
 
 Αυτά τα scripts είναι εκπαιδευτικά simulations που έχουν στόχο να βοηθούν τους χρήστες να αναγνωρίζουν social-engineering patterns, ψεύτικες reward pages, ψεύτικες verification flows και imitation brand pages που συχνά χρησιμοποιούνται για να πιέζουν ανθρώπους σε μη ασφαλείς ενέργειες.
 
-### • Fake Apple iCloud Page
+<details>
+<summary><strong>• Fake Apple iCloud Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Apple iCloud Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Apple iCloud προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1681,7 +2214,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Discord Nitro Page
+</details>
+
+<details>
+<summary><strong>• Fake Discord Nitro Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Discord Nitro Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Discord Nitro προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1689,7 +2226,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Epic Games Page
+</details>
+
+<details>
+<summary><strong>• Fake Epic Games Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Epic Games Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Epic Games προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1697,7 +2238,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Facebook Friends Page
+</details>
+
+<details>
+<summary><strong>• Fake Facebook Friends Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Facebook Friends Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Facebook Friends προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1705,7 +2250,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Free Robux Page
+</details>
+
+<details>
+<summary><strong>• Fake Free Robux Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Free Robux Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Free Robux προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1713,7 +2262,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake GitHub Pro Page
+</details>
+
+<details>
+<summary><strong>• Fake GitHub Pro Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake GitHub Pro Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες GitHub Pro προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1721,7 +2274,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Google Free Money Page
+</details>
+
+<details>
+<summary><strong>• Fake Google Free Money Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Google Free Money Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Google Free Money προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1729,7 +2286,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Instagram Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake Instagram Followers Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Instagram Followers Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Instagram Followers προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1737,7 +2298,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake MetaMask Page
+</details>
+
+<details>
+<summary><strong>• Fake MetaMask Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake MetaMask Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες MetaMask προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1745,7 +2310,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Microsoft 365 Page
+</details>
+
+<details>
+<summary><strong>• Fake Microsoft 365 Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Microsoft 365 Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Microsoft 365 προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1753,7 +2322,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake OnlyFans Page
+</details>
+
+<details>
+<summary><strong>• Fake OnlyFans Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake OnlyFans Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες OnlyFans προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1761,7 +2334,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake PayPal Page
+</details>
+
+<details>
+<summary><strong>• Fake PayPal Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake PayPal Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες PayPal προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1769,7 +2346,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Pinterest Pro Page
+</details>
+
+<details>
+<summary><strong>• Fake Pinterest Pro Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Pinterest Pro Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Pinterest Pro προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1777,7 +2358,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake PlayStation Network Page
+</details>
+
+<details>
+<summary><strong>• Fake PlayStation Network Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake PlayStation Network Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες PlayStation Network προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1785,7 +2370,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Reddit Karma Page
+</details>
+
+<details>
+<summary><strong>• Fake Reddit Karma Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Reddit Karma Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Reddit Karma προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1793,7 +2382,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Snapchat Friends Page
+</details>
+
+<details>
+<summary><strong>• Fake Snapchat Friends Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Snapchat Friends Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Snapchat Friends προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1801,7 +2394,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Steam Games Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Games Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Steam Games Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Steam Games προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1809,7 +2406,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Steam Wallet Page
+</details>
+
+<details>
+<summary><strong>• Fake Steam Wallet Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Steam Wallet Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Steam Wallet προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1817,7 +2418,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake TikTok Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake TikTok Followers Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake TikTok Followers Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες TikTok Followers προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1825,7 +2430,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Trust Wallet Page
+</details>
+
+<details>
+<summary><strong>• Fake Trust Wallet Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Trust Wallet Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Trust Wallet προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1833,7 +2442,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Twitch Subs Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitch Subs Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Twitch Subs Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Twitch Subs προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1841,7 +2454,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Twitter Followers Page
+</details>
+
+<details>
+<summary><strong>• Fake Twitter Followers Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Twitter Followers Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Twitter Followers προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1849,7 +2466,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake What's Up Dude Page
+</details>
+
+<details>
+<summary><strong>• Fake What's Up Dude Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake What's Up Dude Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες What's Up Dude προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1857,7 +2478,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake Xbox Live Page
+</details>
+
+<details>
+<summary><strong>• Fake Xbox Live Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake Xbox Live Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες Xbox Live προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1865,7 +2490,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
-### • Fake YouTube Subscribers Page
+</details>
+
+<details>
+<summary><strong>• Fake YouTube Subscribers Page</strong></summary>
+
 
 **Περιγραφή:** Το Fake YouTube Subscribers Page είναι mock phishing-awareness page για να δείχνει πώς ψεύτικες YouTube Subscribers προσφορές, giveaways, upgrades ή login prompts χειραγωγούν την εμπιστοσύνη. Χρησιμοποίησέ το μόνο για εκπαίδευση, screenshots ή consent-based training με dummy accounts. Ποτέ για συλλογή πραγματικών credentials, καρτών, wallets ή προσωπικών πληροφοριών.
 
@@ -1873,11 +2502,19 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα training outputs πρέπει να μένουν τοπικά στον δικό σου lab φάκελο. Χρησιμοποίησε μόνο dummy data και ποτέ πραγματικές προσωπικές πληροφορίες.
 
+</details>
+
+</details>
+
 <a id="greek-games"></a>
 
-## • Παιχνίδια
+<details>
+<summary><strong>• Παιχνίδια</strong></summary>
 
-### • Buzz
+
+<details>
+<summary><strong>• Buzz</strong></summary>
+
 
 **Περιγραφή:** Ένα text-only παιχνίδι trivia για Termux με ενσωματωμένη σταθερή βάση 15.000 ερωτήσεων (χωρίς δημιουργία κατά την εκτέλεση). Υποστηρίζει 1–2 παίκτες (pass-and-play), πολλούς τύπους γύρων, φίλτρο δυσκολίας (Όλες/Εύκολες/Μέτριες/Δύσκολες), προφίλ, ρυθμίσεις και πίνακες βαθμολογίας. Ελαφρύ παιχνίδι τερματικού με γρήγορους χειρισμούς και δυνατότητα επανάληψης.
 
@@ -1885,7 +2522,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/Buzz/ (data/ για DB, προφίλ, ρυθμίσεις, βαθμολογίες)
 
-### • CTF God
+</details>
+
+<details>
+<summary><strong>• CTF God</strong></summary>
+
 
 **Περιγραφή:** Πλήρες CTF παιχνίδι για Termux σε fullscreen Curses, με story mode, αποστολές, daily challenges, τυχαία boss levels, κατάστημα hints, achievements & ranks, εισαγωγή/εξαγωγή challenge packs, tournament mode και anti‑cheat/integrity checks. Περιλαμβάνει ενσωματωμένο level editor. Ελαφρύ παιχνίδι τερματικού με γρήγορους χειρισμούς και δυνατότητα επανάληψης.
 
@@ -1893,7 +2534,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** `Φάκελοι χρήστη & αρχεία challenges: /storage/emulated/0/Download/CTF God/<username>/files (εναλλακτικά: ~/storage/downloads/CTF God/...). Κατάσταση παιχνιδιού & packs: ~/.ctf_god/ (state.json, packs/, custom.json).`
 
-### • Detective
+</details>
+
+<details>
+<summary><strong>• Detective</strong></summary>
+
 
 **Περιγραφή:** Ένα story-driven παιχνίδι ντετέκτιβ για Termux στο terminal με διευρυμένη σταθερή βιβλιοθήκη υποθέσεων, πλουσιότερα lore dossiers, φήμες περιοχών, side stories και επιπλέον story threads. Παρακολουθήστε στοιχεία, ανακρίνετε υπόπτους, δείτε suspect rosters, χτίστε ASCII case board και timeline και διαχειριστείτε την πρόοδο με 3 save slots και autosave. Περιλαμβάνει 4 δυσκολίες, notes/evidence tracking, checkpoint hints και γρήγορες εντολές όπως :help, :guide, :lore, :suspects, :board, :timeline, :hint και :save.
 
@@ -1901,7 +2546,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/Detective/ (προφίλ παίκτη, save slots, autosave και πρόοδος υποθέσεων)
 
-### • Tamagotchi
+</details>
+
+<details>
+<summary><strong>• Tamagotchi</strong></summary>
+
 
 **Περιγραφή:** Ένα πλήρως χαρακτηριστικό παιχνίδι κατοικίδιου terminal. Τρέφετε, παίζετε, καθαρίζετε και εκπαιδεύετε το κατοικίδιό σας. Μην το αφήσετε να πεθάνει. Προηγμένο παιχνίδι προσομοίωσης εικονικού κατοικίδιου με ολοκληρωμένο σύστημα διαχείρισης. Χαρακτηριστικά περιλαμβάνουν εξέλιξη κατοικίδιου μέσα από στάδια ζωής, χαρακτηριστικά προσωπικότητας, ανάπτυξη δεξιοτήτων, μίνι παιχνίδια, σύστημα εργασίας και συνταξιοδότηση κληρονομιάς. Ελαφρύ παιχνίδι τερματικού με γρήγορους χειρισμούς και δυνατότητα επανάληψης.
 
@@ -1909,7 +2558,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** ~/.termux_tamagotchi_v8.json
 
-### • Terminal Arcade
+</details>
+
+<details>
+<summary><strong>• Terminal Arcade</strong></summary>
+
 
 **Περιγραφή:** Πακέτο arcade για τερματικό με πολλά mini-games σε ένα script. Αποθηκεύει δεδομένα στο ~/Terminal Arcade/ και τρέχει ομαλά σε Termux/Linux. Ελαφρύ παιχνίδι τερματικού με γρήγορους χειρισμούς και δυνατότητα επανάληψης.
 
@@ -1917,11 +2570,19 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
+</details>
+
+</details>
+
 <a id="greek-other-tools"></a>
 
-## • Άλλα Εργαλεία
+<details>
+<summary><strong>• Άλλα Εργαλεία</strong></summary>
 
-### • Android App Launcher
+
+<details>
+<summary><strong>• Android App Launcher</strong></summary>
+
 
 **Περιγραφή:** Βοηθητικό πρόγραμμα για διαχείριση εφαρμογών Android απευθείας από το terminal. Μπορεί να εκκινήσει εφαρμογές, να εξάγει αρχεία APK, να απεγκαταστήσει εφαρμογές και να αναλύσει δικαιώματα ασφαλείας. Προηγμένο εργαλείο διαχείρισης εφαρμογών Android και ανάλυσης ασφαλείας. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1929,7 +2590,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Εξαγόμενα APK: ~/storage/shared/Download/Extracted APK's | Αναφορές: ~/storage/shared/Download/App_Security_Reports
 
-### • Loading Screen
+</details>
+
+<details>
+<summary><strong>• Loading Screen</strong></summary>
+
 
 **Περιγραφή:** Εξατομίκευση εκκίνησης Termux με ASCII art loading screens. Υποστηρίζει custom art, καθυστέρηση και αυτόματο setup/cleanup για εμφάνιση μία φορά. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1937,7 +2602,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τροποποιεί `.bash_profile` και `bash.bashrc`.
 
-### • Password Master
+</details>
+
+<details>
+<summary><strong>• Password Master</strong></summary>
+
 
 **Περιγραφή:** Ολοκληρωμένο σύνολο διαχείρισης κωδικών πρόσβασης με κρυπτογραφημένη αποθήκευση θησαυροφυλακίου, δημιουργία κωδικών, ανάλυση ισχύος και εργαλεία βελτίωσης. Περιλαμβάνει AES-256 κρυπτογραφημένο θησαυροφυλάκιο με προστασία κύριου κωδικού πρόσβασης, γεννήτρια τυχαίων κωδικών, γεννήτρια φράσεων πρόσβασης, αναλυτή ισχύος κωδικού και προτάσεις βελτίωσης κωδικών. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1945,7 +2614,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Αρχείο θησαυροφυλακίου: my_vault.enc | Αντίγραφα ασφαλείας: ~/Download/Password Master Backup
 
-### • Termux Backup Restore
+</details>
+
+<details>
+<summary><strong>• Termux Backup Restore</strong></summary>
+
 
 **Περιγραφή:** Backup & restore για Termux: δημιουργεί zip backup των αρχείων σου στα Downloads και μπορεί να τα επαναφέρει με ελέγχους ακεραιότητας. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1953,7 +2626,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Termux Repair Wizard
+</details>
+
+<details>
+<summary><strong>• Termux Repair Wizard</strong></summary>
+
 
 **Περιγραφή:** Οδηγός επιδιόρθωσης Termux: ελέγχει συνηθισμένα προβλήματα (mirrors, πακέτα, δικαιώματα), προτείνει λύσεις και τρέχει ασφαλείς εντολές βήμα-βήμα. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1961,11 +2638,19 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
+</details>
+
+</details>
+
 <a id="greek-no-category"></a>
 
-## • Χωρίς Κατηγορία
+<details>
+<summary><strong>• Χωρίς Κατηγορία</strong></summary>
 
-### • Extra Content
+
+<details>
+<summary><strong>• Extra Content</strong></summary>
+
 
 **Περιγραφή:** Κόμβος extra περιεχομένου: γρήγορη πρόσβαση σε πρόσθετους πόρους, templates και προαιρετικά add-ons του DedSec toolkit. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1973,7 +2658,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Φάκελοι σάρωσης δημιουργούνται στον τρέχοντα κατάλογο
 
-### • Settings.py
+</details>
+
+<details>
+<summary><strong>• Settings.py</strong></summary>
+
 
 **Περιγραφή:** Το Settings.py είναι το κεντρικό control panel του DedSec Project. Εμφανίζει πληροφορίες project και συσκευής, ενημερώνει το project από την κύρια ή την backup πηγή, ανανεώνει Termux packages και Python modules, ελέγχει και κατεβάζει Sponsors-Only scripts μέσω συνδεδεμένου GitHub account, δημιουργεί backup του DedSec Project στα Downloads, αλλάζει το Termux prompt, συνδέει ή αποσυνδέει GitHub, εμφανίζει GitHub stats, συγχρονίζει το prompt με το GitHub username, σαρώνει Termux usage stats, διαχειρίζεται προαιρετικά VPN και Tor utilities, αλλάζει ανάμεσα σε List, Grid, Choose By Number και DedSec OS menu styles, ελέγχει το menu auto-start, αποθηκεύει επιλογή γλώσσας English ή Greek, εμφανίζει credits και κάνει ασφαλή απεγκατάσταση του project. Το DedSec OS προσθέτει browser-based local workspace με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split-view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project action buttons, language controls, prompt controls, password login, προαιρετικό authenticator-style 2FA και recovery μέσω τριών security questions. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1981,7 +2670,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Ρύθμιση γλώσσας: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Save DedSec Project backup: Downloads
 
-### • DedSec Market
+</details>
+
+<details>
+<summary><strong>• DedSec Market</strong></summary>
+
 
 **Περιγραφή:** Curses-based market αποθετηρίων GitHub για Termux που εμφανίζει τα projects με το όνομα του project αντί για το ακατέργαστο όνομα του repository. Καθαρίζει και εμφανίζει σωστά το κείμενο των README, δείχνει releases και issues, υποστηρίζει ενέργειες install/update/delete και launch, κρατά watchlist και αποθηκεύει cache/state για πιο γρήγορη επαναχρησιμοποίηση. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
@@ -1989,9 +2682,15 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** `Δεδομένα εφαρμογής: ~/DedSec Market/ (cache/, state.json) | Εγκατεστημένα repositories: ~/<repo-name>`
 
+</details>
+
+</details>
+
 <a id="greek-sponsors-only"></a>
 
-## • Μόνο για Χορηγούς
+<details>
+<summary><strong>• Μόνο για Χορηγούς</strong></summary>
+
 
 Το Sponsors-Only access χωρίζεται πλέον σε δύο GitHub Sponsors tiers:
 
@@ -2000,9 +2699,12 @@ bash Setup.sh
 | **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py και AR Terror.py. |
 | **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py**, **Kraken Trader.py** και **Noob Hacker.py**. |
 
-### • Scripts Χορηγών $3
+**• Scripts Χορηγών $3**
 
-### • Face Detector.py
+
+<details>
+<summary><strong>• Face Detector.py</strong></summary>
+
 
 **Περιγραφή:** Τοπικό browser-based εργαλείο ανάλυσης προσώπου για Termux που λειτουργεί χωρίς root. Χρησιμοποιεί MediaPipe Face Mesh στο live feed της κάμερας, υποστηρίζει μπροστινή και πίσω κάμερα, παρακολουθεί έως και 3 πρόσωπα, σχεδιάζει αναλυτικά facial landmark overlays αντί για απλά boxes και επιτρέπει επίσης upload φωτογραφιών ή βίντεο για ανάλυση απευθείας από το interface. Μπορεί να τραβά PNG snapshots, να γράφει WEBM βίντεο, να αποθηκεύει ξεχωριστά cropped detected faces και να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
 
@@ -2010,7 +2712,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures, τα recordings, τα uploaded results και τα αποθηκευμένα face crops μπαίνουν στο: ~/storage/downloads/Face Detector/. Αν το storage του Termux δεν είναι διαθέσιμο, γίνεται fallback στο ~/Face Detector/. Σε συστήματα εκτός Termux χρησιμοποιείται το ~/Downloads/Face Detector/, με fallback στο ~/Face Detector/. Τα εσωτερικά web αρχεία, τα certificates και τα helper binaries αποθηκεύονται στο ~/.face_detector_studio/.
 
-### • Face Detector Heavy.py
+</details>
+
+<details>
+<summary><strong>• Face Detector Heavy.py</strong></summary>
+
 
 **Περιγραφή:** Πιο βαριά και επεκταμένη έκδοση ανάλυσης του face detector για Termux, χωρίς ανάγκη για root. Εκτός από live χρήση κάμερας, εναλλαγή μπροστινής/πίσω κάμερας, upload φωτογραφιών και βίντεο, PNG snapshots, WEBM recording και αποθήκευση face crops, ανεβάζει την παρακολούθηση έως και σε 30 πρόσωπα και προσθέτει TensorFlow COCO-SSD object detection πάνω στο pipeline του MediaPipe face mesh. Εμφανίζει πιο πλούσιο on-screen telemetry όπως face count, animal/object detection, εκτιμήσεις pose και gaze, facial proportions, κατάσταση στόματος και φρυδιών, asymmetry scoring και άλλα visual analysis στοιχεία, ενώ συνεχίζει να υποστηρίζει local network link και προαιρετικό δημόσιο Cloudflare link.
 
@@ -2018,7 +2724,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, τα captures, τα recordings, τα uploaded results και τα αποθηκευμένα face crops μπαίνουν στο: ~/storage/downloads/Face Detector/. Αν το storage του Termux δεν είναι διαθέσιμο, γίνεται fallback στο ~/Face Detector/. Σε συστήματα εκτός Termux χρησιμοποιείται το ~/Downloads/Face Detector/, με fallback στο ~/Face Detector/. Τα εσωτερικά web αρχεία, τα certificates και τα helper binaries αποθηκεύονται στο ~/.face_detector_studio/.
 
-### • Face Swap.py
+</details>
+
+<details>
+<summary><strong>• Face Swap.py</strong></summary>
+
 
 **Περιγραφή:** Τοπικό browser-based εργαλείο face swap για Termux που λειτουργεί χωρίς root. Ανοίγει μια local camera σελίδα, σου επιτρέπει να ανεβάσεις μια source face εικόνα, να αλλάξεις ανάμεσα σε μπροστινή και πίσω κάμερα και να κάνεις blend το ανεβασμένο πρόσωπο πάνω στο live camera feed με MediaPipe Face Mesh. Η τρέχουσα έκδοση εστιάζει σε smooth face-lock λογική: κλειδώνει το ανεβασμένο πρόσωπο μία φορά, ακολουθεί το live πρόσωπο, κινεί βασικά feature patches για expressions, περιλαμβάνει smoothing, feathering, opacity, blend και skin-tone matching controls και μπορεί να αποθηκεύει PNG snapshots από τον browser. Χρησιμοποίησέ το μόνο με δικές σου εικόνες ή με ξεκάθαρη άδεια.
 
@@ -2026,7 +2736,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, οι αποθηκευμένες φωτογραφίες μπαίνουν στο: /storage/emulated/0/Download/Face Swap/ ή στο ~/storage/downloads/Face Swap/, με fallback στο ~/Face Swap/. Σε συστήματα εκτός Termux χρησιμοποιείται το ~/Downloads/Face Swap/, με fallback στο ~/Face Swap/.
 
-### • Steganography.py
+</details>
+
+<details>
+<summary><strong>• Steganography.py</strong></summary>
+
 
 **Περιγραφή:** Σουίτα steganography με κωδικό για Termux. Μπορεί να δημιουργεί τυχαίες ασπρόμαυρες PNG εικόνες-φορείς, να κρυπτογραφεί μυστικό κείμενο με password-derived Fernet key, να κρύβει το κρυπτογραφημένο κείμενο μέσα σε PNG εικόνες με LSB steganography και να κάνει batch αποκωδικοποίηση κρυμμένων μηνυμάτων από όλες τις εικόνες που τοποθετούνται στον φάκελο Decrypt. Τα εξαγόμενα μηνύματα αποθηκεύονται αυτόματα ως ξεχωριστά αρχεία .txt και το script μπορεί προαιρετικά να καθαρίζει τις ήδη επεξεργασμένες εικόνες από τον φάκελο αποκωδικοποίησης μετά το scan.
 
@@ -2034,7 +2748,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: /storage/emulated/0/Download/Steganography/ | Carrier/output εικόνες: /Encrypt | Εικόνες για έλεγχο κρυμμένων μηνυμάτων: /Decrypt | Εξαγόμενα αρχεία κειμένου: /Decrypted Texts
 
-### • AR Terror.py
+</details>
+
+<details>
+<summary><strong>• AR Terror.py</strong></summary>
+
 
 **Περιγραφή:** Τοπική browser-based AR horror εμπειρία για Termux που λειτουργεί χωρίς root. Εκκινεί μια full-screen camera-driven ιστοσελίδα όπου εξερευνάς το περιβάλλον, συλλέγεις κρυμμένα logs μέσα σε archive/inventory σύστημα, χρησιμοποιείς ατμοσφαιρικά visual και audio effects, αλλάζεις ανάμεσα σε μπροστινή και πίσω κάμερα και γράφεις evidence σε WEBM όσο τρέχει η εμπειρία. Μπορεί επίσης να παρέχει τόσο local network link όσο και προαιρετικό δημόσιο Cloudflare link.
 
@@ -2042,7 +2760,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, το recorded evidence αποθηκεύεται στο: ~/storage/downloads/AR Terror/. Αν το storage του Termux δεν είναι διαθέσιμο, γίνεται fallback στο ~/AR Terror/. Σε συστήματα εκτός Termux χρησιμοποιείται το ~/Downloads/AR Terror/, με fallback στο ~/AR Terror/. Τα εσωτερικά web αρχεία, τα certificates και τα helper binaries αποθηκεύονται στο ~/.ar_terror_studio/.
 
-### • Widget Maker.py
+</details>
+
+<details>
+<summary><strong>• Widget Maker.py</strong></summary>
+
 
 **Περιγραφή:** Το DedSec Widget Maker είναι no-root helper για Termux που δημιουργεί Android home-screen launchers για scripts του DedSec Project μέσω Termux:Widget. Σαρώνει αναδρομικά το Termux home, το shared storage και συνηθισμένους φακέλους του κινητού για DedSec, sponsor, exclusive και σχετικά Python scripts, μαζί με scripts μέσα σε κάθε προσβάσιμο φάκελο και υποφάκελο. Μετά δημιουργεί managed shortcuts στο ~/.shortcuts. Κάθε widget ανοίγει μικρό menu με Run, Show Script Path και Exit, ελέγχει το Python αρχείο πριν το τρέξει, κρατά manifest στο ~/.dedsec_widget_maker/ και μπορεί να κάνει update ή delete όλα τα managed widgets όταν αλλάζει η συλλογή των scripts σου.
 
@@ -2050,7 +2772,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Τα managed widget launchers δημιουργούνται στο: ~/.shortcuts/ | Το state και το manifest αποθηκεύονται στο: ~/.dedsec_widget_maker/manifest.json. Τα αρχικά scripts δεν μετακινούνται· κάθε widget δείχνει πίσω στο detected source file.
 
-### • Kraken Trader.py
+</details>
+
+<details>
+<summary><strong>• Kraken Trader.py</strong></summary>
+
 
 **Περιγραφή:** Το Kraken Trader.py είναι Termux trading research και portfolio assistant για το Kraken API. Ξεκινά σε paper mode από προεπιλογή, εμφανίζει risk disclaimer με countdown 10 δευτερολέπτων, αποθηκεύει τα πάντα στο ~/Kraken Trader/ και χρησιμοποιεί numbered menus για pair analysis, market scanning, dashboards, Sage-style strategy labs, advanced tools, beginner guides, risk/reward calculators, backtests, DCA και grid tools, paper wallet trading, paper bot loops, Kraken account tools, live order menus, order management, watchlists, crypto μαζί με stock/ETF monitoring, reports, journals, logs, mode switching, diagnostics και settings. Είναι φτιαγμένο για εκπαίδευση, οργάνωση και πιο ασφαλές paper testing· δεν είναι financial advice και δεν εγγυάται κέρδος.
 
@@ -2058,7 +2784,11 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs και error logs αποθηκεύονται μέσα σε αυτόν. Προαιρετικά report copies μπορούν να αποθηκευτούν στα Downloads αν ενεργοποιηθεί αυτή η επιλογή.
 
-### • Noob Hacker.py
+</details>
+
+<details>
+<summary><strong>• Noob Hacker.py</strong></summary>
+
 
 **Περιγραφή:** Το Noob Hacker.py είναι ασφαλές offline terminal learning game για Termux που μαθαίνει σε απόλυτους αρχάριους προγραμματισμό, βασικά Python, συνήθειες Termux/Bash, debugging, local-only cybersecurity thinking, defender workflows, report writing, projects, quizzes και playable practice games. Είναι φτιαγμένο ως ένα μόνο Python script, λειτουργεί χωρίς root, κρατά την εξάσκηση σε φανταστικά/local labs, περιλαμβάνει English και Greek εκδόσεις, υποστηρίζει self-tests, save migration, progress tracking και πολλά beginner-friendly μαθήματα που οδηγούν κάποιον από μηδενική γνώση σε πρακτικές ασφαλείς δεξιότητες. Δεν επιτίθεται σε πραγματικούς στόχους, δεν σαρώνει το internet, δεν κλέβει λογαριασμούς και δεν μαθαίνει malware.
 
@@ -2066,9 +2796,15 @@ bash Setup.sh
 
 **Τοποθεσία Αποθήκευσης:** Κύριος φάκελος: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/
 
+</details>
+
+</details>
+
 <a id="greek-butsystem"></a>
 
-## • ButSystem.py (Αποκλειστικό)
+<details>
+<summary><strong>• ButSystem.py (Αποκλειστικό)</strong></summary>
+
 
 Το **ButSystem.py** είναι ένα self-hosted, **local-first** workspace που τρέχει στη δική σου συσκευή μέσω Termux. Έχει σχεδιαστεί για να φέρνει ιδιωτική επικοινωνία, οργανωμένα αρχεία, έλεγχο πρόσβασης και structured profile workflows μέσα σε ένα browser interface αντί να τα σκορπίζει σε ξεχωριστά scripts και μενού.
 
@@ -2077,6 +2813,8 @@ bash Setup.sh
 Στην πράξη, τρέχεις το script, ανοίγεις το local link που δημιουργεί και κινείσαι μέσα στο σύστημα από το burger menu. Αυτό σου δίνει πιο καθαρό τρόπο να αλλάζεις ανάμεσα σε chats, groups, calls, files, profile pages, Profiler, reports, settings και admin tools χωρίς να βγαίνεις από το ίδιο local-first workspace.
 
 Να χρησιμοποιείται μόνο σε συστήματα που σου ανήκουν ή για τα οποία έχεις ρητή άδεια.
+
+</details>
 
 ---
 
