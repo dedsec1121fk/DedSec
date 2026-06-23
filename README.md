@@ -215,7 +215,7 @@ Start with the installation guide, then learn what each tool does before running
 
 - [Guide For Installation](https://ded-sec.space/Pages/guide-for-installation.html) — website path: `Pages/guide-for-installation.html`
 - [Learn About The Tools](https://ded-sec.space/Pages/learn-about-the-tools.html) — website path: `Pages/learn-about-the-tools.html`
-- [Assistance](https://ded-sec.space/assistance.html) — website path: `assistance.html`
+- [Assistance](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Then download our free e-book:
 
@@ -228,7 +228,7 @@ Check our exclusive ButSystem.py and become a real detective:
 If Termux or DedSec breaks, open Assistance first. If you need anything custom-made or direct help, check our Store.
 
 - [Store](https://ded-sec.space/Pages/store.html) — website path: `Pages/store.html`
-- [Assistance](https://ded-sec.space/assistance.html) — website path: `assistance.html`
+- [Assistance](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Check the menu (the three lines at the top right) to find more stuff like assistance, frequently asked questions, our vision, contact ways, etc.
 
@@ -248,7 +248,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
-- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
+- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
@@ -267,7 +267,7 @@ The GitHub section can install or use `gh`, start the official GitHub login flow
 
 ### Access Sponsors-Only Scripts
 
-This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts. The $9 tier contains every $3 script plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If an older local copy exists, it is replaced only after access is confirmed.
+This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts, including Login Stealer.py. The $9 tier contains every $3 script plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If an older local copy exists, it is replaced only after access is confirmed.
 
 ### Termux Usage Stats
 
@@ -317,9 +317,9 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
-- **Sponsors-Only:** 5 tools in the $3 tier / 8 tools in the $9 tier
+- **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 tier
 
-**Total listed on tools page:** 83 tools
+**Total listed on tools page:** 84 tools
 
 ---
 <a id="developer-base"></a>
@@ -1277,7 +1277,7 @@ Sponsors-Only access is now split into two GitHub Sponsors tiers:
 
 | Tier | What it includes |
 | :--- | :--------------- |
-| **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, and AR Terror.py. |
+| **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py, and **Login Stealer.py**. |
 | **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py**, **Kraken Trader.py**, and **Noob Hacker.py**. |
 
 **• $3 Sponsor Scripts**
@@ -1340,6 +1340,18 @@ Problem it solved for me: I wanted to understand hidden-message techniques safel
 Problem it solved for me: I wanted to prove Termux can run creative browser experiences too, not only utilities. Example: opening a local AR horror page, using the camera, collecting logs, and recording a short evidence clip.
 
 **Save Location:** On Termux, recorded evidence is saved in: ~/storage/downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.
+
+</details>
+
+<details>
+<summary>Login Stealer.py</summary>
+
+
+**Description:** Login Stealer.py is a fully working controlled login-security simulation tool for Termux that helps demonstrate how fake login pages, copied authentication screens, redirects, session behavior, and verification-style traps can make users trust the wrong page. It is built for awareness training, lab demonstrations, screenshots, and dummy-account testing so beginners can understand how phishing-style login tricks look before they fall for them in real life. Use it only with dummy data, test accounts, or clear permission-based demonstrations. It is not presented as a tool for stealing real accounts, private credentials, cookies, cards, wallets, or personal information.
+
+Problem it solved for me: many beginners do not understand login scams until they see how realistic the flow can feel. Example: using a controlled demo to show how a fake login page can copy the feeling of a normal platform, ask for information at the wrong moment, and make someone ignore the domain, the link source, or the warning signs before typing anything real.
+
+**Save Location:** Training output should stay inside your own local lab folder: `/storage/emulated/0/Download/Login Stealer/`. Use dummy data only, test accounts only, or clear permission-based demonstrations.
 
 </details>
 
@@ -1638,7 +1650,7 @@ bash Setup.sh
 
 - [Οδηγός Εγκατάστασης](https://ded-sec.space/Pages/guide-for-installation.html) — website path: `Pages/guide-for-installation.html`
 - [Μάθετε για τα Εργαλεία](https://ded-sec.space/Pages/learn-about-the-tools.html) — website path: `Pages/learn-about-the-tools.html`
-- [Βοήθεια](https://ded-sec.space/assistance.html) — website path: `assistance.html`
+- [Βοήθεια](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Μετά κατέβασε το δωρεάν e-book μας:
 
@@ -1651,7 +1663,7 @@ bash Setup.sh
 Αν χαλάσει το Termux ή το DedSec, άνοιξε πρώτα τη Βοήθεια. Αν χρειάζεσαι κάτι custom-made ή άμεση βοήθεια, δες το Store μας.
 
 - [Κατάστημα](https://ded-sec.space/Pages/store.html) — website path: `Pages/store.html`
-- [Βοήθεια](https://ded-sec.space/assistance.html) — website path: `assistance.html`
+- [Βοήθεια](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Δες το μενού (τις τρεις γραμμές πάνω δεξιά) για να βρεις περισσότερα όπως βοήθεια, συχνές ερωτήσεις, το όραμά μας, τρόπους επικοινωνίας, κτλ.
 
@@ -1671,7 +1683,7 @@ bash Setup.sh
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
 - **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
-- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
+- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
@@ -1690,7 +1702,7 @@ bash Setup.sh
 
 ### Access Sponsors-Only Scripts
 
-Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
+Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
 
 ### Termux Usage Stats
 
@@ -1740,9 +1752,9 @@ bash Setup.sh
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
-- **Sponsors-Only:** 5 εργαλεία στο $3 tier / 8 εργαλεία στο $9 tier
+- **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στο $9 tier
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 83 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 84 εργαλεία
 
 ---
 <a id="greek-developer-base"></a>
@@ -2700,7 +2712,7 @@ bash Setup.sh
 
 | Tier | Τι περιλαμβάνει |
 | :--- | :-------------- |
-| **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py και AR Terror.py. |
+| **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py και **Login Stealer.py**. |
 | **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py**, **Kraken Trader.py** και **Noob Hacker.py**. |
 
 **• Scripts Χορηγών $3**
@@ -2763,6 +2775,18 @@ bash Setup.sh
 Πρόβλημα που μου έλυσε: ήθελα να δείξω ότι το Termux μπορεί να τρέξει και δημιουργικά browser experiences, όχι μόνο utilities. Παράδειγμα: local AR horror page, χρήση κάμερας, συλλογή logs και εγγραφή μικρού evidence clip.
 
 **Τοποθεσία Αποθήκευσης:** Στο Termux, το recorded evidence αποθηκεύεται στο: ~/storage/downloads/AR Terror/. Αν το storage του Termux δεν είναι διαθέσιμο, γίνεται fallback στο ~/AR Terror/. Σε συστήματα εκτός Termux χρησιμοποιείται το ~/Downloads/AR Terror/, με fallback στο ~/AR Terror/. Τα εσωτερικά web αρχεία, τα certificates και τα helper binaries αποθηκεύονται στο ~/.ar_terror_studio/.
+
+</details>
+
+<details>
+<summary>Login Stealer.py</summary>
+
+
+**Περιγραφή:** Το Login Stealer.py είναι ένα πλήρως λειτουργικό ελεγχόμενο login-security simulation εργαλείο για Termux που δείχνει πώς ψεύτικες σελίδες login, αντιγραμμένες authentication screens, redirects, session behavior και verification-style traps μπορούν να κάνουν έναν χρήστη να εμπιστευτεί λάθος σελίδα. Είναι φτιαγμένο για awareness training, lab demonstrations, screenshots και dummy-account testing, ώστε οι αρχάριοι να καταλάβουν πώς μοιάζουν τα phishing-style login tricks πριν πέσουν σε κάτι τέτοιο στην πραγματική ζωή. Χρησιμοποίησέ το μόνο με dummy data, test accounts ή ξεκάθαρες permission-based επιδείξεις. Δεν παρουσιάζεται ως εργαλείο για κλοπή πραγματικών λογαριασμών, private credentials, cookies, καρτών, wallets ή προσωπικών πληροφοριών.
+
+Πρόβλημα που μου έλυσε: πολλοί αρχάριοι δεν καταλαβαίνουν τα login scams μέχρι να δουν πόσο ρεαλιστική μπορεί να φαίνεται η ροή. Παράδειγμα: μια ελεγχόμενη επίδειξη δείχνει πώς μια ψεύτικη login σελίδα μπορεί να αντιγράψει την αίσθηση μιας κανονικής πλατφόρμας, να ζητήσει πληροφορίες τη λάθος στιγμή και να κάνει κάποιον να αγνοήσει το domain, την πηγή του link ή τα warning signs πριν πληκτρολογήσει κάτι αληθινό.
+
+**Τοποθεσία Αποθήκευσης:** Το training output πρέπει να μένει μέσα στον δικό σου local lab φάκελο: `/storage/emulated/0/Download/Login Stealer/`. Χρησιμοποίησε μόνο dummy data, test accounts ή ξεκάθαρες permission-based επιδείξεις.
 
 </details>
 
