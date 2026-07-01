@@ -313,13 +313,13 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **Developer Base:** 10 tools
 - **Network Tools:** 10 tools
 - **Other Tools:** 5 tools
-- **Games:** 5 tools
+- **Games:** 6 tools
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
 - **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 tier
 
-**Total listed on tools page:** 84 tools
+**Total listed on tools page:** 85 tools
 
 ---
 <a id="developer-base"></a>
@@ -1016,6 +1016,16 @@ These scripts are educational simulations intended to help users recognize socia
 </details>
 
 <details>
+<summary>Pet Friends</summary>
+
+
+**Description:** An idle virtual-companion game for Termux with 160+ real, legendary, and mythical pets. Care for, train, rename, evolve, and collect companions while completing missions, quests, achievements, daily contracts, expeditions, treasure maps, festivals, upgrades, prestige goals, and rarity-based crates. It includes educational animal facts, clearly labelled mythology, animated ASCII pets, locally generated sound effects and background music, and optional local-network battles and trades.
+
+**Save Location:** `The main save is stored in ~/Pet Friends/petfriends_save.json. Generated sound effects, background music, and Pet Friends audio-session files are stored in ~/Pet Friends/sounds/ and ~/Pet Friends/.pet_friends_audio.json.`
+
+</details>
+
+<details>
 <summary>Terminal Arcade</summary>
 
 
@@ -1075,9 +1085,9 @@ These scripts are educational simulations intended to help users recognize socia
 <summary>Termux Repair Wizard</summary>
 
 
-**Description:** Troubleshooting wizard for Termux: checks common issues (mirrors, packages, permissions), suggests fixes, and runs safe repair commands step-by-step. Built for Termux with clear prompts and organized outputs.
+**Description:** A no-root Termux diagnosis and repair suite for package, repository, storage, certificate, cache, Python/pip, permission, and shell/PATH problems. It can test mirrors and network access, repair broken packages, reset apt lists, handle release-information and hash-sum errors, clean caches, reinstall essential tools, and run a complete guided repair sequence. Its **Script Keeper** option safely scans individual scripts or entire folders without directly launching them, recognizes Python, shell, JavaScript/TypeScript, Ruby, Perl, PHP, Lua, Go, Rust, C/C++, Java, Kotlin, R, PowerShell, Dart, Scala, Groovy, Elixir, Erlang, Tcl, Haskell, C#, shebang scripts, and common project manifests, checks syntax and required tooling, installs missing packages or modules, processes dependency manifests, and tries compatible replacement packages for Python modules removed from newer Python releases.
 
-**Save Location:** `The wizard does not create a results folder. Repairs are applied directly to Termux packages, storage permissions, $HOME permissions, and shell files such as ~/.bashrc, ~/.profile, and ~/.zshrc.`
+**Save Location:** `System repairs are applied directly to Termux packages, storage permissions, $HOME permissions, and shell files such as ~/.bashrc, ~/.profile, and ~/.zshrc. Script Keeper reports are saved in ~/DedSec/logs/ as script_keeper_<timestamp>.log.`
 
 </details>
 
@@ -1582,13 +1592,13 @@ bash Setup.sh
 - **Developer Base:** 10 εργαλεία
 - **Network Tools:** 10 εργαλεία
 - **Other Tools:** 5 εργαλεία
-- **Games:** 5 εργαλεία
+- **Games:** 6 εργαλεία
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
 - **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στο $9 tier
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 84 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 85 εργαλεία
 
 ---
 <a id="greek-developer-base"></a>
@@ -2287,6 +2297,16 @@ bash Setup.sh
 </details>
 
 <details>
+<summary>Pet Friends</summary>
+
+
+**Περιγραφή:** Ένα idle παιχνίδι εικονικών συντρόφων για Termux με 160+ πραγματικά, θρυλικά και μυθολογικά κατοικίδια. Φροντίστε, εκπαιδεύστε, μετονομάστε, εξελίξτε και συλλέξτε συντρόφους, ολοκληρώνοντας αποστολές, quests, achievements, daily contracts, expeditions, treasure maps, festivals, upgrades, prestige στόχους και crates με διαφορετικές βαθμίδες σπανιότητας. Περιλαμβάνει εκπαιδευτικές πληροφορίες για ζώα, ξεκάθαρα επισημασμένη μυθολογία, κινούμενα ASCII κατοικίδια, τοπικά παραγόμενα ηχητικά εφέ και μουσική υπόκρουση, καθώς και προαιρετικές μάχες και ανταλλαγές μέσω τοπικού δικτύου.
+
+**Τοποθεσία Αποθήκευσης:** `Το βασικό save αποθηκεύεται στο ~/Pet Friends/petfriends_save.json. Τα παραγόμενα ηχητικά εφέ, η μουσική υπόκρουση και τα αρχεία audio session του Pet Friends αποθηκεύονται στα ~/Pet Friends/sounds/ και ~/Pet Friends/.pet_friends_audio.json.`
+
+</details>
+
+<details>
 <summary>Terminal Arcade</summary>
 
 
@@ -2346,9 +2366,9 @@ bash Setup.sh
 <summary>Termux Repair Wizard</summary>
 
 
-**Περιγραφή:** Οδηγός επιδιόρθωσης Termux: ελέγχει συνηθισμένα προβλήματα (mirrors, πακέτα, δικαιώματα), προτείνει λύσεις και τρέχει ασφαλείς εντολές βήμα-βήμα. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
+**Περιγραφή:** Μια no-root σουίτα διάγνωσης και επιδιόρθωσης για προβλήματα πακέτων, repositories, storage, πιστοποιητικών, cache, Python/pip, δικαιωμάτων και shell/PATH στο Termux. Μπορεί να ελέγξει mirrors και σύνδεση δικτύου, να διορθώσει broken packages, να επαναφέρει τα apt lists, να χειριστεί release-information και hash-sum errors, να καθαρίσει caches, να εγκαταστήσει ξανά βασικά εργαλεία και να εκτελέσει πλήρη καθοδηγούμενη διαδικασία επισκευής. Η επιλογή **Script Keeper** σαρώνει με ασφάλεια μεμονωμένα scripts ή ολόκληρους φακέλους χωρίς να τα εκτελεί απευθείας, αναγνωρίζει Python, shell, JavaScript/TypeScript, Ruby, Perl, PHP, Lua, Go, Rust, C/C++, Java, Kotlin, R, PowerShell, Dart, Scala, Groovy, Elixir, Erlang, Tcl, Haskell, C#, scripts με shebang και συνηθισμένα project manifests, ελέγχει syntax και απαιτούμενα εργαλεία, εγκαθιστά πακέτα ή modules που λείπουν, επεξεργάζεται dependency manifests και δοκιμάζει συμβατά replacement packages για Python modules που έχουν αφαιρεθεί από νεότερες εκδόσεις της Python.
 
-**Τοποθεσία Αποθήκευσης:** `Το wizard δεν δημιουργεί φάκελο αποτελεσμάτων. Οι repairs εφαρμόζονται απευθείας στα Termux packages, στα storage permissions, στα $HOME permissions και σε shell files όπως ~/.bashrc, ~/.profile και ~/.zshrc.`
+**Τοποθεσία Αποθήκευσης:** `Οι επισκευές συστήματος εφαρμόζονται απευθείας στα Termux packages, στα storage permissions, στα $HOME permissions και σε shell files όπως ~/.bashrc, ~/.profile και ~/.zshrc. Τα reports του Script Keeper αποθηκεύονται στο ~/DedSec/logs/ ως script_keeper_<timestamp>.log.`
 
 </details>
 
