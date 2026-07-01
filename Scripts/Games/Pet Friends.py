@@ -1,0 +1,12054 @@
+#!/usr/bin/env python3
+"""
+🐾  Pet Friends – The Addicting Idle Virtual Companion
+Run:  python3 "Pet Friends.py"
+Save: ~/Pet Friends/petfriends_save.json
+
+An idle companion game with 160+ real, legendary, and mythical pets,
+educational learning cards and clearly labelled mythology per pet, paid adoptions, mission locks,
+local-network battles/trades, achievements, quests, upgrades, and care checks.
+"""
+
+import curses, time, json, os, random, math, socket, sys, threading, queue, uuid, textwrap, subprocess, shutil, wave, struct, atexit, signal
+from datetime import datetime, timedelta
+
+# ----------------------------- CONFIG -----------------------------
+SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
+SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
+SAVE_VERSION = 14
+os.makedirs(SAVE_DIR, exist_ok=True)
+
+class Sound:
+    """Dependency-free sound effects and looping background music.
+
+    The game synthesizes every sound locally into WAV files.  No downloads,
+    bundled media, or third-party Python packages are required.  Effects and
+    music use separate player processes when the device supports that, so care
+    actions can make a sound without stopping the background track.
+
+    Termux note: ``mpv`` gives the best result because it can mix the looping
+    music and short effects. ``termux-media-player`` exposes only one playback
+    transport. While its music is active, every effect therefore uses a short
+    terminal-bell rhythm instead of taking over the Android media transport.
+    This guarantees that menus, care actions, battles, rewards, and typing never
+    restart the background song. Turning music off restores WAV effects on that
+    fallback backend.
+    """
+
+    # Effects remain named because multi-stream players can mix their separate
+    # WAV files normally. On the single-stream Termux backend, the names select
+    # different bell rhythms while music is active, without touching playback.
+    NAVIGATION_EFFECTS = frozenset({
+        "confirm", "menu", "open", "close", "key", "back", "error", "save"
+    })
+
+    EFFECTS = {
+        # General interface feedback.
+        "startup": ((523, 0.050), (659, 0.050), (784, 0.100)),
+        "confirm": ((660, 0.055), (880, 0.075)),
+        "menu": ((520, 0.045),),
+        "open": ((440, 0.045), (660, 0.070)),
+        "close": ((660, 0.045), (440, 0.070)),
+        "key": ((720, 0.025),),
+        "back": ((420, 0.035),),
+        "error": ((220, 0.080), (165, 0.120)),
+        "save": ((620, 0.040), (780, 0.060)),
+        "quit": ((520, 0.060), (390, 0.070), (260, 0.110)),
+
+        # Care and companion actions.
+        "feed": ((330, 0.060), (440, 0.070)),
+        "pet": ((740, 0.055), (880, 0.080)),
+        "bath": ((760, 0.045), (560, 0.045), (820, 0.070)),
+        "train": ((300, 0.055), (420, 0.055), (540, 0.070)),
+        "adopt": ((392, 0.050), (523, 0.060), (659, 0.110)),
+        "switch": ((540, 0.040), (680, 0.060)),
+        "rename": ((600, 0.045), (760, 0.070)),
+        "colour": ((480, 0.035), (600, 0.035), (720, 0.060)),
+        "bond": ((587, 0.050), (698, 0.050), (880, 0.100)),
+        "evolve": ((440, 0.055), (554, 0.055), (659, 0.055), (880, 0.120)),
+        "levelup": ((523, 0.050), (659, 0.050), (784, 0.050), (1047, 0.120)),
+
+        # Economy, missions, and collection rewards.
+        "purchase": ((330, 0.045), (494, 0.045), (659, 0.085)),
+        "coins": ((988, 0.035), (1319, 0.055)),
+        "daily": ((523, 0.050), (659, 0.050), (784, 0.050), (988, 0.120)),
+        "quest": ((392, 0.050), (523, 0.050), (784, 0.110)),
+        "loot": ((523, 0.060), (659, 0.060), (784, 0.095)),
+        "summon": ((220, 0.055), (330, 0.055), (494, 0.055), (740, 0.140)),
+        "achievement": ((659, 0.060), (784, 0.060), (988, 0.110)),
+        "festival": ((392, 0.050), (523, 0.050), (659, 0.050), (784, 0.050), (1047, 0.150)),
+        "prestige": ((262, 0.050), (392, 0.050), (523, 0.050), (784, 0.050), (1047, 0.160)),
+        "boost": ((440, 0.040), (660, 0.040), (880, 0.040), (1175, 0.120)),
+        "attention": ((880, 0.075), (0, 0.035), (880, 0.075), (1047, 0.110)),
+
+        # Battles and local-network activity.
+        "battle_start": ((196, 0.060), (247, 0.060), (330, 0.090)),
+        "hit": ((190, 0.050), (130, 0.065)),
+        "special": ((360, 0.045), (520, 0.045), (760, 0.080)),
+        "defend": ((260, 0.055), (330, 0.080)),
+        "victory": ((523, 0.060), (659, 0.060), (784, 0.060), (1047, 0.150)),
+        "defeat": ((330, 0.080), (247, 0.090), (165, 0.140)),
+        "scan": ((440, 0.040), (660, 0.040), (880, 0.070)),
+        "connect": ((392, 0.045), (523, 0.045), (784, 0.090)),
+        "disconnect": ((784, 0.045), (523, 0.045), (392, 0.090)),
+        "trade": ((494, 0.050), (659, 0.050), (494, 0.050), (784, 0.100)),
+
+        # Richer navigation and educational feedback.
+        "page": ((420, 0.025), (560, 0.030)),
+        "fact": ((740, 0.035), (830, 0.050)),
+        "research": ((523, 0.040), (659, 0.040), (988, 0.085)),
+        "mission_progress": ((440, 0.030), (554, 0.045)),
+        "mission_complete": ((392, 0.045), (523, 0.045), (659, 0.045), (880, 0.110)),
+        "combo": ((523, 0.035), (659, 0.035), (784, 0.060)),
+        "perfect_care": ((523, 0.040), (659, 0.040), (784, 0.040), (1047, 0.120)),
+        "bond_milestone": ((587, 0.040), (698, 0.040), (880, 0.040), (1175, 0.110)),
+        "level_milestone": ((523, 0.040), (659, 0.040), (784, 0.040), (988, 0.040), (1319, 0.120)),
+        "streak": ((440, 0.040), (554, 0.040), (659, 0.040), (880, 0.100)),
+        "festival_end": ((784, 0.050), (659, 0.050), (523, 0.090)),
+        "pet_request": ((659, 0.045), (0, 0.025), (784, 0.065)),
+        "pet_request_complete": ((659, 0.040), (784, 0.040), (988, 0.100)),
+        "request_missed": ((494, 0.045), (392, 0.080)),
+        "friendship_star": ((988, 0.035), (1175, 0.060)),
+        "friendship_gift": ((523, 0.040), (784, 0.040), (1047, 0.040), (1319, 0.120)),
+        "pity": ((330, 0.040), (494, 0.040), (659, 0.040), (988, 0.040), (1319, 0.130)),
+
+        # Adventure-board, contract, expedition, and treasure feedback.
+        "journey_point": ((523, 0.030), (659, 0.045)),
+        "journey_level": ((523, 0.040), (659, 0.040), (784, 0.040), (1047, 0.120)),
+        "contract_progress": ((440, 0.030), (554, 0.045)),
+        "contract_complete": ((392, 0.040), (523, 0.040), (784, 0.040), (1047, 0.110)),
+        "expedition_start": ((262, 0.045), (392, 0.045), (523, 0.080)),
+        "expedition_ready": ((659, 0.050), (880, 0.050), (1175, 0.100)),
+        "expedition_claim": ((392, 0.040), (587, 0.040), (784, 0.040), (988, 0.110)),
+        "map_fragment": ((784, 0.030), (988, 0.050)),
+        "treasure_complete": ((330, 0.040), (523, 0.040), (784, 0.040), (1047, 0.040), (1319, 0.140)),
+        "board_open": ((440, 0.035), (660, 0.035), (880, 0.075)),
+
+        # Container rarity stingers. The result tier now sounds different before
+        # the text is even read, while the published rarity odds stay unchanged.
+        "crate_common": ((392, 0.045), (523, 0.070)),
+        "crate_uncommon": ((440, 0.040), (587, 0.040), (698, 0.075)),
+        "crate_rare": ((523, 0.040), (659, 0.040), (880, 0.095)),
+        "crate_epic": ((392, 0.040), (587, 0.040), (784, 0.040), (1047, 0.110)),
+        "crate_legendary": ((330, 0.040), (494, 0.040), (659, 0.040), (988, 0.040), (1319, 0.130)),
+        "crate_mythical": ((220, 0.050), (330, 0.050), (494, 0.050), (740, 0.050), (1109, 0.160)),
+
+        # Lightweight species-family voices. They are intentionally stylized
+        # chiptune cues rather than claims of realistic animal recordings.
+        "voice_dog": ((310, 0.055), (390, 0.045), (310, 0.070)),
+        "voice_cat": ((740, 0.050), (659, 0.055), (784, 0.080)),
+        "voice_howl": ((294, 0.060), (392, 0.070), (523, 0.110)),
+        "voice_roar": ((147, 0.060), (196, 0.060), (131, 0.100)),
+        "voice_small": ((880, 0.035), (988, 0.035), (1047, 0.055)),
+        "voice_bird": ((988, 0.035), (1319, 0.035), (1175, 0.055)),
+        "voice_owl": ((330, 0.070), (0, 0.025), (330, 0.090)),
+        "voice_duck": ((392, 0.050), (349, 0.060)),
+        "voice_aquatic": ((523, 0.045), (659, 0.045), (523, 0.070)),
+        "voice_whale": ((110, 0.090), (147, 0.090), (196, 0.130)),
+        "voice_frog": ((196, 0.055), (247, 0.050), (196, 0.070)),
+        "voice_snake": ((220, 0.035), (196, 0.035), (174, 0.065)),
+        "voice_insect": ((1047, 0.025), (1175, 0.025), (1047, 0.045)),
+        "voice_elephant": ((165, 0.060), (247, 0.060), (330, 0.110)),
+        "voice_horse": ((392, 0.045), (523, 0.045), (659, 0.085)),
+        "voice_bovine": ((196, 0.080), (165, 0.100)),
+        "voice_pig": ((330, 0.045), (294, 0.045), (330, 0.060)),
+        "voice_magic": ((523, 0.035), (784, 0.035), (1047, 0.035), (1568, 0.100)),
+        "voice_robot": ((220, 0.035), (440, 0.035), (880, 0.060)),
+        "voice_dinosaur": ((110, 0.070), (147, 0.070), (98, 0.120)),
+    }
+
+    MUSIC_DURATION_SECONDS = 120.0
+
+    def __init__(self, on=False, music_on=True, muted=False):
+        # ``on`` controls sound effects and ``music_on`` controls the background
+        # track.  Master mute is intentionally session-only: every fresh launch
+        # starts unmuted even if the previous run was closed while muted.
+        self.on = bool(on)
+        self.music_on = bool(music_on)
+        self.muted = False
+        self.sound_dir = os.path.join(SAVE_DIR, "sounds")
+        self._audio_registry_file = os.path.join(SAVE_DIR, ".pet_friends_audio.json")
+        self._available_players = self._detect_players()
+        self._sfx_player = self._select_sfx_player()
+        self._music_player = self._select_music_player()
+        self._sfx_process = None
+        self._music_process = None
+        self._music_thread = None
+        self._music_stop_event = threading.Event()
+        self._last_played = 0.0
+        self._sfx_lock = threading.Lock()
+        self._music_lock = threading.Lock()
+        self._registry_lock = threading.Lock()
+        self._shutdown = False
+
+        # A crashed or force-closed Termux session can leave the Android media
+        # transport or an external player alive.  Clean only Pet Friends-owned
+        # audio before this run starts, then create a fresh session registry.
+        self._cleanup_previous_audio_session()
+        self._write_audio_registry()
+        atexit.register(self.shutdown)
+
+    @staticmethod
+    def _detect_players():
+        """Return installed audio programs in preference-neutral form."""
+        players = {}
+        for executable in ("mpv", "ffplay", "play", "aplay", "termux-media-player"):
+            if shutil.which(executable):
+                players[executable] = executable
+        return players
+
+    def _select_sfx_player(self):
+        # mpv and ffplay can mix independent processes, which is ideal when
+        # music is already playing.  Termux Media Player remains the fallback.
+        for name in ("mpv", "ffplay", "play", "aplay", "termux-media-player"):
+            if name in self._available_players:
+                return name
+        return None
+
+    def _select_music_player(self):
+        for name in ("mpv", "ffplay", "play", "termux-media-player", "aplay"):
+            if name in self._available_players:
+                return name
+        return None
+
+    @staticmethod
+    def _process_is_alive(pid):
+        """Return True only when a positive process ID still exists."""
+        try:
+            pid = int(pid)
+            if pid <= 1:
+                return False
+            os.kill(pid, 0)
+            return True
+        except (TypeError, ValueError, OSError):
+            return False
+
+    @staticmethod
+    def _terminate_process_group(pid):
+        """Stop a player launched with ``start_new_session=True`` safely."""
+        try:
+            pid = int(pid)
+        except (TypeError, ValueError):
+            return
+        if pid <= 1 or pid == os.getpid():
+            return
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, OSError):
+                return
+        deadline = time.monotonic() + 0.35
+        while time.monotonic() < deadline:
+            if not Sound._process_is_alive(pid):
+                return
+            time.sleep(0.03)
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                pass
+
+    def _read_audio_registry(self):
+        try:
+            with open(self._audio_registry_file, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError, TypeError):
+            return {}
+
+    def _write_audio_registry(self):
+        """Persist only PIDs owned by this run for crash recovery next time."""
+        with self._registry_lock:
+            data = {
+                "owner_pid": os.getpid(),
+                "music_pid": (
+                    self._music_process.pid
+                    if self._music_process is not None and self._music_process.poll() is None
+                    else None
+                ),
+                "sfx_pid": (
+                    self._sfx_process.pid
+                    if self._sfx_process is not None and self._sfx_process.poll() is None
+                    else None
+                ),
+                "sound_dir": os.path.abspath(self.sound_dir),
+                "updated": time.time(),
+            }
+            temp_path = self._audio_registry_file + ".tmp"
+            try:
+                with open(temp_path, "w", encoding="utf-8") as handle:
+                    json.dump(data, handle, separators=(",", ":"))
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(temp_path, self._audio_registry_file)
+            except (OSError, TypeError, ValueError):
+                try:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                except OSError:
+                    pass
+
+    def _remove_audio_registry(self):
+        with self._registry_lock:
+            try:
+                os.remove(self._audio_registry_file)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                pass
+
+    def _cleanup_legacy_player_processes(self):
+        """Find orphaned players that reference only Pet Friends sound files.
+
+        This covers versions released before the PID registry existed.  It does
+        not use broad ``pkill`` patterns, so unrelated music players are left
+        alone even when they use the same executable.
+        """
+        proc_root = "/proc"
+        if not os.path.isdir(proc_root):
+            return
+        owned_path = os.path.abspath(self.sound_dir)
+        for entry in os.listdir(proc_root):
+            if not entry.isdigit():
+                continue
+            pid = int(entry)
+            if pid in (os.getpid(), os.getppid()) or pid <= 1:
+                continue
+            try:
+                with open(os.path.join(proc_root, entry, "cmdline"), "rb") as handle:
+                    raw = handle.read()
+            except (OSError, ValueError):
+                continue
+            command = raw.replace(b"\x00", b" ").decode("utf-8", "ignore")
+            if owned_path not in command:
+                continue
+            executable = os.path.basename(command.split(" ", 1)[0]) if command else ""
+            if executable in {"mpv", "ffplay", "play", "aplay"}:
+                self._terminate_process_group(pid)
+
+    def _pid_uses_owned_audio(self, pid):
+        """Verify a registered PID still points at a Pet Friends audio file.
+
+        PID values can eventually be reused by Android/Linux.  Checking the
+        command line before terminating prevents an old registry from ever
+        stopping an unrelated process that inherited the same number.
+        """
+        try:
+            pid = int(pid)
+            if pid <= 1:
+                return False
+            with open(f"/proc/{pid}/cmdline", "rb") as handle:
+                command = handle.read().replace(b"\x00", b" ").decode("utf-8", "ignore")
+            return os.path.abspath(self.sound_dir) in command
+        except (TypeError, ValueError, OSError):
+            return False
+
+    def _cleanup_previous_audio_session(self):
+        """Stop audio left behind by a crash, force-close, or prior run."""
+        previous = self._read_audio_registry()
+        for key in ("music_pid", "sfx_pid"):
+            pid = previous.get(key)
+            if self._pid_uses_owned_audio(pid):
+                self._terminate_process_group(pid)
+
+        # The Termux:API media player is an Android service rather than a child
+        # process.  Always issue a targeted stop before starting this session.
+        self._termux_stop_transport()
+        self._cleanup_legacy_player_processes()
+        self._remove_audio_registry()
+
+    @property
+    def backend_name(self):
+        return self._sfx_player or "terminal bell"
+
+    @property
+    def music_backend_name(self):
+        return self._music_player or "unavailable"
+
+    def _effect_path(self, effect):
+        return os.path.join(self.sound_dir, f"{effect}.wav")
+
+    def _music_path(self):
+        # Version the generated track so an older 24-second file is not reused.
+        return os.path.join(self.sound_dir, "pet_friends_theme_continuous_v2.wav")
+
+    def _effect_duration(self, effect):
+        notes = self.EFFECTS.get(effect, self.EFFECTS["confirm"])
+        return sum(duration for _frequency, duration in notes) + 0.012 * len(notes)
+
+    def _ensure_effect_file(self, effect):
+        """Create one short WAV effect once, then reuse it on later runs."""
+        effect = effect if effect in self.EFFECTS else "confirm"
+        path = self._effect_path(effect)
+        try:
+            if os.path.exists(path) and os.path.getsize(path) > 44:
+                return path
+            os.makedirs(self.sound_dir, exist_ok=True)
+            sample_rate = 22050
+            amplitude = 8200
+            frames = bytearray()
+            for frequency, duration in self.EFFECTS[effect]:
+                sample_count = max(1, int(sample_rate * duration))
+                fade_samples = max(1, min(int(sample_rate * 0.012), sample_count // 3))
+                for index in range(sample_count):
+                    if frequency <= 0:
+                        sample = 0
+                    else:
+                        envelope = 1.0
+                        if index < fade_samples:
+                            envelope = index / fade_samples
+                        elif index >= sample_count - fade_samples:
+                            envelope = (sample_count - index - 1) / fade_samples
+                        sample = int(
+                            amplitude
+                            * max(0.0, envelope)
+                            * math.sin(2.0 * math.pi * frequency * index / sample_rate)
+                        )
+                    frames.extend(struct.pack("<h", sample))
+                frames.extend(b"\x00\x00" * int(sample_rate * 0.012))
+            with wave.open(path, "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                wav_file.writeframes(frames)
+            return path
+        except (OSError, wave.Error, ValueError):
+            return None
+
+    def _ensure_music_file(self):
+        """Synthesize a calm two-minute chiptune with a clean loop point."""
+        path = self._music_path()
+        try:
+            if os.path.exists(path) and os.path.getsize(path) > 100000:
+                return path
+            os.makedirs(self.sound_dir, exist_ok=True)
+            sample_rate = 16000
+            beat = 0.375
+            total_seconds = self.MUSIC_DURATION_SECONDS
+            # Render one clean 24-second musical phrase, then duplicate its PCM
+            # bytes inside a single long WAV. This avoids a slow two-minute sine
+            # synthesis on older phones while still preventing Android playback
+            # from restarting at each short phrase boundary.
+            phrase_seconds = 24.0
+            total_samples = int(sample_rate * phrase_seconds)
+
+            # Frequencies form a gentle C-major / A-minor game loop.  The final
+            # chord resolves back toward the first, reducing the audible seam.
+            melody = (
+                659.25, 783.99, 880.00, 783.99,
+                659.25, 587.33, 523.25, 587.33,
+                659.25, 783.99, 987.77, 880.00,
+                783.99, 659.25, 587.33, 523.25,
+            )
+            chord_progression = (
+                (261.63, 329.63, 392.00),
+                (220.00, 261.63, 329.63),
+                (174.61, 220.00, 261.63),
+                (196.00, 246.94, 293.66),
+            )
+            bass_roots = (130.81, 110.00, 87.31, 98.00)
+            frames = bytearray()
+
+            for index in range(total_samples):
+                t = index / sample_rate
+                beat_index = int(t / beat)
+                beat_position = (t % beat) / beat
+                phrase_index = beat_index % len(melody)
+                chord_index = (beat_index // 4) % len(chord_progression)
+
+                # Short fades at note edges prevent clicks while preserving the
+                # clear, lightweight terminal-game character of the melody.
+                note_envelope = min(1.0, beat_position * 12.0, (1.0 - beat_position) * 10.0)
+                note_envelope = max(0.0, note_envelope)
+                lead = math.sin(2.0 * math.pi * melody[phrase_index] * t) * 0.25 * note_envelope
+                bass = math.sin(2.0 * math.pi * bass_roots[chord_index] * t) * 0.20
+                chord = 0.0
+                for frequency in chord_progression[chord_index]:
+                    chord += math.sin(2.0 * math.pi * frequency * t) * 0.055
+
+                # A quiet pulse on every second beat adds motion without
+                # becoming tiring during long idle sessions.
+                pulse = 0.0
+                if beat_index % 2 == 0 and beat_position < 0.11:
+                    pulse = (1.0 - beat_position / 0.11) * math.sin(2.0 * math.pi * 90.0 * t) * 0.10
+
+                sample = int(max(-1.0, min(1.0, lead + bass + chord + pulse)) * 9500)
+                frames.extend(struct.pack("<h", sample))
+
+            with wave.open(path, "wb") as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(sample_rate)
+                repeats = max(1, int(round(total_seconds / phrase_seconds)))
+                wav_file.writeframes(frames * repeats)
+            return path
+        except (OSError, wave.Error, ValueError):
+            return None
+
+    @staticmethod
+    def _quiet_popen(command):
+        return subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+
+    def _sfx_command(self, path):
+        if self._sfx_player == "mpv":
+            return ["mpv", "--no-video", "--really-quiet", "--no-terminal", "--volume=62", path]
+        if self._sfx_player == "ffplay":
+            return ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", "-volume", "62", path]
+        if self._sfx_player == "play":
+            return ["play", "-q", "-v", "0.62", path]
+        if self._sfx_player == "aplay":
+            return ["aplay", "-q", path]
+        if self._sfx_player == "termux-media-player":
+            return ["termux-media-player", "play", path]
+        return None
+
+    def _music_command(self, path):
+        if self._music_player == "mpv":
+            return ["mpv", "--no-video", "--really-quiet", "--no-terminal", "--loop-file=inf", "--volume=24", path]
+        if self._music_player == "ffplay":
+            return ["ffplay", "-nodisp", "-loglevel", "quiet", "-volume", "24", "-stream_loop", "-1", path]
+        if self._music_player == "play":
+            return ["play", "-q", "-v", "0.24", path, "repeat", "999999"]
+        if self._music_player == "aplay":
+            return ["aplay", "-q", path]
+        if self._music_player == "termux-media-player":
+            return ["termux-media-player", "play", path]
+        return None
+
+    def _stop_process(self, process):
+        if process is None:
+            return
+        try:
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=0.35)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+        except (OSError, ValueError):
+            pass
+
+    def _termux_stop_transport(self):
+        if "termux-media-player" not in self._available_players:
+            return
+        try:
+            subprocess.run(
+                ["termux-media-player", "stop"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=1.0,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    def _terminal_bell(self, effect="confirm"):
+        """Play a tiny rhythmic bell pattern without touching media playback.
+
+        Android terminals may render every bell with the same tone, but the pulse
+        count still distinguishes confirmations, warnings, rewards, and battles.
+        This method runs from an audio worker thread, so the small pauses never
+        block curses input or animation.
+        """
+        if effect in {"error", "defeat", "disconnect", "request_missed"}:
+            pulses, gap = 2, 0.075
+        elif effect in {"crate_mythical", "pity", "level_milestone"}:
+            pulses, gap = 5, 0.035
+        elif effect in {"crate_legendary", "friendship_gift", "perfect_care"}:
+            pulses, gap = 4, 0.040
+        elif effect in {"achievement", "victory", "festival", "prestige", "summon", "pet_request_complete"}:
+            pulses, gap = 3, 0.050
+        elif effect in {"battle_start", "attention", "levelup", "evolve", "pet_request", "combo"}:
+            pulses, gap = 2, 0.045
+        else:
+            pulses, gap = 1, 0.0
+        try:
+            for index in range(pulses):
+                sys.stdout.write("\a")
+                sys.stdout.flush()
+                if index + 1 < pulses:
+                    time.sleep(gap)
+        except OSError:
+            pass
+
+    def _uses_shared_termux_transport(self):
+        """Return True when music and effects compete for one Android stream."""
+        return (
+            self.music_on
+            and not self.muted
+            and self._sfx_player == "termux-media-player"
+            and self._music_player == "termux-media-player"
+        )
+
+    def _play_worker(self, effect):
+        if self.muted or self._shutdown:
+            return
+
+        # Never interrupt Termux's single Android media transport. Earlier builds
+        # stopped the song, played an effect, and launched the song from the start;
+        # that made every action sound like a music reset. Bell rhythms are the
+        # only safe simultaneous feedback when termux-media-player is the sole
+        # backend. Full WAV effects return automatically whenever music is off.
+        if self._uses_shared_termux_transport():
+            self._terminal_bell(effect)
+            return
+
+        path = self._ensure_effect_file(effect)
+        command = self._sfx_command(path) if path else None
+        if not command:
+            self._terminal_bell(effect)
+            return
+
+        with self._sfx_lock:
+            self._stop_process(self._sfx_process)
+            try:
+                self._sfx_process = self._quiet_popen(command)
+                self._write_audio_registry()
+            except (OSError, ValueError):
+                self._sfx_process = None
+                self._terminal_bell(effect)
+
+    def play(self, effect="confirm", force=False):
+        """Play one named effect without blocking the curses game loop.
+
+        ``force`` can bypass the sound-effects preference for intentional toggle
+        feedback, but it never bypasses master mute.
+        """
+        if self.muted or self._shutdown:
+            return
+        if not self.on and not force:
+            return
+        effect = effect if effect in self.EFFECTS else "confirm"
+        now = time.monotonic()
+        if now - self._last_played < 0.025 and not force:
+            return
+        self._last_played = now
+        threading.Thread(target=self._play_worker, args=(effect,), daemon=True).start()
+
+    def beep(self, effect="confirm"):
+        self.play(effect)
+
+    def toggle(self):
+        """Toggle sound effects without changing music or master mute."""
+        self.on = not self.on
+        return self.on
+
+    def toggle_mute(self):
+        """Toggle the master audio mute while preserving SFX/music preferences."""
+        self.muted = not self.muted
+        if self.muted:
+            # Stop both currently playing streams immediately.  Preferences stay
+            # unchanged, allowing one-key restoration on the next toggle.
+            self._music_stop_event.set()
+            with self._sfx_lock:
+                self._stop_process(self._sfx_process)
+                self._sfx_process = None
+            self.stop_music()
+        elif self.music_on:
+            self.start_music()
+        return self.muted
+
+    def _launch_termux_music_once(self):
+        path = self._ensure_music_file()
+        command = self._music_command(path) if path else None
+        if not command or not self.music_on or self.muted or self._shutdown:
+            return False
+        try:
+            self._music_process = self._quiet_popen(command)
+            self._write_audio_registry()
+            return True
+        except (OSError, ValueError):
+            self._music_process = None
+            return False
+
+    def _music_replay_worker(self):
+        """Loop backends that have no built-in repeat option."""
+        while (
+            not self._music_stop_event.is_set()
+            and self.music_on
+            and not self.muted
+            and not self._shutdown
+        ):
+            if self._music_player == "termux-media-player":
+                self._launch_termux_music_once()
+                self._music_stop_event.wait(self.MUSIC_DURATION_SECONDS - 0.15)
+                continue
+
+            path = self._ensure_music_file()
+            command = self._music_command(path) if path else None
+            if not command:
+                return
+            try:
+                self._music_process = self._quiet_popen(command)
+                self._write_audio_registry()
+                self._music_process.wait()
+            except (OSError, ValueError):
+                self._music_stop_event.wait(2.0)
+
+    def start_music(self):
+        """Start or resume the generated background theme."""
+        if not self.music_on or self.muted or self._shutdown:
+            return False
+        path = self._ensure_music_file()
+        if not path or not self._music_player:
+            return False
+        with self._music_lock:
+            if self._music_process is not None and self._music_process.poll() is None:
+                return True
+            self._music_stop_event.clear()
+            if self._music_player in ("mpv", "ffplay", "play"):
+                command = self._music_command(path)
+                try:
+                    self._music_process = self._quiet_popen(command)
+                    self._write_audio_registry()
+                    return True
+                except (OSError, ValueError):
+                    self._music_process = None
+                    return False
+            if self._music_thread is None or not self._music_thread.is_alive():
+                self._music_thread = threading.Thread(target=self._music_replay_worker, daemon=True)
+                self._music_thread.start()
+            return True
+
+    def stop_music(self):
+        self._music_stop_event.set()
+        with self._music_lock:
+            self._stop_process(self._music_process)
+            self._music_process = None
+            self._write_audio_registry()
+            if self._music_player == "termux-media-player":
+                self._termux_stop_transport()
+
+    def toggle_music(self):
+        """Toggle the stored music preference without defeating master mute."""
+        self.music_on = not self.music_on
+        if self.music_on and not self.muted:
+            self.start_music()
+        else:
+            self.stop_music()
+        return self.music_on
+
+    def shutdown(self):
+        """Stop every Pet Friends audio path and clear crash-recovery state."""
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self._music_stop_event.set()
+        self._stop_process(self._sfx_process)
+        self._stop_process(self._music_process)
+        self._sfx_process = None
+        self._music_process = None
+
+        # Stop the Termux:API transport even when another backend was selected:
+        # an older crashed run may still own that Android playback service.
+        self._termux_stop_transport()
+        self._cleanup_legacy_player_processes()
+        self._remove_audio_registry()
+
+# ----------------------------- SPECIES (160+ pets, 80+ facts each) -----------------------------
+SPECIES = {}
+
+def add_species(name, art, color, fact_string):
+    SPECIES[name] = {
+        "art": art,
+        "color": color,
+        "facts": [f.strip() for f in fact_string.strip().split('\n') if f.strip()]
+    }
+
+add_species("Cat",
+    [["  /\\_/\\", " ( o.o )", "  > ^ <", " /  ~  \\", " ~~   ~~"],
+     ["  /\\_/\\", " ( -.- )", "  > ^ <", " /  ~  \\", " ~~   ~~"]],
+    3,
+    """Cats sleep 12-16h/day.
+5 toes front, 4 back.
+A group is a clowder.
+Oldest pet cat 9500 years.
+Ears rotate 180°.
+Purring heals bones.
+Can jump 6x body length.
+Whiskers sense air currents.
+Sweat through paws.
+Domesticated ~4000 years ago.
+Heart beats 140-220/min.
+Groom 30-50% of day.
+Kneading is kitten instinct.
+See well in low light.
+Tail language complex.
+Bring prey as lessons.
+Nose print unique.
+Rotate ears independently.
+Catnip affects 50-70%.
+Kindle = group of kittens.
+Rarely meow at other cats.
+Free-floating clavicle.
+Average life 12-18 years.
+Only taste sweet.
+Righting reflex at 3 weeks.
+Survive great falls.
+Obligate carnivores.
+Brain 90% similar to human.
+Third eyelid.
+Can't taste salty.
+Polydactyl cats have extra toes.
+Longest cat 48.5 inches.
+Sprint 30 mph.
+Communicate via scent.
+Can't see below nose.
+First cat in space Félicette.
+Jacobson's organ.
+Litter usually 4-6 kittens.
+Can drink seawater.
+Prefer food at body temperature.
+Can't digest lactose well.
+Territory can be 20+ acres.
+Rub to mark pheromones.
+Oldest lived 38 years.
+Cats can get COVID-19.
+Sense of smell 14x stronger.
+Dream like humans.
+Respond to high-pitched voices.
+Coat color may indicate personality.
+Cats have been in space.
+Largest breed Maine Coon.
+Can't taste spice.
+Whiskers width equals body.
+Can live in colonies.
+Egyptian Mau fastest domestic cat.
+Can't chew large food.
+Crepuscular.
+Ear has 32 muscles.
+Left- or right-pawed.
+Sphynx is hairless but warm.""")
+
+add_species("Dog",
+    [["  / \\__", " (  o.o )", "  >  ^ <", " /  -  \\", " ~~   ~~"],
+     ["  / \\__", " (  -.- )", "  >  ^ <", " /  -  \\", " ~~   ~~"]],
+    6,
+    """Domesticated 15,000+ years.
+Sense of smell 100,000x better.
+Understand up to 250 words.
+Basenji is barkless.
+Dream like humans.
+Sweat through paw pads.
+Heart beats 60-140/min.
+Tail wagging has many meanings.
+Wet nose helps scent detection.
+Puppies born blind/deaf.
+Lifespan 6-20 years.
+Licking releases endorphins.
+Pack is group of dogs.
+Largest breed Great Dane.
+Smallest Chihuahua.
+Dogs have 42 teeth.
+Labrador most popular breed.
+See some colours.
+Hearing 4x better.
+Can detect diseases.
+Extraordinary scent memory.
+Tail is extension of spine.
+Have a third eyelid.
+Oldest dog 29.5 years.
+Descended from wolves.
+Puppies need socialization.
+Nose print unique.
+Roll in smelly things to mask scent.
+Bark has different pitches.
+Left- or right-pawed.
+Can learn 1000+ words.
+Saluki oldest breed.
+Body temp ~101.5°F.
+Pant to cool down.
+Can get jealous.
+Beatles song has dog whistle.
+Can sense earthquakes.
+Special bond with humans.
+Whiskers sensitive.
+18 muscles per ear.
+Can't eat chocolate.
+Dalmatian born spotless.
+Bite force 200-700 PSI.
+Service animals.
+Basenji yodels.
+Gestation 63 days.
+See in low light.
+Separation anxiety.
+Fastest dog Greyhound.
+Understand pointing.
+Communicate with body language.
+Tail wag direction.
+Hypoallergenic breeds exist.
+Oldest fossil 14,000 years.
+Can count.""")
+
+add_species("Frog",
+    [["  (o o)", "  (---)", "  \\_V_/", "  /   \\", " ^^   ^^"],
+     ["  (O O)", "  (---)", "  \\_V_/", "  /   \\", " ^^   ^^"]],
+    1,
+    """Don't drink; absorb water.
+Jump 20x body length.
+6,000+ known species.
+Glass frogs transparent.
+Each species unique call.
+Some freeze solid in winter.
+Tadpoles have gills.
+Frog skin needs moisture.
+Indicators of environmental health.
+Eat insects, worms.
+Sticky tongue flips out.
+Eyes help swallow food.
+Some species carry eggs on back.
+Poison dart frogs toxic.
+Colourful frogs often poisonous.
+Smallest frog Paedophryne 7.7mm.
+Largest Goliath frog 3.3 kg.
+Vocal sac amplifies sound.
+Frog calls can be heard miles.
+Hibernate in mud.
+Can breathe through skin.
+Heart has 3 chambers.
+Cold-blooded.
+Lay eggs in water.
+Tadpoles metamorphose.
+Some frogs brood eggs in stomach.
+Glass frog organs visible.
+Tree frogs have adhesive toe pads.
+Burrowing frogs live underground.
+Some frogs glide.
+Frog legs eaten as delicacy.
+Frog populations declining.
+Chytrid fungus deadly.
+Some species live over 20 years.
+Frogs can regenerate limbs as tadpoles.
+Eyes bulge to see above water.
+Frog tongues 10x faster than blink.
+Some frogs change colour.
+Horned frogs ambush predators.
+Males often smaller than females.
+Frogs never close eyes completely.
+Pupils horizontal or vertical.
+Some frogs scream when threatened.
+Tadpoles herbivorous, adults carnivorous.
+Frog skin secretes mucus.
+Frog spawn can be millions of eggs.
+Some frogs carry tadpoles on back.
+Frog metamorphosis influenced by temperature.
+Frogs are amphibians.
+Not all frogs croak.
+Frogs are an essential food source.
+Frog legs high in protein.
+Some species invasive.
+Frog farming exists.
+Frogs have no ribs.
+Ear membranes called tympanum.
+Frogs can absorb toxins.""")
+
+add_species("Turtle",
+    [["   ____", "  /    \\", " (  o o )", "  \\_^^_/", "   ^  ^"],
+     ["   ____", "  /    \\", " (  - - )", "  \\_^^_/", "   ^  ^"]],
+    2,
+    """Existed 200+ million years.
+Sea turtles hold breath 5 hours.
+Shell has 50+ fused bones.
+Box turtles live 100+ years.
+Leatherback can weigh 700 kg.
+Can't retract into shell like tortoise.
+Found on every continent except Antarctica.
+Sea turtles migrate thousands of miles.
+Temperature determines sex of hatchlings.
+Green sea turtles eat seagrass.
+Loggerhead turtles have strong jaws.
+Hawksbill turtles eat sponges.
+Flatback turtles only found in Australia.
+Olive ridley turtles nest in arribadas.
+Kemp's ridley is smallest sea turtle.
+Turtles can cry to excrete salt.
+Shell made of keratin.
+Some species breathe through cloaca.
+Turtles are reptiles.
+Lay eggs on land.
+Hatchlings scramble to sea.
+Many eggs eaten by predators.
+Turtles have a beak, no teeth.
+Slow metabolism.
+Can live in freshwater or saltwater.
+Some turtles hibernate underwater.
+Pet turtles can carry salmonella.
+Tortoises are land turtles.
+Terrapins are freshwater turtles.
+Softshell turtles have leathery shell.
+Snapping turtles aggressive.
+Alligator snapping turtle has worm-like lure.
+Spotted turtle small, colourful.
+Mata mata turtle camouflaged leaf.
+Box turtles have hinged plastron.
+Turtles good luck symbol in many cultures.
+Tortoises can live 150+ years.
+Galapagos tortoise largest.
+Turtle shells repair slowly.
+Turtles can feel through shells.
+Some turtles aestivate.
+Sea turtles face plastic pollution.
+Turtle eggs harvested for food.
+Turtle meat considered delicacy.
+Turtles play key role in ecosystems.
+Turtle shell shape reflects habitat.
+Hawksbill shell used for tortoiseshell.
+Turtles have 3-chambered heart.
+Turtles can navigate using Earth's magnetic field.
+Turtles sleep underwater.
+Turtle flippers adapted for swimming.
+Turtles can slow heart rate to 1 bpm.
+Turtles can absorb oxygen through skin.
+Turtle fossils found in many formations.
+Turtles are long-distance swimmers.
+Turtles can dive 1000m deep.
+Turtles may have UV vision.""")
+
+add_species("Hamster",
+    [["  (\\_/)", " ( o.o )", "  > ^ <", " /  ~ \\", " ~~  ~~"],
+     ["  (\\_/)", " ( -.- )", "  > ^ <", " /  ~ \\", " ~~  ~~"]],
+    5,
+    """Nocturnal.
+Cheek pouches double head size.
+Solitary animals.
+Teeth never stop growing.
+Syrian hamster most common pet.
+Dwarf hamsters smaller, faster.
+Roborovski hamster tiniest.
+Hamsters can carry half body weight in cheeks.
+Hamsters hoard food.
+Can run 5 miles per night on wheel.
+Hamsters need nesting material.
+Can become torpid in cold.
+Gestation 16 days.
+Babies called pups.
+Litter up to 20 pups.
+Hamsters can eat small insects.
+Pouches are dry to keep food.
+Hamsters can't see well.
+Sense of smell excellent.
+Hearing acute.
+Hamsters communicate via ultrasonic sounds.
+Golden hamster is Syrian.
+Chinese hamster has longer tail.
+Russian dwarf hamster sociable.
+Hamsters can learn their name.
+Hamsters can be litter trained.
+Hamsters need sand baths.
+Hamsters mark scent glands.
+Hamsters can have wet tail disease.
+Hamsters can chew through wood.
+Hamsters can escape cages.
+Hamsters sleep curled up.
+Hamsters are crepuscular.
+Hamsters store food for months.
+Hamsters can be aggressive if startled.
+Hamsters should be kept alone.
+Hamsters have expandable cheek pouches to shoulders.
+Hamsters can run up to 6mph.
+Hamsters can remember tunnels.
+Hamsters communicate by chirping.
+Hamsters can climb.
+Hamsters can swim but avoid water.
+Hamsters have scent glands on flanks.
+Hamsters can gnaw metal.
+Hamsters can become obese.
+Hamsters need exercise.
+Hamsters can recognize owners.
+Hamsters can suffer from stress.
+Hamsters can be toilet trained.
+Hamsters can be very vocal.
+Hamsters can be colour blind.
+Hamsters can see in dim light.
+Hamsters can have long or short fur.
+Hamsters can carry bedding in pouches.
+Hamsters can hoard 1kg of food.
+Hamsters can live 2-3 years.""")
+
+add_species("Rabbit",
+    [["  (\\_/)", " ( ^.^ )", "  >(\")< ", " /  ^  \\", " ~~   ~~"],
+     ["  (\\_/)", " ( O.O )", "  >(\")< ", " /  ^  \\", " ~~   ~~"]],
+    1,
+    """Jump 1 metre high.
+Baby called kit.
+Teeth never stop growing.
+Purr by grinding teeth.
+Near 360° vision, blind spot nose.
+Domesticated over 1000 years.
+Eat cecotropes for nutrients.
+Can litter train.
+Binkying shows happiness.
+Lop ears hang down.
+Rabbits can weigh 1-10 kg.
+Gestation 31 days.
+Kits born blind, furless.
+Can have up to 12 kits.
+Rabbits can be spayed/neutered.
+Rabbits need hay for digestion.
+Rabbits can't vomit.
+Rabbits communicate through thumping.
+Rabbits have scent glands under chin.
+Rabbits can live 8-12 years.
+Rabbits can be house pets.
+Rabbits are crepuscular.
+Rabbits can learn tricks.
+Rabbits can be harness trained.
+Rabbits need regular dental checks.
+Rabbits can get GI stasis.
+Rabbits shed fur.
+Rabbits can be aggressive if scared.
+Rabbits are social, prefer pairs.
+Rabbits can be territorial.
+Rabbits can dig extensive burrows.
+Wild rabbits live in warrens.
+Rabbits can jump 4 feet high.
+Rabbits can run 45 mph.
+Rabbits can be litter mates.
+Rabbits have soft, dense fur.
+Rabbits' ears regulate heat.
+Rabbits can hear predators from far.
+Rabbits can sleep with eyes open.
+Rabbits can be trained to come.
+Rabbits can be therapy animals.
+Rabbits can recognise human faces.
+Rabbits can cause allergies.
+Rabbits can be litter trained.
+Rabbits need fresh water daily.
+Rabbits can eat leafy greens.
+Rabbits can't eat chocolate.
+Rabbits can't eat iceberg lettuce.
+Rabbits can eat carrots in moderation.
+Rabbits can have dewlap.
+Rabbits can thump to warn others.
+Rabbits can be house trained.
+Rabbits can be litter mates.
+Rabbits can bond with humans.
+Rabbits can be jealous.
+Rabbits can spin when happy.""")
+
+add_species("Fox",
+    [["   /\\", "  ( >.< )", "   \\_V_/", "   / | \\", "  ^^ ^^"],
+     ["   /\\", "  ( ^.^ )", "   \\_V_/", "   / | \\", "  ^^ ^^"]],
+    6,
+    """Belong to dog family.
+Make 40+ sounds.
+Solitary hunters.
+Fennec foxes have huge ears.
+Use Earth's magnetic field to hunt.
+Cunning and agile.
+Red fox most common.
+Arctic fox white in winter.
+Foxes can climb trees.
+Foxes can retract claws.
+Foxes have vertical pupils.
+Foxes can run 30 mph.
+Foxes communicate with scent marks.
+Foxes can cache food.
+Foxes live in dens.
+Foxes can adapt to urban life.
+Foxes can live 2-5 years.
+Foxes mate for season.
+Foxes have 42 teeth.
+Foxes can see in dim light.
+Foxes can rotate ears.
+Foxes can survive in desert.
+Foxes can pounce on prey through snow.
+Foxes can hear rodents underground.
+Foxes can be kept as pets (selectively).
+Foxes are omnivores.
+Foxes eat fruit, insects.
+Foxes can carry rabies.
+Foxes can be hunted for fur.
+Foxes are culturally significant.
+Foxes appear in folklore worldwide.
+Foxes can camouflage.
+Foxes can have black or silver morphs.
+Foxes can be domesticated (Russian experiment).
+Foxes can wag tail.
+Foxes can play with objects.
+Foxes can learn tricks.
+Foxes can be litter trained.
+Foxes can bond with one person.
+Foxes can climb fences.
+Foxes can dig under obstacles.
+Foxes can be noisy.
+Foxes can be shy.
+Foxes can be curious.
+Foxes can stalk prey.
+Foxes can freeze to listen.
+Foxes can adapt to different climates.
+Foxes can swim.
+Foxes can carry fleas.
+Foxes can be rabies vectors.
+Foxes can be territorial.
+Foxes can mark with urine.
+Foxes can have litters of 4-6 pups.
+Foxes can be weaned at 8 weeks.
+Foxes can disperse far.
+Foxes can be hunted by larger predators.""")
+
+add_species("Wolf",
+    [["   /\\", "  ( o.o )", "   \\_V_/", "   / | \\", "  ^^ ^^"],
+     ["   /\\", "  ( -.- )", "   \\_V_/", "   / | \\", "  ^^ ^^"]],
+    7,
+    """Live in packs 6-10.
+Run 60 km/h.
+Howls heard 10 km.
+Mate for life.
+Grey wolf largest wild dog.
+Subspecies: Arctic, timber.
+Wolves have complex social structure.
+Alpha pair leads.
+Wolves hunt cooperatively.
+Can bring down large prey.
+Wolves communicate with body language.
+Tail position signals status.
+Wolves can travel 30 miles/day.
+Wolves can eat 20 lbs of meat at once.
+Wolves can survive weeks without food.
+Wolves have 42 teeth.
+Bite force ~1500 PSI.
+Wolves can swim well.
+Wolves can be black, white, grey.
+Pups born blind, deaf.
+Litter size 4-7.
+Den site carefully chosen.
+Wolves help maintain ecosystem balance.
+Wolves were exterminated in many areas.
+Reintroduced to Yellowstone.
+Wolves can hybridise with dogs.
+Wolves can live 6-8 years in wild.
+Wolves can cover 100 sq mile territory.
+Wolves howl to assemble pack.
+Wolves can be territorial.
+Wolves can kill coyotes.
+Wolves can be killed by bears.
+Wolves can be hunted by humans.
+Wolves can run for hours.
+Wolves can sleep in open.
+Wolves can cache extra food.
+Wolves can feed regurgitated food to pups.
+Wolves can be playful.
+Wolves can be loyal to pack.
+Wolves can be curious about humans.
+Wolves can be dangerous if rabid.
+Wolves can be scared by loud noises.
+Wolves can adapt to different prey.
+Wolves can hunt at night.
+Wolves can have golden eyes.
+Wolves can be symbols of wilderness.
+Wolves appear in mythology.
+Wolves can be tamed but not domesticated.
+Wolves can have winter fur changes.
+Wolves can migrate with prey.
+Wolves can be infected with mange.
+Wolves can be studied via howls.
+Wolves can be counted via tracks.
+Wolves can be impacted by human development.
+Wolves can be reclusive.
+Wolves can be attracted to livestock.
+Wolves can be shot from aircraft.""")
+
+add_species("Tiger",
+    [["   /\\", "  ( o o )", "  > ^ <", " /  ~  \\", " ~~   ~~"],
+     ["   /\\", "  ( O O )", "  > ^ <", " /  ~  \\", " ~~   ~~"]],
+    6,
+    """Largest wild cat.
+Stripes unique like fingerprints.
+Jump 6 metres.
+A group is a streak.
+Excellent swimmers.
+Siberian tiger largest subspecies.
+Bengal tiger most numerous.
+White tigers rare morph.
+Tigers can weigh 300 kg.
+Tigers can eat 40 kg in one meal.
+Tigers are apex predators.
+Tigers can run 50 mph.
+Tigers have night vision 6x human.
+Tigers can roar.
+Tigers can be solitary.
+Territory can span 100 sq km.
+Tigers spray urine to mark.
+Tigers can live 10-15 years in wild.
+Tigers have retractable claws.
+Tigers can climb trees.
+Tigers can carry prey up trees.
+Tigers can swim 6 km.
+Tigers can hunt crocodiles.
+Tigers can jump across streams.
+Tigers have excellent hearing.
+Tigers can see colour.
+Tigers can be dangerous to humans.
+Tigers are endangered.
+Tiger parts used in traditional medicine.
+Tiger populations declining.
+Tigers in captivity often inbred.
+Tigers can be trained.
+Tigers can recognize keepers.
+Tigers can purr.
+Tigers can chuff.
+Tigers can hiss.
+Tigers can be ambush predators.
+Tigers can kill with a bite to neck.
+Tigers can drag prey 100 m.
+Tigers can survive in cold climates.
+Tigers can tolerate heat.
+Tigers can adapt to forests, swamps, grasslands.
+Tigers can be black with stripes.
+Golden tabby tiger rare.
+Tigers can be born with no stripes.
+Tigers can be crossbred with lions.
+Tigers can have cubs every 2 years.
+Tigers can be protective mothers.
+Tigers can be playful cubs.
+Tigers can be solitary hunters.
+Tigers can be active at dusk/dawn.
+Tigers can be tracked via pug marks.
+Tigers can be relocated.
+Tigers can be rehabilitated.
+Tigers can be part of rewilding projects.
+Tigers can be flagship species.""")
+
+add_species("Lion",
+    [["   /\\", "  ( o o )", "  > ^ <", " /  ~  \\", " ~~   ~~"],
+     ["   /\\", "  ( - - )", "  > ^ <", " /  ~  \\", " ~~   ~~"]],
+    2,
+    """Live in prides up to 30.
+Males have majestic manes.
+Sleep 20 hours a day.
+Roar heard 8 km.
+Only male lions have manes (mostly).
+Female lions do most hunting.
+Lions can run 50 mph.
+Lions can weigh 190 kg.
+Lions are social cats.
+Prides include related females.
+Male coalition defend territory.
+Lions can eat 30 kg in one meal.
+Lions can drink water daily.
+Lions can survive without water from prey.
+Lions can be nocturnal.
+Lions can have cubs anytime.
+Gestation 110 days.
+Cubs born with spots.
+Cubs start eating meat at 3 months.
+Lions can be cannibalistic.
+Lions can kill hyenas.
+Lions can be killed by elephants.
+Lions can be killed by buffalo.
+Lions can be hunted by humans.
+Lions can be symbols of power.
+Lions appear in heraldry.
+Lions can be found in Africa and India.
+Asiatic lion smaller, endangered.
+Lions can be white.
+Lions can be melanistic (rare).
+Lions can be bred in captivity.
+Lions can be used in circuses.
+Lions can be trained for films.
+Lions can be photographed safely.
+Lions can be tracked via GPS.
+Lions can be vaccinated against disease.
+Lions can be anaesthetized.
+Lions can be relocated.
+Lions can be part of rewilding.
+Lions can be hybridized with tigers.
+Lions can have manes that darken with age.
+Lions can be territorial fights.
+Lions can be playful.
+Lions can be affectionate.
+Lions can be aggressive toward strangers.
+Lions can be protective of cubs.
+Lions can be cooperative hunters.
+Lions can ambush.
+Lions can be patient stalkers.
+Lions can communicate with roars, grunts.
+Lions can be smelled from far.
+Lions can be heard at night.
+Lions can be part of the big five.
+Lions can be seen on safari.
+Lions can be poached for body parts.
+Lions can be a threat to livestock.
+Lions can be deterred with lights.
+Lions can be admired worldwide.""")
+
+add_species("Elephant",
+    [["   __", "  (  o o  )", "  \\  ~  /", "   \\___/", "   ^^ ^^"],
+     ["   __", "  (  O O  )", "  \\  ~  /", "   \\___/", "   ^^ ^^"]],
+    7,
+    """Largest land animals.
+Trunks have 40,000+ muscles.
+Can live 70 years.
+Mourn their dead.
+Tusk can weigh 100+ kg.
+Good swimmers.
+Communicate via infrasound.
+Mud bath protects skin.
+Ears flap to cool down.
+Can drink 200 L/day.
+Eat 300 kg of food daily.
+Females lead herds.
+Baby elephants stand within minutes.
+Tusks are elongated incisors.
+Can use tools.
+Intelligent and emotional.
+Remember faces.
+Help other animals in distress.
+Can be left- or right-tusked.
+Have complex social structures.
+Calves are born after 22 months.
+Adults have no natural predators.
+Can produce tears.
+Can learn to paint.
+Migrate long distances.
+Forest elephants smaller.
+African elephant larger ears.
+Asian elephant smaller ears.
+Can be trained for work.
+Can carry heavy loads.
+Have long eyelashes.
+Can hear with feet.
+Have specialised teeth.
+Can produce infrasound for miles.
+Can be altruistic.
+Can suffer PTSD.
+Can communicate with low-frequency rumbles.
+Can be part of festivals.
+Ivory trade has devastated populations.
+CITES bans ivory trade.
+Some elephants are tuskless (genetic adaptation).
+Can be poached for ivory.
+Elephant sanctuaries protect them.
+Can live in savanna, forest, mountains.
+Elephants can't jump.
+Hair is sparse.
+Finger-like trunk tip.
+Mother elephants help stuck calves.
+Can be seen in national parks.
+Elephants can paint with trunk.
+Elephants can be adopted symbolically.
+Elephants can be part of eco‑tourism.
+Elephants can cause crop damage.
+Elephants can be relocated.
+Elephants can be studied via GPS.
+Elephants can be identified by ear patterns.""")
+
+add_species("Monkey",
+    [["   @", "  (o o)", "  /|_|\\", "  / | \\", " ^^  ^^"],
+     ["   @", "  (O O)", "  /|_|\\", "  / | \\", " ^^  ^^"]],
+    3,
+    """Some use tools.
+Capuchins wash food.
+Spider monkeys prehensile tails.
+Howler monkey loudest.
+Groom each other for bonding.
+Troupes have hierarchies.
+Many species endangered.
+Proboscis monkey long nose.
+Golden lion tamarin small.
+Baboons are large.
+Macaques live near humans.
+Gibbons sing duets.
+Orangutans great apes.
+Chimpanzees use tools.
+Bonobos peaceful.
+Gorillas largest primates.
+Monkeys have opposable thumbs.
+Mostly arboreal.
+Can be trained.
+Can learn sign language.
+Monkeys have tails, apes don't.
+Some monkeys have cheek pouches.
+Dental formula: 2.1.2.3.
+Vervet monkeys give alarm calls.
+Monkeys can be pests.
+Monkeys are used in research.
+Rhesus factor named after rhesus monkey.
+Monkeys can spread diseases.
+Can be kept as pets illegally.
+Monkeys can live in groups up to 100.
+Dominant males lead.
+Females often stay in birth group.
+Monkeys can be very vocal.
+Can be territorial.
+Can use facial expressions.
+Some monkeys have ischial callosities.
+Monkeys can be trained as helpers.
+Capuchins used in movies.
+Squirrel monkeys tiny.
+Monkeys can live 20+ years.
+Monkeys can be found in Asia, Africa, Americas.
+Howler monkey's call can travel 3 miles.
+Monkeys can adapt to urban areas.
+Monkeys can steal food.
+Monkeys can recognise themselves in mirror.
+Some monkeys have prehensile tails.
+Monkeys can be prey for birds of prey.
+Monkeys can swim.
+Some monkeys have trichromatic colour vision.
+Monkeys can be part of folklore.
+Monkeys can be part of Chinese zodiac.
+Monkeys can be protected in parks.
+Monkeys can be monitored by camera traps.
+Monkeys can be reintroduced to wild.
+Monkeys can be part of ecotourism.
+Monkeys can be fed by tourists (not recommended).""")
+
+add_species("Panda",
+    [["  (o o)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"]],
+    7,
+    """Eat 12-38 kg bamboo daily.
+Pseudo-thumb for gripping.
+Good climbers.
+Newborn panda tiny.
+Solitary but communicate via calls.
+Giant panda black and white.
+Red panda not closely related.
+Bamboo forests endangered.
+Captive breeding program.
+Playful cubs.
+Adults mostly bamboo.
+Can't digest bamboo well.
+Have digestive system of carnivore.
+Produce squeaky sounds.
+Mark territory with scent glands.
+Climb trees for safety.
+Can survive in cold.
+Teeth adapted for chewing.
+Have round face.
+Sleep a lot.
+Can be seen in China reserves.
+Symbol of conservation.
+Ambassador animal.
+WWF logo.
+Can be cross-fostered.
+Twins rare in wild.
+Cubs are born tiny.
+Pandas can swim.
+Can run.
+Solitary except mating.
+Females mate only few days a year.
+Global panda population increasing.
+Protected by law.
+Can be seen on webcams.
+Pandas like to roll.
+Playful into adulthood.
+Pandas can be trained.
+Pandas can be vaccinated.
+Pandas can be anaesthetized.
+Pandas can be translocated.
+Pandas can be studied via radio collars.
+Pandas can be part of reintroduction.
+Pandas can be featured in documentaries.
+Pandas can be adopted symbolically.
+Pandas can be part of ecotourism.
+Pandas can cause bamboo depletion.
+Pandas can be kept in zoos.
+Pandas can have gastric issues.
+Pandas can be hand-reared.
+Pandas can be photographed safely.
+Pandas can be part of research on digestion.
+Pandas can have DNA samples collected.
+Pandas can be monitored by drones.
+Pandas can be part of rewilding.
+Pandas can be used in diplomacy.
+Pandas can be a national treasure.""")
+
+add_species("Koala",
+    [["  (o o)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"],
+     ["  (- -)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"]],
+    5,
+    """Sleep 18-22 hours/day.
+Eat eucalyptus leaves.
+2 thumbs on each front paw.
+Babies called joeys.
+Fingerprints like humans.
+Eucalyptus is low in nutrients.
+Koalas rarely drink.
+Water from leaves.
+Marsupials.
+Carry joeys in pouch.
+Chlamydia common.
+Can live 10-15 years.
+Ears have tufts.
+Nose large and sensitive.
+Spend most time in trees.
+Can move between trees.
+Solitary.
+Vocal males bellow.
+Joey eat pap from mother.
+Koalas can be seen in Australia.
+Protected species.
+Habitat loss major threat.
+Road accidents common.
+Can be rehabilitated.
+Can be treated for diseases.
+Koalas can be adopted symbolically.
+Koalas can be part of ecotourism.
+Koalas can be studied via GPS.
+Koalas can be tracked by drones.
+Koalas can be part of rewilding.
+Koalas can be fed gum leaves.
+Koalas can be hospitalised.
+Koalas can be vaccinated.
+Koalas can be sterilised.
+Koalas can be translocated.
+Koalas can be bred in captivity.
+Koalas can be hand-reared.
+Koalas can be soft toys.
+Koalas can be part of conservation programs.
+Koalas can be photographed.
+Koalas can be a national icon.
+Koalas can be affected by bushfires.
+Koalas can be rescued.
+Koalas can be treated for koala burns.
+Koalas can be part of research.
+Koalas can have DNA collected.
+Koalas can be part of education.
+Koalas can be part of awareness campaigns.
+Koalas can be part of wildlife corridors.
+Koalas can be part of habitat restoration.
+Koalas can be counted by drones.
+Koalas can be part of koala-friendly zones.
+Koalas can be part of koala hospitals.""")
+
+add_species("Owl",
+    [["  (o o)", "  ( V )", "  /   \\", " /     \\", " ^^   ^^"],
+     ["  (O O)", "  ( V )", "  /   \\", " /     \\", " ^^   ^^"]],
+    3,
+    """Rotate head 270°.
+Silent fliers.
+Eyes can't move.
+Barn owl swallows prey whole.
+Some mate for life.
+Nocturnal hunters.
+Asymmetrical ears for sound.
+Feathers fringed.
+Excellent hearing.
+Can see in near darkness.
+Regurgitate pellets.
+Symbol of wisdom.
+Many species globally.
+Smallest elf owl.
+Largest great grey owl.
+Burrowing owls live in burrows.
+Snowy owls white.
+Horned owls have tufts.
+Owls can live 20+ years.
+Talons sharp.
+Can catch prey mid-air.
+Can fly silently.
+Wingspan varies.
+Can be found on all continents except Antarctica.
+Some migrate.
+Owls can be kept as pets (licenses needed).
+Owls in mythology.
+Owls can be part of falconry.
+Owls can be rehabilitated.
+Owls can be part of pest control.
+Owls can be studied via banding.
+Owls can be monitored by nest boxes.
+Owls can be part of education programs.
+Owls can be featured in documentaries.
+Owls can be adopted symbolically.
+Owls can be part of ecotourism.
+Owls can be affected by rodenticides.
+Owls can be hit by cars.
+Owls can be rescued.
+Owls can be hand-reared.
+Owls can be part of research on hearing.
+Owls can be part of research on flight.
+Owls can be part of research on vision.
+Owls can be part of research on predation.
+Owls can be part of research on ecology.
+Owls can be part of research on evolution.
+Owls can be part of research on sound.
+Owls can be part of research on silent flight.
+Owls can be part of research on feathers.
+Owls can be part of research on brain.
+Owls can be part of research on vision system.
+Owls can be part of research on hearing system.
+Owls can be part of research on neural processing.
+Owls can be part of research on behaviour.
+Owls can be part of research on conservation.""")
+
+add_species("Penguin",
+    [["   __", "  (o o)", "  / | \\", " /  ~  \\", " ^^  ^^"],
+     ["   __", "  (O O)", "  / | \\", " /  ~  \\", " ^^  ^^"]],
+    3,
+    """Birds that can't fly.
+Swim 36 km/h.
+Emperor dive 500 m.
+Filter salt through gland.
+Propose with a pebble.
+Live in colonies.
+Huddle for warmth.
+Incubate eggs on feet.
+Black and white countershading.
+Excellent swimmers.
+Streamlined body.
+Feathers dense and waterproof.
+Molt annually.
+Can fast for months.
+Diet fish, krill.
+Seen in Antarctica and other regions.
+Climate change threat.
+Galapagos penguin equatorial.
+Little penguin smallest.
+King penguin second largest.
+Penguin chicks have down.
+Parents share care.
+Penguins can be studied via tags.
+Penguins can be monitored by satellite.
+Penguins can be part of ecotourism.
+Penguins can be rehabilitated.
+Penguins can be treated for oil spills.
+Penguins can be part of research on climate.
+Penguins can be part of research on diet.
+Penguins can be part of research on breeding.
+Penguins can be part of research on migration.
+Penguins can be part of research on physiology.
+Penguins can be part of research on behaviour.
+Penguins can be part of research on evolution.
+Penguins can be part of research on fossils.
+Penguins can be part of research on acoustics.
+Penguins can be part of research on diving.
+Penguins can be part of research on thermoregulation.
+Penguins can be part of research on population.
+Penguins can be part of research on conservation.
+Penguins can be part of research on disease.
+Penguins can be part of research on genetics.
+Penguins can be part of research on epigenetics.
+Penguins can be part of research on microbiome.
+Penguins can be part of research on pollutants.
+Penguins can be part of research on plastic.
+Penguins can be part of research on tourism impact.
+Penguins can be part of research on protected areas.
+Penguins can be part of research on fisheries.
+Penguins can be part of research on sea ice.
+Penguins can be part of research on ocean currents.
+Penguins can be part of research on prey availability.
+Penguins can be part of research on breeding success.
+Penguins can be part of research on chick survival.
+Penguins can be part of research on adult survival.
+Penguins can be part of research on population modelling.
+Penguins can be part of research on climate modelling.
+Penguins can be part of research on conservation actions.""")
+
+add_species("Dolphin",
+    [["   __", "  (o o)", "  \\_~_/", "   /|", "  ^^ ^^"],
+     ["   __", "  (O O)", "  \\_~_/", "   /|", "  ^^ ^^"]],
+    4,
+    """Echolocation.
+Sleep with one hemisphere.
+Names (signature whistles).
+Hold breath 10+ min.
+Social and playful.
+Breach and spin.
+Intelligent.
+Trainable.
+Use tools (sponges).
+Cooperative hunting.
+Ride waves.
+Swim fast.
+Bottlenose most common.
+Orca largest dolphin.
+Amazon river dolphin pink.
+Dolphins in navy programs.
+Can be therapy animals.
+Can be seen in aquariums.
+Can be part of ecotourism.
+Can be studied via photo ID.
+Can be monitored via drones.
+Can be part of research on communication.
+Can be part of research on cognition.
+Can be part of research on behaviour.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on anatomy.
+Can be part of research on physiology.
+Can be part of research on hearing.
+Can be part of research on echolocation.
+Can be part of research on diving.
+Can be part of research on migration.
+Can be part of research on social structure.
+Can be part of research on hunting.
+Can be part of research on play.
+Can be part of research on culture.
+Can be part of research on self-recognition.
+Can be part of research on problem solving.
+Can be part of research on tool use.
+Can be part of research on memory.
+Can be part of research on emotion.
+Can be part of research on cooperation.
+Can be part of research on altruism.
+Can be part of research on communication signals.
+Can be part of research on signature whistles.
+Can be part of research on vocal learning.
+Can be part of research on mirror neurons.
+Can be part of research on brain size.
+Can be part of research on encephalization.
+Can be part of research on evolution of intelligence.
+Can be part of research on social intelligence.
+Can be part of research on cognition and behaviour.
+Can be part of research on conservation.
+Can be part of research on threats.
+Can be part of research on bycatch.
+Can be part of research on noise pollution.
+Can be part of research on climate change impacts.""")
+
+add_species("Shark",
+    [["   __", "  (> <)", "  \\_~_/", "   /|", "  ^^ ^^"],
+     ["   __", "  (> <)", "  \\_~_/", "   /|", "  ^^ ^^"]],
+    4,
+    """No bones – cartilage.
+Some never stop swimming.
+Great white detects blood in 100 L.
+Hammerheads 360° vision.
+400+ million years old.
+Teeth replaceable.
+Can smell one part per million.
+Nurse sharks rest on bottom.
+Whale shark largest.
+Basking shark filter feeds.
+Electric sense (ampullae of Lorenzini).
+Sharks are fish.
+Give live birth or lay eggs.
+Few species dangerous.
+Sharks important for ecosystem.
+Many species endangered.
+Finning illegal in many places.
+Sharks can be tracked via tags.
+Can be studied via satellite.
+Can be part of ecotourism.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on migration.
+Can be part of research on reproduction.
+Can be part of research on growth.
+Can be part of research on diet.
+Can be part of research on pollution.
+Can be part of research on climate.
+Can be part of research on acoustics.
+Can be part of research on electroreception.
+Can be part of research on magnetoreception.
+Can be part of research on olfaction.
+Can be part of research on vision.
+Can be part of research on lateral line.
+Can be part of research on hydrodynamics.
+Can be part of research on bio-mechanics.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on conservation.
+Can be part of research on fisheries.
+Can be part of research on bycatch.
+Can be part of research on finning.
+Can be part of research on protective laws.
+Can be part of research on shark sanctuaries.
+Can be part of research on public perception.
+Can be part of research on shark attacks.
+Can be part of research on shark behaviour.
+Can be part of research on shark intelligence.
+Can be part of research on shark social structure.
+Can be part of research on shark communication.
+Can be part of research on shark reproduction.
+Can be part of research on shark development.
+Can be part of research on shark physiology.
+Can be part of research on shark anatomy.""")
+
+add_species("Octopus",
+    [["   __", "  (o o)", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """3 hearts.
+Blue blood.
+Change colour and texture.
+Escape artists.
+Each arm mini-brain.
+Beak like a parrot.
+Jet propulsion.
+Can squeeze tiny spaces.
+Incredible camouflage.
+Use tools (coconut shells).
+Recognize people.
+Playful.
+Short life.
+Females die after eggs hatch.
+500 million neurons.
+Most intelligent invertebrate.
+Mimic octopus imitates other species.
+Blue-ringed octopus venomous.
+Can regrow arms.
+Found in all oceans.
+Can be studied via cameras.
+Can be part of research on intelligence.
+Can be part of research on neural system.
+Can be part of research on skin.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on behaviour.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on problem solving.
+Can be part of research on play.
+Can be part of research on personality.
+Can be part of research on social behaviour.
+Can be part of research on communication.
+Can be part of research on camouflage.
+Can be part of research on bio-inspiration.
+Can be part of research on robotics.
+Can be part of research on soft robotics.
+Can be part of research on materials.
+Can be part of research on adhesion.
+Can be part of research on suction.
+Can be part of research on arm movement.
+Can be part of research on distributed intelligence.
+Can be part of research on consciousness.
+Can be part of research on neurobiology.
+Can be part of research on genomics.
+Can be part of research on proteomics.
+Can be part of research on transcriptomics.
+Can be part of research on epigenetics.
+Can be part of research on development.
+Can be part of research on reproduction.
+Can be part of research on senescence.
+Can be part of research on ecology.
+Can be part of research on fisheries.
+Can be part of research on conservation.
+Can be part of research on climate impact.""")
+
+add_species("Bee",
+    [["  (o o)", "  ( V )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  ( V )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Single bee 1/12 tsp honey in life.
+Communicate through dance.
+Queen lays 2,000 eggs/day.
+Honey never spoils.
+See ultraviolet light.
+6 legs.
+5 eyes.
+Pollinate 1/3 of food.
+Waggle dance.
+Pollen baskets.
+Stinger dies after use.
+Colony collapse disorder.
+Apis mellifera most common.
+Native bees important.
+Beeswax used in candles.
+Propolis for hives.
+Royal jelly fed to queen.
+Swarming seasonally.
+Can be kept in hives.
+Beekeeping ancient.
+Bees can be trained.
+Bees can detect explosives.
+Bees can be part of research on navigation.
+Bees can be part of research on learning.
+Bees can be part of research on memory.
+Bees can be part of research on vision.
+Bees can be part of research on olfaction.
+Bees can be part of research on communication.
+Bees can be part of research on dance.
+Bees can be part of research on colony.
+Bees can be part of research on ecology.
+Bees can be part of research on pollination.
+Bees can be part of research on agriculture.
+Bees can be part of research on climate.
+Bees can be part of research on pesticides.
+Bees can be part of research on disease.
+Bees can be part of research on genetics.
+Bees can be part of research on epigenetics.
+Bees can be part of research on microbiome.
+Bees can be part of research on nutrition.
+Bees can be part of research on behaviour.
+Bees can be part of research on social insects.
+Bees can be part of research on evolution.
+Bees can be part of research on biodiversity.
+Bees can be part of research on conservation.
+Bees can be part of research on sustainability.
+Bees can be part of research on urban ecology.
+Bees can be part of research on pollination services.
+Bees can be part of research on crop yield.
+Bees can be part of research on food security.
+Bees can be part of research on monitoring.
+Bees can be part of research on biomonitoring.
+Bees can be part of research on citizen science.""")
+
+add_species("Ant",
+    [["  (o o)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /     \\", " ^^   ^^"]],
+    1,
+    """Lift 50x body weight.
+12,000+ species.
+Colonies millions.
+Some farm fungi.
+Pheromone trails.
+Superorganism.
+Queen lays all eggs.
+Workers are female.
+Drones male.
+Nuptial flight.
+Carpenter ants tunnel wood.
+Fire ants sting.
+Army ants nomadic.
+Weaver ants build nests.
+Ants can be studied via colonies.
+Ants can be part of research on behaviour.
+Ants can be part of research on ecology.
+Ants can be part of research on evolution.
+Ants can be part of research on genetics.
+Ants can be part of research on epigenetics.
+Ants can be part of research on microbiome.
+Ants can be part of research on communication.
+Ants can be part of research on navigation.
+Ants can be part of research on learning.
+Ants can be part of research on memory.
+Ants can be part of research on problem solving.
+Ants can be part of research on agriculture.
+Ants can be part of research on symbiosis.
+Ants can be part of research on pests.
+Ants can be part of research on biological control.
+Ants can be part of research on biodiversity.
+Ants can be part of research on climate.
+Ants can be part of research on soil.
+Ants can be part of research on decomposition.
+Ants can be part of research on nutrient cycling.
+Ants can be part of research on invasion biology.
+Ants can be part of research on conservation.
+Ants can be part of research on monitoring.
+Ants can be part of research on citizen science.
+Ants can be part of research on education.
+Ants can be part of research on technology (robotics).
+Ants can be part of research on algorithms (ant colony optimization).
+Ants can be part of research on networks.
+Ants can be part of research on swarm intelligence.
+Ants can be part of research on self-organization.
+Ants can be part of research on collective behaviour.
+Ants can be part of research on decision making.
+Ants can be part of research on colony life.
+Ants can be part of research on division of labor.
+Ants can be part of research on communication chemicals.
+Ants can be part of research on trail pheromones.
+Ants can be part of research on alarm pheromones.
+Ants can be part of research on nest building.
+Ants can be part of research on foraging.
+Ants can be part of research on territory.
+Ants can be part of research on mating.
+Ants can be part of research on development.
+Ants can be part of research on physiology.""")
+
+add_species("Squirrel",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Plant trees by forgetting nuts.
+Leap 10x body length.
+Teeth grow continuously.
+Flying squirrels glide 90 m.
+Pretend to bury nuts.
+Grey squirrel invasive.
+Red squirrel native.
+Fox squirrel large.
+Ground squirrels live in burrows.
+Tree squirrels agile.
+Squirrel diet varied.
+Squirrels can be studied via cameras.
+Squirrels can be part of research on behaviour.
+Squirrels can be part of research on ecology.
+Squirrels can be part of research on evolution.
+Squirrels can be part of research on caching.
+Squirrels can be part of research on navigation.
+Squirrels can be part of research on memory.
+Squirrels can be part of research on learning.
+Squirrels can be part of research on problem solving.
+Squirrels can be part of research on communication.
+Squirrels can be part of research on social structure.
+Squirrels can be part of research on reproduction.
+Squirrels can be part of research on development.
+Squirrels can be part of research on physiology.
+Squirrels can be part of research on genetics.
+Squirrels can be part of research on epigenetics.
+Squirrels can be part of research on microbiome.
+Squirrels can be part of research on diet.
+Squirrels can be part of research on habitat.
+Squirrels can be part of research on urban ecology.
+Squirrels can be part of research on invasive species.
+Squirrels can be part of research on conservation.
+Squirrels can be part of research on monitoring.
+Squirrels can be part of research on citizen science.
+Squirrels can be part of research on education.
+Squirrels can be part of research on park management.
+Squirrels can be part of research on tree planting.
+Squirrels can be part of research on forest regeneration.
+Squirrels can be part of research on seed dispersal.
+Squirrels can be part of research on biodiversity.
+Squirrels can be part of research on climate.
+Squirrels can be part of research on phenology.
+Squirrels can be part of research on disease.
+Squirrels can be part of research on parasites.
+Squirrels can be part of research on predators.
+Squirrels can be part of research on competition.
+Squirrels can be part of research on coexistence.
+Squirrels can be part of research on behaviour flexibility.
+Squirrels can be part of research on intelligence.
+Squirrels can be part of research on cognition.
+Squirrels can be part of research on spatial memory.
+Squirrels can be part of research on cache theft.
+Squirrels can be part of research on deceptive caching.
+Squirrels can be part of research on food hoarding.
+Squirrels can be part of research on hibernation.
+Squirrels can be part of research on torpor.
+Squirrels can be part of research on winter survival.
+Squirrels can be part of research on adaptation.""")
+
+add_species("Raccoon",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """Wash food.
+Dexterous front paws.
+Excellent climbers.
+Group called nursery.
+Solve complex puzzles.
+Mask-like face.
+Nocturnal.
+Can live in urban areas.
+Omnivorous.
+Can open containers.
+Can be pests.
+Carry diseases.
+Rabies vector.
+Intelligent.
+Can be trained.
+Can be studied via GPS.
+Can be part of research on behaviour.
+Can be part of research on cognition.
+Can be part of research on problem solving.
+Can be part of research on memory.
+Can be part of research on learning.
+Can be part of research on adaptation.
+Can be part of research on urban ecology.
+Can be part of research on human-wildlife conflict.
+Can be part of research on disease.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on ecology.
+Can be part of research on diet.
+Can be part of research on habitat.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on sensory perception.
+Can be part of research on communication.
+Can be part of research on social structure.
+Can be part of research on territory.
+Can be part of research on activity patterns.
+Can be part of research on denning.
+Can be part of research on hibernation.
+Can be part of research on winter activity.
+Can be part of research on climate impact.
+Can be part of research on conservation.
+Can be part of research on management.
+Can be part of research on relocation.
+Can be part of research on rehabilitation.
+Can be part of research on education.
+Can be part of research on citizen science.
+Can be part of research on monitoring.
+Can be part of research on trapping.
+Can be part of research on vaccination.
+Can be part of research on sterilization.
+Can be part of research on population control.
+Can be part of research on behaviour modification.
+Can be part of research on conflict mitigation.
+Can be part of research on waste management.
+Can be part of research on public health.
+Can be part of research on zoonotic diseases.""")
+
+add_species("Butterfly",
+    [["  (o o)", "  (   )", "  /\\ /\\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /\\ /\\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """Taste with feet.
+Compound eyes.
+Monarchs migrate 4,000 km.
+Life cycle: egg, caterpillar, pupa, adult.
+See ultraviolet.
+Wings covered in scales.
+Proboscis for nectar.
+Some mimic toxic species.
+Swallowtails large.
+Blue morphos brilliant.
+Painted ladies widespread.
+Moths vs butterflies.
+Can be raised at home.
+Important pollinators.
+Habitat loss threat.
+Climate change affects.
+Butterfly gardening.
+Can be studied via tagging.
+Can be part of research on migration.
+Can be part of research on navigation.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on colour.
+Can be part of research on vision.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on mimicry.
+Can be part of research on conservation.
+Can be part of research on climate.
+Can be part of research on phenology.
+Can be part of research on biodiversity.
+Can be part of research on population monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on pollination.
+Can be part of research on agriculture.
+Can be part of research on habitat restoration.
+Can be part of research on invasive species.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on predators.
+Can be part of research on host plants.
+Can be part of research on chemical ecology.
+Can be part of research on pheromones.
+Can be part of research on mate selection.
+Can be part of research on territoriality.
+Can be part of research on migration routes.
+Can be part of research on overwintering.
+Can be part of research on microclimate.
+Can be part of research on landscape ecology.
+Can be part of research on urban ecology.
+Can be part of research on park management.
+Can be part of research on garden design.""")
+
+add_species("Snake",
+    [["   ___", "  / o o \\", "  \\  ~  /", "   \\_/ ", "   ^ ^"],
+     ["   ___", "  / O O \\", "  \\  ~  /", "   \\_/ ", "   ^ ^"]],
+    1,
+    """Smell with tongue.
+Unhinge jaws.
+Heat-sensing pits.
+3,000+ species.
+15% venomous.
+Scales shed periodically.
+No legs.
+Some give live birth.
+Pythons constrict.
+Cobras hooded.
+Rattlesnakes rattle.
+Sea snakes aquatic.
+Can be studied via radio telemetry.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on venom.
+Can be part of research on locomotion.
+Can be part of research on thermoregulation.
+Can be part of research on sensory systems.
+Can be part of research on predation.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on conservation.
+Can be part of research on education.
+Can be part of research on citizen science.
+Can be part of research on monitoring.
+Can be part of research on population.
+Can be part of research on climate.
+Can be part of research on habitat.
+Can be part of research on disease.
+Can be part of research on parasitology.
+Can be part of research on invasive species.
+Can be part of research on pest control.
+Can be part of research on human conflict.
+Can be part of research on snakebite.
+Can be part of research on antivenom.
+Can be part of research on traditional medicine.
+Can be part of research on mythology.
+Can be part of research on cultural significance.
+Can be part of research on pet trade.
+Can be part of research on captive breeding.
+Can be part of research on welfare.
+Can be part of research on handling.
+Can be part of research on photography.
+Can be part of research on ecotourism.
+Can be part of research on film.
+Can be part of research on conservation messaging.
+Can be part of research on protected areas.
+Can be part of research on land management.
+Can be part of research on fire impacts.
+Can be part of research on drought.
+Can be part of research on flooding.
+Can be part of research on habitat fragmentation.""")
+
+add_species("Spider",
+    [["  /\\/\\", " ( o o )", "  >   <", " /  ~  \\", " ^^   ^^"],
+     ["  /\\/\\", " ( O O )", "  >   <", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """8 legs, 8 eyes.
+Not all spin webs.
+Silk stronger than steel.
+Goliath birdeater largest.
+Some jump 50x body.
+Orb weavers geometric.
+Jumping spiders intelligent.
+Tarantulas hairy.
+Web types: orb, cobweb, funnel, sheet.
+Spiders important predators.
+Venom for prey.
+Many harmless to humans.
+Can be studied via observation.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on silk.
+Can be part of research on biomechanics.
+Can be part of research on materials.
+Can be part of research on bio-inspiration.
+Can be part of research on robotics.
+Can be part of research on adhesion.
+Can be part of research on predation.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on sensory systems.
+Can be part of research on vision.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on problem solving.
+Can be part of research on navigation.
+Can be part of research on communication.
+Can be part of research on mating.
+Can be part of research on cannibalism.
+Can be part of research on social spiders.
+Can be part of research on colony.
+Can be part of research on mimicry.
+Can be part of research on camouflage.
+Can be part of research on venom.
+Can be part of research on pharmacology.
+Can be part of research on medical applications.
+Can be part of research on pest control.
+Can be part of research on biological control.
+Can be part of research on agriculture.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on conservation.
+Can be part of research on monitoring.
+Can be part of research on habitat.
+Can be part of research on climate.
+Can be part of research on invasive species.
+Can be part of research on urban ecology.
+Can be part of research on public perception.
+Can be part of research on arachnophobia.
+Can be part of research on exposure therapy.""")
+
+add_species("Bat",
+    [["   /\\", "  (o o)", "  / | \\", " /  ~  \\", " ^^   ^^"],
+     ["   /\\", "  (O O)", "  / | \\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """Only flying mammals.
+Echolocation.
+Vampire bats rare.
+Live over 30 years.
+Vital pollinators.
+Guano fertiliser.
+Fruit bats spread seeds.
+Insect-eating bats pest control.
+Hibernate or migrate.
+Nursery colonies.
+Can be studied via mist nets.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on echolocation.
+Can be part of research on flight.
+Can be part of research on anatomy.
+Can be part of research on physiology.
+Can be part of research on metabolism.
+Can be part of research on torpor.
+Can be part of research on immune system.
+Can be part of research on virus reservoirs.
+Can be part of research on disease.
+Can be part of research on rabies.
+Can be part of research on white-nose syndrome.
+Can be part of research on conservation.
+Can be part of research on population monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on wind turbines.
+Can be part of research on habitat.
+Can be part of research on roosting.
+Can be part of research on foraging.
+Can be part of research on diet.
+Can be part of research on pollination.
+Can be part of research on seed dispersal.
+Can be part of research on pest control.
+Can be part of research on ecosystem services.
+Can be part of research on climate.
+Can be part of research on migration.
+Can be part of research on communication.
+Can be part of research on social structure.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on maternal care.
+Can be part of research on pup development.
+Can be part of research on vocal learning.
+Can be part of research on hearing.
+Can be part of research on nervous system.
+Can be part of research on brain.
+Can be part of research on behaviour flexibility.
+Can be part of research on cognitive ability.
+Can be part of research on memory.
+Can be part of research on spatial cognition.
+Can be part of research on navigation.""")
+
+add_species("Horse",
+    [["   __", "  (o o)", "  /|_|\\", "  / | \\", " ^^  ^^"],
+     ["   __", "  (O O)", "  /|_|\\", "  / | \\", " ^^  ^^"]],
+    3,
+    """Sleep standing up.
+Largest eyes of land mammal.
+Run shortly after birth.
+Teeth take more space than brain.
+Recognize human emotions.
+Domesticated 5,500 years.
+Breeds vary in size.
+Clydesdale heavy.
+Arabian endurance.
+Thoroughbred racers.
+Horses can nap.
+Can be trained.
+Rideable.
+Carriages.
+Police horses.
+Therapy horses.
+Horses in sport.
+Horses in war.
+Horses in film.
+Horses can be studied via ethology.
+Can be part of research on behaviour.
+Can be part of research on cognition.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on perception.
+Can be part of research on welfare.
+Can be part of research on training.
+Can be part of research on equine science.
+Can be part of research on biomechanics.
+Can be part of research on gaits.
+Can be part of research on nutrition.
+Can be part of research on reproduction.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on domestication.
+Can be part of research on history.
+Can be part of research on veterinary.
+Can be part of research on disease.
+Can be part of research on lameness.
+Can be part of research on colic.
+Can be part of research on dentistry.
+Can be part of research on hoof care.
+Can be part of research on saddle fitting.
+Can be part of research on rider interaction.
+Can be part of research on human-animal bond.
+Can be part of research on sport performance.
+Can be part of research on endurance.
+Can be part of research on racing.
+Can be part of research on jumping.
+Can be part of research on dressage.
+Can be part of research on eventing.
+Can be part of research on polo.
+Can be part of research on rodeo.
+Can be part of research on carriage driving.
+Can be part of research on vaulting.
+Can be part of research on hippotherapy.""")
+
+add_species("Cow",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    7,
+    """4 stomach compartments.
+See almost 360°.
+Form close friendships.
+Produce 70 kg milk/day.
+Chew cud 10-12 h/day.
+Domesticated 10,500 years.
+Breed for milk or meat.
+Holstein dairy breed.
+Angus beef breed.
+Cows have a hierarchy.
+Moo for communication.
+Can live 20 years.
+Cows can be studied via behaviour.
+Can be part of research on welfare.
+Can be part of research on nutrition.
+Can be part of research on reproduction.
+Can be part of research on genetics.
+Can be part of research on breeding.
+Can be part of research on dairy science.
+Can be part of research on beef science.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on mastitis.
+Can be part of research on lameness.
+Can be part of research on housing.
+Can be part of research on pasture.
+Can be part of research on grazing.
+Can be part of research on methane.
+Can be part of research on climate.
+Can be part of research on sustainability.
+Can be part of research on economics.
+Can be part of research on society.
+Can be part of research on culture.
+Can be part of research on history.
+Can be part of research on domestication.
+Can be part of research on human-animal bond.
+Can be part of research on animal behaviour.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on cognition.
+Can be part of research on emotion.
+Can be part of research on social structure.
+Can be part of research on personality.
+Can be part of research on vocalisation.
+Can be part of research on maternal care.
+Can be part of research on calf rearing.
+Can be part of research on weaning.
+Can be part of research on feed efficiency.
+Can be part of research on growth.
+Can be part of research on slaughter.
+Can be part of research on meat quality.
+Can be part of research on milk composition.
+Can be part of research on cheese.
+Can be part of research on yogurt.
+Can be part of research on organic farming.
+Can be part of research on free-range.
+Can be part of research on animal welfare labels.""")
+
+add_species("Pig",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """Highly intelligent.
+Excellent sense of smell.
+Can't sweat.
+Group called sounder.
+Roll in mud to cool.
+Domesticated 9,000 years.
+Breeds for meat.
+Piglets have stripes.
+Can be trained.
+Can be pets.
+Mini pigs exist.
+Can be studied via behaviour.
+Can be part of research on cognition.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on problem solving.
+Can be part of research on welfare.
+Can be part of research on nutrition.
+Can be part of research on reproduction.
+Can be part of research on genetics.
+Can be part of research on breeding.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on porcine science.
+Can be part of research on growth.
+Can be part of research on meat quality.
+Can be part of research on pork.
+Can be part of research on bacon.
+Can be part of research on ham.
+Can be part of research on sausage.
+Can be part of research on organic farming.
+Can be part of research on free-range.
+Can be part of research on animal welfare.
+Can be part of research on housing.
+Can be part of research on straw.
+Can be part of research on rooting.
+Can be part of research on social structure.
+Can be part of research on communication.
+Can be part of research on vocalisation.
+Can be part of research on maternal care.
+Can be part of research on piglet survival.
+Can be part of research on weaning.
+Can be part of research on castration.
+Can be part of research on tail docking.
+Can be part of research on environmental enrichment.
+Can be part of research on toys.
+Can be part of research on human-animal bond.
+Can be part of research on therapy pigs.
+Can be part of research on pig racing.
+Can be part of research on pig shows.
+Can be part of research on pig farming economics.
+Can be part of research on pig manure.
+Can be part of research on biogas.
+Can be part of research on sustainability.
+Can be part of research on climate.
+Can be part of research on greenhouse gases.""")
+
+add_species("Chicken",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Closest living relative of T-Rex.
+Remember 100+ faces.
+Dream while sleeping.
+Hen turns eggs 50x/day.
+Full colour vision.
+Domesticated 8,000 years.
+Breeds for eggs or meat.
+Broilers fast growth.
+Layers prolific.
+Can be kept as pets.
+Can be trained.
+Pecking order.
+Can be studied via behaviour.
+Can be part of research on cognition.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on welfare.
+Can be part of research on nutrition.
+Can be part of research on reproduction.
+Can be part of research on genetics.
+Can be part of research on breeding.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on avian influenza.
+Can be part of research on poultry science.
+Can be part of research on egg production.
+Can be part of research on meat quality.
+Can be part of research on free-range.
+Can be part of research on organic.
+Can be part of research on animal welfare.
+Can be part of research on housing.
+Can be part of research on cages.
+Can be part of research on barn.
+Can be part of research on pasture.
+Can be part of research on dust bathing.
+Can be part of research on perching.
+Can be part of research on foraging.
+Can be part of research on social structure.
+Can be part of research on communication.
+Can be part of research on vocalisation.
+Can be part of research on alarm calls.
+Can be part of research on maternal care.
+Can be part of research on incubation.
+Can be part of research on chick rearing.
+Can be part of research on feather pecking.
+Can be part of research on cannibalism.
+Can be part of research on environmental enrichment.
+Can be part of research on toys.
+Can be part of research on light.
+Can be part of research on colour.
+Can be part of research on taste.
+Can be part of research on olfaction.
+Can be part of research on pain.
+Can be part of research on stress.
+Can be part of research on fear.
+Can be part of research on empathy.
+Can be part of research on self-awareness.
+Can be part of research on synchronisation.
+Can be part of research on rhythms.""")
+
+add_species("Duck",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    3,
+    """Waterproof feathers.
+Sleep with one eye open.
+Migrate thousands of miles.
+Imprint on first thing seen.
+Filter food from water.
+Dabblers and divers.
+Mallards common.
+Wood ducks nest in trees.
+Eider ducks provide down.
+Ducks can be studied via banding.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on migration.
+Can be part of research on navigation.
+Can be part of research on imprinting.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on communication.
+Can be part of research on social structure.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on anatomy.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on conservation.
+Can be part of research on wetlands.
+Can be part of research on habitat.
+Can be part of research on climate.
+Can be part of research on waterfowl.
+Can be part of research on hunting.
+Can be part of research on hunting regulations.
+Can be part of research on population.
+Can be part of research on monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on agriculture.
+Can be part of research on rice farming.
+Can be part of research on pest control.
+Can be part of research on disease.
+Can be part of research on avian influenza.
+Can be part of research on parasites.
+Can be part of research on lead poisoning.
+Can be part of research on plastic.
+Can be part of research on pollution.
+Can be part of research on wetland restoration.
+Can be part of research on urban ponds.
+Can be part of research on park management.
+Can be part of research on ecotourism.
+Can be part of research on birdwatching.
+Can be part of research on photography.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on cultural significance.
+Can be part of research on domestication.
+Can be part of research on poultry.
+Can be part of research on food.
+Can be part of research on feathers.""")
+
+add_species("Parrot",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    3,
+    """Mimic human speech.
+African grey intelligence 5-year-old.
+Zygodactyl feet (2 toes forward, 2 back).
+Some live 80+ years.
+Mate for life.
+Psittacines.
+Cockatoos crest.
+Macaws large.
+Budgerigar small.
+Can be trained.
+Can learn colours, shapes.
+Can count.
+Can use tools.
+Feathers pigment blue structural.
+Can be studied via behaviour.
+Can be part of research on cognition.
+Can be part of research on communication.
+Can be part of research on vocal learning.
+Can be part of research on problem solving.
+Can be part of research on tool use.
+Can be part of research on memory.
+Can be part of research on imitation.
+Can be part of research on social intelligence.
+Can be part of research on bonding.
+Can be part of research on jealousy.
+Can be part of research on personality.
+Can be part of research on welfare.
+Can be part of research on pet trade.
+Can be part of research on conservation.
+Can be part of research on endangered species.
+Can be part of research on trafficking.
+Can be part of research on captive breeding.
+Can be part of research on reintroduction.
+Can be part of research on habitat.
+Can be part of research on deforestation.
+Can be part of research on nutrition.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on feather plucking.
+Can be part of research on screaming.
+Can be part of research on boredom.
+Can be part of research on enrichment.
+Can be part of research on toys.
+Can be part of research on foraging.
+Can be part of research on training.
+Can be part of research on free flight.
+Can be part of research on aviculture.
+Can be part of research on pet psychology.
+Can be part of research on human-animal bond.
+Can be part of research on therapy animals.
+Can be part of research on education.
+Can be part of research on entertainment.
+Can be part of research on research itself.
+Can be part of research on Alex the parrot.
+Can be part of research on Irene Pepperberg.
+Can be part of research on animal language.
+Can be part of research on comparative cognition.
+Can be part of research on evolution of intelligence.""")
+
+# --- END OF PART 1 ---
+# --- START OF PART 2 ---
+
+add_species("Peacock",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    5,
+    """Only male peacocks have ornate tail.
+Tail feathers called a train.
+Shed tail feathers annually.
+National bird of India.
+Can fly short distances.
+Train can span 6 feet.
+Peahen is female.
+Chicks called peachicks.
+Iridescent colours.
+Symbol of beauty.
+Peacocks in mythology.
+Can be seen in parks.
+Can be aggressive during mating.
+Make loud calls.
+Omnivorous.
+Can be kept as ornamental birds.
+Can live 15-20 years.
+Native to South Asia.
+Feral populations exist.
+Peacocks can be studied via observation.
+Can be part of research on behaviour.
+Can be part of research on evolution.
+Can be part of research on sexual selection.
+Can be part of research on colour perception.
+Can be part of research on genetics.
+Can be part of research on ecology.
+Can be part of research on conservation.
+Can be part of research on aviculture.
+Can be part of research on ornamental birds.
+Can be part of research on display.
+Can be part of research on vocalisation.
+Can be part of research on mating systems.
+Can be part of research on parental care.
+Can be part of research on chick development.
+Can be part of research on diet.
+Can be part of research on foraging.
+Can be part of research on habitat.
+Can be part of research on urban parks.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on religion.
+Can be part of research on symbolism.
+Can be part of research on folklore.
+Can be part of research on history.
+Can be part of research on domestication.
+Can be part of research on breeding.
+Can be part of research on mutations (white peacock).
+Can be part of research on diseases.
+Can be part of research on parasites.
+Can be part of research on predation.
+Can be part of research on interaction with humans.
+Can be part of research on feeding.
+Can be part of research on enrichment.
+Can be part of research on welfare.
+Can be part of research on captivity.
+Can be part of research on reintroduction.""")
+
+add_species("Chameleon",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    1,
+    """Change colour for temperature and mood.
+Tongue twice body length.
+Eyes move independently.
+360-degree vision.
+Some give live birth.
+Prehensile tail.
+Zygodactylous feet.
+Slow-moving.
+Camouflage masters.
+Over 200 species.
+Panther chameleon colourful.
+Jackson's chameleon three horns.
+Smallest Brookesia nana.
+Largest Parson's chameleon.
+Can be kept as pets.
+Require UVB light.
+Insectivorous.
+Water from droplets.
+Can be studied via observation.
+Can be part of research on colour change.
+Can be part of research on vision.
+Can be part of research on tongue projection.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on physiology.
+Can be part of research on husbandry.
+Can be part of research on welfare.
+Can be part of research on trade.
+Can be part of research on conservation.
+Can be part of research on habitat.
+Can be part of research on climate.
+Can be part of research on predation.
+Can be part of research on communication.
+Can be part of research on social behaviour.
+Can be part of research on territoriality.
+Can be part of research on mating displays.
+Can be part of research on oviparity vs viviparity.
+Can be part of research on incubation.
+Can be part of research on hatchling care.
+Can be part of research on longevity.
+Can be part of research on nutrition.
+Can be part of research on supplementation.
+Can be part of research on lighting.
+Can be part of research on humidity.
+Can be part of research on substrate.
+Can be part of research on enclosure design.
+Can be part of research on naturalistic vivariums.
+Can be part of research on stress.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on reproduction in captivity.
+Can be part of research on breeding projects.
+Can be part of research on reintroduction.""")
+
+add_species("Sloth",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    1,
+    """Move so slowly algae grows on fur.
+Sleep 15-20 hours/day.
+Four-part stomach for leaves.
+Grip so strong they hang after death.
+Only ground once a week to poop.
+Two-toed and three-toed sloths.
+Arboreal.
+Excellent swimmers.
+Low metabolism.
+Body temperature low.
+Feed mainly on Cecropia leaves.
+Can rotate head 270°.
+Solitary.
+Camouflage in trees.
+Can be seen in Central/South America.
+Habitat loss threat.
+Can be rehabilitated.
+Can be part of research on metabolism.
+Can be part of research on digestion.
+Can be part of research on fur ecosystem.
+Can be part of research on camouflage.
+Can be part of research on locomotion.
+Can be part of research on muscle.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on conservation.
+Can be part of research on ecotourism.
+Can be part of research on rescue.
+Can be part of research on rehabilitation.
+Can be part of research on release.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on algae symbiosis.
+Can be part of research on fungi.
+Can be part of research on behaviour.
+Can be part of research on reproduction.
+Can be part of research on mating.
+Can be part of research on gestation.
+Can be part of research on birth.
+Can be part of research on maternal care.
+Can be part of research on juvenile development.
+Can be part of research on vocalisation.
+Can be part of research on communication.
+Can be part of research on social interaction.
+Can be part of research on territory.
+Can be part of research on home range.
+Can be part of research on dispersal.
+Can be part of research on population density.
+Can be part of research on monitoring.
+Can be part of research on tracking.
+Can be part of research on genetics of populations.
+Can be part of research on phylogenetic.
+Can be part of research on fossil record.
+Can be part of research on ancient sloths.
+Can be part of research on megafauna.
+Can be part of research on extinction.
+Can be part of research on rewilding.""")
+
+add_species("Armadillo",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Protective bony armour.
+Nine-banded armadillo gives birth to identical quadruplets.
+Hold breath 6 minutes to cross rivers.
+Carry leprosy bacteria.
+Related to anteaters.
+Can roll into a ball (some species).
+Dig burrows.
+Insectivorous.
+Poor eyesight.
+Good sense of smell.
+Can swim.
+Can be seen in Americas.
+Expand range northward.
+Can be hunted for food.
+Can be studied via tracking.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on armour.
+Can be part of research on reproduction.
+Can be part of research on polyembryony.
+Can be part of research on disease.
+Can be part of research on leprosy.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on burrowing.
+Can be part of research on foraging.
+Can be part of research on diet.
+Can be part of research on habitat.
+Can be part of research on range expansion.
+Can be part of research on climate impact.
+Can be part of research on conservation.
+Can be part of research on human conflict.
+Can be part of research on roadkill.
+Can be part of research on monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on captive breeding.
+Can be part of research on rehabilitation.
+Can be part of research on veterinary.
+Can be part of research on anaesthesia.
+Can be part of research on surgery.
+Can be part of research on imaging.
+Can be part of research on physiology.
+Can be part of research on metabolism.
+Can be part of research on thermoregulation.
+Can be part of research on respiration.
+Can be part of research on diving reflex.
+Can be part of research on buoyancy.
+Can be part of research on floating.
+Can be part of research on swimming.
+Can be part of research on walking.
+Can be part of research on digging.
+Can be part of research on claw morphology.
+Can be part of research on tail.
+Can be part of research on ears.
+Can be part of research on teeth.
+Can be part of research on digestion.
+Can be part of research on microbiota.""")
+
+add_species("Jellyfish",
+    [["   ~~~", "  (o o)", "  ( ~ )", "  /   \\", " ^^   ^^"],
+     ["   ~~~", "  (O O)", "  ( ~ )", "  /   \\", " ^^   ^^"]],
+    3,
+    """95% water.
+No brain or heart.
+Some are immortal (Turritopsis dohrnii).
+Stinging cells called nematocysts.
+Existed before dinosaurs.
+Bioluminescent.
+Can clone themselves.
+Polyp and medusa stages.
+Box jellyfish venomous.
+Bloom events.
+Important in marine food web.
+Can be kept in aquariums.
+Can be studied via observation.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on development.
+Can be part of research on regeneration.
+Can be part of research on ageing.
+Can be part of research on immortality.
+Can be part of research on venom.
+Can be part of research on bioluminescence.
+Can be part of research on fluorescence.
+Can be part of research on ecology.
+Can be part of research on blooms.
+Can be part of research on climate.
+Can be part of research on ocean acidification.
+Can be part of research on fisheries.
+Can be part of research on aquaculture.
+Can be part of research on biotechnology.
+Can be part of research on materials.
+Can be part of research on robotics.
+Can be part of research on soft robotics.
+Can be part of research on medical applications.
+Can be part of research on green fluorescent protein (GFP).
+Can be part of research on neuroscience.
+Can be part of research on behaviour.
+Can be part of research on movement.
+Can be part of research on feeding.
+Can be part of research on digestion.
+Can be part of research on reproduction.
+Can be part of research on life cycle.
+Can be part of research on metamorphosis.
+Can be part of research on polyp.
+Can be part of research on strobilation.
+Can be part of research on ephyra.
+Can be part of research on medusa.
+Can be part of research on gonads.
+Can be part of research on spawning.
+Can be part of research on planula.
+Can be part of research on settlement.
+Can be part of research on scyphistoma.
+Can be part of research on stolon.
+Can be part of research on budding.
+Can be part of research on fission.
+Can be part of research on fusion.
+Can be part of research on chimerism.""")
+
+add_species("Starfish",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Regenerate arms.
+No brain or blood.
+Move using tube feet.
+Can push stomach outside body.
+Some have 40 arms.
+Crown-of-thorns starfish.
+Important in tidal ecosystems.
+Echinoderms.
+Water vascular system.
+Can be keystone species.
+Can be studied via observation.
+Can be part of research on regeneration.
+Can be part of research on development.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on movement.
+Can be part of research on feeding.
+Can be part of research on predation.
+Can be part of research on coral reefs.
+Can be part of research on outbreaks.
+Can be part of research on control.
+Can be part of research on conservation.
+Can be part of research on marine protected areas.
+Can be part of research on climate.
+Can be part of research on ocean acidification.
+Can be part of research on temperature.
+Can be part of research on salinity.
+Can be part of research on pollution.
+Can be part of research on heavy metals.
+Can be part of research on microplastics.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on aquariums.
+Can be part of research on public engagement.
+Can be part of research on taxonomy.
+Can be part of research on phylogenetics.
+Can be part of research on molecular biology.
+Can be part of research on transcriptomics.
+Can be part of research on proteomics.
+Can be part of research on immune system.
+Can be part of research on nervous system.
+Can be part of research on sensory biology.
+Can be part of research on photoreception.
+Can be part of research on chemoreception.
+Can be part of research on mechanoreception.
+Can be part of research on reproduction.
+Can be part of research on spawning.
+Can be part of research on larval development.
+Can be part of research on settlement.
+Can be part of research on metamorphosis.
+Can be part of research on growth.
+Can be part of research on age determination.
+Can be part of research on population dynamics.""")
+
+add_species("Axolotl",
+    [["  (o o)", "  ( ~ )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  ( ~ )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    5,
+    """Neotenic salamanders.
+Regenerate limbs, spinal cord, heart.
+Critically endangered in wild.
+Colours: wild type, leucistic, albino.
+Popular in scientific research.
+Gills external.
+Aquatic.
+Mexican salamander.
+Can be kept as pets.
+Can breed in captivity.
+Feed on worms, pellets.
+Can be studied via regeneration research.
+Can be part of research on development.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on genomics.
+Can be part of research on transcriptomics.
+Can be part of research on proteomics.
+Can be part of research on regeneration mechanisms.
+Can be part of research on stem cells.
+Can be part of research on blastema formation.
+Can be part of research on scarring.
+Can be part of research on wound healing.
+Can be part of research on aging.
+Can be part of research on cancer resistance.
+Can be part of research on immunology.
+Can be part of research on endocrinology.
+Can be part of research on metamorphosis.
+Can be part of research on thyroid hormone.
+Can be part of research on neoteny.
+Can be part of research on paedomorphosis.
+Can be part of research on habitat.
+Can be part of research on conservation.
+Can be part of research on captive breeding.
+Can be part of research on reintroduction.
+Can be part of research on disease.
+Can be part of research on chytrid fungus.
+Can be part of research on water quality.
+Can be part of research on pollution.
+Can be part of research on invasive species.
+Can be part of research on education.
+Can be part of research on public awareness.
+Can be part of research on pet trade.
+Can be part of research on welfare.
+Can be part of research on nutrition.
+Can be part of research on husbandry.
+Can be part of research on filtration.
+Can be part of research on temperature.
+Can be part of research on lighting.
+Can be part of research on substrate.
+Can be part of research on social behaviour.
+Can be part of research on reproduction.
+Can be part of research on egg laying.
+Can be part of research on larval rearing.
+Can be part of research on colour genetics.
+Can be part of research on morphs.""")
+
+add_species("Narwhal",
+    [["   /\\", "  (o o)", "  \\_~_/", "   /|", "  ^^ ^^"],
+     ["   /\\", "  (O O)", "  \\_~_/", "   /|", "  ^^ ^^"]],
+    4,
+    """'Unicorns of the sea'.
+Tusk is a tooth up to 3 metres.
+Live in Arctic waters, dive 1,500 m.
+Use echolocation to navigate.
+Name means 'one tooth, one horn'.
+Males have tusk, rarely females.
+Tusks can grow up to 10 feet.
+Tusks are sensory organs.
+Social, travel in groups.
+Feed on fish, squid.
+Important to Inuit culture.
+Can be studied via satellite.
+Can be part of research on ecology.
+Can be part of research on migration.
+Can be part of research on behaviour.
+Can be part of research on acoustics.
+Can be part of research on echolocation.
+Can be part of research on diving.
+Can be part of research on physiology.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on conservation.
+Can be part of research on climate change.
+Can be part of research on sea ice loss.
+Can be part of research on shipping.
+Can be part of research on noise pollution.
+Can be part of research on hunting.
+Can be part of research on quotas.
+Can be part of research on subsistence.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on mythology.
+Can be part of research on medieval tusks.
+Can be part of research on unicorn horn trade.
+Can be part of research on narwhal tusk function.
+Can be part of research on social structure.
+Can be part of research on mating.
+Can be part of research on reproduction.
+Can be part of research on gestation.
+Can be part of research on calving.
+Can be part of research on calf development.
+Can be part of research on vocalisation.
+Can be part of research on clicks.
+Can be part of research on whistles.
+Can be part of research on buzzes.
+Can be part of research on signature calls.
+Can be part of research on group coordination.
+Can be part of research on feeding behaviour.
+Can be part of research on prey detection.
+Can be part of research on sea ice association.
+Can be part of research on polynya use.""")
+
+add_species("Mantis Shrimp",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    1,
+    """Punch with speed of a .22 bullet.
+Most complex eyes: 16 colour receptors.
+Can break aquarium glass.
+Not mantis or shrimp; stomatopods.
+Can live up to 20 years.
+Smash prey.
+Vibrant colours.
+Live in burrows.
+Solitary.
+Can be kept in specialised aquariums.
+Can be studied via high-speed cameras.
+Can be part of research on biomechanics.
+Can be part of research on vision.
+Can be part of research on polarisation vision.
+Can be part of research on UV vision.
+Can be part of research on colour processing.
+Can be part of research on neural processing.
+Can be part of research on learning.
+Can be part of research on memory.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on materials.
+Can be part of research on bio-inspiration.
+Can be part of research on robotics.
+Can be part of research on armour.
+Can be part of research on impact resistance.
+Can be part of research on composites.
+Can be part of research on cavitation.
+Can be part of research on sonoluminescence.
+Can be part of research on energy storage.
+Can be part of research on muscle.
+Can be part of research on exoskeleton.
+Can be part of research on moulting.
+Can be part of research on growth.
+Can be part of research on reproduction.
+Can be part of research on mating.
+Can be part of research on egg care.
+Can be part of research on larval development.
+Can be part of research on settlement.
+Can be part of research on habitat.
+Can be part of research on coral reefs.
+Can be part of research on conservation.
+Can be part of research on aquarium trade.
+Can be part of research on public awareness.
+Can be part of research on education.
+Can be part of research on documentary.
+Can be part of research on photography.
+Can be part of research on citizen science.
+Can be part of research on monitoring.
+Can be part of research on invasive species.
+Can be part of research on ballast water.
+Can be part of research on species identification.
+Can be part of research on taxonomy.
+Can be part of research on phylogenetics.""")
+
+add_species("Platypus",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    2,
+    """Monotreme: lays eggs but is a mammal.
+Males have venomous spurs.
+Uses electrolocation to detect prey.
+Bill like a duck, tail like a beaver.
+Native to eastern Australia.
+Webbed feet.
+Semi-aquatic.
+Nocturnal.
+Burrows in banks.
+Feed on aquatic invertebrates.
+Can be studied via observation.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on genome.
+Can be part of research on venom.
+Can be part of research on electroreception.
+Can be part of research on mechanoreception.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on reproduction.
+Can be part of research on egg incubation.
+Can be part of research on lactation.
+Can be part of research on milk composition.
+Can be part of research on conservation.
+Can be part of research on habitat.
+Can be part of research on water quality.
+Can be part of research on pollution.
+Can be part of research on climate.
+Can be part of research on drought.
+Can be part of research on fire.
+Can be part of research on monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on cultural significance.
+Can be part of research on Aboriginal knowledge.
+Can be part of research on mythology.
+Can be part of research on mascot.
+Can be part of research on currency.
+Can be part of research on stamps.
+Can be part of research on souvenirs.
+Can be part of research on zoos.
+Can be part of research on captive breeding.
+Can be part of research on hand-rearing.
+Can be part of research on veterinary.
+Can be part of research on disease.
+Can be part of research on parasitology.
+Can be part of research on nutrition.
+Can be part of research on husbandry.
+Can be part of research on enrichment.
+Can be part of research on behaviour enrichment.
+Can be part of research on foraging behaviour.
+Can be part of research on swimming.
+Can be part of research on diving.
+Can be part of research on diving physiology.""")
+
+add_species("Red Panda",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    6,
+    """Not closely related to giant pandas.
+Excellent climbers, spend time in trees.
+False thumb for gripping bamboo.
+Solitary except breeding season.
+Diet 95% bamboo.
+Reddish-brown fur.
+Long bushy tail.
+Native to Himalayas.
+Endangered.
+Habitat loss.
+Can be seen in zoos.
+Can be studied via GPS.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on diet.
+Can be part of research on bamboo.
+Can be part of research on conservation.
+Can be part of research on protected areas.
+Can be part of research on community.
+Can be part of research on ecotourism.
+Can be part of research on captive breeding.
+Can be part of research on reintroduction.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on climate.
+Can be part of research on habitat fragmentation.
+Can be part of research on corridors.
+Can be part of research on monitoring.
+Can be part of research on camera traps.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on awareness.
+Can be part of research on fundraising.
+Can be part of research on adoption.
+Can be part of research on social media.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on culture.
+Can be part of research on mythology.
+Can be part of research on local beliefs.
+Can be part of research on traditional medicine.
+Can be part of research on fur trade.
+Can be part of research on hunting.
+Can be part of research on poaching.
+Can be part of research on law enforcement.
+Can be part of research on international trade.
+Can be part of research on CITES.
+Can be part of research on zoo populations.
+Can be part of research on studbook.
+Can be part of research on genetics management.
+Can be part of research on inbreeding.
+Can be part of research on genetic diversity.
+Can be part of research on rewilding.
+Can be part of research on habitat restoration.""")
+
+add_species("Fennec Fox",
+    [["   /\\", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   /\\", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    2,
+    """Largest ears relative to body of any canid.
+Native to Sahara Desert.
+Ears dissipate heat.
+Can survive without standing water.
+Smallest fox species.
+Cream-coloured coat.
+Nocturnal.
+Dig dens.
+Social, live in groups.
+Can be kept as exotic pets.
+Can be studied via observation.
+Can be part of research on adaptation.
+Can be part of research on thermoregulation.
+Can be part of research on water balance.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on hearing.
+Can be part of research on vocalisation.
+Can be part of research on social structure.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on diet.
+Can be part of research on foraging.
+Can be part of research on prey.
+Can be part of research on conservation.
+Can be part of research on habitat.
+Can be part of research on climate.
+Can be part of research on desert ecology.
+Can be part of research on captive care.
+Can be part of research on pet trade.
+Can be part of research on welfare.
+Can be part of research on enrichment.
+Can be part of research on training.
+Can be part of research on human-animal bond.
+Can be part of research on education.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on cultural significance.
+Can be part of research on mythology.
+Can be part of research on folklore.
+Can be part of research on symbolism.
+Can be part of research on conservation status.
+Can be part of research on protected areas.
+Can be part of research on monitoring.
+Can be part of research on tracking.
+Can be part of research on den sites.
+Can be part of research on prey availability.
+Can be part of research on water sources.
+Can be part of research on vegetation.
+Can be part of research on sand dunes.
+Can be part of research on nocturnal activity.
+Can be part of research on temperature extremes.
+Can be part of research on fur insulation.
+Can be part of research on ear size genetics.""")
+
+add_species("Snow Leopard",
+    [["   /\\", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   /\\", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    7,
+    """Live at altitudes up to 5,500 m.
+Thick fur and long tail for warmth.
+Cannot roar – chuffs and yowls.
+Vulnerable, ~4,000 left.
+Nicknamed 'ghost of the mountains'.
+Solitary.
+Excellent climbers.
+Prey on blue sheep, ibex.
+Can leap 50 feet.
+Camouflage.
+Can be studied via camera traps.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on conservation.
+Can be part of research on community.
+Can be part of research on herder conflict.
+Can be part of research on livestock.
+Can be part of research on insurance schemes.
+Can be part of research on protected areas.
+Can be part of research on corridors.
+Can be part of research on climate.
+Can be part of research on prey.
+Can be part of research on habitat.
+Can be part of research on snow cover.
+Can be part of research on monitoring.
+Can be part of research on GPS collars.
+Can be part of research on population.
+Can be part of research on reproduction.
+Can be part of research on den sites.
+Can be part of research on cub survival.
+Can be part of research on dispersal.
+Can be part of research on poaching.
+Can be part of research on illegal trade.
+Can be part of research on law enforcement.
+Can be part of research on education.
+Can be part of research on awareness.
+Can be part of research on tourism.
+Can be part of research on ecotourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on culture.
+Can be part of research on mythology.
+Can be part of research on symbolism.
+Can be part of research on zoos.
+Can be part of research on captive breeding.
+Can be part of research on reintroduction.
+Can be part of research on disease.
+Can be part of research on vaccination.
+Can be part of research on health.
+Can be part of research on genetics diversity.
+Can be part of research on genome.
+Can be part of research on adaptation.
+Can be part of research on hypoxia.
+Can be part of research on cold tolerance.""")
+
+add_species("Quokka",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """World's happiest animal due to smile.
+Small marsupials on Rottnest Island.
+Survive without fresh water by eating succulents.
+Nocturnal.
+Selfies are a popular tourist attraction.
+Herbivorous.
+Can climb trees.
+Friendly to humans (do not touch).
+Breed seasonally.
+Can be studied via observation.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on conservation.
+Can be part of research on tourism impact.
+Can be part of research on human-wildlife interaction.
+Can be part of research on disease.
+Can be part of research on population.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on diet.
+Can be part of research on water metabolism.
+Can be part of research on captive care.
+Can be part of research on breeding.
+Can be part of research on hand-rearing.
+Can be part of research on veterinary.
+Can be part of research on parasites.
+Can be part of research on habitat restoration.
+Can be part of research on island ecology.
+Can be part of research on predation.
+Can be part of research on introduced species.
+Can be part of research on climate.
+Can be part of research on fire.
+Can be part of research on monitoring.
+Can be part of research on citizen science.
+Can be part of research on education.
+Can be part of research on photography.
+Can be part of research on social media.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on cultural significance.
+Can be part of research on aboriginal culture.
+Can be part of research on tourism management.
+Can be part of research on guidelines.
+Can be part of research on feeding ban.
+Can be part of research on selfie impact.
+Can be part of research on stress.
+Can be part of research on welfare.
+Can be part of research on sanctuary.
+Can be part of research on rehabilitation.
+Can be part of research on release.
+Can be part of research on translocation.
+Can be part of research on population modelling.
+Can be part of research on carrying capacity.
+Can be part of research on water supplementation.
+Can be part of research on shade.
+Can be part of research on shelter.
+Can be part of research on habitat use.""")
+
+add_species("Capybara",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    3,
+    """World's largest rodent (65 kg).
+Highly social, groups of 10-20.
+Semi-aquatic, excellent swimmers.
+Native to South America.
+Other animals often use them as chairs.
+Herbivorous.
+Can stay submerged for minutes.
+Gestation 150 days.
+Pups can follow mother immediately.
+Friendly in captivity.
+Can be kept as exotic pets.
+Can be studied via observation.
+Can be part of research on behaviour.
+Can be part of research on social structure.
+Can be part of research on communication.
+Can be part of research on vocalisation.
+Can be part of research on ecology.
+Can be part of research on diet.
+Can be part of research on foraging.
+Can be part of research on habitat.
+Can be part of research on wetlands.
+Can be part of research on conservation.
+Can be part of research on population.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on reproduction.
+Can be part of research on parental care.
+Can be part of research on juvenile development.
+Can be part of research on growth.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on predation.
+Can be part of research on human interaction.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on culture.
+Can be part of research on mythology.
+Can be part of research on pet trade.
+Can be part of research on welfare.
+Can be part of research on enrichment.
+Can be part of research on training.
+Can be part of research on swimming.
+Can be part of research on diving.
+Can be part of research on thermoregulation.
+Can be part of research on fur.
+Can be part of research on skin.
+Can be part of research on teeth.
+Can be part of research on digestion.
+Can be part of research on metabolism.
+Can be part of research on water needs.
+Can be part of research on group dynamics.
+Can be part of research on dominance.
+Can be part of research on cooperation.
+Can be part of research on altruism.
+Can be part of research on stress.""")
+
+add_species("Kangaroo",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    6,
+    """Marsupials, carry young in pouch.
+Hop up to 13.5 m in one leap.
+Excellent swimmers.
+Group called a mob.
+Only large animal to hop as primary locomotion.
+Red kangaroo largest.
+Grey kangaroo common.
+Tree kangaroo arboreal.
+Wallabies smaller.
+Can be seen in Australia.
+Can be studied via observation.
+Can be part of research on biomechanics.
+Can be part of research on energetics.
+Can be part of research on locomotion.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on pouch life.
+Can be part of research on lactation.
+Can be part of research on diet.
+Can be part of research on grazing.
+Can be part of research on habitat.
+Can be part of research on conservation.
+Can be part of research on population.
+Can be part of research on culling.
+Can be part of research on harvesting.
+Can be part of research on meat.
+Can be part of research on leather.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on cultural significance.
+Can be part of research on Aboriginal culture.
+Can be part of research on symbolism.
+Can be part of research on national emblem.
+Can be part of research on zoos.
+Can be part of research on captive care.
+Can be part of research on welfare.
+Can be part of research on enrichment.
+Can be part of research on training.
+Can be part of research on human-animal bond.
+Can be part of research on orphan care.
+Can be part of research on rehabilitation.
+Can be part of research on release.
+Can be part of research on monitoring.
+Can be part of research on tracking.
+Can be part of research on drone surveys.
+Can be part of research on population dynamics.
+Can be part of research on competition.
+Can be part of research on predation.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on climate impact.
+Can be part of research on drought.""")
+
+add_species("Pangolin",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    2,
+    """Only mammals with scales.
+Curl into tight ball when threatened.
+Eat up to 70 million insects per year.
+Tongue longer than body.
+All 8 species critically endangered.
+Nocturnal.
+Solitary.
+Dig burrows.
+Scales made of keratin.
+Poached for scales and meat.
+Can be studied via tracking.
+Can be part of research on conservation.
+Can be part of research on illegal trade.
+Can be part of research on law enforcement.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on ecology.
+Can be part of research on diet.
+Can be part of research on behaviour.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on captive care.
+Can be part of research on rehabilitation.
+Can be part of research on release.
+Can be part of research on monitoring.
+Can be part of research on camera traps.
+Can be part of research on population.
+Can be part of research on genetics.
+Can be part of research on forensics.
+Can be part of research on awareness.
+Can be part of research on education.
+Can be part of research on fundraising.
+Can be part of research on adoption.
+Can be part of research on sanctuaries.
+Can be part of research on rescue.
+Can be part of research on veterinary.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on nutrition.
+Can be part of research on hand-rearing.
+Can be part of research on breeding.
+Can be part of research on artificial insemination.
+Can be part of research on reintroduction.
+Can be part of research on habitat.
+Can be part of research on deforestation.
+Can be part of research on agriculture.
+Can be part of research on community.
+Can be part of research on alternative livelihoods.
+Can be part of research on anti-poaching.
+Can be part of research on patrols.
+Can be part of research on dogs.
+Can be part of research on detection.
+Can be part of research on seizures.
+Can be part of research on stockpile management.
+Can be part of research on CITES.
+Can be part of research on legislation.
+Can be part of research on international cooperation.
+Can be part of research on trafficking routes.
+Can be part of research on demand reduction.""")
+
+add_species("Seahorse",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    3,
+    """Male seahorses give birth.
+Can change colour for camouflage.
+Have a prehensile tail.
+Monogamous, mate for life.
+Poor swimmers, often rest on coral.
+Over 40 species.
+Dwarf seahorse tiny.
+Feed on plankton.
+Used in traditional medicine.
+Threatened by habitat loss.
+Can be studied via observation.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on conservation.
+Can be part of research on aquarium trade.
+Can be part of research on captive breeding.
+Can be part of research on husbandry.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on nutrition.
+Can be part of research on live food.
+Can be part of research on water quality.
+Can be part of research on habitat.
+Can be part of research on seagrass.
+Can be part of research on coral reefs.
+Can be part of research on climate.
+Can be part of research on ocean acidification.
+Can be part of research on pollution.
+Can be part of research on microplastics.
+Can be part of research on bycatch.
+Can be part of research on fisheries.
+Can be part of research on traditional medicine.
+Can be part of research on CITES.
+Can be part of research on regulation.
+Can be part of research on education.
+Can be part of research on awareness.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on cultural significance.
+Can be part of research on mythology.
+Can be part of research on symbolism.
+Can be part of research on tourism.
+Can be part of research on citizen science.
+Can be part of research on monitoring.
+Can be part of research on population.
+Can be part of research on tagging.
+Can be part of research on tracking.
+Can be part of research on home range.
+Can be part of research on mating.
+Can be part of research on courtship.
+Can be part of research on pair bonding.
+Can be part of research on gestation.
+Can be part of research on birth.
+Can be part of research on fry survival.""")
+
+add_species("Salamander",
+    [["  (o o)", "  ( ~ )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  ( ~ )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    1,
+    """Can regenerate entire limbs.
+Amphibians that need moisture.
+Largest is Chinese giant salamander (1.8 m).
+Produce toxins for defence.
+Many breathe through skin.
+Over 600 species.
+Larvae aquatic.
+Adults terrestrial or aquatic.
+Lungless salamanders breathe through skin.
+Some species neotenic.
+Can be studied via observation.
+Can be part of research on regeneration.
+Can be part of research on development.
+Can be part of research on genetics.
+Can be part of research on evolution.
+Can be part of research on genomics.
+Can be part of research on transcriptomics.
+Can be part of research on proteomics.
+Can be part of research on stem cells.
+Can be part of research on wound healing.
+Can be part of research on immunology.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on reproduction.
+Can be part of research on courtship.
+Can be part of research on pheromones.
+Can be part of research on habitat.
+Can be part of research on conservation.
+Can be part of research on climate.
+Can be part of research on disease.
+Can be part of research on chytrid.
+Can be part of research on Bsal.
+Can be part of research on captive breeding.
+Can be part of research on reintroduction.
+Can be part of research on pet trade.
+Can be part of research on welfare.
+Can be part of research on nutrition.
+Can be part of research on husbandry.
+Can be part of research on substrate.
+Can be part of research on humidity.
+Can be part of research on temperature.
+Can be part of research on lighting.
+Can be part of research on water quality.
+Can be part of research on filtration.
+Can be part of research on education.
+Can be part of research on awareness.
+Can be part of research on citizen science.
+Can be part of research on monitoring.
+Can be part of research on population.
+Can be part of research on distribution.
+Can be part of research on habitat fragmentation.
+Can be part of research on corridors.
+Can be part of research on land use.
+Can be part of research on forestry.
+Can be part of research on mining.
+Can be part of research on agriculture.""")
+
+add_species("Jerboa",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    2,
+    """Tiny desert rodents with long hind legs.
+Can jump 3 metres.
+Nocturnal, avoid daytime heat.
+Large ears for hearing and heat loss.
+Rarely drink, get moisture from food.
+Bipedal.
+Long tail.
+Live in burrows.
+Found in Africa, Asia.
+Can be studied via observation.
+Can be part of research on adaptation.
+Can be part of research on locomotion.
+Can be part of research on energetics.
+Can be part of research on thermoregulation.
+Can be part of research on water balance.
+Can be part of research on behaviour.
+Can be part of research on ecology.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on diet.
+Can be part of research on foraging.
+Can be part of research on burrowing.
+Can be part of research on predator avoidance.
+Can be part of research on hearing.
+Can be part of research on vision.
+Can be part of research on olfaction.
+Can be part of research on communication.
+Can be part of research on reproduction.
+Can be part of research on development.
+Can be part of research on conservation.
+Can be part of research on habitat.
+Can be part of research on climate.
+Can be part of research on desert ecology.
+Can be part of research on sand.
+Can be part of research on dunes.
+Can be part of research on vegetation.
+Can be part of research on precipitation.
+Can be part of research on drought.
+Can be part of research on captive care.
+Can be part of research on breeding.
+Can be part of research on pet trade.
+Can be part of research on welfare.
+Can be part of research on enrichment.
+Can be part of research on exercise.
+Can be part of research on jumping.
+Can be part of research on muscle.
+Can be part of research on bone.
+Can be part of research on tendon.
+Can be part of research on anatomy.
+Can be part of research on physiology.
+Can be part of research on metabolism.
+Can be part of research on temperature.
+Can be part of research on humidity.
+Can be part of research on substrate.
+Can be part of research on nesting.
+Can be part of research on rearing.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on longevity.""")
+
+add_species("Tapir",
+    [["  (o o)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"],
+     ["  (O O)", "  (   )", "  /   \\", " /  ~  \\", " ^^   ^^"]],
+    3,
+    """Short prehensile trunk (proboscis).
+Excellent swimmers, eat aquatic plants.
+Baby tapirs have striped/spotted coats.
+Four species: Brazilian, Malayan, etc.
+Related to horses and rhinos.
+Herbivorous.
+Solitary.
+Nocturnal.
+Good climbers.
+Important seed dispersers.
+Can be studied via camera traps.
+Can be part of research on ecology.
+Can be part of research on behaviour.
+Can be part of research on evolution.
+Can be part of research on genetics.
+Can be part of research on conservation.
+Can be part of research on habitat.
+Can be part of research on deforestation.
+Can be part of research on fragmentation.
+Can be part of research on corridors.
+Can be part of research on protected areas.
+Can be part of research on poaching.
+Can be part of research on hunting.
+Can be part of research on illegal trade.
+Can be part of research on law enforcement.
+Can be part of research on education.
+Can be part of research on awareness.
+Can be part of research on tourism.
+Can be part of research on photography.
+Can be part of research on film.
+Can be part of research on art.
+Can be part of research on culture.
+Can be part of research on mythology.
+Can be part of research on folklore.
+Can be part of research on symbolism.
+Can be part of research on zoos.
+Can be part of research on captive breeding.
+Can be part of research on studbook.
+Can be part of research on genetics management.
+Can be part of research on reintroduction.
+Can be part of research on translocation.
+Can be part of research on monitoring.
+Can be part of research on GPS.
+Can be part of research on tracking.
+Can be part of research on health.
+Can be part of research on disease.
+Can be part of research on parasites.
+Can be part of research on nutrition.
+Can be part of research on diet.
+Can be part of research on browse.
+Can be part of research on fruit.
+Can be part of research on foraging.
+Can be part of research on seed germination.
+Can be part of research on dispersal distance.
+Can be part of research on home range.
+Can be part of research on territory.
+Can be part of research on social structure.
+Can be part of research on communication.""")
+
+# --- fantasy ---
+add_species("Dragon",
+    [["   __", "  /  \\", " ( oo )", "  \\__/", "  /\\/\\"],
+     ["   __", "  /  \\", " ( oo )", "  \\__/", "  \\/\\/"]],
+    2,
+    """Dragons appear in myths worldwide.
+'Dragon' from Greek 'drakon', giant serpent.
+Medieval dragons symbolized evil.
+Chinese dragons represent power and luck.
+Komodo dragons are the largest living lizards.
+Fire-breathing.
+Fly.
+Hoards treasure.
+Many cultures have dragon tales.
+Can be good or evil.
+Appear in literature.
+Appear in films.
+Appear in games.
+Symbol of strength.
+Can be part of research on mythology.
+Can be part of research on folklore.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on film.
+Can be part of research on games.
+Can be part of research on psychology.
+Can be part of research on culture.
+Can be part of research on history.
+Can be part of research on anthropology.
+Can be part of research on symbolism.
+Can be part of research on heraldry.
+Can be part of research on religion.
+Can be part of research on astrology.
+Can be part of research on fantasy.
+Can be part of research on worldbuilding.
+Can be part of research on linguistics.
+Can be part of research on constructed languages.
+Can be part of research on role-playing.
+Can be part of research on cosplay.
+Can be part of research on conventions.
+Can be part of research on fandom.
+Can be part of research on tourism.
+Can be part of research on theme parks.
+Can be part of research on sculptures.
+Can be part of research on architecture.
+Can be part of research on painting.
+Can be part of research on music.
+Can be part of research on opera.
+Can be part of research on ballet.
+Can be part of research on comic books.
+Can be part of research on manga.
+Can be part of research on anime.
+Can be part of research on cartoons.
+Can be part of research on plush toys.
+Can be part of research on collectibles.
+Can be part of research on trading cards.
+Can be part of research on video games.
+Can be part of research on virtual reality.""")
+
+add_species("Unicorn",
+    [["   /\\", "  ( *.* )", "   \\_V_/", "   / | \\", "  ^^ ^^"],
+     ["   /\\", "  ( o.o )", "   \\_V_/", "   / | \\", "  ^^ ^^"]],
+    4,
+    """Unicorns symbolize purity and grace.
+Legend says its horn purifies water.
+Scotland's national animal.
+Many cultures have one-horned horse stories.
+Narwhal tusks were sold as unicorn horns.
+White horse-like.
+Magical.
+Symbol of innocence.
+Appear in medieval tapestries.
+Used in heraldry.
+Popular in children's stories.
+Can be part of research on mythology.
+Can be part of research on folklore.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on film.
+Can be part of research on games.
+Can be part of research on psychology.
+Can be part of research on symbolism.
+Can be part of research on culture.
+Can be part of research on history.
+Can be part of research on anthropology.
+Can be part of research on religion.
+Can be part of research on alchemy.
+Can be part of research on magic.
+Can be part of research on fantasy.
+Can be part of research on worldbuilding.
+Can be part of research on role-playing.
+Can be part of research on cosplay.
+Can be part of research on conventions.
+Can be part of research on fandom.
+Can be part of research on merchandise.
+Can be part of research on toys.
+Can be part of research on clothing.
+Can be part of research on accessories.
+Can be part of research on decor.
+Can be part of research on party.
+Can be part of research on cake.
+Can be part of research on rainbow.
+Can be part of research on colour.
+Can be part of research on glitter.
+Can be part of research on sparkle.
+Can be part of research on glitter.
+Can be part of research on nail art.
+Can be part of research on makeup.
+Can be part of research on hair.
+Can be part of research on tattoos.
+Can be part of research on branding.
+Can be part of research on marketing.
+Can be part of research on advertising.
+Can be part of research on social media.
+Can be part of research on emoji.
+Can be part of research on internet culture.
+Can be part of research on memes.
+Can be part of research on viral trends.""")
+
+add_species("Phoenix",
+    [["   /\\", "  (o o)", "  > ^ <", " /  ~  \\", " ~~   ~~"],
+     ["   /\\", "  (O O)", "  > ^ <", " /  ~  \\", " ~~   ~~"]],
+    6,
+    """Mythical fire bird that rises from ashes.
+Symbol of rebirth and immortality.
+Stories in Greek, Egyptian, Chinese myth.
+Often lives 500 years before rebirth.
+Depicted as an eagle or peacock with fiery colours.
+Fiery plumage.
+Burns and is reborn.
+Immortal.
+Associated with sun.
+Can be part of research on mythology.
+Can be part of research on folklore.
+Can be part of research on art.
+Can be part of research on literature.
+Can be part of research on film.
+Can be part of research on games.
+Can be part of research on psychology.
+Can be part of research on symbolism.
+Can be part of research on culture.
+Can be part of research on history.
+Can be part of research on anthropology.
+Can be part of research on religion.
+Can be part of research on astronomy.
+Can be part of research on alchemy.
+Can be part of research on magic.
+Can be part of research on fantasy.
+Can be part of research on worldbuilding.
+Can be part of research on role-playing.
+Can be part of research on cosplay.
+Can be part of research on conventions.
+Can be part of research on fandom.
+Can be part of research on merchandise.
+Can be part of research on toys.
+Can be part of research on clothing.
+Can be part of research on accessories.
+Can be part of research on decor.
+Can be part of research on party.
+Can be part of research on cake.
+Can be part of research on fire.
+Can be part of research on regeneration.
+Can be part of research on birds.
+Can be part of research on evolution.
+Can be part of research on fossils.
+Can be part of research on extinction.
+Can be part of research on resurrection.
+Can be part of research on renewal.
+Can be part of research on spring.
+Can be part of research on Easter.
+Can be part of research on rebirth.
+Can be part of research on transformation.
+Can be part of research on change.
+Can be part of research on hope.
+Can be part of research on inspiration.
+Can be part of research on healing.
+Can be part of research on recovery.
+Can be part of research on rise.""")
+
+add_species("Robot",
+    [[" [= =]", "  |=|", " /|_|\\", "  \\_/", "  | |"],
+     [" [= =]", "  |=|", " /|_|\\", "  \\_/", "  / \\"]],
+    7,
+    """'Robot' from Czech 'robota'.
+Asimo was first humanoid to walk.
+3+ million industrial robots worldwide.
+Robots perform surgery with high precision.
+Sophia got Saudi citizenship in 2017.
+Artificial beings.
+Can be autonomous.
+Use AI.
+Can be programmed.
+Can be part of research on robotics.
+Can be part of research on AI.
+Can be part of research on machine learning.
+Can be part of research on computer vision.
+Can be part of research on natural language.
+Can be part of research on control.
+Can be part of research on planning.
+Can be part of research on ethics.
+Can be part of research on philosophy.
+Can be part of research on law.
+Can be part of research on policy.
+Can be part of research on economy.
+Can be part of research on labour.
+Can be part of research on society.
+Can be part of research on culture.
+Can be part of research on film.
+Can be part of research on literature.
+Can be part of research on games.
+Can be part of research on art.
+Can be part of research on design.
+Can be part of research on engineering.
+Can be part of research on mechatronics.
+Can be part of research on electronics.
+Can be part of research on sensors.
+Can be part of research on actuators.
+Can be part of research on materials.
+Can be part of research on energy.
+Can be part of research on batteries.
+Can be part of research on power.
+Can be part of research on communication.
+Can be part of research on network.
+Can be part of research on cloud.
+Can be part of research on IoT.
+Can be part of research on industry 4.0.
+Can be part of research on automation.
+Can be part of research on manufacturing.
+Can be part of research on logistics.
+Can be part of research on delivery.
+Can be part of research on drones.
+Can be part of research on space.
+Can be part of research on exploration.
+Can be part of research on education.
+Can be part of research on therapy.
+Can be part of research on companionship.
+Can be part of research on human-robot interaction.
+Can be part of research on trust.
+Can be part of research on safety.""")
+
+add_species("Alien",
+    [["   __", "  (o o)", "  ( - )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  ( - )", "  /   \\", " ^^   ^^"]],
+    4,
+    """Fermi Paradox: where is everybody?
+Roswell is most famous UFO incident.
+Theories range from friendly to hostile.
+Exoplanets like Kepler-452b could harbour life.
+Wow! signal is an unexplained radio burst.
+Extraterrestrial life.
+UFO.
+SETI.
+Mars.
+Europa.
+Enceladus.
+Titan.
+Can be part of research on astrobiology.
+Can be part of research on astronomy.
+Can be part of research on physics.
+Can be part of research on biology.
+Can be part of research on chemistry.
+Can be part of research on geology.
+Can be part of research on planetary science.
+Can be part of research on exoplanets.
+Can be part of research on spectroscopy.
+Can be part of research on biosignatures.
+Can be part of research on technosignatures.
+Can be part of research on signals.
+Can be part of research on artificial.
+Can be part of research on natural.
+Can be part of research on interstellar.
+Can be part of research on travel.
+Can be part of research on communication.
+Can be part of research on language.
+Can be part of research on linguistics.
+Can be part of research on mathematics.
+Can be part of research on patterns.
+Can be part of research on consciousness.
+Can be part of research on intelligence.
+Can be part of research on evolution.
+Can be part of research on origin of life.
+Can be part of research on panspermia.
+Can be part of research on abiogenesis.
+Can be part of research on RNA world.
+Can be part of research on DNA.
+Can be part of research on extremophiles.
+Can be part of research on Mars rovers.
+Can be part of research on Europa clipper.
+Can be part of research on JWST.
+Can be part of research on Hubble.
+Can be part of research on TESS.
+Can be part of research on Kepler.
+Can be part of research on Drake equation.
+Can be part of research on Kardashev scale.
+Can be part of research on Dyson sphere.
+Can be part of research on megastructures.
+Can be part of research on science fiction.
+Can be part of research on film.
+Can be part of research on literature.
+Can be part of research on games.
+Can be part of research on culture.
+Can be part of research on UFO reports.""")
+
+add_species("Ghost",
+    [["  .-.", " ( o o )", "  |   |", "  `---'", "   ^ ^"],
+     ["  .-.", " ( O O )", "  |   |", "  `---'", "   ^ ^"]],
+    7,
+    """Spirits of the dead in folklore.
+Many cultures have ghost stories.
+Ghost hunting uses EMF meters.
+Tower of London said to be haunted.
+Famous ghosts: Flying Dutchman, Anne Boleyn.
+Apparitions.
+Hauntings.
+Poltergeist.
+Orbs.
+EVP.
+Can be part of research on parapsychology.
+Can be part of research on psychology.
+Can be part of research on perception.
+Can be part of research on hallucination.
+Can be part of research on sleep paralysis.
+Can be part of research on suggestion.
+Can be part of research on belief.
+Can be part of research on religion.
+Can be part of research on spirituality.
+Can be part of research on folklore.
+Can be part of research on mythology.
+Can be part of research on literature.
+Can be part of research on film.
+Can be part of research on games.
+Can be part of research on art.
+Can be part of research on photography.
+Can be part of research on audio.
+Can be part of research on video.
+Can be part of research on hoaxes.
+Can be part of research on skepticism.
+Can be part of research on science.
+Can be part of research on physics.
+Can be part of research on energy.
+Can be part of research on electromagnetic.
+Can be part of research on infrasound.
+Can be part of research on temperature.
+Can be part of research on humidity.
+Can be part of research on pressure.
+Can be part of research on magnetic fields.
+Can be part of research on geology.
+Can be part of research on acoustics.
+Can be part of research on architecture.
+Can be part of research on history.
+Can be part of research on investigation.
+Can be part of research on equipment.
+Can be part of research on thermal cameras.
+Can be part of research on night vision.
+Can be part of research on digital recorders.
+Can be part of research on spirit boxes.
+Can be part of research on psychic.
+Can be part of research on medium.
+Can be part of research on séance.
+Can be part of research on Ouija board.
+Can be part of research on urban legends.
+Can be part of research on creepypasta.
+Can be part of research on internet.
+Can be part of research on ghost tours.""")
+
+add_species("Dinosaur",
+    [["   __", "  (o o)", "  (   )", "  /   \\", " ^^   ^^"],
+     ["   __", "  (O O)", "  (   )", "  /   \\", " ^^   ^^"]],
+    1,
+    """Lived 230-65 million years ago.
+Birds are living dinosaurs.
+Largest was Argentinosaurus (30 m).
+T-Rex had strongest bite of any land animal.
+Some dinosaurs had feathers.
+Extinct.
+Fossils.
+Mesozoic.
+Triassic.
+Jurassic.
+Cretaceous.
+Can be part of research on palaeontology.
+Can be part of research on geology.
+Can be part of research on biology.
+Can be part of research on evolution.
+Can be part of research on extinction.
+Can be part of research on asteroid.
+Can be part of research on climate.
+Can be part of research on volcanism.
+Can be part of research on fossilisation.
+Can be part of research on excavation.
+Can be part of research on preparation.
+Can be part of research on CT scanning.
+Can be part of research on 3D modelling.
+Can be part of research on phylogeny.
+Can be part of research on taxonomy.
+Can be part of research on species.
+Can be part of research on diversity.
+Can be part of research on behaviour.
+Can be part of research on diet.
+Can be part of research on teeth.
+Can be part of research on tracks.
+Can be part of research on eggs.
+Can be part of research on nesting.
+Can be part of research on parental care.
+Can be part of research on growth.
+Can be part of research on bone histology.
+Can be part of research on metabolism.
+Can be part of research on endothermy.
+Can be part of research on feathers.
+Can be part of research on colour.
+Can be part of research on vision.
+Can be part of research on hearing.
+Can be part of research on brain.
+Can be part of research on intelligence.
+Can be part of research on social.
+Can be part of research on herd.
+Can be part of research on migration.
+Can be part of research on biomechanics.
+Can be part of research on speed.
+Can be part of research on strength.
+Can be part of research on bite force.
+Can be part of research on tail.
+Can be part of research on claws.
+Can be part of research on horns.
+Can be part of research on frills.
+Can be part of research on display.
+Can be part of research on communication.""")
+
+add_species("Fairy",
+    [["   /\\", "  (o o)", "  ( ~ )", "  /   \\", " ^^   ^^"],
+     ["   /\\", "  (O O)", "  ( ~ )", "  /   \\", " ^^   ^^"]],
+    3,
+    """Mythical tiny winged humanoids.
+Appear in Celtic and European folklore.
+Tinker Bell is a famous fairy.
+Fairy rings are circles of mushrooms.
+Often guardians of nature.
+Magic.
+Wings.
+Spells.
+Wishes.
+Pixie dust.
+Can be part of research on folklore.
+Can be part of research on mythology.
+Can be part of research on literature.
+Can be part of research on film.
+Can be part of research on games.
+Can be part of research on art.
+Can be part of research on culture.
+Can be part of research on history.
+Can be part of research on anthropology.
+Can be part of research on religion.
+Can be part of research on superstition.
+Can be part of research on nature.
+Can be part of research on ecology.
+Can be part of research on gardens.
+Can be part of research on flowers.
+Can be part of research on mushrooms.
+Can be part of research on trees.
+Can be part of research on forests.
+Can be part of research on conservation.
+Can be part of research on environmentalism.
+Can be part of research on sustainability.
+Can be part of research on music.
+Can be part of research on dance.
+Can be part of research on ballet.
+Can be part of research on opera.
+Can be part of research on theatre.
+Can be part of research on costume.
+Can be part of research on fashion.
+Can be part of research on makeup.
+Can be part of research on jewellery.
+Can be part of research on toys.
+Can be part of research on collectibles.
+Can be part of research on figurines.
+Can be part of research on sculpture.
+Can be part of research on painting.
+Can be part of research on illustration.
+Can be part of research on animation.
+Can be part of research on comics.
+Can be part of research on manga.
+Can be part of research on anime.
+Can be part of research on cosplay.
+Can be part of research on conventions.
+Can be part of research on fandom.
+Can be part of research on role-playing.
+Can be part of research on worldbuilding.
+Can be part of research on fantasy.
+Can be part of research on magical realism.
+Can be part of research on urban fantasy.
+Can be part of research on paranormal romance.""")
+
+
+# ----------------------------- SPECIES EXPANSION -----------------------------
+add_species("Axolotl",
+    [["   __   ", "  (o o)  ", " /(   )\\ ", "   / \\   ", "  ~~ ~~  "],
+     ["   __   ", "  (O O)  ", " /(   )\\ ", "   / \\   ", "  ~~ ~~  "]],
+    4,
+    """Neotenic salamander.
+Retains feathery gills.
+Can regenerate limbs, organs, and parts of the brain.
+Native to lakes around Mexico City.
+Also called a walking fish, though it is an amphibian.
+Mostly aquatic.
+Can breathe through skin and gills.
+Prefers cool water.
+Can live over 10 years in captivity.
+Has a wide smile-like face.
+Wild populations are critically endangered.
+Used extensively in regeneration research.
+Can regrow spinal cord tissue.
+Can regrow tail sections.
+Can regrow jaw structures.
+Can regrow heart tissue in studies.
+Sensitive to water quality.
+Can be kept in spacious aquariums.
+Needs low stress and clean water.
+Can be part of research on regeneration.
+Can be part of research on development.
+Can be part of research on genetics.
+Can be part of research on amphibians.
+Can be part of research on conservation.
+Can be part of research on microbiology.
+Can be part of research on aquatic ecology.
+Can be part of research on metamorphosis.
+Can be part of research on immunity.
+Can be part of research on tissue repair.
+Can be part of research on limb formation.
+Can be part of research on nervous system.
+Can be part of research on behaviour.
+Can be part of research on captive care.
+Can be part of research on water chemistry.
+Can be part of research on endangered species.""")
+
+add_species("Otter",
+    [["   __", "  (o o)", "  / V \\", " /  ~  \\", " ~~   ~~"],
+     ["   __", "  (O O)", "  / V \\", " /  ~  \\", " ~~   ~~"]],
+    4,
+    """Playful semi-aquatic mammal.
+Uses rocks as tools.
+Sea otters have the densest fur of any animal.
+Keeps food in loose underarm skin pockets.
+Often sleeps floating on water.
+Can hold breath for several minutes.
+Lives in family groups or rafts.
+Uses stones to crack shellfish.
+Has webbed feet.
+Insulates itself with thick fur.
+River otters are agile swimmers.
+Play behaviour is important for learning.
+Can be seen grooming constantly.
+Highly sensitive whiskers.
+Important in aquatic ecosystems.
+Can be part of research on tool use.
+Can be part of research on play.
+Can be part of research on foraging.
+Can be part of research on marine ecology.
+Can be part of research on river ecology.
+Can be part of research on family structure.
+Can be part of research on maternal care.
+Can be part of research on communication.
+Can be part of research on conservation.
+Can be part of research on habitat loss.
+Can be part of research on pollution.
+Can be part of research on population recovery.
+Can be part of research on behaviour.
+Can be part of research on learning.
+Can be part of research on social bonding.
+Can be part of research on predator avoidance.
+Can be part of research on energetic needs.
+Can be part of research on grooming.
+Can be part of research on swimming.
+Can be part of research on diving.""")
+
+add_species("Parrot",
+    [["   __", "  (o> )", "  / V \\", " /  ~  \\", " ~~   ~~"],
+     ["   __", "  (<o )", "  / V \\", " /  ~  \\", " ~~   ~~"]],
+    3,
+    """Brightly coloured bird.
+Zygodactyl feet help climbing.
+Strong curved beak.
+Many species can mimic speech.
+Highly social and intelligent.
+Often form lifelong pair bonds.
+Some species live for decades.
+Needs mental enrichment.
+Enjoys toys and puzzles.
+Can learn words and sounds.
+Feeds on seeds, fruit, and nectar depending on species.
+Uses beak like a third limb.
+Many parrots are rainforest birds.
+Can be important seed dispersers.
+Can be part of research on vocal learning.
+Can be part of research on cognition.
+Can be part of research on social behaviour.
+Can be part of research on memory.
+Can be part of research on problem solving.
+Can be part of research on communication.
+Can be part of research on colour vision.
+Can be part of research on diet.
+Can be part of research on conservation.
+Can be part of research on habitat loss.
+Can be part of research on captive care.
+Can be part of research on enrichment.
+Can be part of research on migration.
+Can be part of research on anatomy.
+Can be part of research on flight.
+Can be part of research on vocal mimicry.
+Can be part of research on avian learning.
+Can be part of research on reproduction.
+Can be part of research on parenting.
+Can be part of research on social structure.
+Can be part of research on endangered species.""")
+
+add_species("Ferret",
+    [["  /\\_/\\", " ( o.o )", "  > ^ <", " /  ~  \\", " ~~   ~~"],
+     ["  /\\_/\\", " ( -.- )", "  > ^ <", " /  ~  \\", " ~~   ~~"]],
+    5,
+    """Long, flexible mustelid.
+Very curious and playful.
+Sleeps many hours a day.
+Can slip through tiny spaces.
+Has a musky scent.
+Needs supervised play time.
+Can be litter trained.
+Prefers lots of enrichment.
+Uses scent glands for communication.
+Great at tunnelling into blankets.
+Can learn routines quickly.
+Domestic ferrets descend from polecats.
+Has sharp teeth and a strong bite.
+Can be part of research on behaviour.
+Can be part of research on enrichment.
+Can be part of research on anatomy.
+Can be part of research on domestication.
+Can be part of research on sleep.
+Can be part of research on cognition.
+Can be part of research on predator evasion.
+Can be part of research on play.
+Can be part of research on socialisation.
+Can be part of research on veterinary care.
+Can be part of research on diet.
+Can be part of research on disease.
+Can be part of research on housing.
+Can be part of research on training.
+Can be part of research on ferret kits.
+Can be part of research on communication.
+Can be part of research on smell.
+Can be part of research on hunting instincts.
+Can be part of research on companionship.
+Can be part of research on animal welfare.
+Can be part of research on small mammals.
+Can be part of research on pet care.""")
+
+add_species("Goat",
+    [["  (o o)", " /|   |\\", "/_|___|_\\", "  /   \\", " ~~   ~~"],
+     ["  (O O)", " /|   |\\", "/_|___|_\\", "  /   \\", " ~~   ~~"]],
+    2,
+    """Excellent climber.
+Curious and clever.
+Pupils are rectangular.
+Can recognize human faces.
+Will eat many kinds of plants.
+Domesticated thousands of years ago.
+Goats form social groups.
+Beards are common in both sexes.
+Can balance on steep terrain.
+Milk, meat, and fibre species exist.
+Can bleat loudly.
+Can be trained to use simple tasks.
+Can be part of research on behaviour.
+Can be part of research on cognition.
+Can be part of research on grazing.
+Can be part of research on digestion.
+Can be part of research on breeding.
+Can be part of research on welfare.
+Can be part of research on livestock.
+Can be part of research on milk production.
+Can be part of research on fibre.
+Can be part of research on climbing.
+Can be part of research on anatomy.
+Can be part of research on social structure.
+Can be part of research on communication.
+Can be part of research on emotion.
+Can be part of research on domestication.
+Can be part of research on diseases.
+Can be part of research on parasite control.
+Can be part of research on pasture management.
+Can be part of research on hooves.
+Can be part of research on horn growth.
+Can be part of research on kid rearing.
+Can be part of research on predator avoidance.
+Can be part of research on small farms.""")
+
+
+# ----------------------------- ADDITIONAL SPECIES -----------------------------
+
+add_species('Alpaca',
+    [['   __', '  (o o)', ' /|___|\\', '  /   \\', ' ~~   ~~'], ['   __', '  (- -)', ' /|___|\\', '  /   \\', ' ~~   ~~']],
+    3,
+    'Alpacas are domesticated camelids from South America.\nThey are smaller than llamas.\nTheir fibre is soft and naturally warm.\nAlpacas communicate with humming sounds.\nA group of alpacas is commonly called a herd.\nThey have padded feet rather than hard hooves.\nTheir feet cause relatively little damage to pasture.\nAlpacas usually graze on grasses and hay.\nThey can spit, although they usually direct it at other alpacas.\nTheir upper lip is split and highly mobile.\nAlpacas have three stomach compartments.\nThey are social and generally prefer herd life.\nCria is the name for a baby alpaca.\nAlpaca gestation lasts close to eleven months.\nThey can live for roughly fifteen to twenty years.\nTheir fibre comes in many natural colours.\nAlpacas are shorn, usually once per year.\nThey use communal dung piles.\nEar and tail positions help communicate mood.\nThey are alert prey animals with wide peripheral vision.\nAlpacas were bred mainly for fibre rather than carrying loads.\nGood dental and hoof care supports alpaca health.')
+
+add_species('Badger',
+    [['  /\\_/\\', ' ( o o )', ' /  V  \\', '  /   \\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', ' /  V  \\', '  /   \\', ' ^^   ^^']],
+    7,
+    'Badgers are powerful digging mammals.\nTheir strong front claws are adapted for excavation.\nMany badgers live in underground burrow systems.\nA badger burrow may be called a sett.\nBadgers are mostly active at dusk or at night.\nTheir diet can include worms, insects, roots, fruit, and small animals.\nThey have a keen sense of smell.\nTheir compact bodies help them move through tunnels.\nDifferent badger species live in Europe, Asia, Africa, and the Americas.\nBadgers can be solitary or social depending on species.\nEuropean badgers may share large setts across generations.\nHoney badgers are not true badgers in the same genus as European badgers.\nBadgers use scent marking for communication.\nThey can move surprising amounts of soil.\nTheir black-and-white facial patterns may act as warning coloration.\nBadger fur is coarse and protective.\nYoung badgers are called cubs.\nSome species reduce activity during cold weather.\nRoad traffic is a major threat to many badger populations.\nBadgers can reshape soil and influence local ecosystems.\nTheir hearing helps detect movement underground.\nThey usually avoid people when given space.')
+
+add_species('Beaver',
+    [['   __', '  (o o)', ' /|===|\\', '  /   \\', ' ~~   ~~'], ['   __', '  (- -)', ' /|===|\\', '  /   \\', ' ~~   ~~']],
+    2,
+    'Beavers are the largest rodents in North America and Eurasia.\nTheir incisors grow continuously.\nIron-rich enamel gives beaver incisors an orange colour.\nBeavers build dams from wood, mud, and stones.\nA dam can create wetland habitat for many other species.\nTheir homes are called lodges.\nBeavers have broad, flat tails.\nThe tail stores fat and helps with swimming and balance.\nWebbed hind feet make beavers strong swimmers.\nThey can close their ears and nostrils underwater.\nA transparent third eyelid protects their eyes while swimming.\nBeavers eat bark, leaves, twigs, and aquatic plants.\nThey store branches underwater for winter food.\nBeavers are often active at night.\nThey slap the water with their tails as an alarm.\nA family group may share and maintain a territory.\nBeavers can remain underwater for several minutes.\nTheir dense fur traps insulating air.\nBeaver engineering changes water flow and sediment patterns.\nWetlands created by beavers can improve drought resilience.\nYoung beavers are called kits.\nBeavers use scent mounds to mark territory.')
+
+add_species('Bison',
+    [['  _____', ' (o   o)', ' /|___|\\', '  /   \\', ' ^^   ^^'], ['  _____', ' (-   -)', ' /|___|\\', '  /   \\', ' ^^   ^^']],
+    3,
+    'Bison are the largest land mammals in North America.\nAmerican bison are often incorrectly called buffalo.\nThey have massive shoulders and a pronounced hump.\nThe hump is supported by long vertebral spines and powerful muscles.\nBison can run much faster than their size suggests.\nThey are strong swimmers.\nBison mainly graze on grasses and sedges.\nTheir grazing helps shape prairie ecosystems.\nThey wallow in dust to manage insects and shed fur.\nWallow depressions can collect water and support other wildlife.\nBison calves are sometimes nicknamed red dogs because of their reddish coats.\nHerds provide safety and social structure.\nBison use grunts, bellows, posture, and scent to communicate.\nTheir thick winter coat provides insulation.\nThey shed much of that coat in spring.\nBison can use their heads to push through snow for forage.\nMales are generally larger than females.\nThe rut is the main breeding season.\nBison were once reduced to very small populations by overhunting.\nConservation and tribal restoration programs have rebuilt many herds.\nBison should be viewed from a large distance because they are wild and powerful.\nTheir presence can increase habitat diversity on grasslands.')
+
+add_species('Camel',
+    [['   __', '  (o o)', ' _/^^^\\_', '  /   \\', ' ~~   ~~'], ['   __', '  (- -)', ' _/^^^\\_', '  /   \\', ' ~~   ~~']],
+    6,
+    "Camels are adapted to dry and highly variable environments.\nDromedaries have one hump.\nBactrian camels have two humps.\nCamel humps store fat rather than water.\nFat reserves can be used when food is scarce.\nCamels can tolerate substantial changes in body water.\nTheir oval red blood cells continue circulating during dehydration.\nLong eyelashes help protect their eyes from sand.\nCamels can close their nostrils against blowing dust.\nBroad padded feet spread their weight on sand.\nTheir thick lips allow them to browse thorny plants.\nCamels can drink large amounts of water quickly after dehydration.\nBody temperature can fluctuate to reduce sweating.\nCamels have been used for transport, milk, fibre, and meat.\nA camel's gait can create a rolling motion for riders.\nCamels are social herd animals.\nThey communicate with sounds, posture, and scent.\nA baby camel is called a calf.\nBactrian camels can endure very cold winters as well as heat.\nWild Bactrian camels are critically endangered.\nCamel milk is an important food in several regions.\nThey can live for several decades.")
+
+add_species('Cheetah',
+    [['  /\\_/\\', ' ( o o )', '  > ^ <', ' /|   |\\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', '  > ^ <', ' /|   |\\', ' ^^   ^^']],
+    3,
+    'Cheetahs are the fastest land animals over short distances.\nTheir acceleration is one of their most remarkable abilities.\nA flexible spine lengthens each running stride.\nLarge nasal passages support intense oxygen demand.\nSemi-retractable claws provide traction.\nA long tail helps balance during high-speed turns.\nCheetahs have solid spots rather than rosettes.\nDark tear marks run from the eyes toward the mouth.\nThey mainly hunt during daylight.\nCheetahs rely on sight and stealth before a chase.\nHigh-speed chases are brief because they generate heat rapidly.\nThey need time to recover after a sprint.\nCheetahs cannot roar like lions and tigers.\nThey can purr, chirp, hiss, and growl.\nFemales are usually solitary except when raising cubs.\nMales may form small coalitions.\nCubs have a long grey mantle along the back.\nHabitat loss and conflict with livestock owners threaten cheetahs.\nLow genetic diversity is a conservation concern.\nCheetahs have relatively light bodies compared with other big cats.\nThey often lose kills to stronger predators.\nOpen grassland and lightly wooded habitat suit their hunting style.')
+
+add_species('Crow',
+    [['  \\  /', '  (o o)', '  / V \\', ' /     \\', ' ^^   ^^'], ['  \\  /', '  (- -)', '  / V \\', ' /     \\', ' ^^   ^^']],
+    5,
+    'Crows belong to the corvid family.\nCorvids are known for advanced problem solving.\nSome crows use and manufacture tools.\nCrows can remember individual human faces.\nThey may warn other crows about perceived threats.\nCrows learn by observation and experience.\nThey have complex calls and social behaviour.\nA group of crows is sometimes called a murder.\nCrows are omnivorous and highly adaptable.\nThey can live in cities, farmland, forests, and coasts.\nYoung crows may remain with parents and help raise later broods.\nCrows cache food for later use.\nThey can distinguish quantities and patterns in experiments.\nPlay behaviour has been observed in crows.\nTheir black feathers can show blue or purple iridescence.\nCrows often mob larger predators.\nThey can recognize routines and exploit new food sources.\nCrows use sticks, wires, and other objects as tools in some settings.\nThey build sturdy cup-shaped nests.\nBoth parents may care for chicks.\nCrows contribute to scavenging and seed movement.\nTheir intelligence helps them adjust to changing environments.')
+
+add_species('Deer',
+    [['  /\\ /\\', ' ( o o )', '  \\ V /', '  /   \\', ' ^^   ^^'], ['  /\\ /\\', ' ( - - )', '  \\ V /', '  /   \\', ' ^^   ^^']],
+    2,
+    'Deer are hoofed mammals in the family Cervidae.\nMost male deer grow antlers, though there are exceptions.\nReindeer are unusual because females also commonly grow antlers.\nAntlers are made of bone and are shed and regrown.\nVelvet supplies blood while antlers are developing.\nDeer are primarily herbivores.\nTheir diet can include grasses, leaves, shoots, bark, and fruit.\nLarge ears help detect danger.\nEyes placed on the sides of the head provide wide vision.\nDeer use scent, posture, and vocalizations to communicate.\nA young deer is called a fawn.\nSpots help camouflage many fawns.\nSome deer species migrate seasonally.\nHooves spread under load and provide traction.\nDeer can be strong swimmers.\nThe rut is the breeding season for many species.\nMales may compete using antlers and displays.\nDeer populations are influenced by predators, food, weather, and habitat.\nOverabundant deer can change forest regeneration.\nRoad crossings are a major source of deer mortality.\nDifferent species range from tiny pudu to large moose.\nTheir digestive system is adapted for fermenting plant material.')
+
+add_species('Eagle',
+    [[' \\  /', ' (o o)', ' /|V|\\', '  / \\', ' ^^ ^^'], [' \\  /', ' (- -)', ' /|V|\\', '  / \\', ' ^^ ^^']],
+    3,
+    'Eagles are large birds of prey.\nThey have hooked bills for tearing food.\nPowerful feet and curved talons grip prey.\nEagle eyesight is highly adapted for spotting distant movement.\nBroad wings allow many eagles to soar efficiently.\nThermals help soaring birds gain altitude with little flapping.\nDifferent eagle species hunt fish, mammals, birds, reptiles, or carrion.\nBald eagles are sea eagles rather than truly bald birds.\nGolden eagles occupy open and mountainous habitats across much of the Northern Hemisphere.\nMany eagles build very large nests.\nA nest used repeatedly can grow over many years.\nPairs may maintain long-term bonds.\nEagles defend nesting territories.\nYoung eagles are called eaglets.\nJuvenile plumage can differ greatly from adult plumage.\nSome eagles steal food from other birds.\nWing shape reflects hunting style and habitat.\nEagles use calls and aerial displays in communication.\nPollution once severely affected several eagle populations.\nLegal protection and reduced pesticide exposure helped some species recover.\nWind energy planning can reduce collision risks to eagles.\nHealthy prey populations are essential for eagle conservation.')
+
+add_species('Gecko',
+    [['  /\\_/\\', ' ( o o )', '  \\_V_/', '  /   \\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', '  \\_V_/', '  /   \\', ' ^^   ^^']],
+    2,
+    'Geckos are a diverse group of lizards.\nMany geckos can climb smooth surfaces.\nMicroscopic structures called setae help many species adhere through intermolecular forces.\nNot every gecko has adhesive toe pads.\nGeckos occur in warm regions around the world.\nMany species are active at night.\nLarge eyes help nocturnal geckos gather light.\nMost geckos lack movable eyelids and clean the eye surface with the tongue.\nSome geckos can shed their tails to escape predators.\nA lost tail may regrow, though not exactly like the original.\nGeckos use chirps, clicks, and calls more than many lizards.\nTheir diet often includes insects and other small animals.\nSome species also consume fruit or nectar.\nGecko skin can display camouflage patterns.\nMany species lay pairs of eggs.\nSome geckos glue eggs to protected surfaces.\nThe smallest geckos are only a few centimetres long.\nTokay geckos are known for loud calls.\nCrested geckos were once thought extinct before being rediscovered.\nTemperature can influence development in reptile eggs.\nHabitat structure is important for climbing and hiding.\nGeckos should not be handled by the tail.')
+
+add_species('Giraffe',
+    [['   /\\', '  / o o', ' /  V  \\', ' |  |  |', ' ^^ ^^ ^^'], ['   /\\', '  / - -', ' /  V  \\', ' |  |  |', ' ^^ ^^ ^^']],
+    3,
+    'Giraffes are the tallest living land animals.\nTheir long neck contains seven cervical vertebrae, like most mammals.\nEach neck vertebra is greatly elongated.\nA powerful heart pumps blood toward the brain.\nSpecial pressure-control adaptations protect the brain when the head moves.\nGiraffes use long tongues to browse leaves.\nThe tongue and mouth tolerate many thorny plants.\nAcacia leaves are an important food in many habitats.\nGiraffe coat patterns are individually distinctive.\nPattern shape varies among giraffe populations.\nOssicones are the horn-like structures on the head.\nGiraffes can run with a distinctive pacing gait.\nThey can deliver very powerful kicks.\nGiraffes sleep in short periods compared with many mammals.\nA group of giraffes is called a tower.\nCalves can stand soon after birth.\nGiraffes use vision extensively to detect predators.\nThey may communicate with low-frequency sounds.\nAdult males sometimes compete by necking.\nHabitat loss and fragmentation threaten several populations.\nGiraffes influence tree growth through browsing.\nThey share savannas with many other large herbivores.')
+
+add_species('Hedgehog',
+    [['  .-^-.', ' ( o o )', ' /  V  \\', '  /   \\', ' ^^   ^^'], ['  .-^-.', ' ( - - )', ' /  V  \\', '  /   \\', ' ^^   ^^']],
+    5,
+    "Hedgehogs are small mammals covered in modified hairs called spines.\nTheir spines are made from keratin.\nWhen threatened, many hedgehogs roll into a tight ball.\nA ring of muscles helps draw the spiny skin around the body.\nHedgehogs mainly eat insects and other invertebrates.\nThey may also eat small animals, eggs, fungi, and plant material.\nMost species are active at night.\nTheir sense of smell is important for finding food.\nHedgehogs can run, climb, and swim.\nSome species hibernate when conditions are cold.\nA baby hedgehog is called a hoglet.\nHoglets are born with soft spines beneath swollen skin.\nHedgehogs may perform self-anointing after encountering new smells.\nThe reason for self-anointing is still debated.\nThey are not rodents.\nEuropean hedgehogs often use gardens and hedgerows.\nConnected gaps in fences can help hedgehogs move between gardens.\nRoads and habitat fragmentation are serious hazards.\nMilk can upset a hedgehog's digestion.\nWild hedgehogs should have access to fresh water rather than milk.\nHedgehog spines are not barbed and are not thrown.\nDifferent hedgehog species live across Europe, Asia, and Africa.")
+
+add_species('Hippopotamus',
+    [['  _____', ' ( o o )', ' /  ^  \\', '  /   \\', ' ^^   ^^'], ['  _____', ' ( - - )', ' /  ^  \\', '  /   \\', ' ^^   ^^']],
+    4,
+    "Hippopotamuses are large semiaquatic mammals.\nThey spend much of the day in water or mud.\nWater helps support their weight and regulate temperature.\nHippos cannot breathe underwater and must surface.\nThey can close their nostrils and ears while submerged.\nHippos often walk or push along the bottom rather than truly swimming.\nThey usually leave water at night to graze.\nGrass makes up most of their diet.\nA hippo's mouth can open extremely wide.\nLarge canine teeth are used in display and combat.\nHippos are territorial in water.\nThey can be very dangerous when threatened.\nHippos communicate with grunts, bellows, and wheezes.\nSome calls travel through both air and water.\nTheir skin produces a reddish oily secretion.\nThe secretion helps moisturize skin and offers some protection from sunlight and microbes.\nCalves can nurse underwater.\nHippos are related to whales within the even-toed ungulate lineage.\nCommon hippos and pygmy hippos are distinct species.\nPygmy hippos are smaller and more forest-dwelling.\nRiver changes and habitat loss affect hippo populations.\nHippo grazing can move nutrients between land and water.")
+
+add_species('Hyena',
+    [['  /\\_/\\', ' ( o o )', '  \\_V_/', '  /   \\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', '  \\_V_/', '  /   \\', ' ^^   ^^']],
+    6,
+    'Hyenas are more closely related to cats than to dogs.\nFour living hyena species are recognized.\nSpotted hyenas live in complex matriarchal clans.\nFemales are socially dominant in spotted hyenas.\nSpotted hyenas are effective hunters, not only scavengers.\nTheir jaws and teeth can process large bones.\nStrong stomach acids help digest difficult material.\nHyenas communicate with whoops, growls, giggles, posture, and scent.\nThe famous laugh is associated with excitement or social tension.\nClan members can recognize individual calls.\nBrown hyenas often forage over long distances.\nStriped hyenas are usually more solitary.\nAardwolves mainly eat termites.\nHyena cubs are born with open eyes in some species.\nSpotted hyena cubs are born with erupted teeth.\nScent pasting is used to mark territory.\nTheir sloping back comes from longer front legs, not a weak hind end.\nHyenas play important roles as predators and scavengers.\nThey can reduce waste and recycle nutrients.\nConflict and negative myths threaten hyenas in many areas.\nClans defend territories and food resources.\nSpotted hyenas can remember social relationships for years.')
+
+add_species('Lemur',
+    [['   @', '  (o o)', '  /|V|\\', '  / | \\', ' ^^  ^^'], ['   @', '  (- -)', '  /|V|\\', '  / | \\', ' ^^  ^^']],
+    5,
+    "Lemurs are primates native to Madagascar.\nThey evolved in isolation from monkeys and apes.\nMore than one hundred lemur species and subspecies are recognized.\nLemurs range from tiny mouse lemurs to large indri.\nMany species rely strongly on smell.\nScent glands help mark territory and communicate.\nRing-tailed lemurs hold their striped tails high while travelling.\nFemale dominance occurs in several lemur species.\nSome lemurs are active by day, others by night, and some at both times.\nTheir diets may include fruit, leaves, flowers, nectar, bark, and insects.\nLemurs spread seeds and pollinate plants.\nIndri produce loud songs that carry through forests.\nSifakas move across the ground with sideways hops.\nAye-ayes use elongated fingers to find grubs in wood.\nMouse lemurs can enter torpor to conserve energy.\nMany lemurs live in social groups.\nGrooming helps maintain social bonds.\nHabitat loss is the greatest threat to most lemurs.\nHunting and the pet trade also affect some populations.\nMadagascar's forests contain highly specialized lemur communities.\nLemur conservation often works with local communities.\nTheir evolutionary history makes them globally unique.")
+
+add_species('Llama',
+    [['   __', '  (o o)', ' /|___|\\', '  /   \\', ' ~~   ~~'], ['   __', '  (- -)', ' /|___|\\', '  /   \\', ' ~~   ~~']],
+    2,
+    'Llamas are domesticated South American camelids.\nThey are larger than alpacas.\nLlamas were bred mainly as pack animals.\nThey can carry moderate loads over rough terrain.\nTheir padded feet are suited to mountain paths.\nLlamas have long necks and banana-shaped ears.\nThey communicate with humming sounds.\nBody posture and ear position reveal mood.\nLlamas may spit when stressed or disputing rank.\nThey are social and prefer companionship.\nA baby llama is called a cria.\nLlamas are herbivores and efficient grazers.\nThey have three stomach compartments.\nTheir thick fibre provides insulation.\nLlama fibre is generally coarser than alpaca fibre.\nThey can be trained to lead and carry equipment.\nSome llamas are used as livestock guardians.\nGuard llamas can discourage certain predators through alertness and aggression.\nThey use communal dung piles.\nLlamas can live for roughly fifteen to twenty-five years.\nDental care matters because their incisors and fighting teeth can require attention.\nCalm handling and herd contact support welfare.')
+
+add_species('Meerkat',
+    [['   __', '  (o o)', '  /|V|\\', '   | |', '   ^ ^'], ['   __', '  (- -)', '  /|V|\\', '   | |', '   ^ ^']],
+    3,
+    'Meerkats are small mongooses from southern Africa.\nThey live in cooperative social groups.\nA group is often called a mob or gang.\nGroup members take turns acting as sentinels.\nSentinels watch for predators from elevated positions.\nDifferent alarm calls can signal different threats.\nMeerkats dig extensive burrow systems.\nStrong claws help them excavate soil.\nDark patches around the eyes reduce glare.\nThey can close their ears while digging.\nTheir diet includes insects, scorpions, small vertebrates, eggs, and plants.\nMeerkats have some resistance to certain venoms but are not immune to all venom.\nAdults help guard, feed, and teach pups.\nYoung meerkats learn how to handle dangerous prey.\nDominant pairs produce most pups in many groups.\nSocial grooming reinforces bonds.\nGroups defend territories from rivals.\nMeerkats warm themselves in sunlight after cool nights.\nThey use scent marks and latrines.\nCooperation improves predator detection and pup survival.\nDrought can strongly affect food and reproduction.\nMeerkats are active during daylight.')
+
+add_species('Moose',
+    [[' /\\  /\\', '( o  o )', ' \\_^^_/', '  /  \\', ' ^^  ^^'], [' /\\  /\\', '( -  - )', ' \\_^^_/', '  /  \\', ' ^^  ^^']],
+    7,
+    'Moose are the largest living members of the deer family.\nThey inhabit northern forests and wetlands.\nMale moose grow broad antlers.\nAntlers are shed and regrown each year.\nMoose have long legs suited to deep snow and wet ground.\nTheir large noses help warm cold air.\nA hanging flap of skin under the throat is called a bell or dewlap.\nMoose browse leaves, twigs, bark, and aquatic plants.\nThey are excellent swimmers.\nMoose can dive to reach underwater vegetation.\nTheir wide hooves spread weight over soft terrain.\nThey are usually solitary.\nCows defend calves aggressively.\nA young moose is called a calf.\nMales compete during the autumn rut.\nMoose use grunts, bellows, scent, and posture.\nThey can run quickly despite their size.\nWinter ticks can cause serious health problems.\nWarm temperatures can produce heat stress.\nRoad collisions are dangerous for both moose and people.\nPredators include wolves and bears, especially for calves.\nWetland plants can provide important minerals.')
+
+add_species('Orca',
+    [['   ___', ' _/o o\\_', '\\__^__/', '   /|', '  ^^ ^^'], ['   ___', ' _/- -\\_', '\\__^__/', '   /|', '  ^^ ^^']],
+    4,
+    'Orcas are the largest members of the dolphin family.\nThey are found in every ocean.\nDistinct populations have different diets and hunting traditions.\nSome populations specialize in fish while others hunt marine mammals.\nOrcas use echolocation to navigate and locate prey.\nPods communicate with learned calls.\nCall patterns can differ between social groups.\nCultural knowledge is passed across generations.\nFemales can live for many decades.\nOlder females may help guide relatives after reproduction ends.\nOrca pods are often organized around maternal family lines.\nTheir black-and-white pattern provides strong visual contrast.\nA tall dorsal fin is especially prominent in adult males.\nOrcas coordinate during complex hunts.\nSome create waves to wash prey from ice.\nOthers intentionally strand briefly to capture prey on beaches.\nCalves learn hunting techniques from older animals.\nOrcas are apex predators.\nBoat noise can interfere with communication and foraging.\nChemical pollution can accumulate in their tissues.\nPrey decline threatens specialized populations.\nTheir intelligence is expressed through learning, cooperation, and play.')
+
+add_species('Polar Bear',
+    [['  _____', ' ( o o )', ' /  ^  \\', '  /   \\', ' ^^   ^^'], ['  _____', ' ( - - )', ' /  ^  \\', '  /   \\', ' ^^   ^^']],
+    7,
+    'Polar bears are the largest living bear species.\nThey are marine mammals because they depend heavily on sea ice and marine prey.\nTheir skin is dark beneath the fur.\nThe outer fur appears white because it scatters light.\nA dense undercoat and fat layer provide insulation.\nLarge paws distribute weight on snow and help with swimming.\nRough paw pads and claws improve traction on ice.\nPolar bears are excellent long-distance swimmers.\nRinged seals are a major prey species in many regions.\nPolar bears often wait near seal breathing holes.\nTheir sense of smell can detect prey from far away.\nMales are much larger than females.\nPregnant females dig maternity dens in snow or earth.\nCubs remain with their mother for more than a year.\nPolar bears are generally solitary.\nThey can travel great distances across sea ice.\nSea-ice loss reduces access to hunting habitat.\nLonger ice-free seasons force some bears to fast for longer.\nHuman-bear conflict can increase where bears spend more time on land.\nPollutants can accumulate through the Arctic food web.\nPolar bears can overheat during intense activity.\nConservation depends strongly on protecting Arctic climate and habitat.')
+
+add_species('Porcupine',
+    [['  ^^^^^', ' ( o o )', ' /  V  \\', '  /   \\', ' ^^   ^^'], ['  ^^^^^', ' ( - - )', ' /  V  \\', '  /   \\', ' ^^   ^^']],
+    5,
+    'Porcupines are rodents with protective quills.\nQuills are modified hairs made of keratin.\nPorcupines cannot shoot their quills.\nQuills detach when they contact a threat.\nNorth American porcupine quills have microscopic barbs.\nDifferent porcupine groups evolved in the Americas and in Africa, Asia, and Europe.\nNew World porcupines are often good climbers.\nOld World porcupines are mainly ground-dwelling.\nTheir diet is mostly plant material.\nThey may eat bark, leaves, roots, fruit, and crops.\nContinuously growing incisors help gnaw tough food.\nPorcupines use scent and vocalizations to communicate.\nThey may rattle quills or stamp as warnings.\nA baby porcupine is called a porcupette.\nYoung are born with soft quills that harden soon after birth.\nSome species have prehensile tails.\nPorcupines seek salt and may chew human-made objects containing it.\nPredators must attack carefully to avoid quills.\nFishers are among the predators capable of hunting North American porcupines.\nQuills can cause serious wounds but are not poisonous.\nPorcupines play roles in forest browsing and nutrient cycling.\nTheir slow movement is balanced by strong passive defence.')
+
+add_species('Seal',
+    [['   ___', ' _(o o)_', '/__^__\\', '  /   ', ' ^^ ^^'], ['   ___', ' _(- -)_', '/__^__\\', '  /   ', ' ^^ ^^']],
+    4,
+    'True seals belong to the family Phocidae.\nThey lack external ear flaps.\nTheir rear flippers point backward and cannot rotate under the body.\nThis makes movement on land more awkward than in sea lions.\nStreamlined bodies make seals efficient swimmers.\nA thick layer of blubber insulates them.\nSeals can slow heart rate during dives.\nBlood and muscles store large amounts of oxygen.\nThey exhale before many deep dives.\nWhiskers detect water movement created by prey.\nSeal diets include fish, squid, crustaceans, and other marine animals.\nDifferent species occupy polar, temperate, and tropical waters.\nHarbour seals often rest on beaches, rocks, or sandbanks.\nElephant seals perform extremely deep and long dives.\nWeddell seals maintain breathing holes in Antarctic ice.\nMothers produce energy-rich milk for pups.\nPups of some species grow very rapidly.\nSeals communicate with calls, posture, and scent.\nThey are prey for orcas, sharks, and polar bears in some regions.\nFishing gear entanglement is a serious threat.\nDisturbance at haul-out and breeding sites can separate mothers and pups.\nHealthy fish populations support seal populations.')
+
+add_species('Skunk',
+    [['  /\\_/\\', ' ( o o )', '  \\_V_/', '  /===\\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', '  \\_V_/', '  /===\\', ' ^^   ^^']],
+    5,
+    'Skunks are mammals in the family Mephitidae.\nThey are best known for defensive scent spray.\nSpecial glands near the tail produce the strong-smelling liquid.\nA skunk can aim its spray with surprising accuracy.\nWarning displays often come before spraying.\nThese displays include stamping, tail raising, and handstands in some species.\nBlack-and-white colouring warns predators.\nSkunks are mostly active at night.\nThey are omnivores.\nTheir diet includes insects, grubs, small animals, eggs, fruit, and plants.\nSkunks help control some insect and rodent populations.\nThey use strong claws to dig for food.\nSkunks do not hibernate deeply but may den for long periods in cold weather.\nFemales can share winter dens.\nA baby skunk is called a kit.\nKits follow their mother while learning to forage.\nStriped skunks are widespread in North America.\nSpotted skunks are smaller and may perform acrobatic warning handstands.\nSkunks can carry rabies, so wild individuals should not be approached.\nTheir spray is not their first choice because it takes time to replenish.\nGood waste storage reduces skunk visits to urban areas.\nSkunks rely more on smell and hearing than sharp eyesight.')
+
+add_species('Wombat',
+    [['  _____', ' ( o o )', ' /  V  \\', '  /   \\', ' ^^   ^^'], ['  _____', ' ( - - )', ' /  V  \\', '  /   \\', ' ^^   ^^']],
+    2,
+    'Wombats are burrowing marsupials native to Australia.\nThree living wombat species are recognized.\nThey have powerful limbs and strong claws for digging.\nA wombat burrow can contain multiple tunnels and chambers.\nWombats are mostly active at night or during cool conditions.\nThey graze on grasses, roots, and sedges.\nTheir incisors grow continuously.\nA slow metabolism helps them conserve energy and water.\nWombats produce cube-shaped droppings.\nThe cube shape forms in the intestine through differences in elasticity and contraction.\nDroppings are used in scent marking.\nThe pouch opens backward, helping keep soil away from the young.\nA baby wombat is called a joey.\nWombats can run quickly for short distances.\nTheir tough rear end can block a burrow entrance.\nCommon wombats have a bare nose.\nHairy-nosed wombats have fur around the nose.\nThe northern hairy-nosed wombat is critically endangered.\nRoad traffic and habitat loss threaten wombats.\nMange caused by mites can be severe.\nBurrows may provide shelter for other animals during fires.\nWombats are generally solitary but their ranges can overlap.')
+
+add_species('Zebra',
+    [['  /\\_/\\', ' ( o o )', ' /|=|=|\\', '  /   \\', ' ^^   ^^'], ['  /\\_/\\', ' ( - - )', ' /|=|=|\\', '  /   \\', ' ^^   ^^']],
+    7,
+    "Zebras are African members of the horse family.\nThree living zebra species are recognized.\nEvery zebra has a unique stripe pattern.\nStripes may help reduce biting-fly landings.\nStripes also provide visual signals within a herd.\nZebras are grazing herbivores.\nTheir digestive system allows them to process coarse grasses.\nThey can travel long distances for water and forage.\nPlains zebras often form stable family groups.\nA stallion may lead and defend a family unit.\nBachelor males can form separate groups.\nGrevy's zebras have narrower stripes and a different social system.\nMountain zebras are adapted to dry, rugged terrain.\nZebras communicate with barks, brays, snorts, posture, and ear position.\nThey groom one another to strengthen bonds.\nA zebra can deliver a powerful kick.\nFoals stand and walk soon after birth.\nYoung foals learn their mother's stripe pattern and scent.\nZebras can run quickly and change direction to escape predators.\nLions, hyenas, wild dogs, and crocodiles prey on zebras.\nHabitat conversion and competition with livestock threaten some populations.\nZebra grazing helps influence grassland structure.")
+
+
+# ----------------------------- MYTHICAL EXPANSION -----------------------------
+# These entries are mythology and folklore lore, not claims about real animals.
+add_species('Griffin',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    1,
+    'Griffins combine the forequarters of an eagle with the body of a lion.\nAncient Mediterranean art often placed griffins beside treasure or sacred places.\nThe eagle-and-lion design joins two animals associated with power and rulership.\nGriffin imagery appears in Greek, Persian, Scythian, and later European traditions.\nMedieval bestiaries sometimes treated the griffin as a symbol of vigilance.\nHeraldry uses griffins as supporters, crests, and emblems of courage.\nSome stories describe griffins nesting in remote mountains rich in gold.\nModern fantasy often portrays griffins as intelligent aerial mounts.\nA griffin is distinct from a hippogriff, which has a horse-like hind body.\nArtists vary the creature with feathered ears, horns, or different wing shapes.')
+
+add_species('Pegasus',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    2,
+    'Pegasus is the winged horse of Greek mythology.\nIn one tradition Pegasus sprang from the blood of Medusa.\nThe hero Bellerophon rode Pegasus while fighting the Chimera.\nThe spring Hippocrene was said to appear where Pegasus struck the ground.\nLater writers connected Pegasus with poetry and artistic inspiration.\nThe constellation Pegasus preserves the winged horse in the night sky.\nRenaissance and modern art often show Pegasus as a white horse.\nFantasy stories frequently use pegasi as swift mounts or sky guardians.\nPegasus is a proper name, while a winged-horse species is often called pegasi.\nWing placement and flight mechanics vary widely between artistic traditions.')
+
+add_species('Hydra',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    3,
+    'The Lernaean Hydra is a many-headed serpent from Greek mythology.\nHeracles faced the Hydra as one of his famous labours.\nCutting off a head caused more heads to grow in many versions of the tale.\nHeracles used fire to cauterize the necks and stop regrowth.\nOne central head was sometimes described as immortal.\nThe Hydra lived near the marshes of Lerna.\nIts breath or blood was portrayed as dangerously poisonous.\nHydra imagery became a metaphor for problems that multiply when attacked.\nModern fantasy varies the number of heads and elemental powers.\nThe constellation Hydra shares the name but has several mythic associations.')
+
+add_species('Kraken',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    4,
+    'The kraken belongs mainly to Scandinavian maritime folklore.\nEarly accounts imagined an enormous sea creature capable of threatening ships.\nDescriptions sometimes resemble giant squid, octopuses, or island-sized beasts.\nSailor stories may have been influenced by rare sightings of large cephalopods.\nThe kraken became internationally famous through literature and illustration.\nModern fantasy usually depicts it with many powerful tentacles.\nSome stories describe whirlpools forming when the creature dives.\nThe kraken often represents the unknown dangers of deep water.\nIts appearance changes from story to story.\nGames commonly cast the kraken as a boss, guardian, or ancient ocean force.')
+
+add_species('Cerberus',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    5,
+    'Cerberus is the multi-headed hound guarding the Greek underworld.\nThree heads became the most familiar depiction, although older texts vary.\nA serpent tail and snakes along the body appear in several ancient descriptions.\nThe hound prevented the dead from leaving and unauthorized visitors from entering.\nHeracles captured Cerberus during his final labour.\nOrpheus calmed Cerberus with music in one famous myth.\nThe Sibyl used a drugged honey cake to pass the guardian in the Aeneid.\nCerberus symbolizes an alert and nearly impossible gatekeeper.\nThe name is widely reused for security systems and fictional guard creatures.\nModern portrayals range from monstrous to surprisingly loyal companions.')
+
+add_species('Kitsune',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    6,
+    'Kitsune are supernatural foxes in Japanese folklore.\nStories often grant them greater wisdom and power as they age.\nMultiple tails, sometimes up to nine, signal exceptional age or strength.\nKitsune may act as tricksters, protectors, messengers, or romantic figures.\nSome traditions connect benevolent foxes with the deity Inari.\nShape-shifting into human form is one of their best-known abilities.\nFoxfire, called kitsunebi, appears in many tales.\nKitsune stories differ by region, period, and religious context.\nModern fiction frequently distinguishes celestial and wild fox spirits.\nFox masks are strongly associated with kitsune imagery today.')
+
+add_species('Sphinx',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    7,
+    'Sphinx traditions developed in both Egypt and Greece with different roles.\nEgyptian sphinxes usually combine a lion body with a royal human head.\nThe Great Sphinx of Giza is the most famous monumental example.\nGreek tradition often depicts the sphinx as female and winged.\nThe Theban Sphinx challenged travelers with a deadly riddle.\nOedipus defeated the Sphinx by solving its question about human life.\nSphinx imagery can represent royal power, protection, wisdom, or mystery.\nAncient artists altered crowns, wings, and faces to suit local symbolism.\nFantasy settings often make sphinxes guardians of knowledge or sealed ruins.\nRiddles remain the most recognizable behavior assigned to the Greek Sphinx.')
+
+add_species('Chimera',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    1,
+    'The Chimera of Greek mythology combines parts of a lion, goat, and serpent.\nAncient descriptions commonly place a goat head rising from the creature back.\nIts tail ends in a snake or dragon head in many depictions.\nThe Chimera was said to breathe fire.\nBellerophon defeated it while riding Pegasus.\nThe word chimera can also mean an impossible idea or mixed organism.\nEtruscan and Greek artworks helped standardize its composite appearance.\nModern fantasy expands the term to many creatures assembled from multiple species.\nIts mixed anatomy makes it a classic symbol of unnatural combination.\nDifferent games assign the Chimera poison, fire, or multi-part attacks.')
+
+add_species('Basilisk',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    2,
+    'The basilisk is a legendary serpent called the king of snakes.\nClassical and medieval sources gave it a lethal gaze, breath, or venom.\nA crown-like mark or crest explains its royal name.\nLater European art sometimes added rooster features and called it a cockatrice.\nThe weasel was described as a natural enemy in medieval bestiaries.\nSome tales claimed a rooster crow could defeat it.\nDescriptions range from a tiny snake to a large dragon-like monster.\nThe basilisk often inhabits deserts or ruins in later stories.\nModern fantasy commonly treats eye contact as its central danger.\nThe name is also used for real lizards, including water-running species.')
+
+add_species('Leviathan',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    3,
+    'Leviathan appears in ancient Hebrew texts as a vast sea creature.\nDescriptions emphasize immense power, armor-like scales, and untamable strength.\nLater works used Leviathan as a symbol of chaos or overwhelming power.\nThe creature is sometimes paired with Behemoth of the land and Ziz of the sky.\nInterpretations vary between serpent, dragon, whale, and cosmic monster.\nThomas Hobbes used Leviathan as the title and image for a powerful commonwealth.\nModern fantasy often uses the name for the largest class of sea beast.\nLeviathan stories express human awe toward the depth and scale of the ocean.\nThere is no single fixed anatomy across traditions.\nGames frequently portray Leviathan as an ancient world-level encounter.')
+
+add_species('Thunderbird',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    4,
+    'Thunderbird is a powerful being in traditions of several Indigenous peoples of North America.\nThe name groups distinct cultural beings whose stories should not be treated as identical.\nThunder, lightning, storms, and enormous wings are recurring associations.\nSome traditions describe the Thunderbird as a protector or enforcer of order.\nArtistic forms appear on carvings, masks, poles, textiles, and painted objects.\nSpecific meanings belong to the communities that preserve each tradition.\nPopular fantasy often simplifies the Thunderbird into an electric giant bird.\nRespectful retellings distinguish living cultural traditions from generic monster lore.\nIts scale commonly links sky, mountain, ocean, and weather imagery.\nThe Thunderbird remains culturally significant rather than merely historical.')
+
+add_species('Kelpie',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    5,
+    'The kelpie is a shape-shifting water spirit from Scottish folklore.\nIt is most often described as a horse near rivers or lochs.\nSome tales warn that riders become stuck to its back and are carried into water.\nHuman forms may retain clues such as wet hair, weeds, or hoof-like features.\nKelpie stories likely reinforced caution around dangerous water.\nNot every Scottish water-horse tradition uses exactly the same name or behavior.\nThe Each-Uisge is a related but often more dangerous Highland tradition.\nModern stories sometimes reinterpret kelpies as guardians rather than predators.\nThe Kelpies sculptures in Falkirk celebrate the horse imagery at monumental scale.\nFantasy art often adds flowing manes made of water or aquatic plants.')
+
+add_species('Qilin',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    6,
+    'The qilin is an auspicious creature in Chinese tradition.\nIts appearance can combine deer, ox, dragon, horse, fish-scale, and other features.\nQilin are associated with benevolent rule, peace, wisdom, and remarkable births.\nSome stories say the creature walks without harming grass or small living things.\nFlames or cloud-like energy may surround its body in art.\nThe Japanese kirin and related East Asian traditions developed distinct forms.\nEuropean writers compared the qilin with the unicorn, but the traditions differ.\nQilin imagery appears in sculpture, painting, architecture, and ceremonial objects.\nModern fantasy often gives the qilin lightning, fire, or sacred healing powers.\nIts design is intentionally composite and varies across dynasties and regions.')
+
+add_species('Manticore',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    7,
+    'The manticore entered Greek writing through accounts of creatures from Persia.\nIts familiar form combines a human-like face, lion body, and dangerous tail.\nSome descriptions give the tail scorpion spines or volleys of projectiles.\nRows of sharp teeth intensify its role as a man-eating monster.\nThe name is linked to an Old Persian expression interpreted as man-eater.\nMedieval European bestiaries repeated and transformed earlier descriptions.\nArtists vary how human or leonine the face appears.\nModern fantasy often uses manticores as desert or mountain predators.\nWings are common in new designs but not universal in older accounts.\nIts composite body reflects how travelers tales changed across languages.')
+
+add_species('Minotaur',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    1,
+    'The Minotaur is the bull-headed figure of the Cretan labyrinth myth.\nKing Minos confined it within a maze designed by Daedalus.\nAthens was forced to send young people into the labyrinth as tribute.\nTheseus entered the maze to end the tribute.\nAriadne provided thread that allowed Theseus to find the way out.\nAncient art varies the balance of human and bull features.\nThe labyrinth and Minotaur became symbols of entrapment and the hidden self.\nModern fantasy often treats minotaurs as a species rather than one individual.\nAxes, maze architecture, and charging attacks are common modern motifs.\nRetellings increasingly explore the tragedy of the creature imprisonment.')
+
+add_species('Wyvern',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    2,
+    'A wyvern is commonly depicted as a two-legged winged dragon.\nEuropean heraldry helped distinguish wyverns from four-legged dragons.\nThe dragon-versus-wyvern rule is not consistent across all stories or languages.\nA barbed or venomous tail appears in many modern versions.\nWyverns frequently serve as aerial predators in games.\nHeraldic wyverns symbolize war, strength, guardianship, or pestilence.\nArtists often combine the forelimbs and wings into one anatomical pair.\nSome settings portray wyverns as less intelligent relatives of dragons.\nOther settings use the two words interchangeably.\nTheir compact silhouette makes them easy to recognize in small game art.')
+
+add_species('Roc',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    3,
+    'The roc is a gigantic bird best known from Arabic and Persian storytelling.\nStories describe it carrying elephants or lifting ships with its wings.\nThe voyages of Sinbad helped popularize the roc internationally.\nEnormous eggs and remote island nests are recurring motifs.\nTravel literature sometimes connected the roc with Madagascar and giant birds.\nExtinct elephant birds may have influenced speculation, though the roc is legendary.\nThe creature represents impossible scale and hazards of distant travel.\nModern fantasy often uses rocs as mountain-dwelling apex flyers.\nRoc feathers or eggs commonly become rare quest objects.\nIts design is usually eagle-like but varies across manuscripts and films.')
+
+add_species('Fenrir',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    4,
+    'Fenrir is the immense wolf of Norse mythology.\nHe is a child of Loki and the giantess Angrboda.\nThe gods feared Fenrir predicted role during Ragnarok.\nThe magical binding Gleipnir was made from impossible ingredients.\nThe god Tyr lost a hand when Fenrir realized he had been deceived.\nAt Ragnarok Fenrir is foretold to break free.\nFenrir kills Odin in the final battle according to major sources.\nVidarr avenges Odin by defeating the wolf.\nModern fiction often expands Fenrir into a species of giant wolf.\nChains, eclipses, and apocalyptic imagery frequently accompany his design.')
+
+add_species('Naga',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    5,
+    'Naga traditions appear across Hindu, Buddhist, Jain, and Southeast Asian cultures.\nNagas are serpent beings associated with water, fertility, protection, and hidden realms.\nThey may appear as enormous cobras, human-serpent hybrids, or shape-shifters.\nMulti-headed cobra hoods are a common sacred artistic motif.\nThe naga king Mucalinda shelters the Buddha in a well-known story.\nRegional traditions give nagas distinct names, genealogies, and moral roles.\nTemple stairways and railings often use naga forms as protective boundaries.\nWaterways, rain, jewels, and subterranean palaces recur in naga stories.\nModern fantasy can remove religious context, so respectful naming matters.\nNagas can be benevolent, dangerous, royal, or spiritually advanced.')
+
+add_species('Golem',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    6,
+    'The golem is an artificial being from Jewish folklore.\nIt is often formed from clay or earth and animated through sacred knowledge.\nThe Prague golem legend became the best-known modern version.\nStories explore protection, responsibility, obedience, and unintended consequences.\nWritten letters or divine names may play a role in animation and deactivation.\nThe Hebrew word relates to something unformed or incomplete.\nEarly sources differ greatly from later popular retellings.\nModern fantasy generalized golem into stone, metal, ice, and elemental constructs.\nA golem usually follows instructions literally rather than acting from malice.\nRespectful adaptations remember the tradition Jewish cultural origin.')
+
+add_species('Djinn',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    7,
+    'Jinn are intelligent unseen beings in Arabic and Islamic traditions.\nThe English spelling djinn is one of several transliterations.\nTraditional jinn are more varied than the wish-granting genie stereotype.\nThey possess moral choice and may be benevolent, harmful, or indifferent.\nFire without smoke is associated with their creation in Islamic scripture.\nStories place jinn in deserts, ruins, wilderness, homes, and hidden societies.\nBinding a spirit in a lamp is a later popular motif, not a universal rule.\nDifferent regions preserve distinct categories and names for spirit beings.\nModern fantasy borrows jinn imagery while changing cultural meaning.\nJinn stories span theology, folklore, literature, and everyday belief.')
+
+add_species('Yeti',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    1,
+    'The yeti belongs to Himalayan folklore and modern cryptid tradition.\nWestern media often calls it the Abominable Snowman.\nLocal names and stories are more diverse than the single popular image suggests.\nReports describe tracks, calls, hair, or distant figures in high mountains.\nMany investigated samples have come from known Himalayan animals.\nThe yeti remains culturally important despite lacking scientific confirmation.\nModern art usually portrays a large white-furred ape-like being.\nOlder descriptions do not always match the image standardized by film.\nThe creature embodies the remoteness and danger of mountain landscapes.\nFantasy versions range from shy guardians to powerful ice monsters.')
+
+add_species('Moon Rabbit',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    2,
+    'The Moon Rabbit appears in several East Asian and Indigenous American traditions.\nPeople interpret lunar markings as the shape of a rabbit.\nChinese stories often place the Jade Rabbit beside the moon goddess Change.\nThe rabbit is commonly shown preparing an elixir with a mortar and pestle.\nJapanese and Korean traditions connect the rabbit with rice cakes or medicine.\nA Buddhist Jataka tells of a rabbit offering itself as food and being honored on the moon.\nDetails differ across cultures and should not be collapsed into one version.\nMoon-rabbit imagery appears during festivals, animation, games, and space missions.\nIts symbolism includes selflessness, longevity, renewal, and the lunar cycle.\nModern fantasy often gives it healing, time, or moonlight abilities.')
+
+add_species('Dryad',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    3,
+    'Dryads are tree-associated nymphs in Greek mythology.\nThe term is broad, while ancient categories distinguished different tree nymphs.\nHamadryads were especially bound to the life of a particular tree.\nStories warn that harming a sacred tree could harm its spirit.\nDryads belong to a wider family of nature spirits connected with places.\nAncient art usually portrayed nymphs in human form.\nModern fantasy often adds leaves, branches, flowers, and green skin.\nDryad stories symbolize dependence between a living place and its guardian.\nTheir powers commonly involve growth, healing, concealment, and plants.\nForest-protection themes are modern extensions of their nature association.')
+
+add_species('Selkie',
+    [['   /^^>', '  (o o)', ' <| V |>', '  |___|', '  ^^ ^^'], ['   <^^/', '  (O O)', ' <| ^ |>', '  |___|', '  ^^ ^^']],
+    4,
+    'Selkies are seal people in Scottish and Irish folklore.\nThey move between seal form and human form using a sealskin.\nMany tales involve a hidden skin that prevents a selkie returning to the sea.\nThe stories explore captivity, longing, consent, home, and divided identity.\nMale and female selkies appear in different regional narratives.\nCoastal communities preserved variations through song and oral storytelling.\nA selkie is distinct from merfolk despite linking human and marine worlds.\nModern retellings often center the selkie perspective and autonomy.\nSeal behavior and northern coasts shape the imagery.\nFantasy designs usually remain human or seal rather than permanently hybrid.')
+
+
+
+# ----------------------------- EXPANSION SPECIES -----------------------------
+# These compact templates keep the source maintainable while still giving every
+# creature two animation frames.  Specific facts are followed by the universal
+# fact/lore expansion performed by _extend_species_facts().
+def _add_expansion_species(name, color, fact_lines, silhouette="beast"):
+    """Register one expansion creature with a compact readable ASCII frame."""
+    if silhouette == "bird":
+        art = [["   __", "  (o>)", " /|  \\", "  /\\", "  ^^"],
+               ["   __", "  (>o)", " /|  \\", "  \\/", "  ^^"]]
+    elif silhouette == "water":
+        art = [["    __", " __/o \\", "<____  /", "    \\/", "    ~~"],
+               ["    __", " __/O \\", "<____  /", "   \\_/", "    ~~"]]
+    elif silhouette == "serpent":
+        art = [["  __/\\", " / o  \\", "<  ~  /", " \\___/", "  ~~~"],
+               ["  /\\__", " /  O \\", "<  ~  /", " \\___/", "  ~~~"]]
+    else:
+        art = [["   /^^>", "  (o o)", " <| V |>", "  |___|", "  ^^ ^^"],
+               ["   <^^/", "  (O O)", " <| ^ |>", "  |___|", "  ^^ ^^"]]
+    add_species(name, art, color, "\n".join(fact_lines))
+
+
+_REAL_EXPANSION_SPECIES = {
+    "African Wild Dog": (6, "beast", [
+        "African wild dogs live in highly cooperative packs.",
+        "Their mottled coats are individually unique.",
+        "Pack members share food with pups and sick adults.",
+        "They communicate with calls, posture, and close contact.",
+        "Large connected habitats are important to their survival.",
+        "They are also called painted dogs.",
+        "Packs can coordinate long-distance endurance hunts.",
+        "Habitat loss and disease threaten many populations.",
+    ]),
+    "Aye-Aye": (5, "beast", [
+        "The aye-aye is a nocturnal lemur from Madagascar.",
+        "Its elongated middle finger helps extract grubs from wood.",
+        "It taps branches and listens for hollow spaces.",
+        "Large ears support its specialized foraging method.",
+        "Aye-ayes build spherical nests in trees.",
+        "Their continuously growing incisors resemble rodent teeth.",
+        "They are solitary but use overlapping home ranges.",
+        "Forest protection is essential for their conservation.",
+    ]),
+    "Beluga": (3, "water", [
+        "Belugas are toothed whales adapted to Arctic and sub-Arctic seas.",
+        "Adults are white while calves are born grey.",
+        "A flexible neck lets a beluga turn its head.",
+        "Their rounded forehead is called a melon.",
+        "Belugas use many whistles, clicks, and chirps.",
+        "They can swim backward.",
+        "Seasonal sea ice influences migration routes.",
+        "Echolocation helps them navigate and find prey.",
+    ]),
+    "Blue Whale": (4, "water", [
+        "The blue whale is the largest animal known to have lived.",
+        "It feeds mainly on tiny krill.",
+        "Baleen plates filter prey from seawater.",
+        "Low-frequency calls can travel great distances.",
+        "Blue whales migrate between feeding and breeding regions.",
+        "A blue whale heart can weigh hundreds of kilograms.",
+        "Calves drink extremely rich milk and grow rapidly.",
+        "Ship strikes, noise, and changing oceans remain concerns.",
+    ]),
+    "Bobcat": (2, "beast", [
+        "Bobcats are adaptable wild cats native to North America.",
+        "Their short tail has a dark tip and pale underside.",
+        "Ear tufts and cheek ruffs help form their distinctive profile.",
+        "They hunt rabbits, rodents, birds, and other prey.",
+        "Bobcats usually live alone outside breeding and maternal care.",
+        "They mark territories with scent and scratches.",
+        "Excellent hearing helps locate concealed prey.",
+        "They can live near forests, deserts, wetlands, and suburbs.",
+    ]),
+    "Caracal": (6, "beast", [
+        "Caracals are medium-sized cats with long black ear tufts.",
+        "They can leap vertically to catch birds.",
+        "Their name is linked to a Turkish expression for black ear.",
+        "Caracals inhabit dry woodland, savanna, and scrub.",
+        "They are mainly solitary and often active at night.",
+        "Powerful hind legs support sudden acceleration.",
+        "Mothers raise kittens in sheltered dens.",
+        "Their diet includes rodents, hares, birds, and small antelope.",
+    ]),
+    "Cassowary": (6, "bird", [
+        "Cassowaries are large flightless birds of tropical forests.",
+        "A helmet-like casque rises from the head.",
+        "Their powerful legs carry a long inner toe claw.",
+        "Fruit makes up much of their diet.",
+        "By spreading seeds they support rainforest regeneration.",
+        "Males incubate eggs and care for chicks.",
+        "Bright neck skin varies among species and individuals.",
+        "Keeping distance is important around wild cassowaries.",
+    ]),
+    "Chinchilla": (5, "beast", [
+        "Chinchillas have exceptionally dense fur.",
+        "They are native to rocky regions of the Andes.",
+        "Dust baths help maintain coat condition.",
+        "Their teeth grow continuously.",
+        "Large ears help release heat.",
+        "They are agile jumpers and prefer vertical space.",
+        "Chinchillas are most active around dusk and night.",
+        "Wild populations were heavily reduced by the fur trade.",
+    ]),
+    "Coyote": (3, "beast", [
+        "Coyotes are highly adaptable members of the dog family.",
+        "They communicate with howls, yips, barks, and scent.",
+        "Diet changes with season and local opportunity.",
+        "Coyotes may live alone, in pairs, or in family groups.",
+        "They can thrive in rural, desert, and urban landscapes.",
+        "Large ears support sensitive hearing.",
+        "Both parents may help raise pups.",
+        "Removing food attractants reduces conflict near homes.",
+    ]),
+    "Crocodile": (2, "serpent", [
+        "Crocodiles are semi-aquatic reptiles with powerful jaws.",
+        "Eyes, ears, and nostrils sit high on the head.",
+        "A secondary palate helps them breathe while holding prey.",
+        "Mothers guard nests and may carry hatchlings gently.",
+        "Their four-chambered heart is unusual among reptiles.",
+        "Tail muscles provide most swimming propulsion.",
+        "Some species tolerate salt water using specialized glands.",
+        "Crocodilians have survived through major environmental changes.",
+    ]),
+    "Emu": (3, "bird", [
+        "Emus are large flightless birds native to Australia.",
+        "Long legs allow efficient travel over large distances.",
+        "Males incubate the eggs and care for striped chicks.",
+        "Small wings help with balance and display.",
+        "Emus eat plants, seeds, fruits, and insects.",
+        "They can swim when necessary.",
+        "Seasonal rainfall influences movement and breeding.",
+        "Their booming calls are produced with an inflatable neck sac.",
+    ]),
+    "Flamingo": (5, "bird", [
+        "Flamingos filter small organisms from shallow water.",
+        "Their bent bills work upside down while feeding.",
+        "Pink coloration comes from pigments in the diet.",
+        "They often breed in large colonies.",
+        "A single egg is usually laid on a mud mound.",
+        "Both parents can produce crop milk for a chick.",
+        "Long legs allow feeding in deeper water.",
+        "Synchronized displays help coordinate breeding groups.",
+    ]),
+    "Gorilla": (7, "beast", [
+        "Gorillas are the largest living primates.",
+        "Family groups are often led by a mature silverback.",
+        "They communicate with calls, posture, touch, and chest beats.",
+        "Most of their diet consists of leaves, stems, shoots, and fruit.",
+        "Gorillas build new sleeping nests regularly.",
+        "Young gorillas learn through play and observation.",
+        "They share close evolutionary ancestry with humans.",
+        "Habitat loss, disease, and poaching threaten wild populations.",
+    ]),
+    "Jaguar": (2, "beast", [
+        "Jaguars are the largest cats native to the Americas.",
+        "Rosettes often contain central spots unlike leopard rosettes.",
+        "They are strong swimmers and frequently use waterways.",
+        "A powerful bite can pierce hard shells and skulls.",
+        "Jaguars hunt by ambush in forests, wetlands, and scrub.",
+        "Individuals maintain large territories.",
+        "Melanistic jaguars are commonly called black panthers.",
+        "Habitat corridors help connect isolated populations.",
+    ]),
+    "Komodo Dragon": (6, "serpent", [
+        "Komodo dragons are the largest living lizards.",
+        "They are native to a small group of Indonesian islands.",
+        "A forked tongue samples airborne chemical particles.",
+        "Venom and deep wounds help subdue prey.",
+        "Young dragons spend much time in trees.",
+        "Adults can consume very large meals.",
+        "Females can sometimes reproduce without a male.",
+        "Protected habitat is crucial because their range is limited.",
+    ]),
+    "Lynx": (3, "beast", [
+        "Lynx species have short tails and tufted ears.",
+        "Wide paws help some lynx travel over snow.",
+        "The Canada lynx is strongly associated with snowshoe hares.",
+        "Long legs support movement through deep winter conditions.",
+        "They are usually solitary and elusive.",
+        "Excellent hearing helps locate prey beneath cover.",
+        "Dense winter coats provide insulation.",
+        "Population cycles can track changes in major prey species.",
+    ]),
+    "Manatee": (3, "water", [
+        "Manatees are slow-moving aquatic herbivorous mammals.",
+        "They use flexible lips to gather vegetation.",
+        "Dense bones help control buoyancy.",
+        "Manatees surface regularly to breathe.",
+        "Warm-water refuges are important during cold weather.",
+        "Calves remain close to their mothers while learning routes.",
+        "Boat strikes are a major human-caused threat.",
+        "They are related to elephants and hyraxes.",
+    ]),
+    "Okapi": (5, "beast", [
+        "The okapi is a forest-dwelling relative of the giraffe.",
+        "Striped hindquarters help break up its outline in vegetation.",
+        "A long tongue gathers leaves and cleans the face.",
+        "Okapis are native to the rainforests of the Democratic Republic of the Congo.",
+        "Large ears can rotate independently toward sounds.",
+        "They are mostly solitary outside mother-calf pairs.",
+        "Scent glands between the toes leave chemical trails.",
+        "Dense forest makes field study challenging.",
+    ]),
+    "Ostrich": (7, "bird", [
+        "Ostriches are the largest living birds.",
+        "They have two toes on each foot.",
+        "Long legs support very fast running.",
+        "Large eyes help detect distant danger.",
+        "Wings assist balance, display, and temperature control.",
+        "Several females may lay eggs in a communal nest.",
+        "Males and females share incubation duties.",
+        "Their diet includes plants, seeds, and small animals.",
+    ]),
+    "Rhinoceros": (7, "beast", [
+        "Rhinoceros horns are made mainly of keratin.",
+        "Five living rhino species occur in Africa and Asia.",
+        "Mud wallows cool skin and discourage parasites.",
+        "Rhinos use scent piles and calls to communicate.",
+        "Their eyesight is modest but smell and hearing are strong.",
+        "Calves remain with mothers for several years.",
+        "Poaching for horn has devastated many populations.",
+        "Protected landscapes and anti-poaching work are essential.",
+    ]),
+    "Sea Lion": (4, "water", [
+        "Sea lions have external ear flaps.",
+        "They can rotate hind flippers forward to move on land.",
+        "Front flippers provide powerful underwater propulsion.",
+        "Colonies can be noisy and socially complex.",
+        "Mothers recognize pups using calls and scent.",
+        "Sea lions eat fish, squid, and other marine prey.",
+        "They are agile learners and can solve trained tasks.",
+        "Ocean conditions influence prey availability and breeding success.",
+    ]),
+    "Tasmanian Devil": (6, "beast", [
+        "Tasmanian devils are the largest living carnivorous marsupials.",
+        "Powerful jaws help them consume bone and tough tissue.",
+        "Loud communal feeding sounds reduce direct fighting.",
+        "They are mostly nocturnal scavengers and hunters.",
+        "Fat is stored in the tail when food is plentiful.",
+        "Females rear tiny young in a backward-opening pouch.",
+        "Devil facial tumour disease caused severe declines.",
+        "Insurance populations support conservation recovery.",
+    ]),
+    "Toucan": (2, "bird", [
+        "Toucans have large lightweight bills with a honeycomb interior.",
+        "The bill helps reach fruit and may regulate heat.",
+        "They live in forests of Central and South America.",
+        "Fruit forms much of the diet, along with insects and small prey.",
+        "Toucans nest in existing tree cavities.",
+        "Short rounded wings suit movement through forest gaps.",
+        "Their calls can carry through dense vegetation.",
+        "Seed dispersal makes them important forest participants.",
+    ]),
+    "Walrus": (6, "water", [
+        "Walruses use long tusks for display and assistance on ice.",
+        "Sensitive whiskers locate shellfish on the seafloor.",
+        "A thick blubber layer insulates the body.",
+        "They gather in large social groups.",
+        "Both sexes can grow tusks.",
+        "Walruses can slow their heart rate while diving.",
+        "Mothers provide prolonged care to calves.",
+        "Loss of stable sea ice changes resting and feeding patterns.",
+    ]),
+    "Yak": (1, "beast", [
+        "Yaks are adapted to cold high-altitude environments.",
+        "Dense coats include long outer hair and insulating underwool.",
+        "Large lungs and hearts support life in thin air.",
+        "Domestic yaks provide milk, fibre, transport, and fuel.",
+        "Broad hooves help on snow and rough ground.",
+        "Wild yaks are larger than most domestic forms.",
+        "They graze grasses, sedges, and alpine plants.",
+        "Herds move with seasons and forage conditions.",
+    ]),
+    "Mongoose": (3, "beast", [
+        "Mongooses are agile carnivores found across Africa and Asia.",
+        "Different species range from solitary to highly social.",
+        "They eat insects, rodents, eggs, reptiles, and other foods.",
+        "Fast reflexes help some species confront venomous snakes.",
+        "Resistance to some venom does not make them fully immune.",
+        "Many use scent marking for communication.",
+        "Cooperative groups may guard and raise young together.",
+        "Introduced mongooses can damage island wildlife.",
+    ]),
+}
+
+_MYTHICAL_EXPANSION_SPECIES = {
+    "Alicorn": (5, "beast", [
+        "An alicorn is a modern fantasy creature combining unicorn and winged horse traits.",
+        "The word historically also referred to a unicorn horn or horn material.",
+        "Modern stories often associate alicorns with royalty or rare magical mastery.",
+        "Wings symbolize freedom while the horn symbolizes focused magic.",
+        "Settings vary on whether alicorns are born, transformed, or chosen.",
+        "Their rarity often makes them important to prophecy or diplomacy.",
+        "Designs commonly use luminous feathers and spiral horns.",
+        "This game treats the alicorn as a legendary companion species.",
+    ]),
+    "Amarok": (4, "beast", [
+        "Amarok is a giant wolf figure in Inuit storytelling.",
+        "Accounts vary by community and storyteller.",
+        "Some stories contrast the solitary Amarok with ordinary pack wolves.",
+        "The figure can represent wilderness, danger, and respect for natural limits.",
+        "Modern fantasy often simplifies Amarok into an ice wolf.",
+        "Responsible retellings distinguish living traditions from generic monster lore.",
+        "Moonlight and snow are frequent modern visual motifs.",
+        "In Pet Friends it is a rare guardian unlocked through long progression.",
+    ]),
+    "Anzu": (3, "bird", [
+        "Anzu is a powerful bird figure from ancient Mesopotamian myth.",
+        "It is often depicted with an eagle body and lion features.",
+        "The Tablet of Destinies appears in a famous Anzu narrative.",
+        "Storms, mountains, and divine authority surround its stories.",
+        "Ancient artistic depictions vary across periods.",
+        "Modern fantasy often emphasizes thunder and enormous wings.",
+        "The figure should not be confused with the dinosaur genus named Anzu.",
+        "This companion uses wind and storm imagery rather than a single fixed depiction.",
+    ]),
+    "Baku": (2, "beast", [
+        "The baku is a dream-eating being in Japanese tradition.",
+        "Its form combines features from several animals.",
+        "People may call on the baku after a nightmare.",
+        "Some warnings say asking too often can consume good dreams too.",
+        "The tradition developed from older Chinese composite-creature imagery.",
+        "Modern art often gives the baku an elephant-like trunk.",
+        "Dream mist and sleeping symbols are common fantasy motifs.",
+        "In this game the baku specializes in happiness and rest lore.",
+    ]),
+    "Banshee": (5, "beast", [
+        "The banshee belongs to Irish folklore and is associated with a lamenting cry.",
+        "Traditional accounts describe a supernatural woman rather than a generic monster.",
+        "Her keening can foretell a death in particular families.",
+        "Appearance varies from young and beautiful to aged and sorrowful.",
+        "The English word comes from Irish bean sidhe, woman of the fairy mound.",
+        "Modern horror often changes the tradition into a screaming attacker.",
+        "Pet Friends uses a gentle spirit-companion interpretation.",
+        "Respectful lore preserves the themes of mourning and warning.",
+    ]),
+    "Black Shuck": (6, "beast", [
+        "Black Shuck is a spectral black dog from East Anglian folklore.",
+        "Stories place it on roads, coasts, graveyards, and church paths.",
+        "A single glowing eye appears in some descriptions.",
+        "Encounters can be ominous, protective, or simply frightening.",
+        "The name and details vary across local traditions.",
+        "Storms and lonely night travel are common story settings.",
+        "Modern fantasy often gives it shadow or lightning abilities.",
+        "In this game it is a difficult mission-gated guardian.",
+    ]),
+    "Carbuncle": (2, "beast", [
+        "The carbuncle is a small legendary creature associated with a shining jewel.",
+        "South American travel tales helped popularize versions of the creature.",
+        "Descriptions vary widely and sometimes resemble foxes or armadillos.",
+        "The jewel may glow from the forehead or rest beneath the skin.",
+        "Treasure hunters often pursue it in later retellings.",
+        "Modern games commonly reinterpret it as a friendly magical pet.",
+        "Its lore explores greed, rarity, and the protection of living wonders.",
+        "Pet Friends treats the jewel as a harmless natural magical organ.",
+    ]),
+    "Cockatrice": (1, "bird", [
+        "The cockatrice is a medieval European legendary creature.",
+        "It combines a rooster with reptilian or dragon traits.",
+        "Its gaze or breath was said to be deadly in many accounts.",
+        "A weasel was traditionally considered one of its enemies.",
+        "The cockatrice overlaps with but is not identical to the basilisk.",
+        "Heraldry and bestiaries helped standardize its appearance.",
+        "Modern fantasy often gives it petrifying attacks.",
+        "This game presents a hatchable, trainable version with strict unlocks.",
+    ]),
+    "Dullahan": (6, "beast", [
+        "The Dullahan is a headless rider from Irish folklore.",
+        "It is usually a supernatural figure rather than an animal species.",
+        "A dark horse and ominous night journey appear in many retellings.",
+        "The rider may carry its own head.",
+        "Gold is sometimes described as a deterrent.",
+        "Modern fantasy expands the name to headless knights and spectral mounts.",
+        "Pet Friends represents the enchanted mount, not a human captive.",
+        "Its lore emphasizes eerie roads, bells, and moonlit fog.",
+    ]),
+    "Garuda": (3, "bird", [
+        "Garuda is a powerful bird-like being in Hindu and Buddhist traditions.",
+        "It is associated with speed, strength, and opposition to serpents.",
+        "Garuda serves as the mount of Vishnu in Hindu tradition.",
+        "Depictions range from giant bird to human-bird form.",
+        "Garuda symbols appear across South and Southeast Asia.",
+        "National and religious meanings vary by region.",
+        "Modern fantasy adaptations should avoid flattening sacred traditions.",
+        "Pet Friends uses a respectful guardian-bird interpretation.",
+    ]),
+    "Hippogriff": (4, "beast", [
+        "A hippogriff combines the front of a griffin with the body of a horse.",
+        "The creature became famous through Renaissance chivalric poetry.",
+        "Its parentage symbolized an impossible union between griffin and mare.",
+        "Flight and noble riding are central modern motifs.",
+        "Artists usually give it an eagle head, wings, and horse hindquarters.",
+        "It differs from a griffin, which has lion hindquarters.",
+        "Fantasy stories often require trust before it accepts a rider.",
+        "In this game it is unlocked through collection achievements.",
+    ]),
+    "Jackalope": (2, "beast", [
+        "The jackalope is a North American folkloric rabbit with antelope horns.",
+        "Taxidermy novelty mounts helped popularize the image.",
+        "Stories give it surprising speed, mimicry, or a taste for unusual drinks.",
+        "Horned-rabbit imagery also appears in older European art.",
+        "Some real rabbits can develop horn-like growths from viral infection.",
+        "The modern jackalope is strongly linked with western tall tales.",
+        "It is usually playful rather than dangerous.",
+        "Pet Friends makes it an uncommon mission reward.",
+    ]),
+    "Lamassu": (7, "beast", [
+        "Lamassu are protective figures from ancient Mesopotamia.",
+        "They combine a human head, bovine or lion body, and wings.",
+        "Monumental examples guarded palace and city entrances.",
+        "Five legs in some sculptures create complete views from front and side.",
+        "They symbolize strength, intelligence, and divine protection.",
+        "The term and exact iconography vary across languages and periods.",
+        "Modern fantasy often turns a guardian image into a living species.",
+        "Pet Friends preserves its role as a rare sanctuary protector.",
+    ]),
+    "Nian": (6, "beast", [
+        "Nian is a legendary beast connected with Chinese New Year stories.",
+        "Popular tales say it feared loud sounds, fire, and the colour red.",
+        "Regional retellings differ and many details are relatively modern.",
+        "Lion and dragon dance traditions are distinct but often associated in popular culture.",
+        "Nian stories explain festive noise and protective decoration.",
+        "Designs combine lion, ox, dragon, and other features.",
+        "Pet Friends treats Nian as a celebration guardian.",
+        "It is unlocked through daily streak and festival achievements.",
+    ]),
+    "Oni": (1, "beast", [
+        "Oni are powerful beings in Japanese folklore.",
+        "They are commonly depicted with horns, fierce faces, and iron clubs.",
+        "Roles range from punishers and demons to guardians or comic figures.",
+        "Red and blue skin became common visual conventions.",
+        "Setsubun traditions include driving oni away with beans.",
+        "Stories and theatrical forms give oni many personalities.",
+        "Modern fantasy often treats oni as a broad species.",
+        "Pet Friends uses a small guardian-beast interpretation rather than a human caricature.",
+    ]),
+    "Peryton": (5, "bird", [
+        "The peryton is a modern legendary creature popularized by Jorge Luis Borges.",
+        "It is usually described as a winged deer.",
+        "Some stories give it a human-shaped shadow.",
+        "Mountain ruins and distant islands appear in later fantasy settings.",
+        "Its exact appearance is not rooted in a long ancient tradition.",
+        "Antlers and feathers make a distinctive silhouette.",
+        "Modern games portray it as predator, omen, or forest guardian.",
+        "Pet Friends treats it as a rare aerial herbivore.",
+    ]),
+    "Sea Serpent": (4, "serpent", [
+        "Sea-serpent stories occur in many maritime cultures.",
+        "Long sightings at sea can be influenced by waves, animals, and distance.",
+        "Historic illustrations vary from snake-like bodies to crested dragons.",
+        "The creature represents uncertainty beyond familiar coasts.",
+        "Sailors used sea-monster imagery on maps and in travel accounts.",
+        "Modern fantasy often distinguishes sea serpents from larger leviathans.",
+        "Bioluminescent fins are a common new design choice.",
+        "In Pet Friends it is a high-level ocean companion.",
+    ]),
+    "Simurgh": (5, "bird", [
+        "The Simurgh is a wise benevolent bird in Persian mythology and literature.",
+        "It is associated with healing, knowledge, and immense age.",
+        "The Shahnameh includes important stories involving the Simurgh and Zal.",
+        "Its feathers can call for aid in some narratives.",
+        "Depictions combine bird, mammal, and sometimes peacock-like features.",
+        "The Conference of the Birds gives the Simurgh profound symbolic meaning.",
+        "Modern fantasy often reduces it to a phoenix analogue, but the traditions differ.",
+        "Pet Friends makes it a very rare mission and achievement unlock.",
+    ]),
+    "Tengu": (6, "bird", [
+        "Tengu are mountain beings in Japanese folklore and religious culture.",
+        "Historical depictions range from bird-like forms to long-nosed figures.",
+        "They can be disruptive, proud, protective, or spiritually complex.",
+        "Martial skill and mountain asceticism appear in later stories.",
+        "Crow-like karasu-tengu are common in visual art.",
+        "The tradition changed substantially across centuries.",
+        "Modern fantasy frequently uses wind and sword abilities.",
+        "Pet Friends represents a small crow-winged guardian companion.",
+    ]),
+    "Wolpertinger": (3, "beast", [
+        "The Wolpertinger is a Bavarian folkloric composite animal.",
+        "It commonly combines a rabbit body with antlers, wings, or fangs.",
+        "Novelty taxidermy displays reinforce the legend for visitors.",
+        "Descriptions vary because impossible combinations are part of the joke.",
+        "It resembles other regional composite creatures such as the Rasselbock.",
+        "Moonlit forest encounters appear in humorous stories.",
+        "Modern fantasy treats it as an elusive woodland species.",
+        "Pet Friends makes it a playful collection challenge.",
+    ]),
+    "Ziz": (3, "bird", [
+        "Ziz is a gigantic bird in Jewish folklore and later literature.",
+        "It is sometimes described as a counterpart to Behemoth and Leviathan.",
+        "Its wings can darken the sky in expansive retellings.",
+        "The figure represents the creatures of the air.",
+        "Sources and interpretations vary across periods.",
+        "Modern fantasy often depicts Ziz as a cosmic storm bird.",
+        "It is distinct from rocs and thunderbirds despite visual overlap.",
+        "Pet Friends reserves it for the highest collection milestones.",
+    ]),
+}
+
+for _name, (_color, _shape, _facts) in _REAL_EXPANSION_SPECIES.items():
+    _add_expansion_species(_name, _color, _facts, _shape)
+for _name, (_color, _shape, _facts) in _MYTHICAL_EXPANSION_SPECIES.items():
+    _add_expansion_species(_name, _color, _facts, _shape)
+
+def _extend_species_facts():
+    """Add accurate category facts and neutral species observations.
+
+    The routine is deterministic, de-duplicates entries, and guarantees that every
+    pet has at least 80 fact cards without relying on network access.
+    """
+    category_packs = {'mammal': ['Mammal fact: hair or fur is a defining feature of the group.', 'Mammal fact: mothers produce milk for their young.', 'Mammal fact: the middle ear contains three small bones.', 'Mammal fact: most mammals regulate body temperature internally.', 'Mammal fact: breathing is powered partly by a diaphragm.', 'Mammal fact: smell is a major information channel for many species.', 'Mammal fact: play often helps young animals practise adult skills.', 'Mammal fact: whiskers can function as sensitive touch organs.', 'Mammal fact: social grooming can strengthen relationships.', "Mammal fact: teeth often reflect the animal's natural diet.", 'Mammal fact: body size strongly affects heat loss and energy use.', 'Mammal fact: young animals learn through observation and exploration.', 'Mammal fact: scent marking can advertise identity and territory.', 'Mammal fact: ear position often communicates attention or mood.', 'Mammal fact: many species use low-frequency sounds that people barely hear.', 'Mammal fact: seasonal coat changes can improve insulation or camouflage.', 'Mammal fact: foot structure reflects whether a species climbs, digs, swims, or runs.', 'Mammal fact: maternal care is usually essential during early development.', 'Mammal fact: sleep patterns vary from short naps to long daily rest periods.', 'Mammal fact: habitat fragmentation can isolate breeding populations.', 'Mammal fact: migration may follow food, water, temperature, or breeding needs.', 'Mammal fact: memory helps animals relocate food, shelter, and safe routes.', 'Mammal fact: predators influence prey behaviour even when no attack occurs.', 'Mammal fact: herbivores often rely on microbes to digest plant fibre.', 'Mammal fact: carnivores use different combinations of stealth, speed, and cooperation.', 'Mammal fact: omnivores can adjust diets when seasons change.', 'Mammal fact: paws, hooves, flippers, and hands evolved from the same basic limb plan.', 'Mammal fact: individual personalities can affect exploration and social behaviour.', 'Mammal fact: mothers can recognize young through scent, sound, or appearance.', 'Mammal fact: vocal calls can identify individuals or signal danger.', 'Mammal fact: body fat can store energy and provide insulation.', 'Mammal fact: many species conserve energy by reducing activity in difficult seasons.', 'Mammal fact: parasites and disease can influence population cycles.', 'Mammal fact: safe corridors help animals move between habitat patches.', 'Mammal fact: camera traps reveal behaviour without constant human presence.', 'Mammal fact: tracks, droppings, hair, and feeding signs reveal hidden activity.', 'Mammal fact: genetics can show how populations are related.', 'Mammal fact: social rank may influence access to food or mates.', 'Mammal fact: enrichment encourages natural behaviour in managed care.', 'Mammal fact: conservation succeeds best when habitat and local communities are protected together.'], 'bird': ['Bird fact: feathers are unique to birds.', 'Bird fact: feathers provide insulation, display, waterproofing, and flight surfaces.', 'Bird fact: hollow spaces in some bones reduce weight without making the skeleton weak.', 'Bird fact: air sacs keep air moving efficiently through the respiratory system.', "Bird fact: a bird's beak shape reflects how it gathers food.", 'Bird fact: many birds see ultraviolet wavelengths.', 'Bird fact: preening aligns feathers and spreads protective oils.', 'Bird fact: contour feathers create a smooth outer body shape.', 'Bird fact: down feathers trap insulating air.', 'Bird fact: moulting replaces worn feathers.', 'Bird fact: eggshell pores allow gas exchange.', 'Bird fact: incubation temperature and humidity affect embryo development.', 'Bird fact: songs can defend territory or attract mates.', 'Bird fact: calls can warn, coordinate, beg, or maintain contact.', 'Bird fact: flocking can improve predator detection.', 'Bird fact: migration routes can be learned or inherited.', "Bird fact: birds may navigate using landmarks, stars, the sun, smell, and Earth's magnetic field.", 'Bird fact: wing shape reflects soaring, hovering, sprinting, or manoeuvring needs.', 'Bird fact: tail feathers help steer and brake.', 'Bird fact: perching feet lock around branches with little muscular effort in many species.', 'Bird fact: raptors use sharp talons and hooked bills.', 'Bird fact: waterbirds often have webbed or lobed feet.', 'Bird fact: many chicks communicate before hatching.', 'Bird fact: parental care ranges from none to years of support.', 'Bird fact: cooperative breeders receive help from additional group members.', 'Bird fact: nest design responds to climate, predators, and available materials.', 'Bird fact: some birds cache thousands of food items.', 'Bird fact: spatial memory helps recover hidden food.', 'Bird fact: dust bathing can help maintain feathers.', 'Bird fact: sunning may help feather care and temperature control.', 'Bird fact: birds have a lightweight beak instead of heavy teeth.', 'Bird fact: crop structures can temporarily store food.', 'Bird fact: gizzards grind food using muscular action and sometimes swallowed grit.', 'Bird fact: urban birds often adjust song timing and frequency around noise.', 'Bird fact: artificial light can alter migration and breeding behaviour.', 'Bird fact: window collisions are a major human-caused hazard.', 'Bird fact: native plants provide insects, seeds, fruit, and nesting cover.', 'Bird fact: banding and tracking reveal migration routes.', 'Bird fact: bird populations are useful indicators of ecosystem change.', 'Bird fact: protecting stopover sites is as important as protecting breeding grounds.'], 'reptile': ['Reptile fact: scales reduce water loss and protect the skin.', 'Reptile fact: most species rely on external heat to regulate body temperature.', 'Reptile fact: basking raises body temperature for movement and digestion.', 'Reptile fact: shade, burrows, and water prevent overheating.', 'Reptile fact: shedding replaces worn outer skin.', 'Reptile fact: many reptiles use tongue and scent organs to sample chemicals.', 'Reptile fact: some species detect infrared radiation from warm prey.', 'Reptile fact: egg shells range from flexible and leathery to rigid.', 'Reptile fact: some species give birth to live young.', 'Reptile fact: incubation temperature can influence development and sex in some species.', 'Reptile fact: metabolism is generally lower than in similarly sized mammals or birds.', 'Reptile fact: low metabolism allows long periods between meals.', 'Reptile fact: tail loss can distract predators in several lizard groups.', 'Reptile fact: regenerated tails differ from the original structure.', 'Reptile fact: camouflage may involve colour, pattern, posture, and stillness.', 'Reptile fact: warning colours can advertise venom or an unpleasant defence.', 'Reptile fact: many reptiles communicate through posture and movement.', 'Reptile fact: scent marks can identify territory or reproductive condition.', 'Reptile fact: claws and toe pads reflect climbing, digging, or running lifestyles.', 'Reptile fact: aquatic reptiles must surface to breathe air.', 'Reptile fact: marine reptiles manage excess salt with specialized glands.', 'Reptile fact: teeth are often replaced repeatedly.', 'Reptile fact: jaw structure varies greatly with feeding strategy.', 'Reptile fact: constriction stops circulation rather than simply crushing prey.', 'Reptile fact: venom evolved independently in several reptile lineages.', 'Reptile fact: most reptiles avoid conflict when escape is possible.', 'Reptile fact: brumation is a cold-weather slowdown seen in many species.', 'Reptile fact: drought can trigger inactivity called aestivation.', 'Reptile fact: road surfaces attract basking animals and create collision risks.', 'Reptile fact: illegal collection threatens rare species.', 'Reptile fact: habitat structure determines access to heat, shelter, and food.', 'Reptile fact: small temperature changes can alter activity periods.', 'Reptile fact: skin patterns can identify individuals in research.', 'Reptile fact: radio transmitters reveal movement and shelter use.', 'Reptile fact: shed skin and environmental DNA can confirm presence.', 'Reptile fact: islands often produce unique reptile species.', 'Reptile fact: invasive predators are especially dangerous to island reptiles.', 'Reptile fact: long life and slow reproduction can delay recovery from population loss.', 'Reptile fact: responsible captive care requires correct heat, light, humidity, and diet.', 'Reptile fact: wild reptiles should be observed without blocking escape routes.'], 'amphibian': ['Amphibian fact: the name refers to life connected with both water and land.', 'Amphibian fact: permeable skin allows water and gases to pass through.', 'Amphibian fact: skin moisture is essential for many species.', 'Amphibian fact: eggs usually lack a hard protective shell.', 'Amphibian fact: many larvae breathe with gills.', 'Amphibian fact: metamorphosis reshapes the body for adult life.', 'Amphibian fact: some species skip a free-swimming larval stage.', 'Amphibian fact: adults may breathe through lungs, skin, or the mouth lining.', 'Amphibian fact: calls help individuals find mates of the same species.', 'Amphibian fact: vocal sacs amplify calls in many frogs.', 'Amphibian fact: temperature influences calling and development speed.', 'Amphibian fact: rain can trigger mass movement and breeding.', 'Amphibian fact: many species return to the same breeding pools.', 'Amphibian fact: temporary ponds can protect larvae from fish predators.', 'Amphibian fact: eggs and larvae are important food for many animals.', 'Amphibian fact: adults consume large numbers of invertebrates.', 'Amphibian fact: bright colours can warn of skin toxins.', 'Amphibian fact: camouflage helps species disappear against leaves, bark, or mud.', 'Amphibian fact: some species can change shade with light, temperature, or stress.', 'Amphibian fact: salamanders can regenerate structures better than most vertebrates.', 'Amphibian fact: regeneration ability varies by species and life stage.', 'Amphibian fact: some parents guard eggs or carry young.', 'Amphibian fact: a few species feed young with specialized skin or secretions.', 'Amphibian fact: dehydration can limit activity to humid periods.', 'Amphibian fact: freezing tolerance occurs in a small number of species.', 'Amphibian fact: aestivation helps survive hot or dry seasons.', 'Amphibian fact: wetland drainage removes breeding habitat.', 'Amphibian fact: roads can separate feeding and breeding areas.', 'Amphibian fact: chytrid fungi have caused major global declines.', 'Amphibian fact: pollution reaches them easily through permeable skin.', 'Amphibian fact: climate shifts can change breeding timing.', 'Amphibian fact: night surveys often use calls to identify species.', 'Amphibian fact: environmental DNA can detect species from water samples.', 'Amphibian fact: captive assurance colonies protect some critically endangered species.', 'Amphibian fact: disease control requires careful cleaning of field equipment.', 'Amphibian fact: garden ponds can help local species when they lack fish and chemicals.', 'Amphibian fact: handling should be minimized because skin is delicate.', 'Amphibian fact: clean hands free of lotion are safer when handling is unavoidable.', 'Amphibian fact: connected wetlands support movement and genetic diversity.', 'Amphibian fact: protecting both aquatic and terrestrial habitat is essential.'], 'aquatic': ['Aquatic fact: water supports body weight but creates drag.', 'Aquatic fact: streamlined shapes reduce resistance during movement.', 'Aquatic fact: fins, flippers, arms, and tails generate thrust or steering.', 'Aquatic fact: sound travels farther and faster in water than in air.', 'Aquatic fact: pressure increases with depth.', 'Aquatic fact: diving animals must manage oxygen carefully.', 'Aquatic fact: countershading can hide animals from above and below.', 'Aquatic fact: blubber stores energy and insulates many marine mammals.', 'Aquatic fact: gills extract dissolved oxygen from water.', 'Aquatic fact: air-breathing species must return to the surface.', 'Aquatic fact: salt balance is a constant physiological challenge.', 'Aquatic fact: some species drink seawater and remove excess salt.', 'Aquatic fact: others obtain most water from food and metabolism.', 'Aquatic fact: currents transport food, larvae, heat, and nutrients.', 'Aquatic fact: tides reshape daily feeding and resting opportunities.', 'Aquatic fact: bioluminescence is common in the deep ocean.', 'Aquatic fact: camouflage may involve transparency, silvering, colour change, or light production.', 'Aquatic fact: schooling can confuse predators and improve food detection.', 'Aquatic fact: echolocation creates an acoustic picture of surroundings.', 'Aquatic fact: lateral-line systems detect nearby water movement in many fishes.', 'Aquatic fact: electroreception detects weak electrical fields in some groups.', 'Aquatic fact: magnetic cues can support long-distance navigation.', 'Aquatic fact: coral reefs provide shelter, nursery areas, and food.', 'Aquatic fact: seagrass meadows store carbon and shelter young animals.', 'Aquatic fact: mangroves connect land and sea ecosystems.', 'Aquatic fact: kelp forests create three-dimensional habitat.', 'Aquatic fact: oxygen levels can change sharply with temperature and pollution.', 'Aquatic fact: warmer water generally holds less dissolved oxygen.', 'Aquatic fact: ocean acidification affects shell and skeleton formation.', 'Aquatic fact: plastic can entangle wildlife or be mistaken for food.', 'Aquatic fact: abandoned fishing gear can continue trapping animals.', 'Aquatic fact: underwater noise can interfere with communication.', 'Aquatic fact: bycatch affects species that were not the intended catch.', 'Aquatic fact: protected areas can safeguard feeding and breeding sites.', 'Aquatic fact: migration routes may cross many national borders.', 'Aquatic fact: tags reveal depth, temperature, speed, and location.', 'Aquatic fact: photo identification uses natural marks and patterns.', 'Aquatic fact: environmental DNA can reveal hidden species.', 'Aquatic fact: healthy predator populations can stabilize food webs.', 'Aquatic fact: conservation must connect rivers, coasts, and open ocean.'], 'arthropod': ['Arthropod fact: a hard external skeleton supports and protects the body.', 'Arthropod fact: growth requires shedding the old exoskeleton.', 'Arthropod fact: jointed limbs can specialize for walking, swimming, feeding, or sensing.', 'Arthropod fact: the body is organized into repeated segments.', 'Arthropod fact: compound eyes sample many small areas of the visual field.', 'Arthropod fact: simple eyes can detect light intensity and direction.', 'Arthropod fact: antennae detect chemicals, touch, humidity, and air movement.', 'Arthropod fact: tiny sensory hairs detect vibration.', 'Arthropod fact: many species communicate with pheromones.', 'Arthropod fact: colour can warn, camouflage, attract mates, or regulate temperature.', 'Arthropod fact: metamorphosis separates juvenile and adult lifestyles in many insects.', 'Arthropod fact: complete metamorphosis includes egg, larva, pupa, and adult.', 'Arthropod fact: incomplete metamorphosis lacks a pupal stage.', 'Arthropod fact: silk evolved for webs, shelters, egg cases, and dispersal.', 'Arthropod fact: venom subdues prey or deters predators in several groups.', 'Arthropod fact: mimicry can copy dangerous or unpalatable species.', 'Arthropod fact: pollination connects animal behaviour with plant reproduction.', 'Arthropod fact: decomposition recycles nutrients into soil.', 'Arthropod fact: predators help regulate other invertebrate populations.', 'Arthropod fact: parasites influence hosts and food webs.', 'Arthropod fact: social insects divide work among colony members.', 'Arthropod fact: colony behaviour emerges from many simple interactions.', 'Arthropod fact: trail pheromones create flexible transport networks.', 'Arthropod fact: vibration can carry messages through webs, plants, soil, or water.', 'Arthropod fact: wingbeats can produce communication sounds.', 'Arthropod fact: some species navigate with polarized light.', 'Arthropod fact: others use landmarks and odour maps.', 'Arthropod fact: diapause pauses development during difficult seasons.', 'Arthropod fact: temperature strongly affects growth and activity.', 'Arthropod fact: small body size makes water loss a constant challenge.', 'Arthropod fact: waxy surface layers reduce evaporation.', 'Arthropod fact: aquatic larvae connect freshwater and land food webs.', 'Arthropod fact: pesticide exposure can affect non-target species.', 'Arthropod fact: native flowers support diverse pollinators.', 'Arthropod fact: dead wood provides habitat for many specialized species.', 'Arthropod fact: artificial light changes nocturnal movement and feeding.', 'Arthropod fact: citizen-science photographs help map distributions.', 'Arthropod fact: macro photography reveals structures invisible to the unaided eye.', 'Arthropod fact: biodiversity is greatest when many microhabitats are available.', 'Arthropod fact: protecting insects supports birds, fish, mammals, and plants.'], 'domestic': ['Domestic-animal fact: domestication changes behaviour through generations of selection.', 'Domestic-animal fact: socialization shapes how animals respond to people and new situations.', 'Domestic-animal fact: predictable routines can reduce stress.', 'Domestic-animal fact: enrichment should encourage species-typical behaviour.', 'Domestic-animal fact: clean water must remain continuously available unless veterinary care says otherwise.', 'Domestic-animal fact: diet quality matters more than treats.', 'Domestic-animal fact: sudden diet changes can upset digestion.', 'Domestic-animal fact: body-condition scoring tracks healthy weight better than appearance alone.', 'Domestic-animal fact: nails, claws, hooves, or teeth may require regular checks.', 'Domestic-animal fact: pain often appears first as a change in normal behaviour.', 'Domestic-animal fact: hiding illness is common in prey species.', 'Domestic-animal fact: preventive veterinary care catches problems early.', 'Domestic-animal fact: safe housing balances shelter, ventilation, hygiene, and movement.', 'Domestic-animal fact: slippery floors can cause injury or insecurity.', 'Domestic-animal fact: resting areas should be dry and comfortable.', 'Domestic-animal fact: social species need appropriate companionship.', 'Domestic-animal fact: solitary species need secure personal space.', 'Domestic-animal fact: positive reinforcement builds reliable behaviour without fear.', 'Domestic-animal fact: punishment can suppress warning signals without solving the cause.', 'Domestic-animal fact: training works best in short, consistent sessions.', 'Domestic-animal fact: choice and control improve welfare.', 'Domestic-animal fact: transport is easier when animals are gradually accustomed to carriers or trailers.', 'Domestic-animal fact: identification improves the chance of recovering lost animals.', 'Domestic-animal fact: microchips require current contact details.', 'Domestic-animal fact: breeding decisions should prioritize health and temperament.', 'Domestic-animal fact: young animals learn bite, play, and social limits from suitable companions.', 'Domestic-animal fact: older animals may need warmer bedding and easier access to resources.', 'Domestic-animal fact: heat stress can develop quickly in enclosed spaces.', 'Domestic-animal fact: shade and airflow are essential in hot weather.', 'Domestic-animal fact: cold tolerance depends on coat, body condition, age, shelter, and wind.', 'Domestic-animal fact: boredom can lead to repetitive or destructive behaviour.', 'Domestic-animal fact: scent games and foraging tasks provide mental exercise.', 'Domestic-animal fact: exercise needs vary with species, age, and health.', 'Domestic-animal fact: safe handling protects both animal and caregiver.', 'Domestic-animal fact: children need supervision around animals.', 'Domestic-animal fact: hygiene reduces transmission of parasites and disease.', 'Domestic-animal fact: some human foods are toxic to particular species.', 'Domestic-animal fact: emergency plans should include animals.', 'Domestic-animal fact: welfare includes physical health and emotional state.', 'Domestic-animal fact: good care adapts as the individual ages.'], 'fantasy': ['Lore fact: fantasy creatures change across cultures and storytellers.', "Lore fact: a creature's powers often symbolize hopes, fears, or natural forces.", 'Lore fact: ancient stories were shared orally before being written.', 'Lore fact: modern games combine folklore with original worldbuilding.', 'Lore fact: consistent rules make imaginary creatures feel believable.', "Lore fact: habitat influences a fictional creature's design.", 'Lore fact: diet can explain powers, weaknesses, and migration.', 'Lore fact: social structure can make a species feel more complete.', 'Lore fact: legends often exaggerate real animals or natural events.', 'Lore fact: protective creatures commonly guard thresholds or treasures.', 'Lore fact: rebirth myths often use fire, dawn, or seasonal cycles.', 'Lore fact: flight is frequently linked with freedom, divinity, or danger.', 'Lore fact: horns may symbolize strength, purity, rank, or magic.', 'Lore fact: glowing features visually signal supernatural energy.', 'Lore fact: transformation stories explore identity and change.', 'Lore fact: ghosts often represent memory, unfinished business, or fear of death.', 'Lore fact: alien designs reflect ideas about evolution beyond Earth.', 'Lore fact: robot companions explore questions about intelligence and emotion.', "Lore fact: magical creatures often test a hero's values rather than strength.", 'Lore fact: names can hint at language, region, and history.', 'Lore fact: weaknesses prevent powerful creatures from removing all tension.', 'Lore fact: life cycles make fictional species feel biological.', 'Lore fact: migration can connect distant regions of a fantasy world.', 'Lore fact: rival species can reveal ecology and politics.', 'Lore fact: domestication changes how cultures travel, farm, or fight.', 'Lore fact: rare creatures often become symbols of status or prophecy.', 'Lore fact: common creatures can make a world feel lived in.', 'Lore fact: myths change when they cross borders and languages.', 'Lore fact: art can standardize a creature that was once described inconsistently.', 'Lore fact: silhouettes help players recognize species quickly.', 'Lore fact: sound design can communicate size, mood, and distance.', 'Lore fact: colour palettes can imply habitat or magical alignment.', 'Lore fact: believable anatomy helps even impossible creatures feel coherent.', 'Lore fact: fictional ecosystems still need energy, resources, and limits.', 'Lore fact: intelligent species need communication and culture.', "Lore fact: ancient ruins can imply a creature's history without exposition.", 'Lore fact: companion creatures strengthen emotional attachment in games.', 'Lore fact: evolution stages can represent growth, mastery, or transformation.', 'Lore fact: contradictory legends can make a setting feel authentic.', 'Lore fact: the bestiary is a storytelling tool as well as a catalogue.', 'Griffin', 'Pegasus', 'Hydra', 'Kraken', 'Cerberus', 'Kitsune', 'Sphinx', 'Chimera', 'Basilisk', 'Leviathan', 'Thunderbird', 'Kelpie', 'Qilin', 'Manticore', 'Minotaur', 'Wyvern', 'Roc', 'Fenrir', 'Naga', 'Golem', 'Djinn', 'Yeti', 'Moon Rabbit', 'Dryad', 'Selkie']}
+    category_sets = {k: set(v) for k, v in {'bird': ['Chicken', 'Crow', 'Duck', 'Eagle', 'Owl', 'Parrot', 'Peacock', 'Penguin', 'Phoenix'], 'reptile': ['Chameleon', 'Dinosaur', 'Gecko', 'Snake', 'Turtle'], 'amphibian': ['Axolotl', 'Frog', 'Salamander'], 'aquatic': ['Dolphin', 'Jellyfish', 'Mantis Shrimp', 'Narwhal', 'Octopus', 'Orca', 'Penguin', 'Seahorse', 'Seal', 'Shark', 'Starfish'], 'arthropod': ['Ant', 'Bee', 'Butterfly', 'Mantis Shrimp', 'Spider'], 'domestic': ['Alpaca', 'Cat', 'Chicken', 'Cow', 'Dog', 'Duck', 'Ferret', 'Goat', 'Hamster', 'Horse', 'Llama', 'Parrot', 'Pig', 'Rabbit'], 'fantasy': ['Alien', 'Dragon', 'Fairy', 'Ghost', 'Phoenix', 'Robot', 'Unicorn'], 'mammal': ['Alpaca', 'Armadillo', 'Badger', 'Bat', 'Beaver', 'Bison', 'Camel', 'Capybara', 'Cat', 'Cheetah', 'Cow', 'Crow', 'Deer', 'Dog', 'Dolphin', 'Eagle', 'Elephant', 'Fennec Fox', 'Ferret', 'Fox', 'Gecko', 'Giraffe', 'Goat', 'Hamster', 'Hedgehog', 'Hippopotamus', 'Horse', 'Hyena', 'Jerboa', 'Kangaroo', 'Koala', 'Lemur', 'Lion', 'Llama', 'Meerkat', 'Monkey', 'Moose', 'Narwhal', 'Orca', 'Otter', 'Panda', 'Pangolin', 'Pig', 'Platypus', 'Polar Bear', 'Porcupine', 'Quokka', 'Rabbit', 'Raccoon', 'Red Panda', 'Seal', 'Skunk', 'Sloth', 'Snow Leopard', 'Squirrel', 'Tapir', 'Tiger', 'Wolf', 'Wombat', 'Zebra']}.items()}
+    universal_templates = ['{name} fact: age, health, weather, and habitat can all change behaviour.', '{name} fact: young individuals learn through exploration and experience.', '{name} fact: access to food, shelter, and safe space shapes daily activity.', '{name} fact: body language can reveal alertness, fear, curiosity, or relaxation.', '{name} fact: senses are tuned to the problems the species solves in its habitat.', '{name} fact: movement style reflects anatomy, terrain, and energy use.', '{name} fact: rest is an active part of growth, recovery, and memory.', '{name} fact: seasonal changes can influence feeding, movement, and breeding.', '{name} fact: individuals can differ in confidence, curiosity, and sociability.', '{name} fact: communication may combine sound, scent, touch, colour, and posture.', '{name} fact: safe habitat includes feeding areas, shelter, and movement routes.', '{name} fact: predators, competitors, and food supply shape population behaviour.', '{name} fact: researchers combine field observation with non-invasive technology.', '{name} fact: photographs and natural markings can sometimes identify individuals.', '{name} fact: tracks and feeding signs can reveal activity when the animal stays hidden.', '{name} fact: conservation works best when local people benefit from healthy ecosystems.', '{name} fact: habitat quality matters as much as the total amount of habitat.', '{name} fact: connected habitat helps maintain movement and genetic diversity.', '{name} fact: human noise, light, roads, and waste can alter natural routines.', '{name} fact: climate influences water, food, shelter, and the timing of life cycles.', '{name} fact: disease risk depends on immunity, contact, stress, and environment.', '{name} fact: responsible observation avoids feeding, chasing, or blocking escape.', '{name} fact: enrichment in managed care should encourage natural choices and skills.', '{name} fact: a balanced ecosystem depends on interactions among many species.', '{name} fact: protecting breeding sites and nursery areas supports future generations.']
+
+    for name, data in SPECIES.items():
+        combined = list(data.get("facts", []))
+        for category, members in category_sets.items():
+            if name in members:
+                combined.extend(category_packs.get(category, []))
+        combined.extend(template.format(name=name) for template in universal_templates)
+
+        cleaned = []
+        seen = set()
+        for fact in combined:
+            fact = " ".join(str(fact).strip().split())
+            key = fact.casefold()
+            if fact and key not in seen:
+                seen.add(key)
+                cleaned.append(fact)
+
+        # A defensive fallback should a future species be added without a category.
+        filler_index = 1
+        while len(cleaned) < 80:
+            fallback = f"{name} observation {filler_index}: behaviour changes with resources, safety, health, and experience."
+            key = fallback.casefold()
+            if key not in seen:
+                seen.add(key)
+                cleaned.append(fallback)
+            filler_index += 1
+        data["facts"] = cleaned
+
+
+def _validate_species_data():
+    """Normalize species records so a bad future entry cannot crash the game."""
+    for name, data in list(SPECIES.items()):
+        art = data.get("art") or [[f"  {name}"], [f"  {name}"]]
+        if len(art) == 1:
+            art = [art[0], list(art[0])]
+        data["art"] = [list(frame) for frame in art[:2]]
+        data["color"] = max(1, min(7, int(data.get("color", 7))))
+        data["facts"] = list(data.get("facts") or [f"{name} is part of Pet Friends."])
+
+
+_extend_species_facts()
+_validate_species_data()
+
+# Stable pool used by loot rewards, shard summoning, and achievements.
+MYTHICAL_SPECIES = tuple(name for name in ('Dragon', 'Unicorn', 'Phoenix', 'Fairy', 'Ghost', 'Griffin', 'Pegasus', 'Hydra', 'Kraken', 'Cerberus', 'Kitsune', 'Sphinx', 'Chimera', 'Basilisk', 'Leviathan', 'Thunderbird', 'Kelpie', 'Qilin', 'Manticore', 'Minotaur', 'Wyvern', 'Roc', 'Fenrir', 'Naga', 'Golem', 'Djinn', 'Yeti', 'Moon Rabbit', 'Dryad', 'Selkie', 'Alicorn', 'Amarok', 'Anzu', 'Baku', 'Banshee', 'Black Shuck', 'Carbuncle', 'Cockatrice', 'Dullahan', 'Garuda', 'Hippogriff', 'Jackalope', 'Lamassu', 'Nian', 'Oni', 'Peryton', 'Sea Serpent', 'Simurgh', 'Tengu', 'Wolpertinger', 'Ziz') if name in SPECIES)
+
+
+# ----------------------------- EDUCATIONAL LEARNING CARDS -----------------------------
+# Raw source lists are intentionally preserved above for maintainability.  This
+# pass creates a cleaner display list by removing repetitive filler, correcting
+# several common animal myths, de-duplicating cards, and assigning a subject
+# label.  Mythical creatures are explicitly presented as folklore rather than
+# as biological animals.
+FICTIONAL_SPECIES = set(MYTHICAL_SPECIES) | {"Alien", "Fairy", "Ghost", "Robot"}
+
+# Exact replacements are deliberately conservative.  A value of None removes a
+# claim that is misleading, overly broad, or not useful as an educational card.
+FACT_REPLACEMENTS = {
+    "purring heals bones.": (
+        "Cat purring produces low-frequency vibration. Researchers have studied "
+        "possible biological effects, but purring is not a proven treatment for broken bones."
+    ),
+    "only taste sweet.": "Cats lack a functional sweet-taste receptor and do not perceive sweetness as humans do.",
+    "can't taste salty.": None,
+    "brain 90% similar to human.": None,
+    "coat color may indicate personality.": None,
+    "can drink seawater.": None,
+    "can sense earthquakes.": (
+        "Animals may react to subtle environmental changes, but reliable earthquake prediction by dogs has not been demonstrated."
+    ),
+    "sense of smell 100,000x better.": (
+        "Dogs have many more olfactory receptor cells than humans and can detect some odours at extremely low concentrations."
+    ),
+    "great white detects blood in 100 l.": (
+        "Sharks have sensitive smell and water-pressure senses, but dramatic claims about detecting a single drop of blood are misleading."
+    ),
+    "rabbits can run 45 mph.": "Rabbits can accelerate quickly and use rapid changes of direction to escape predators.",
+    "produce 70 kg milk/day.": (
+        "High-producing dairy cows can produce many tens of litres of milk per day, depending on breed, health, diet, and lactation stage."
+    ),
+    "understand up to 250 words.": (
+        "Some trained dogs learn associations with hundreds of spoken labels or signals, although ability varies greatly between individuals."
+    ),
+    "dream like humans.": (
+        "Dogs and cats experience rapid-eye-movement sleep and probably dream, although dream content cannot be directly measured."
+    ),
+    "hypoallergenic breeds exist.": (
+        "No dog breed is completely hypoallergenic; allergen exposure varies with the individual animal, environment, and person."
+    ),
+    "can get jealous.": (
+        "Behavioural studies suggest dogs can show jealousy-like responses when a valued social interaction is redirected."
+    ),
+    "can learn 1000+ words.": (
+        "Exceptional trained dogs have learned associations with more than one thousand object labels."
+    ),
+    "survive great falls.": (
+        "A cat's righting reflex can improve its landing position, but falls at any height can cause severe injury or death."
+    ),
+    "domesticated ~4000 years ago.": (
+        "Cat domestication was gradual and began when wildcats associated with early farming communities thousands of years ago."
+    ),
+    "can count.": (
+        "Experiments suggest dogs can discriminate between different quantities under controlled conditions."
+    ),
+}
+
+# These phrases mostly came from old quantity-focused filler.  They are removed
+# because a smaller set of meaningful cards is more educational than hundreds of
+# repetitive statements.
+LOW_VALUE_FACT_PHRASES = (
+    "can be part of research",
+    "can be studied via",
+    "can be monitored via",
+    "can be monitored by",
+    "can be photographed",
+    "can be adopted symbolically",
+    "can be part of education",
+    "can be part of awareness",
+    "can be part of ecotourism",
+    "can be part of rewilding",
+    "can be part of conservation programs",
+    "can be relocated",
+    "can be rehabilitated",
+    "can be vaccinated",
+    "can be anaesthetized",
+    "can be hand-reared",
+    "can be hospitalised",
+    "can be counted by",
+    "can be tracked via",
+    "can be seen in",
+    "can be used in circuses",
+    "can be trained for films",
+    "oldest dog",
+    "oldest lived",
+    "longest cat",
+    "most popular breed",
+    "beatles song",
+    "bite force 200-700",
+    "egyptian mau fastest",
+    "can't chew large food",
+)
+
+# General cards are used only when a creature has a short source list.  They
+# teach transferable biology, ecology, scientific-method, and mythology skills
+# without inventing species-specific claims.
+GENERAL_SCIENCE_CARDS = (
+    "An adaptation is an inherited trait that improves survival or reproduction in a particular environment.",
+    "Behaviour is shaped by genes, learning, health, age, available resources, and previous experience.",
+    "A habitat must provide food, water, shelter, suitable climate, and enough space for normal movement.",
+    "A population changes through births, deaths, immigration, and emigration.",
+    "Food webs show how energy moves from producers to consumers and decomposers.",
+    "Biodiversity includes variation within species, between species, and among ecosystems.",
+    "Connected habitat helps individuals move, find mates, and maintain genetic diversity.",
+    "A correlation between two observations does not by itself prove that one caused the other.",
+    "Reliable scientific claims are supported by repeatable observations, transparent methods, and multiple lines of evidence.",
+    "Sample size matters because a few unusual individuals may not represent an entire species.",
+    "Researchers use controls to separate the effect being tested from other possible explanations.",
+    "Field signs such as tracks, feathers, droppings, nests, and feeding marks can reveal hidden animal activity.",
+    "Camera traps allow repeated observation while reducing disturbance from people.",
+    "Genetic evidence can reveal ancestry, population structure, and movement between habitats.",
+    "Conservation status describes extinction risk; it is not a measure of how interesting or valuable a species is.",
+    "Responsible wildlife watching avoids feeding, chasing, touching, cornering, or blocking an animal's escape route.",
+    "Human noise, artificial light, roads, pollution, and invasive species can alter animal behaviour and survival.",
+    "Climate affects the timing of migration, breeding, hibernation, flowering, and food availability.",
+    "Body structures are best understood by linking anatomy to function and habitat.",
+    "Similar-looking traits can evolve independently when unrelated species face similar environmental challenges.",
+    "Young animals often learn through play, observation, practice, and feedback from adults or group members.",
+    "Animal communication can use sound, scent, colour, posture, vibration, touch, or electrical signals.",
+    "Welfare includes physical health, freedom from prolonged distress, and opportunities to perform important natural behaviours.",
+    "Domestication is a population-level evolutionary process and is different from taming one individual animal.",
+    "A species name, common name, and scientific name serve different purposes and may vary between languages or regions.",
+    "Extinction is permanent, while local disappearance can sometimes be reversed through habitat restoration and reintroduction.",
+    "Predators can shape ecosystems by changing both prey numbers and prey behaviour.",
+    "Parasites are part of ecosystems, although heavy infections can reduce an individual's health and reproductive success.",
+    "Seasonal changes in temperature, daylight, rainfall, and food can alter daily activity.",
+    "Good evidence distinguishes established knowledge from hypotheses, estimates, anecdotes, and popular myths.",
+    "Taxonomy is revised when stronger anatomical, behavioural, fossil, or genetic evidence changes our understanding of relationships.",
+    "A home range is the area an animal normally uses; a territory is an area actively defended against others.",
+    "Native, endemic, introduced, and invasive describe different relationships between a species and a geographic region.",
+    "Carrying capacity is the approximate population an environment can support under particular conditions.",
+    "Natural selection changes populations across generations; individual animals do not evolve because they need a trait.",
+    "Sexual selection can favour ornaments, calls, displays, weapons, or behaviours that improve mating success.",
+    "Phenotype is an observable trait produced by interactions between genes and environment.",
+    "Nocturnal animals are mainly active at night, diurnal animals by day, and crepuscular animals around dawn or dusk.",
+    "A keystone species has an ecological effect that is large relative to its abundance.",
+    "Ecosystem services include pollination, seed dispersal, water purification, soil formation, and climate regulation.",
+    "A range map shows documented geographic occurrence, not every place where an individual could temporarily survive.",
+    "One animal's unusual behaviour is an observation, not proof that the entire species normally behaves that way.",
+)
+
+GENERAL_MYTHOLOGY_CARDS = (
+    "Myths are traditional narratives, not zoological records; versions often differ across regions and historical periods.",
+    "Oral traditions can change as stories are retold, translated, adapted, and written down.",
+    "A primary source comes from the culture or period being studied; a modern retelling is a secondary interpretation.",
+    "Comparative mythology examines shared themes without assuming that similar creatures have identical origins.",
+    "Hybrid creatures often combine recognizable animal traits to symbolize power, danger, protection, or social order.",
+    "Guardian creatures commonly appear at borders, gates, tombs, temples, treasures, or transitions between worlds.",
+    "Transformation stories can explore identity, responsibility, punishment, freedom, or the boundary between human and animal.",
+    "Floods, storms, eclipses, fossils, dangerous wildlife, and unfamiliar landscapes can influence legendary imagery.",
+    "The meaning of a myth depends on language, ritual, politics, geography, and the audience hearing it.",
+    "Modern fantasy may borrow a traditional name while changing the creature's appearance, abilities, or moral role.",
+    "Folklore belongs to living communities; respectful study identifies the tradition instead of treating all legends as interchangeable.",
+    "A bestiary can preserve cultural history, but it should distinguish historical sources from later artistic invention.",
+    "Symbols are not universal: fire, water, snakes, wings, horns, and darkness can carry different meanings in different traditions.",
+    "Contradictory versions are useful evidence because they reveal how stories changed over time.",
+    "Archaeology, linguistics, art history, and written texts can all contribute to the study of legendary creatures.",
+    "A creature's modern popularity may come from novels, films, games, or illustration rather than its oldest surviving source.",
+    "The absence of evidence is not proof that a story never existed, but extraordinary historical claims still require strong evidence.",
+    "Cultural context matters more than ranking myths as simply true, false, good, or evil.",
+    "Fantasy ecology asks how an imaginary creature would obtain energy, reproduce, communicate, and affect its environment.",
+    "Clearly labelling invention protects both scientific literacy and appreciation of folklore.",
+    "A motif is a recurring narrative element, such as a forbidden door, impossible task, magical helper, or descent into another world.",
+    "Iconography studies how visual symbols and attributes identify a figure in art.",
+    "Syncretism occurs when traditions combine, reinterpret, or identify figures from different cultural systems.",
+    "An etiological story explains the imagined origin of a custom, landmark, animal trait, or natural event.",
+    "The earliest surviving written source is not necessarily the first time a story was told.",
+    "Translation choices can change names, gender, powers, moral roles, and relationships between legendary figures.",
+    "Attested means supported by a surviving source; it does not mean that every detail of a modern design is ancient.",
+    "Cryptozoology, folklore studies, zoology, and archaeology use different methods and standards of evidence.",
+    "Creature classifications in games are modern design systems and should not be mistaken for traditional cultural categories.",
+    "Public-domain status concerns legal use of texts or images, not whether a modern adaptation is historically accurate.",
+    "The terms myth, legend, folktale, and fairy tale overlap, and scholars may define them differently by context.",
+    "Respectful retellings identify specific cultures and sources rather than blending unrelated traditions into one generic mythology.",
+)
+
+
+def _clean_fact_prefix(text):
+    """Remove old generic prefixes before assigning a clearer subject label."""
+    prefixes = (
+        "Mammal fact:", "Bird fact:", "Reptile fact:", "Amphibian fact:",
+        "Aquatic fact:", "Arthropod fact:", "Domestic-animal fact:",
+        "Lore fact:",
+    )
+    for prefix in prefixes:
+        if text.casefold().startswith(prefix.casefold()):
+            return text[len(prefix):].strip()
+    return text
+
+
+def _educational_topic(text, fictional=False):
+    """Classify a card so the player immediately sees what it teaches."""
+    lower = text.casefold()
+    normalized = "".join(character if character.isalnum() else " " for character in lower)
+    tokens = set(normalized.split())
+
+    def has_prefix(*prefixes):
+        return any(any(token.startswith(prefix) for token in tokens) for prefix in prefixes)
+
+    def has_phrase(*phrases):
+        return any(phrase in lower for phrase in phrases)
+
+    if fictional:
+        if has_prefix("source", "tradition", "folklore", "myth", "legend", "oral", "culture"):
+            return "MYTHOLOGY"
+        return "LORE STUDIES"
+    if has_prefix("egg", "young", "calf", "pup", "chick", "larva", "gestat", "breed", "reproduc", "hatch"):
+        return "LIFE CYCLE"
+    if has_prefix("domestic", "ancient", "fossil", "historic", "archaeolog") or has_phrase("years ago"):
+        return "HISTORY"
+    if has_prefix("bone", "muscle", "tooth", "teeth", "heart", "lung", "skin", "fur", "feather", "eye", "ear", "jaw", "blood", "organ", "anatom"):
+        return "ANATOMY"
+    if has_prefix("communicat", "social", "hunt", "play", "learn", "memory", "sleep", "territor", "call", "display", "behavio"):
+        return "BEHAVIOUR"
+    if has_prefix("habitat", "ecosystem", "forest", "ocean", "river", "climate", "conserv", "endanger", "population", "predator", "prey", "pollut"):
+        return "ECOLOGY"
+    if has_prefix("research", "evidence", "sample", "genetic", "observ", "scientif") or has_phrase("camera trap"):
+        return "SCIENCE"
+    if has_prefix("care", "welfare", "veter", "domestic", "pet", "enrich", "diet"):
+        return "ANIMAL CARE"
+    return "BIOLOGY"
+
+
+def _prepare_educational_facts():
+    """Build the displayed learning-card list for every real and fictional pet."""
+    all_species_names = {name.casefold() for name in SPECIES}
+    for name, data in SPECIES.items():
+        fictional = name in FICTIONAL_SPECIES
+        cards = []
+        seen = set()
+
+        for original in data.get("facts", []):
+            fact = " ".join(str(original).strip().split())
+            if not fact:
+                continue
+
+            replacement_key = fact.casefold()
+            if replacement_key in FACT_REPLACEMENTS:
+                fact = FACT_REPLACEMENTS[replacement_key]
+                if fact is None:
+                    continue
+
+            lower = fact.casefold()
+            if lower in all_species_names:
+                continue
+            if lower.startswith(f"{name.casefold()} observation "):
+                continue
+            if any(phrase in lower for phrase in LOW_VALUE_FACT_PHRASES):
+                continue
+
+            fact = _clean_fact_prefix(fact)
+            if len(fact) < 12:
+                continue
+            topic = _educational_topic(fact, fictional)
+            card = f"[{topic}] {fact}"
+            key = card.casefold()
+            if key not in seen:
+                seen.add(key)
+                cards.append(card)
+
+        minimum_cards = 60
+        supplements = GENERAL_MYTHOLOGY_CARDS if fictional else GENERAL_SCIENCE_CARDS
+        supplement_topic = "MYTHOLOGY" if fictional else "SCIENCE"
+        for supplement in supplements:
+            if len(cards) >= minimum_cards:
+                break
+            card = f"[{supplement_topic}] {supplement}"
+            key = card.casefold()
+            if key not in seen:
+                seen.add(key)
+                cards.append(card)
+
+        # A creature with many good source entries keeps all of them.  A future
+        # minimal entry still receives a substantial, honest educational set.
+        data["educational_facts"] = cards or [
+            f"[SCIENCE] Reliable information about {name} should distinguish verified evidence from guesses and anecdotes."
+        ]
+
+
+_prepare_educational_facts()
+
+
+# ----------------------------- ADOPTION PROGRESSION -----------------------------
+# Adoption is intentionally priced by rarity.  Duplicate adoptions become more
+# expensive, while mission/achievement locks make high-value species long-term
+# goals instead of a flat list that can be exhausted immediately.
+ADOPTION_TIER_INFO = {
+    "common": {"cost": 300, "level": 1},
+    "uncommon": {"cost": 1200, "level": 3},
+    "rare": {"cost": 5500, "level": 7},
+    "epic": {"cost": 22000, "level": 12},
+    "legendary": {"cost": 90000, "level": 20},
+    "mythical": {"cost": 300000, "level": 30},
+}
+
+UNCOMMON_SPECIES = {
+    "Fox", "Wolf", "Panda", "Koala", "Owl", "Penguin", "Bat", "Parrot",
+    "Peacock", "Chameleon", "Sloth", "Armadillo", "Axolotl", "Platypus",
+    "Red Panda", "Fennec Fox", "Quokka", "Capybara", "Pangolin", "Seahorse",
+    "Salamander", "Jerboa", "Otter", "Ferret", "Goat", "Alpaca", "Badger",
+    "Beaver", "Camel", "Crow", "Deer", "Gecko", "Hedgehog", "Llama",
+    "Meerkat", "Porcupine", "Seal", "Skunk", "Wombat", "Chinchilla",
+    "Coyote", "Emu", "Flamingo", "Lynx", "Mongoose", "Toucan", "Yak",
+}
+RARE_SPECIES = {
+    "Tiger", "Lion", "Elephant", "Dolphin", "Shark", "Octopus", "Narwhal",
+    "Mantis Shrimp", "Snow Leopard", "Kangaroo", "Tapir", "Bison", "Cheetah",
+    "Eagle", "Giraffe", "Hippopotamus", "Hyena", "Lemur", "Moose", "Orca",
+    "Polar Bear", "Zebra", "African Wild Dog", "Aye-Aye", "Beluga", "Bobcat",
+    "Caracal", "Cassowary", "Crocodile", "Gorilla", "Jaguar", "Komodo Dragon",
+    "Manatee", "Okapi", "Ostrich", "Rhinoceros", "Sea Lion",
+    "Tasmanian Devil", "Walrus", "Jackalope", "Wolpertinger",
+}
+EPIC_SPECIES = {
+    "Blue Whale", "Dragon", "Unicorn", "Phoenix", "Griffin", "Pegasus",
+    "Hydra", "Kraken", "Cerberus", "Kitsune", "Sphinx", "Chimera",
+    "Basilisk", "Thunderbird", "Kelpie", "Qilin", "Manticore", "Minotaur",
+    "Wyvern", "Roc", "Naga", "Golem", "Djinn", "Yeti", "Moon Rabbit",
+    "Dryad", "Selkie", "Alicorn", "Baku", "Carbuncle", "Cockatrice",
+    "Hippogriff", "Nian", "Oni", "Peryton", "Sea Serpent", "Tengu",
+}
+LEGENDARY_SPECIES = {
+    "Leviathan", "Fenrir", "Amarok", "Anzu", "Banshee", "Black Shuck",
+    "Dullahan", "Garuda", "Lamassu", "Simurgh", "Ziz",
+}
+
+# These companions are not sold in the adoption shop.  They come from mythic
+# shards/loot or player-to-player trades.
+SUMMON_ONLY_SPECIES = {
+    "Leviathan", "Fenrir", "Alicorn", "Amarok", "Anzu", "Banshee",
+    "Dullahan", "Garuda", "Lamassu",
+}
+
+# Mission-exclusive species remain visible in the shop, but cannot be adopted
+# until the requested number of rotating missions has been completed.
+MISSION_EXCLUSIVE_SPECIES = {
+    "Tiger": 4,
+    "Elephant": 6,
+    "Orca": 10,
+    "Blue Whale": 15,
+    "Komodo Dragon": 8,
+    "Rhinoceros": 12,
+    "Dragon": 20,
+    "Hydra": 24,
+    "Black Shuck": 28,
+    "Sea Serpent": 30,
+    "Qilin": 35,
+    "Nian": 40,
+    "Simurgh": 50,
+}
+
+# A few prestige companions also require a named achievement.  Achievement IDs
+# are stable so old saves continue to unlock the same gates.
+ACHIEVEMENT_REQUIRED_SPECIES = {
+    "Pegasus": "species10",
+    "Hippogriff": "collector25",
+    "Phoenix": "prestige1",
+    "Moon Rabbit": "streak7",
+    "Thunderbird": "festival10",
+    "Nian": "festival10",
+    "Simurgh": "mythical20",
+    "Ziz": "species100",
+}
+
+
+def species_adoption_tier(species):
+    """Return the economy tier used by the adoption screen and purchase logic."""
+    if species in MYTHICAL_SPECIES:
+        if species in LEGENDARY_SPECIES:
+            return "legendary"
+        if species in EPIC_SPECIES:
+            return "epic"
+        return "mythical"
+    if species in LEGENDARY_SPECIES:
+        return "legendary"
+    if species in EPIC_SPECIES:
+        return "epic"
+    if species in RARE_SPECIES:
+        return "rare"
+    if species in UNCOMMON_SPECIES:
+        return "uncommon"
+    return "common"
+
+
+# ----------------------------- ACHIEVEMENT CATALOGUE -----------------------------
+# The UI shows locked and unlocked entries from this catalogue.  Rewards are
+# granted exactly once when check_achievements() first satisfies a condition.
+ACHIEVEMENT_DEFINITIONS = {
+    "elder": ("Elder Companion", "Reach evolution stage 5.", 250, 30),
+    "transcendent": ("Beyond Nature", "Reach evolution stage 9.", 1500, 100),
+    "1K": ("First Fortune", "Hold 1,000 coins.", 150, 20),
+    "1M": ("Sanctuary Millionaire", "Earn 1,000,000 total coins.", 5000, 200),
+    "prestige1": ("First Transcendence", "Earn the first prestige point.", 3000, 150),
+    "collector5": ("Growing Home", "Own 5 companions.", 300, 30),
+    "collector10": ("Busy Sanctuary", "Own 10 companions.", 800, 50),
+    "collector25": ("Grand Sanctuary", "Own 25 companions.", 2500, 100),
+    "collector50": ("Living Bestiary", "Own 50 companions.", 7500, 200),
+    "collector100": ("World Ark", "Own 100 companions.", 25000, 500),
+    "species5": ("Curious Collector", "Discover 5 unique species.", 400, 30),
+    "species10": ("Field Researcher", "Discover 10 unique species.", 1000, 60),
+    "species25": ("Master Naturalist", "Discover 25 unique species.", 4000, 150),
+    "species50": ("Legendary Curator", "Discover 50 unique species.", 12000, 300),
+    "species100": ("Complete Horizon", "Discover 100 unique species.", 40000, 750),
+    "first_box": ("What Is Inside?", "Open the first loot box.", 200, 20),
+    "box25": ("Vault Regular", "Open 25 loot boxes.", 1500, 80),
+    "box100": ("Vault Historian", "Open 100 loot boxes.", 6000, 200),
+    "mythical5": ("Mythical Menagerie", "Own 5 unique mythical species.", 5000, 180),
+    "mythical20": ("Keeper of Legends", "Own 20 unique mythical species.", 20000, 500),
+    "mythical40": ("Mythic Archive", "Own 40 unique mythical species.", 50000, 1000),
+    "bond10": ("Trusted Friend", "Reach bond level 10.", 600, 40),
+    "bond50": ("Unbreakable Bond", "Reach bond level 50.", 5000, 200),
+    "bond100": ("Soul Companion", "Reach bond level 100.", 15000, 500),
+    "combo12": ("Care Rhythm", "Reach a care combo of 12.", 750, 50),
+    "perfect25": ("Perfect Care Master", "Complete 25 perfect care cycles.", 3000, 150),
+    "streak7": ("Seven-Day Friend", "Reach a 7-day login streak.", 2500, 100),
+    "streak30": ("Month of Friendship", "Reach a 30-day login streak.", 12000, 350),
+    "festival10": ("Festival Keeper", "Trigger 10 sanctuary festivals.", 4000, 160),
+    "missions10": ("Reliable Helper", "Complete 10 missions.", 1500, 80),
+    "missions25": ("Mission Specialist", "Complete 25 missions.", 5000, 200),
+    "missions50": ("Sanctuary Champion", "Complete 50 missions.", 15000, 450),
+    "fight10": ("Arena Student", "Win 10 fights.", 2000, 100),
+    "fight50": ("Arena Veteran", "Win 50 fights.", 10000, 300),
+    "lan_first": ("Neighbourly Challenge", "Complete a LAN battle.", 1500, 100),
+    "lan_win10": ("Local Network Champion", "Win 10 LAN battles.", 8000, 300),
+    "lan_trade1": ("First Exchange", "Complete a LAN companion trade.", 2000, 120),
+    "lan_trade10": ("Community Breeder", "Complete 10 LAN trades.", 12000, 400),
+    "level10": ("Caretaker Level 10", "Reach caretaker level 10.", 3000, 150),
+    "level25": ("Caretaker Level 25", "Reach caretaker level 25.", 12000, 400),
+    "level50": ("Caretaker Level 50", "Reach caretaker level 50.", 50000, 1000),
+    "wish1": ("First Wish", "Complete a companion wish.", 250, 25),
+    "wish25": ("Attentive Friend", "Complete 25 companion wishes.", 3000, 140),
+    "wish100": ("Mind Reader", "Complete 100 companion wishes.", 15000, 500),
+    "wish_streak10": ("Perfect Listener", "Reach a 10-wish completion streak.", 5000, 220),
+    "stars50": ("Starry Friendship", "Earn 50 friendship stars.", 6000, 250),
+    "stars200": ("Constellation Keeper", "Earn 200 friendship stars.", 25000, 700),
+    "research25": ("Curious Reader", "Study 25 educational cards.", 1500, 90),
+    "research100": ("Sanctuary Scholar", "Study 100 educational cards.", 8000, 300),
+}
+
+# Adventure Board milestones are appended separately so older achievement IDs
+# remain stable and save files never need to remap existing unlocks.
+ACHIEVEMENT_DEFINITIONS.update({
+    "journey10": ("Trailblazer", "Reach Sanctuary Journey level 10.", 2500, 120),
+    "journey25": ("Grand Adventurer", "Reach Sanctuary Journey level 25.", 9000, 320),
+    "journey50": ("Endless Horizon", "Reach Sanctuary Journey level 50.", 30000, 800),
+    "contracts10": ("Reliable Planner", "Complete 10 daily contracts.", 3500, 180),
+    "contracts50": ("Daily Specialist", "Complete 50 daily contracts.", 18000, 600),
+    "maps5": ("Treasure Tracker", "Complete 5 treasure maps.", 5000, 220),
+    "maps25": ("Master Cartographer", "Complete 25 treasure maps.", 25000, 800),
+    "expeditions10": ("Field Explorer", "Complete 10 expeditions.", 7000, 300),
+    "expeditions50": ("Legendary Pathfinder", "Complete 50 expeditions.", 35000, 1000),
+})
+
+
+# ----------------------------- LOCAL NETWORK PLAY -----------------------------
+# LAN play uses only Python's standard library, binds to the local device, and
+# exchanges small validated JSON messages.  It never opens internet tunnels,
+# transfers files, runs received code, or exposes save files.
+LAN_PROTOCOL = "PET_FRIENDS_LAN_V1"
+LAN_TCP_PORT = 45873
+LAN_DISCOVERY_PORT = 45874
+LAN_MAX_MESSAGE_BYTES = 65536
+LAN_REQUEST_TIMEOUT = 15.0
+
+
+# ----------------------------- EVOLUTION (30 stages) -----------------------------
+STAGE_NAMES = ["egg","hatchling","juvenile","adult","elder","ancient","legendary","cosmic",
+               "mythic","transcendent","sage","demigod","primordial","celestial","eternal",
+               "cosmic2","hyper","quantum","singularity","infinity",
+               "alpha","omega","ultima","prime","supreme","zenith","apex","ultimate",
+               "final","transcendent2"]
+STAGE_TIMES = [10,20,40,80,160,320,640,1280,2560,5120,
+               10240,20480,40960,81920,163840,327680,655360,1310720,2621440,5242880,
+               10485760,20971520,41943040,83886080,167772160,335544320,671088640,1342177280,
+               2684354560,5368709120]  # seconds
+
+# ----------------------------- STATS -----------------------------
+BASE_HUNGER_DECAY = 0.22
+BASE_HAPPINESS_DECAY = 0.14
+BASE_ENERGY_DECAY = 0.10
+BASE_CLEANLINESS_DECAY = 0.16
+
+AUTO_CARE_THRESHOLD = 50.0
+AUTO_CARE_TARGET = 56.0
+AUTO_CARE_INTERVAL = 8.0
+AUTO_CARE_MIN_PULSE = 3.0
+AUTO_CARE_MAX_PULSE = 6.0
+MIN_STAT_VALUE = 20.0
+
+COIN_BASE = 0.45
+COIN_STAGE_MULT = [1,2,4,8,16,32,64,128,256,512,1024,2048,4096,8192,16384,32768,65536,131072,262144,524288,
+                   1048576,2097152,4194304,8388608,16777216,33554432,67108864,134217728,268435456,536870912]
+
+EVENT_MIN = 5.0
+EVENT_MAX = 9.0
+EVENT_CHANCE = 0.5
+
+PRESTIGE_COIN_BONUS = 0.15
+PRESTIGE_DECAY_REDUCTION = 0.05
+
+# ----------------------------- ACTIVE-AUTO CHECKS -----------------------------
+# If the program receives no key press for ten minutes, automatic progress
+# pauses until Space or Enter is pressed. This prevents unlimited unattended
+# farming while leaving normal idle play untouched.
+AUTO_INTERACTION_INTERVAL = 10 * 60.0
+
+# ----------------------------- ACTIVE-PLAY PROGRESSION -----------------------------
+# Care combos reward deliberate, varied interaction instead of rapid key spam.
+# A rewarded input must be at least CARE_REWARD_COOLDOWN seconds after the last
+# rewarded input, and repeating the same care action restarts the combo.
+CARE_COMBO_WINDOW = 20.0
+CARE_COMBO_MAX = 24
+CARE_REWARD_COOLDOWN = 0.70
+CARE_ACTION_SET = ("feed", "pet", "bathe", "train")
+
+# Bond levels belong to individual pets.  Bond improves active-pet income and
+# evolution speed, and milestone levels grant earned virtual loot.
+BOND_LEVEL_CAP = 100
+
+# Companion wishes appear periodically during active play. Fulfilling the exact
+# requested care action earns friendship stars; missed wishes simply rotate and
+# never remove existing progress. Five total stars always create a free gift.
+PET_REQUEST_MIN_SECONDS = 105.0
+PET_REQUEST_MAX_SECONDS = 210.0
+PET_REQUEST_LIFETIME_SECONDS = 180.0
+FRIENDSHIP_STARS_PER_GIFT = 5
+
+# Manual fact browsing has a small paced research reward. The cooldown prevents
+# holding a key from farming while still rewarding players who read the cards.
+FACT_RESEARCH_COOLDOWN = 2.5
+
+# The portrait engine runs at four frames per second. A 720-frame cycle gives
+# three full minutes of layered behavior before the exact sequence repeats. Each
+# profile contains at least sixty actions, but the terminal still redraws at the
+# same four FPS so the extra variety does not reintroduce flicker.
+ANIMATION_CYCLE_FRAMES = 720
+ANIMATION_FRAMES_PER_ACTION = 12
+ANIMATION_MIN_ACTIONS = 60
+PET_VOICE_MIN_SECONDS = 34.0
+PET_VOICE_MAX_SECONDS = 76.0
+
+# ----------------------------- ADVENTURE BOARD -----------------------------
+# The Adventure Board adds clear, finite goals without real-money purchases or
+# hidden penalties. Journey levels, rotating daily contracts, treasure maps, and
+# timed expeditions all use transparent thresholds and guaranteed milestones.
+JOURNEY_BASE_POINTS = 70
+JOURNEY_POINT_STEP = 18
+TREASURE_MAP_FRAGMENT_TARGET = 12
+
+DAILY_CONTRACT_POOL = (
+    {"type": "care", "label": "Complete {target} deliberate care actions", "targets": (6, 8, 10), "journey": 28},
+    {"type": "fact", "label": "Study {target} educational cards", "targets": (3, 5, 7), "journey": 30},
+    {"type": "fight_win", "label": "Win {target} arena battles", "targets": (1, 2, 3), "journey": 36},
+    {"type": "loot_open", "label": "Open {target} loot containers", "targets": (1, 2, 3), "journey": 30},
+    {"type": "mission", "label": "Complete {target} rotating missions", "targets": (1, 2), "journey": 42},
+    {"type": "wish", "label": "Fulfil {target} companion wishes", "targets": (1, 2, 3), "journey": 34},
+    {"type": "attention", "label": "Complete {target} ten-minute care checks", "targets": (1, 2), "journey": 38},
+    {"type": "expedition", "label": "Claim {target} finished expeditions", "targets": (1, 2), "journey": 44},
+)
+
+EXPEDITION_TYPES = {
+    "meadow": {
+        "title": "Meadow Survey", "duration": 5 * 60, "level": 1, "bond": 1,
+        "coins": (70, 150), "journey": 24, "fragments": (1, 3),
+        "description": "A short nature survey with a chance for a Common Crate.",
+    },
+    "ruins": {
+        "title": "Ancient Ruins", "duration": 15 * 60, "level": 5, "bond": 5,
+        "coins": (260, 620), "journey": 55, "fragments": (3, 6),
+        "description": "A longer expedition with a guaranteed Common Crate.",
+    },
+    "rift": {
+        "title": "Mythic Rift", "duration": 30 * 60, "level": 12, "bond": 10,
+        "coins": (700, 1600), "journey": 110, "fragments": (5, 9),
+        "description": "A difficult expedition with a guaranteed Rare Chest.",
+    },
+}
+
+PET_STYLE_SOUND_EFFECTS = {
+    "dog": "voice_dog", "canine": "voice_howl", "fox": "voice_howl",
+    "cat": "voice_cat", "big_cat": "voice_roar", "rabbit": "voice_small",
+    "small_mammal": "voice_small", "bear": "voice_roar", "elephant": "voice_elephant",
+    "primate": "voice_small", "horse": "voice_horse", "bovine": "voice_bovine",
+    "deer": "voice_horse", "giraffe": "voice_horse", "heavy_mammal": "voice_roar",
+    "marine_mammal": "voice_aquatic", "bat": "voice_small", "bird": "voice_bird",
+    "owl": "voice_owl", "penguin": "voice_bird", "tall_bird": "voice_bird",
+    "fish": "voice_aquatic", "whale": "voice_whale", "shark": "voice_aquatic",
+    "octopus": "voice_aquatic", "turtle": "voice_aquatic", "frog": "voice_frog",
+    "snake": "voice_snake", "lizard": "voice_snake", "insect": "voice_insect",
+    "spider": "voice_insect", "dragon": "voice_magic", "unicorn": "voice_magic",
+    "griffin": "voice_magic", "cerberus": "voice_roar", "hydra": "voice_magic",
+    "humanoid": "voice_magic", "spirit": "voice_magic", "robot": "voice_robot",
+    "pig": "voice_pig", "kangaroo": "voice_small", "armadillo": "voice_small",
+    "hedgehog": "voice_small", "walrus": "voice_aquatic", "duck": "voice_duck",
+    "parrot": "voice_bird", "peacock": "voice_bird", "chicken": "voice_bird",
+    "flamingo": "voice_bird", "seahorse": "voice_aquatic", "jellyfish": "voice_aquatic",
+    "starfish": "voice_aquatic", "bee": "voice_insect", "ant": "voice_insect",
+    "butterfly": "voice_insect", "phoenix": "voice_magic", "fairy": "voice_magic",
+    "alien": "voice_robot", "dinosaur": "voice_dinosaur",
+}
+
+# The Sanctuary Spark meter is a free activity meter.  At 100 points it starts
+# a temporary festival with stronger income/progress and a celebration reward.
+FESTIVAL_METER_MAX = 100.0
+FESTIVAL_DURATION_SECONDS = 3 * 60
+FESTIVAL_COIN_MULTIPLIER = 1.75
+FESTIVAL_PROGRESS_MULTIPLIER = 1.50
+
+# Pity counters are shown in the Loot Vault and guarantee a useful result after
+# a published number of misses.  They make outcomes predictable without money.
+LOOT_PITY_LIMITS = {"common": 8, "rare": 10, "mythic": 7}
+
+# ----------------------------- LOOT BOXES -----------------------------
+# Every box is purchased with earned in-game coins only. The exact odds are
+# displayed in the loot screen, and no outcome can remove existing progress.
+LOOT_BOX_ORDER = ("common", "rare", "mythic")
+
+# Reward rarity is separate from the container rarity.  For example, a Common
+# Crate can occasionally contain a Rare reward, while a Mythic Vault can reach
+# Legendary and Mythical rewards.  The percentages are shown in the UI.
+LOOT_REWARD_RARITY_ORDER = (
+    "common", "uncommon", "rare", "epic", "legendary", "mythical"
+)
+LOOT_REWARD_RARITIES = {
+    "common":    {"label": "COMMON",    "color_pair": 7,  "mult": 1.00},
+    "uncommon":  {"label": "UNCOMMON",  "color_pair": 1,  "mult": 1.35},
+    "rare":      {"label": "RARE",      "color_pair": 8,  "mult": 1.85},
+    "epic":      {"label": "EPIC",      "color_pair": 9,  "mult": 2.60},
+    "legendary": {"label": "LEGENDARY", "color_pair": 10, "mult": 3.80},
+    "mythical":  {"label": "MYTHICAL",  "color_pair": 11, "mult": 5.50},
+}
+
+# Each box has its own rarity distribution and its own reward pools.  This is
+# intentionally more varied than one shared list: higher boxes unlock rewards
+# that lower boxes can never roll, such as festival bursts or prestige points.
+LOOT_BOX_TYPES = {
+    "common": {
+        "title": "Common Crate",
+        "base_cost": 850,
+        "container_color": 7,
+        "rarity_odds": (("common", 66), ("uncommon", 27), ("rare", 7)),
+        "reward_pools": {
+            "common": ("coins", "care", "xp"),
+            "uncommon": ("coins", "care", "progress", "bond_xp"),
+            "rare": ("rare_box", "upgrade", "caretaker_xp"),
+        },
+    },
+    "rare": {
+        "title": "Rare Chest",
+        "base_cost": 7000,
+        "container_color": 8,
+        "rarity_odds": (("uncommon", 48), ("rare", 34), ("epic", 14), ("legendary", 4)),
+        "reward_pools": {
+            "uncommon": ("coins", "care", "xp", "progress"),
+            "rare": ("upgrade", "bond_xp", "caretaker_xp", "mythic_shards"),
+            "epic": ("double_box", "upgrade", "progress", "mythic_shards"),
+            "legendary": ("mythic_pet", "festival", "prestige_point"),
+        },
+    },
+    "mythic": {
+        "title": "Mythic Vault",
+        "base_cost": 55000,
+        "container_color": 9,
+        "rarity_odds": (("rare", 42), ("epic", 32), ("legendary", 20), ("mythical", 6)),
+        "reward_pools": {
+            "rare": ("coins", "xp", "progress", "upgrade"),
+            "epic": ("mythic_shards", "double_box", "caretaker_xp", "bond_xp"),
+            "legendary": ("mythic_pet", "festival", "upgrade", "prestige_point"),
+            "mythical": ("mythic_pet", "prestige_point", "mythic_shards", "double_box"),
+        },
+    },
+}
+
+# Pity guarantees a minimum reward rarity, not one hard-coded item.  The box
+# can therefore still surprise the player while never wasting a long streak.
+LOOT_PITY_MIN_RARITY = {
+    "common": "rare",
+    "rare": "legendary",
+    "mythic": "mythical",
+}
+MYTHIC_SUMMON_COST = 10
+
+# ----------------------------- UPGRADES (300+) -----------------------------
+GLOBAL_UPGRADES = {
+    "auto_feeder": {"base_cost": 35, "mult": 1.32, "desc": "Adds passive hunger recovery.", "max_level": 25},
+    "toy_box": {"base_cost": 45, "mult": 1.34, "desc": "Adds passive happiness recovery.", "max_level": 25},
+    "energy_booster": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive energy recovery.", "max_level": 25},
+    "auto_bath": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive cleanliness recovery.", "max_level": 25},
+    "coin_magnet": {"base_cost": 75, "mult": 1.38, "desc": "Adds passive coin income.", "max_level": 50},
+    "lucky_charm": {"base_cost": 120, "mult": 1.42, "desc": "Raises the random-event chance.", "max_level": 5},
+    "power_food": {"base_cost": 140, "mult": 1.40, "desc": "Raises battle power by 5% per level.", "max_level": 30},
+    "better_food": {"base_cost": 90, "mult": 1.36, "desc": "Slows hunger decay.", "max_level": 5},
+    "soothing_music": {"base_cost": 90, "mult": 1.36, "desc": "Slows happiness decay.", "max_level": 8},
+    "cozy_bed": {"base_cost": 100, "mult": 1.37, "desc": "Slows energy decay.", "max_level": 8},
+    "grooming_station": {"base_cost": 100, "mult": 1.37, "desc": "Slows cleanliness decay.", "max_level": 8},
+    "evolution_catalyst": {"base_cost": 180, "mult": 1.45, "desc": "Speeds evolution progress.", "max_level": 25},
+    "auto_petter": {"base_cost": 160, "mult": 1.42, "desc": "Extra automatic happiness care.", "max_level": 20},
+    "training_auto": {"base_cost": 170, "mult": 1.42, "desc": "Extra automatic energy care.", "max_level": 20},
+    "veterinary_kit": {"base_cost": 240, "mult": 1.48, "desc": "Raises the automatic-care pulse.", "max_level": 20},
+}
+_GENERIC_UPGRADE_DESCRIPTIONS = [
+    "Slightly improves all coin income and evolution speed.",
+    "Adds a small permanent caretaker-efficiency bonus.",
+    "Builds collection mastery across every owned pet.",
+    "Adds a tiny universal idle-progress bonus.",
+]
+for i in range(1, 321 - len(GLOBAL_UPGRADES)):
+    GLOBAL_UPGRADES[f"mastery_{i:03d}"] = {
+        "base_cost": 250 + i * 18,
+        "mult": 1.18 + (i % 5) * 0.01,
+        "desc": _GENERIC_UPGRADE_DESCRIPTIONS[(i - 1) % len(_GENERIC_UPGRADE_DESCRIPTIONS)],
+        "max_level": 20,
+    }
+
+PRESTIGE_UPGRADES = {
+    "cosmic_feeder": {"cost": 1, "desc": "Strong permanent hunger recovery."},
+    "eternal_joy": {"cost": 1, "desc": "Permanently slows happiness decay."},
+    "deeper_sleep": {"cost": 1, "desc": "Permanently slows energy decay."},
+    "clean_freak": {"cost": 1, "desc": "Permanently slows cleanliness decay."},
+    "time_extender": {"cost": 2, "desc": "Playtime gradually adds coin income."},
+    "soul_mult": {"cost": 2, "desc": "Adds a large permanent coin multiplier."},
+    "time_warper": {"cost": 2, "desc": "Adds permanent evolution speed."},
+    "battle_boost": {"cost": 2, "desc": "Adds permanent battle XP gains."},
+    "event_spawner": {"cost": 3, "desc": "Creates an extra random event each minute."},
+    "caretaker_aura": {"cost": 3, "desc": "Strengthens every automatic-care pulse."},
+}
+for i in range(1, 31 - len(PRESTIGE_UPGRADES)):
+    PRESTIGE_UPGRADES[f"legacy_{i:02d}"] = {
+        "cost": 2 + i // 4,
+        "desc": "Adds a small universal legacy multiplier.",
+    }
+
+# ----------------------------- QUESTS -----------------------------
+QUESTS = [
+    {"desc":"Feed pet {target} times","target":3,"type":"feed","reward_coins":50},
+    {"desc":"Pet {target} times","target":3,"type":"pet","reward_coins":50},
+    {"desc":"Bathe pet {target} times","target":2,"type":"bathe","reward_coins":60},
+    {"desc":"Train pet {target} times","target":2,"type":"train","reward_coins":60},
+    {"desc":"Reach stage {target}","target":3,"type":"stage","reward_coins":200},
+    {"desc":"Earn {target} coins","target":200,"type":"coins","reward_coins":100},
+    {"desc":"Win {target} fights","target":1,"type":"fight_win","reward_coins":150},
+    {"desc":"Own {target} pets","target":3,"type":"pet_count","reward_coins":300},
+    {"desc":"Own {target} different species","target":5,"type":"unique_species","reward_coins":500},
+    {"desc":"Accumulate {target} minutes playtime","target":60,"type":"playtime","reward_coins":400},
+]
+
+# ----------------------------- INTERNET BOOST URLs -----------------------------
+# A free link crate may be claimed once every ten minutes.  Opening the
+# browser is the only practical local signal available to this offline game;
+# the script never tracks browsing activity or sends personal data anywhere.
+FREE_LINK_CRATE_COOLDOWN_SECONDS = 10 * 60
+FREE_LINK_CRATE_ODDS = (("common", 80), ("rare", 18), ("mythic", 2))
+
+BOOST_URLS = [
+    "https://ded-sec.space/Assistance/install-dedsec-project-android.html",
+    "https://ded-sec.space/Assistance/termux-beginner-guide-android.html",
+    "https://ded-sec.space/Assistance/termux-command-cheat-sheet.html",
+    "https://ded-sec.space/Assistance/termux-safe-copy-paste.html",
+    "https://ded-sec.space/Assistance/termux-install-source-and-first-setup.html",
+    "https://ded-sec.space/Assistance/termux-run-python-script-correctly.html",
+    "https://ded-sec.space/Assistance/termux-edit-files-with-nano.html",
+    "https://ded-sec.space/Assistance/termux-no-root-limitations.html",
+    "https://ded-sec.space/Assistance/fix-termux-storage-permission.html",
+    "https://ded-sec.space/Assistance/unzip-files-termux-android.html",
+    "https://ded-sec.space/Assistance/fix-python-module-not-found-termux.html",
+    "https://ded-sec.space/Assistance/fix-pip-errors-termux.html",
+    "https://ded-sec.space/Assistance/termux-package-command-not-found.html",
+    "https://ded-sec.space/Assistance/fix-termux-repository-errors.html",
+    "https://ded-sec.space/Assistance/fix-termux-dpkg-apt-lock.html",
+    "https://ded-sec.space/Assistance/fix-termux-no-space-left.html",
+    "https://ded-sec.space/Assistance/fix-termux-no-such-file-or-directory.html",
+    "https://ded-sec.space/Assistance/fix-termux-permission-denied-executable.html",
+    "https://ded-sec.space/Assistance/fix-termux-ssl-certificate-curl-errors.html",
+    "https://ded-sec.space/Assistance/fix-python-syntax-errors-termux.html",
+    "https://ded-sec.space/Assistance/fix-node-npm-errors-termux.html",
+    "https://ded-sec.space/Assistance/termux-python-virtual-environment.html",
+    "https://ded-sec.space/Assistance/termux-fix-line-endings-windows-crlf.html",
+    "https://ded-sec.space/Assistance/termux-json-file-errors.html",
+    "https://ded-sec.space/Assistance/termux-debug-log-files.html",
+    "https://ded-sec.space/Assistance/termux-install-common-python-libraries.html",
+    "https://ded-sec.space/Assistance/termux-clean-cache-safely.html",
+    "https://ded-sec.space/Assistance/termux-troubleshooting-checklist.html",
+    "https://ded-sec.space/Assistance/termux-common-exit-codes.html",
+    "https://ded-sec.space/Assistance/termux-download-with-curl-wget.html",
+    "https://ded-sec.space/Assistance/fix-termux-git-push-email-identity.html",
+    "https://ded-sec.space/Assistance/github-clone-termux.html",
+    "https://ded-sec.space/Assistance/fix-github-ssh-authentication-termux.html",
+    "https://ded-sec.space/Assistance/termux-git-pull-conflicts.html",
+    "https://ded-sec.space/Assistance/termux-git-branch-basics.html",
+    "https://ded-sec.space/Assistance/termux-github-pages-update-workflow.html",
+    "https://ded-sec.space/Assistance/update-dedsec-project.html",
+    "https://ded-sec.space/Assistance/fix-dedsec-broken-install.html",
+    "https://ded-sec.space/Assistance/termux-build-dedsec-style-tool.html",
+    "https://ded-sec.space/Assistance/fix-termux-port-already-in-use.html",
+    "https://ded-sec.space/Assistance/fix-localhost-server-not-opening-android.html",
+    "https://ded-sec.space/Assistance/keep-termux-running-background.html",
+    "https://ded-sec.space/Assistance/termux-fix-termux-api-not-working.html",
+    "https://ded-sec.space/Assistance/fix-termux-widget-scripts.html",
+    "https://ded-sec.space/Assistance/termux-flask-app-not-loading.html",
+    "https://ded-sec.space/Assistance/termux-websocket-socketio-errors.html",
+    "https://ded-sec.space/Assistance/termux-cloudflared-local-link-help.html",
+    "https://ded-sec.space/Assistance/termux-android-webview-browser-tips.html",
+    "https://ded-sec.space/Assistance/termux-local-website-python-server.html",
+    "https://ded-sec.space/Assistance/termux-cool-script-ideas.html",
+    "https://ded-sec.space/Assistance/termux-safe-automation-ideas.html",
+    "https://ded-sec.space/Assistance/termux-backup-restore-workflow.html",
+    "https://ded-sec.space/Assistance/termux-low-end-phone-performance-tips.html",
+    "https://ded-sec.space/Assistance/termux-learning-roadmap.html",
+    "https://ded-sec.space/Assistance/termux-secure-api-keys-env-file.html",
+    "https://ded-sec.space/Assistance/termux-create-python-menu-script.html",
+    "https://ded-sec.space/Assistance/termux-check-broken-links-locally.html",
+    "https://ded-sec.space/Assistance/termux-site-seo-checklist-from-phone.html",
+    "https://ded-sec.space/Assistance/termux-offline-documentation-folder.html",
+    "https://ded-sec.space/Assistance/termux-command-history-and-aliases.html",
+    "https://ded-sec.space/Assistance/termux-fix-bash-bad-interpreter.html",
+    "https://ded-sec.space/Assistance/termux-fix-python-encoding-unicode-errors.html",
+    "https://ded-sec.space/Assistance/termux-fix-shebang-env-python.html",
+    "https://ded-sec.space/Assistance/termux-fix-crontab-alternatives.html",
+    "https://ded-sec.space/Assistance/termux-fix-pyinstaller-on-android-alternatives.html",
+    "https://ded-sec.space/Assistance/termux-fix-requests-ssl-and-api-errors.html",
+    "https://ded-sec.space/Assistance/termux-fix-git-auth-token-github.html",
+    "https://ded-sec.space/Assistance/termux-fix-git-large-file-push.html",
+    "https://ded-sec.space/Assistance/termux-project-folder-structure.html",
+    "https://ded-sec.space/Assistance/termux-python-error-debugging-roadmap.html",
+    "https://ded-sec.space/Assistance/termux-safe-update-routine.html",
+    "https://ded-sec.space/Assistance/termux-phone-coding-workflow.html",
+    "https://ded-sec.space/Assistance/termux-learn-python-by-building-tools.html",
+    "https://ded-sec.space/Assistance/termux-manage-large-projects-on-phone.html",
+    "https://ded-sec.space/Assistance/termux-html-css-js-editing-from-phone.html",
+    "https://ded-sec.space/Assistance/termux-write-better-readme.html",
+]
+
+# ==================== UTILS ====================
+def fmt_num(n):
+    if n < 1000: return f"{n:.0f}"
+    for unit in ["K","M","B","T","P"]:
+        n /= 1000.0
+        if n < 1000.0: return f"{n:.2f}{unit}"
+    return f"{n:.2f}P"
+
+def check_internet():
+    try:
+        socket.create_connection(("8.8.8.8",53), timeout=2)
+        return True
+    except OSError: return False
+
+def open_url(url):
+    for cmd in ["termux-open-url","xdg-open"]:
+        try: os.system(f"{cmd} '{url}' >/dev/null 2>&1"); return
+        except: continue
+
+
+# ==================== LOCAL NETWORK HELPERS ====================
+def get_local_ip():
+    """Return the best LAN address available without sending internet data."""
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("8.8.8.8", 80))
+        return probe.getsockname()[0]
+    except OSError:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return "127.0.0.1"
+    finally:
+        probe.close()
+
+
+def _send_lan_json(sock, payload):
+    """Send one bounded newline-terminated JSON object."""
+    encoded = (json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(encoded) > LAN_MAX_MESSAGE_BYTES:
+        raise ValueError("LAN message is too large")
+    sock.sendall(encoded)
+
+
+def _recv_lan_json(sock):
+    """Receive one bounded JSON object and reject malformed/non-dictionary data."""
+    chunks = bytearray()
+    while len(chunks) < LAN_MAX_MESSAGE_BYTES:
+        block = sock.recv(min(4096, LAN_MAX_MESSAGE_BYTES - len(chunks)))
+        if not block:
+            break
+        chunks.extend(block)
+        if b"\n" in block:
+            break
+    if not chunks:
+        raise ValueError("empty LAN message")
+    raw = bytes(chunks).split(b"\n", 1)[0]
+    parsed = json.loads(raw.decode("utf-8"))
+    if not isinstance(parsed, dict):
+        raise ValueError("LAN message must be an object")
+    return parsed
+
+
+def _pet_snapshot_power(data):
+    """Calculate a conservative battle score from a validated pet snapshot."""
+    try:
+        stage = max(0, min(len(STAGE_NAMES) - 1, int(data.get("stage", 0))))
+        battle_level = max(1, min(10000, int(data.get("battle_level", 1))))
+        bond_level = max(1, min(BOND_LEVEL_CAP, int(data.get("bond_level", 1))))
+    except (TypeError, ValueError, AttributeError):
+        return 1.0
+    return ((stage + 1) * 10.0 + battle_level * 5.0) * (1.0 + (bond_level - 1) * 0.005)
+
+
+class LANManager:
+    """Background LAN host, discovery client, and request transport.
+
+    Socket threads never mutate gameplay state directly.  They put requests or
+    results into thread-safe queues; the curses/game thread processes those
+    queues between frames, avoiding races with pet-list rendering and saving.
+    """
+
+    def __init__(self, game):
+        self.game = game
+        self.room_id = uuid.uuid4().hex[:10]
+        self.hosting = False
+        self.stop_event = threading.Event()
+        self.tcp_socket = None
+        self.udp_socket = None
+        self.threads = []
+        self.local_ip = get_local_ip()
+        self.last_error = ""
+
+    def host_profile(self):
+        pet = self.game.active_pet
+        offer = self.game.get_lan_offer_pet()
+        return {
+            "protocol": LAN_PROTOCOL,
+            "room_id": self.room_id,
+            "player_name": self.game.player_name[:24],
+            "caretaker_level": self.game.caretaker_level,
+            "active_pet": pet.to_dict() if pet else None,
+            "trade_offer": offer.to_dict() if offer and len(self.game.pets) > 1 else None,
+            "port": LAN_TCP_PORT,
+        }
+
+    def start_host(self):
+        """Start TCP gameplay and UDP discovery listeners."""
+        if self.hosting:
+            return True
+        self.stop_event.clear()
+        try:
+            tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            tcp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            tcp.bind(("0.0.0.0", LAN_TCP_PORT))
+            tcp.listen(4)
+            tcp.settimeout(0.5)
+            self.tcp_socket = tcp
+
+            udp = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            udp.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            udp.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            udp.bind(("0.0.0.0", LAN_DISCOVERY_PORT))
+            udp.settimeout(0.5)
+            self.udp_socket = udp
+        except OSError as exc:
+            self.last_error = str(exc)
+            for sock in (self.tcp_socket, self.udp_socket):
+                try:
+                    if sock:
+                        sock.close()
+                except OSError:
+                    pass
+            self.tcp_socket = None
+            self.udp_socket = None
+            return False
+
+        self.hosting = True
+        self.threads = [
+            threading.Thread(target=self._tcp_loop, name="PetFriends-LAN-TCP", daemon=True),
+            threading.Thread(target=self._discovery_loop, name="PetFriends-LAN-UDP", daemon=True),
+        ]
+        for thread in self.threads:
+            thread.start()
+        return True
+
+    def stop_host(self):
+        """Stop listeners and release the ports without blocking game exit."""
+        self.hosting = False
+        self.stop_event.set()
+        for sock in (self.tcp_socket, self.udp_socket):
+            try:
+                if sock:
+                    sock.close()
+            except OSError:
+                pass
+        self.tcp_socket = None
+        self.udp_socket = None
+        for thread in list(self.threads):
+            if thread.is_alive() and thread is not threading.current_thread():
+                thread.join(timeout=0.7)
+        self.threads = []
+
+    def shutdown(self):
+        self.stop_host()
+
+    def _tcp_loop(self):
+        while not self.stop_event.is_set() and self.tcp_socket is not None:
+            try:
+                client, address = self.tcp_socket.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            threading.Thread(
+                target=self._handle_client,
+                args=(client, address),
+                name="PetFriends-LAN-Client",
+                daemon=True,
+            ).start()
+
+    def _handle_client(self, client, address):
+        client.settimeout(LAN_REQUEST_TIMEOUT)
+        try:
+            request = _recv_lan_json(client)
+            if request.get("protocol") != LAN_PROTOCOL:
+                _send_lan_json(client, {"ok": False, "error": "protocol mismatch"})
+                return
+            action = str(request.get("action", ""))
+            if action == "profile":
+                response = self.host_profile()
+                response["ok"] = True
+                _send_lan_json(client, response)
+                return
+            if action not in ("battle", "trade"):
+                _send_lan_json(client, {"ok": False, "error": "unsupported action"})
+                return
+
+            envelope = {
+                "action": action,
+                "request": request,
+                "address": address[0],
+                "done": threading.Event(),
+                "response": None,
+            }
+            self.game.lan_request_queue.put(envelope)
+            if not envelope["done"].wait(LAN_REQUEST_TIMEOUT):
+                _send_lan_json(client, {"ok": False, "error": "host did not respond in time"})
+                return
+            _send_lan_json(client, envelope.get("response") or {"ok": False, "error": "empty host response"})
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            try:
+                _send_lan_json(client, {"ok": False, "error": str(exc)[:100]})
+            except OSError:
+                pass
+        finally:
+            try:
+                client.close()
+            except OSError:
+                pass
+
+    def _discovery_loop(self):
+        while not self.stop_event.is_set() and self.udp_socket is not None:
+            try:
+                data, address = self.udp_socket.recvfrom(2048)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if data.decode("utf-8", "ignore").strip() != LAN_PROTOCOL + ":DISCOVER":
+                continue
+            response = self.host_profile()
+            response["ok"] = True
+            try:
+                self.udp_socket.sendto(
+                    json.dumps(response, ensure_ascii=True, separators=(",", ":")).encode("utf-8"),
+                    address,
+                )
+            except OSError:
+                continue
+
+    def start_scan(self):
+        """Discover hosts asynchronously so the terminal interface stays responsive."""
+        if self.game.lan_busy:
+            return False
+        self.game.lan_busy = True
+        self.game.lan_status = "Scanning the local network..."
+        threading.Thread(target=self._scan_worker, name="PetFriends-LAN-Scan", daemon=True).start()
+        return True
+
+    def _scan_worker(self):
+        peers = {}
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+            sock.settimeout(0.25)
+            message = (LAN_PROTOCOL + ":DISCOVER").encode("utf-8")
+            destinations = [("255.255.255.255", LAN_DISCOVERY_PORT)]
+            # Android hotspots occasionally route the limited broadcast more
+            # reliably than the global broadcast, so try the calculated /24 too.
+            parts = self.local_ip.split(".")
+            if len(parts) == 4 and self.local_ip != "127.0.0.1":
+                destinations.append((".".join(parts[:3] + ["255"]), LAN_DISCOVERY_PORT))
+            for destination in destinations:
+                try:
+                    sock.sendto(message, destination)
+                except OSError:
+                    pass
+
+            deadline = time.monotonic() + 1.5
+            while time.monotonic() < deadline:
+                try:
+                    payload, address = sock.recvfrom(8192)
+                except socket.timeout:
+                    continue
+                except OSError:
+                    break
+                try:
+                    info = json.loads(payload.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                if not isinstance(info, dict) or info.get("protocol") != LAN_PROTOCOL:
+                    continue
+                if info.get("room_id") == self.room_id:
+                    continue
+                info["ip"] = address[0]
+                info["port"] = int(info.get("port", LAN_TCP_PORT))
+                peers[str(info.get("room_id", address[0]))] = info
+        finally:
+            sock.close()
+            self.game.lan_client_results.put({"kind": "scan", "peers": list(peers.values())})
+
+
+
+    def start_manual_peer(self, address):
+        """Query a host by IPv4 address when UDP discovery is unavailable."""
+        if self.game.lan_busy:
+            return False
+        address = str(address).strip()
+        try:
+            socket.inet_aton(address)
+        except OSError:
+            self.game.lan_status = "Enter a valid IPv4 address, for example 192.168.1.20."
+            return False
+        self.game.lan_busy = True
+        self.game.lan_status = f"Connecting to {address}:{LAN_TCP_PORT}..."
+        threading.Thread(
+            target=self._manual_peer_worker,
+            args=(address,),
+            name="PetFriends-LAN-Manual",
+            daemon=True,
+        ).start()
+        return True
+
+    def _manual_peer_worker(self, address):
+        result = {"kind": "manual_peer", "address": address}
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(6.0)
+        try:
+            sock.connect((address, LAN_TCP_PORT))
+            _send_lan_json(sock, {"protocol": LAN_PROTOCOL, "action": "profile"})
+            profile = _recv_lan_json(sock)
+            if not profile.get("ok") or profile.get("protocol") != LAN_PROTOCOL:
+                raise ValueError(profile.get("error", "invalid room profile"))
+            profile["ip"] = address
+            profile["port"] = int(profile.get("port", LAN_TCP_PORT))
+            result["peer"] = profile
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            result["error"] = str(exc)[:100]
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                pass
+            self.game.lan_client_results.put(result)
+
+
+    def start_action(self, action, peer, offer_index=None):
+        """Start one battle or trade request against a discovered room."""
+        if self.game.lan_busy or not isinstance(peer, dict):
+            return False
+        if action not in ("battle", "trade"):
+            return False
+        pet = self.game.active_pet if action == "battle" else self.game.get_lan_offer_pet()
+        if pet is None:
+            self.game.lan_status = "No valid companion is selected."
+            return False
+        if action == "trade" and len(self.game.pets) <= 1:
+            self.game.lan_status = "You must keep at least one companion."
+            return False
+
+        self.game.lan_busy = True
+        self.game.lan_status = f"Sending {action} request to {peer.get('player_name', 'player')}..."
+        request = {
+            "protocol": LAN_PROTOCOL,
+            "action": action,
+            "player_name": self.game.player_name[:24],
+            "caretaker_level": self.game.caretaker_level,
+            "pet": pet.to_dict(),
+            "pet_count": len(self.game.pets),
+        }
+        thread = threading.Thread(
+            target=self._action_worker,
+            args=(peer, request, offer_index),
+            name="PetFriends-LAN-Action",
+            daemon=True,
+        )
+        thread.start()
+        return True
+
+    def _action_worker(self, peer, request, offer_index):
+        result = {"kind": "action", "action": request["action"], "offer_index": offer_index}
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(6.0)
+        try:
+            sock.connect((str(peer.get("ip")), int(peer.get("port", LAN_TCP_PORT))))
+            _send_lan_json(sock, request)
+            response = _recv_lan_json(sock)
+            result["response"] = response
+            result["peer"] = peer
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            result["response"] = {"ok": False, "error": str(exc)[:100]}
+            result["peer"] = peer
+        finally:
+            try:
+                sock.close()
+            except OSError:
+                pass
+            self.game.lan_client_results.put(result)
+
+
+# ==================== PET CLASS ====================
+class Pet:
+    def __init__(self, species, nickname="", color=None):
+        self.species = species
+        self.nickname = nickname if nickname else species
+        self.stage = 0
+        self.age_in_stage = 0.0
+        self.hunger = 100.0
+        self.happiness = 100.0
+        self.energy = 100.0
+        self.cleanliness = 100.0
+        self.battle_xp = 0.0
+        self.battle_level = 1
+        self.color = color if color is not None else SPECIES[species]["color"]
+        self.fact_index = 0
+
+        # Bond is separate for every companion so switching pets creates a
+        # meaningful long-term reason to care for the whole collection.
+        self.bond_xp = 0.0
+        self.bond_level = 1
+        self.total_care_actions = 0
+
+    def get_base_art(self, frame):
+        return SPECIES[self.species]["art"][frame % 2]
+
+    def battle_power(self):
+        return (self.stage + 1) * 10 + self.battle_level * 5
+
+    def get_facts(self):
+        data = SPECIES[self.species]
+        return data.get("educational_facts") or data.get("facts", [])
+
+    def bond_xp_needed(self):
+        """Return XP needed for the next bond level at the current level."""
+        return 20.0 + self.bond_level * 15.0
+
+    def to_dict(self):
+        return {"species":self.species,"nickname":self.nickname,"stage":self.stage,
+                "age_in_stage":self.age_in_stage,"hunger":self.hunger,"happiness":self.happiness,
+                "energy":self.energy,"cleanliness":self.cleanliness,"battle_xp":self.battle_xp,
+                "battle_level":self.battle_level,"color":self.color,"fact_index":self.fact_index,
+                "bond_xp":self.bond_xp,"bond_level":self.bond_level,
+                "total_care_actions":self.total_care_actions}
+
+    @staticmethod
+    def from_dict(d):
+        if not isinstance(d, dict):
+            return Pet("Dog", "Buddy")
+        species = d.get("species", "Dog")
+        if species not in SPECIES:
+            species = "Dog"
+        p = Pet(species, str(d.get("nickname", ""))[:24], d.get("color"))
+        p.stage = max(0, min(len(STAGE_NAMES) - 1, int(d.get("stage", 0))))
+        p.age_in_stage = max(0.0, float(d.get("age_in_stage", 0.0)))
+        for attr in ("hunger", "happiness", "energy", "cleanliness"):
+            try:
+                value = float(d.get(attr, 100.0))
+            except (TypeError, ValueError):
+                value = 100.0
+            setattr(p, attr, max(MIN_STAT_VALUE, min(100.0, value)))
+        p.battle_xp = max(0.0, float(d.get("battle_xp", 0.0)))
+        p.battle_level = max(1, int(d.get("battle_level", 1)))
+        facts = p.get_facts()
+        p.fact_index = int(d.get("fact_index", 0)) % max(1, len(facts))
+
+        # Older save files have no bond fields, so defaults preserve their pets
+        # while malformed hand-edits are clamped to safe values.
+        try:
+            p.bond_level = max(1, min(BOND_LEVEL_CAP, int(d.get("bond_level", 1))))
+        except (TypeError, ValueError):
+            p.bond_level = 1
+        try:
+            # Clamp imported XP to a generous finite range so a corrupted or
+            # hand-edited save cannot create an enormous terminal bar/string.
+            p.bond_xp = max(0.0, float(d.get("bond_xp", 0.0)))
+            p.bond_xp = min(p.bond_xp, p.bond_xp_needed() * 10.0)
+        except (TypeError, ValueError):
+            p.bond_xp = 0.0
+        try:
+            p.total_care_actions = max(0, int(d.get("total_care_actions", 0)))
+        except (TypeError, ValueError):
+            p.total_care_actions = 0
+        return p
+
+# ==================== GAME CLASS ====================
+class Game:
+    def __init__(self):
+        self.pets = []
+        self.active_pet_index = 0
+        self.coins = 0.0
+        self.prestige_points = 0
+        self.total_coins_earned = 0.0
+        self.playtime = 0.0
+        self.anim_frame = 0
+        self.anim_timer = 0.0
+        # Short, session-only reactions layer over idle movement after care.
+        self.pet_reaction = ""
+        self.pet_reaction_timer = 0.0
+        self.fact_cycle_timer = 0.0
+        self.extra_event_timer = 0.0
+        self.auto_care_timer = 0.0
+        self.coin_quest_buffer = 0.0
+
+        # Caretaker progression gates difficult adoptions independently from an
+        # individual pet's battle or bond level.
+        self.caretaker_level = 1
+        self.caretaker_xp = 0.0
+        self.missions_completed = 0
+        self.fight_wins = 0
+        self.fight_losses = 0
+        self.player_name = f"Keeper-{random.randint(1000, 9999)}"
+
+        # Persistent local-network statistics feed achievements but hosting is
+        # intentionally session-only and must be started explicitly each run.
+        self.lan_battles = 0
+        self.lan_wins = 0
+        self.lan_losses = 0
+        self.lan_trades = 0
+
+        # State for the mandatory ten-minute return check.
+        self.auto_idle_seconds = 0.0
+        self.attention_required = False
+        self.attention_check_count = 0
+        self.care_check_streak = 0
+
+        # Active-care combo state.  The sequence list tracks the four distinct
+        # care actions required for a Perfect Care cycle.
+        self.care_combo = 0
+        self.best_care_combo = 0
+        self.care_combo_timer = 0.0
+        self.last_care_action = ""
+        self.care_cycle_actions = []
+        self.perfect_care_cycles = 0
+        self.last_rewarded_care_time = 0.0
+
+        # Companion wishes create short, readable goals tied to the visible pet.
+        # Current timers are session-only; completed totals and stars persist.
+        self.pet_request_action = ""
+        self.pet_request_timer = random.uniform(PET_REQUEST_MIN_SECONDS, PET_REQUEST_MAX_SECONDS)
+        self.pet_request_remaining = 0.0
+        self.pet_requests_completed = 0
+        self.pet_request_streak = 0
+        self.best_pet_request_streak = 0
+        self.friendship_stars = 0
+        self.friendship_stars_total = 0
+        self.friendship_gifts_claimed = 0
+
+        # Educational-card browsing earns paced research progress. Only manual
+        # browsing counts; the automatic 45-second rotation cannot farm rewards.
+        self.knowledge_points = 0
+        self.facts_studied = 0
+        self.last_fact_reward_time = 0.0
+
+        # Species-family voice cues are intentionally infrequent so they make the
+        # companion feel alive without becoming repetitive during long sessions.
+        self.pet_voice_timer = random.uniform(PET_VOICE_MIN_SECONDS, PET_VOICE_MAX_SECONDS)
+
+        # The Adventure Board combines a permanent journey track, daily contracts,
+        # treasure-map fragments, and real-time expeditions. All rewards are earned
+        # through play and every threshold is shown in the interface.
+        self.journey_level = 1
+        self.journey_points = 0.0
+        self.journey_levels_completed = 0
+        self.treasure_fragments = 0
+        self.treasure_maps_completed = 0
+        self.daily_contract_date = ""
+        self.daily_contracts = []
+        self.daily_contract_progress = {}
+        self.daily_contract_claimed = set()
+        self.daily_contracts_completed = 0
+        self.expedition_kind = ""
+        self.expedition_end_time = None
+        self.expedition_pet_name = ""
+        self.expedition_pet_species = ""
+        self.expeditions_completed = 0
+        self.expedition_ready_announced = False
+
+        # Daily streaks encourage returning while still allowing a missed day
+        # to reset cleanly instead of damaging existing progress.
+        self.daily_streak = 0
+        self.longest_daily_streak = 0
+
+        # Sanctuary Spark is earned by play.  Festival expiry is timestamped so
+        # save/load behavior remains deterministic across restarts.
+        self.festival_meter = 0.0
+        self.festival_expire_time = None
+        self.festivals_triggered = 0
+
+        # Compact, JSON-safe loot inventory and recent reward history.
+        self.loot_boxes = {"common": 1, "rare": 0, "mythic": 0}
+        self.mythic_shards = 0
+        self.loot_boxes_opened = 0
+        self.loot_history = []
+        self.loot_pity = {kind: 0 for kind in LOOT_BOX_ORDER}
+
+        self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
+        self.prestige_upgrades = {k:0 for k in PRESTIGE_UPGRADES}
+
+        self.messages = []
+        self.achievements = set()
+        self.event_timer = random.uniform(EVENT_MIN, EVENT_MAX)
+        self.particles = []
+
+        self.last_daily_claim = None
+        self.active_quests = []
+        self.quest_progress = {}
+        self.last_quest_refresh = 0.0
+
+        self.sound_manager = Sound(True, True)
+
+        self.boost_active = False
+        self.boost_expire_time = None
+
+        # Timestamp of the last link-supported free crate.  It is persisted so
+        # restarting the game cannot accidentally reset the ten-minute timer.
+        self.last_free_link_crate_claim = None
+
+        self.last_tick = time.time()
+        self.shop_open = False
+        self.prestige_shop_open = False
+        self.pet_select_open = False
+        self.adopt_screen_open = False
+        self.adopt_page = 0
+        self.adopt_page_size = 10
+        self.pet_select_page = 0
+        self.pet_select_page_size = 10
+        self.shop_page = 0
+        self.prestige_shop_page = 0
+        self.shop_page_size = 10
+        self.fight_screen_open = False
+        self.loot_screen_open = False
+        self.achievement_screen_open = False
+        self.achievement_page = 0
+        self.achievement_page_size = 10
+        self.adventure_screen_open = False
+        self.lan_screen_open = False
+        self.lan_peers = []
+        self.lan_selected_peer = 0
+        self.lan_offer_index = 0
+        self.lan_status = "LAN is idle. Start hosting or scan for rooms."
+        self.lan_busy = False
+        self.lan_request_queue = queue.Queue()
+        self.lan_client_results = queue.Queue()
+        self.input_mode = False
+        self.input_buffer = ""
+        self.input_prompt = ""
+        self.input_callback = None
+
+        self.fight_opponent = None
+        self.fight_state = "idle"
+        self.fight_log = []
+        self.fight_player_hp = 100
+        self.fight_enemy_hp = 100
+
+        self.load_game()
+        if not self.pets:
+            # Every new sanctuary starts with one free Dog and enough coins for
+            # a small starter fund.  Early income is deliberately slower, while later
+            # caretaker levels and evolution stages gradually restore full earnings.
+            self.pets.append(Pet("Dog", "Buddy"))
+            self.coins = max(self.coins, 150.0)
+        self.lan_offer_index = min(self.active_pet_index, max(0, len(self.pets) - 1))
+        self.lan_manager = LANManager(self)
+        self.refresh_quests(force=True)
+        self.refresh_daily_contracts()
+        self.check_achievements()
+
+    @property
+    def active_pet(self):
+        if 0 <= self.active_pet_index < len(self.pets):
+            return self.pets[self.active_pet_index]
+        return None
+
+    # ---------- save/load ----------
+    def save_game(self):
+        data = {
+            "version": SAVE_VERSION,
+            "pets": [p.to_dict() for p in self.pets],
+            "active_pet_index": self.active_pet_index,
+            "coins": self.coins,
+            "prestige_points": self.prestige_points,
+            "total_coins_earned": self.total_coins_earned,
+            "playtime": self.playtime,
+            "caretaker_level": self.caretaker_level,
+            "caretaker_xp": self.caretaker_xp,
+            "missions_completed": self.missions_completed,
+            "fight_wins": self.fight_wins,
+            "fight_losses": self.fight_losses,
+            "player_name": self.player_name,
+            "lan_battles": self.lan_battles,
+            "lan_wins": self.lan_wins,
+            "lan_losses": self.lan_losses,
+            "lan_trades": self.lan_trades,
+            "global_upgrades": self.global_upgrades,
+            "prestige_upgrades": self.prestige_upgrades,
+            "achievements": list(self.achievements),
+            "last_daily_claim": self.last_daily_claim.isoformat() if self.last_daily_claim else None,
+            "quests": [q["type"] for q in self.active_quests],
+            "quest_progress": self.quest_progress,
+            "sound_enabled": self.sound_manager.on,
+            "music_enabled": self.sound_manager.music_on,
+            "loot_boxes": self.loot_boxes,
+            "mythic_shards": self.mythic_shards,
+            "loot_boxes_opened": self.loot_boxes_opened,
+            "loot_history": self.loot_history[-5:],
+            "attention_check_count": self.attention_check_count,
+            "care_check_streak": self.care_check_streak,
+            "best_care_combo": self.best_care_combo,
+            "perfect_care_cycles": self.perfect_care_cycles,
+            "pet_requests_completed": self.pet_requests_completed,
+            "pet_request_streak": self.pet_request_streak,
+            "best_pet_request_streak": self.best_pet_request_streak,
+            "friendship_stars": self.friendship_stars,
+            "friendship_stars_total": self.friendship_stars_total,
+            "friendship_gifts_claimed": self.friendship_gifts_claimed,
+            "knowledge_points": self.knowledge_points,
+            "facts_studied": self.facts_studied,
+            "journey_level": self.journey_level,
+            "journey_points": self.journey_points,
+            "journey_levels_completed": self.journey_levels_completed,
+            "treasure_fragments": self.treasure_fragments,
+            "treasure_maps_completed": self.treasure_maps_completed,
+            "daily_contract_date": self.daily_contract_date,
+            "daily_contracts": self.daily_contracts,
+            "daily_contract_progress": self.daily_contract_progress,
+            "daily_contract_claimed": sorted(self.daily_contract_claimed),
+            "daily_contracts_completed": self.daily_contracts_completed,
+            "expedition_kind": self.expedition_kind,
+            "expedition_end_time": (
+                self.expedition_end_time.isoformat() if self.expedition_end_time else None
+            ),
+            "expedition_pet_name": self.expedition_pet_name,
+            "expedition_pet_species": self.expedition_pet_species,
+            "expeditions_completed": self.expeditions_completed,
+            "daily_streak": self.daily_streak,
+            "longest_daily_streak": self.longest_daily_streak,
+            "festival_meter": self.festival_meter,
+            "festival_expire_time": (
+                self.festival_expire_time.isoformat()
+                if self.festival_expire_time else None
+            ),
+            "festivals_triggered": self.festivals_triggered,
+            "loot_pity": self.loot_pity,
+            "last_free_link_crate_claim": (
+                self.last_free_link_crate_claim.isoformat()
+                if self.last_free_link_crate_claim else None
+            )
+        }
+        try:
+            temp_file = SAVE_FILE + ".tmp"
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_file, SAVE_FILE)
+        except (OSError, TypeError, ValueError):
+            try:
+                if os.path.exists(SAVE_FILE + ".tmp"):
+                    os.remove(SAVE_FILE + ".tmp")
+            except OSError:
+                pass
+
+    def load_game(self):
+        if not os.path.exists(SAVE_FILE): return
+        try:
+            with open(SAVE_FILE) as f: data = json.load(f)
+        except: return
+        self.pets = [Pet.from_dict(pd) for pd in data.get("pets", []) if isinstance(pd, dict)]
+        self.active_pet_index = data.get("active_pet_index",0)
+        if self.active_pet_index >= len(self.pets): self.active_pet_index = 0
+        self.coins = data.get("coins",0.0)
+        self.prestige_points = data.get("prestige_points",0)
+        self.total_coins_earned = data.get("total_coins_earned",0.0)
+        self.playtime = data.get("playtime",0.0)
+        try:
+            self.caretaker_level = max(1, min(999, int(data.get("caretaker_level", 1))))
+        except (TypeError, ValueError):
+            self.caretaker_level = 1
+        try:
+            self.caretaker_xp = max(0.0, float(data.get("caretaker_xp", 0.0)))
+        except (TypeError, ValueError):
+            self.caretaker_xp = 0.0
+        for field in ("missions_completed", "fight_wins", "fight_losses", "lan_battles", "lan_wins", "lan_losses", "lan_trades"):
+            try:
+                setattr(self, field, max(0, int(data.get(field, getattr(self, field)))))
+            except (TypeError, ValueError):
+                pass
+        loaded_name = str(data.get("player_name", self.player_name)).strip()
+        if loaded_name:
+            self.player_name = loaded_name[:24]
+        for k in GLOBAL_UPGRADES: self.global_upgrades[k] = data.get("global_upgrades",{}).get(k,0)
+        for k in PRESTIGE_UPGRADES: self.prestige_upgrades[k] = data.get("prestige_upgrades",{}).get(k,0)
+        self.achievements = set(data.get("achievements",[]))
+        if data.get("last_daily_claim"):
+            try: self.last_daily_claim = datetime.fromisoformat(data["last_daily_claim"])
+            except: self.last_daily_claim = None
+        quest_types = data.get("quests",[])
+        self.active_quests = [q for q in QUESTS if q["type"] in quest_types]
+        self.quest_progress = data.get("quest_progress",{})
+        if not self.active_quests: self.refresh_quests(force=True)
+        try:
+            loaded_save_version = int(data.get("version", 0))
+        except (TypeError, ValueError):
+            loaded_save_version = 0
+        if loaded_save_version >= 9 and "sound_enabled" in data:
+            self.sound_manager.on = bool(data["sound_enabled"])
+        else:
+            # Older versions only had a terminal bell and defaulted to OFF.
+            # Enable the real effect engine once so returning players hear it.
+            self.sound_manager.on = True
+
+        if loaded_save_version >= 10 and "music_enabled" in data:
+            self.sound_manager.music_on = bool(data["music_enabled"])
+        else:
+            # Background music is a new, separately controllable option.
+            self.sound_manager.music_on = True
+
+        # Master mute is deliberately temporary.  It resets to OFF on every
+        # launch, while the independent SFX and music preferences still persist.
+        # Older save files may contain ``audio_muted``; it is intentionally
+        # ignored so a force-closed muted session never starts silently forever.
+        self.sound_manager.muted = False
+
+        # These fields did not exist in older saves, so every value has a safe
+        # default and invalid external edits are ignored rather than crashing.
+        saved_boxes = data.get("loot_boxes", {})
+        if isinstance(saved_boxes, dict):
+            for kind in LOOT_BOX_ORDER:
+                try:
+                    self.loot_boxes[kind] = max(0, int(saved_boxes.get(kind, self.loot_boxes[kind])))
+                except (TypeError, ValueError):
+                    pass
+        try:
+            self.mythic_shards = max(0, int(data.get("mythic_shards", 0)))
+        except (TypeError, ValueError):
+            self.mythic_shards = 0
+        try:
+            self.loot_boxes_opened = max(0, int(data.get("loot_boxes_opened", 0)))
+        except (TypeError, ValueError):
+            self.loot_boxes_opened = 0
+        history = data.get("loot_history", [])
+        self.loot_history = [str(item)[:90] for item in history[-5:]] if isinstance(history, list) else []
+        try:
+            self.attention_check_count = max(0, int(data.get("attention_check_count", 0)))
+        except (TypeError, ValueError):
+            self.attention_check_count = 0
+        try:
+            self.care_check_streak = max(0, int(data.get("care_check_streak", 0)))
+        except (TypeError, ValueError):
+            self.care_check_streak = 0
+
+        # Engagement fields are all optional to preserve old save compatibility.
+        try:
+            self.best_care_combo = max(0, int(data.get("best_care_combo", 0)))
+        except (TypeError, ValueError):
+            self.best_care_combo = 0
+        try:
+            self.perfect_care_cycles = max(0, int(data.get("perfect_care_cycles", 0)))
+        except (TypeError, ValueError):
+            self.perfect_care_cycles = 0
+
+        for field in (
+            "pet_requests_completed", "pet_request_streak", "best_pet_request_streak",
+            "friendship_stars", "friendship_stars_total", "friendship_gifts_claimed",
+            "knowledge_points", "facts_studied",
+        ):
+            try:
+                setattr(self, field, max(0, int(data.get(field, getattr(self, field)))))
+            except (TypeError, ValueError):
+                pass
+        self.friendship_stars = min(
+            FRIENDSHIP_STARS_PER_GIFT - 1, self.friendship_stars
+        )
+        self.best_pet_request_streak = max(
+            self.best_pet_request_streak, self.pet_request_streak
+        )
+        # Reconcile gift progress if a hand-edited or old save has totals but no
+        # claimed counter; no reward is duplicated during migration.
+        expected_claimed = self.friendship_stars_total // FRIENDSHIP_STARS_PER_GIFT
+        self.friendship_gifts_claimed = max(
+            self.friendship_gifts_claimed,
+            max(0, expected_claimed - (1 if self.friendship_stars else 0)),
+        )
+        try:
+            self.daily_streak = max(0, int(data.get("daily_streak", 0)))
+        except (TypeError, ValueError):
+            self.daily_streak = 0
+        try:
+            self.longest_daily_streak = max(
+                self.daily_streak, int(data.get("longest_daily_streak", self.daily_streak))
+            )
+        except (TypeError, ValueError):
+            self.longest_daily_streak = self.daily_streak
+        try:
+            self.festival_meter = max(
+                0.0, min(FESTIVAL_METER_MAX, float(data.get("festival_meter", 0.0)))
+            )
+        except (TypeError, ValueError):
+            self.festival_meter = 0.0
+        try:
+            self.festivals_triggered = max(0, int(data.get("festivals_triggered", 0)))
+        except (TypeError, ValueError):
+            self.festivals_triggered = 0
+
+        saved_festival_expire = data.get("festival_expire_time")
+        if saved_festival_expire:
+            try:
+                parsed_expire = datetime.fromisoformat(str(saved_festival_expire))
+                if parsed_expire > datetime.now():
+                    self.festival_expire_time = parsed_expire
+            except (TypeError, ValueError):
+                self.festival_expire_time = None
+
+        saved_pity = data.get("loot_pity", {})
+        if isinstance(saved_pity, dict):
+            for kind in LOOT_BOX_ORDER:
+                try:
+                    limit = LOOT_PITY_LIMITS[kind]
+                    self.loot_pity[kind] = max(
+                        0, min(limit - 1, int(saved_pity.get(kind, 0)))
+                    )
+                except (TypeError, ValueError):
+                    self.loot_pity[kind] = 0
+
+        saved_free_claim = data.get("last_free_link_crate_claim")
+        if saved_free_claim:
+            try:
+                self.last_free_link_crate_claim = datetime.fromisoformat(str(saved_free_claim))
+            except (TypeError, ValueError):
+                self.last_free_link_crate_claim = None
+
+        # Adventure Board migration. Every field is optional so saves from all
+        # previous versions continue from their existing sanctuary unchanged.
+        for field, minimum in (
+            ("journey_level", 1), ("journey_levels_completed", 0),
+            ("treasure_fragments", 0), ("treasure_maps_completed", 0),
+            ("daily_contracts_completed", 0), ("expeditions_completed", 0),
+        ):
+            try:
+                setattr(self, field, max(minimum, int(data.get(field, getattr(self, field)))))
+            except (TypeError, ValueError):
+                pass
+        try:
+            self.journey_points = max(0.0, float(data.get("journey_points", 0.0)))
+        except (TypeError, ValueError):
+            self.journey_points = 0.0
+        self.treasure_fragments %= TREASURE_MAP_FRAGMENT_TARGET
+
+        saved_contracts = data.get("daily_contracts", [])
+        if isinstance(saved_contracts, list):
+            self.daily_contracts = [item for item in saved_contracts if isinstance(item, dict)][:3]
+        self.daily_contract_date = str(data.get("daily_contract_date", ""))[:10]
+        saved_progress = data.get("daily_contract_progress", {})
+        if isinstance(saved_progress, dict):
+            self.daily_contract_progress = {
+                str(key): max(0, int(value))
+                for key, value in saved_progress.items()
+                if isinstance(key, str) and isinstance(value, (int, float))
+            }
+        claimed = data.get("daily_contract_claimed", [])
+        if isinstance(claimed, list):
+            self.daily_contract_claimed = {str(value) for value in claimed}
+
+        saved_expedition = str(data.get("expedition_kind", ""))
+        if saved_expedition in EXPEDITION_TYPES:
+            self.expedition_kind = saved_expedition
+            self.expedition_pet_name = str(data.get("expedition_pet_name", ""))[:24]
+            self.expedition_pet_species = str(data.get("expedition_pet_species", ""))[:32]
+            saved_end = data.get("expedition_end_time")
+            if saved_end:
+                try:
+                    self.expedition_end_time = datetime.fromisoformat(str(saved_end))
+                except (TypeError, ValueError):
+                    self.expedition_kind = ""
+                    self.expedition_end_time = None
+
+
+    # ---------- Adventure Board: journey, contracts, maps, expeditions ----------
+    def journey_points_needed(self):
+        """Return the visible point threshold for the next Journey level."""
+        return JOURNEY_BASE_POINTS + max(0, self.journey_level - 1) * JOURNEY_POINT_STEP
+
+    def grant_journey_points(self, amount, source="activity"):
+        """Grant permanent Journey progress and deterministic milestone rewards."""
+        amount = max(0.0, float(amount))
+        if amount <= 0:
+            return 0
+        self.journey_points += amount
+        levels = 0
+        while self.journey_points >= self.journey_points_needed():
+            needed = self.journey_points_needed()
+            self.journey_points -= needed
+            self.journey_level += 1
+            self.journey_levels_completed += 1
+            levels += 1
+
+            # Base rewards rise slowly and remain modest in the early economy.
+            coin_reward = max(20, int(
+                (35 + self.journey_level * 12) * self.early_economy_mult()
+            ))
+            self.coins += coin_reward
+            self.total_coins_earned += coin_reward
+            self.add_treasure_fragments(1, "Journey level")
+            if self.journey_level % 25 == 0:
+                self.grant_loot_box("mythic", 1, "Journey Lv.25 milestone")
+            elif self.journey_level % 10 == 0:
+                self.grant_loot_box("rare", 1, "Journey Lv.10 milestone")
+            elif self.journey_level % 5 == 0:
+                self.grant_loot_box("common", 1, "Journey Lv.5 milestone")
+            self.add_message(
+                f"SANCTUARY JOURNEY Lv.{self.journey_level}! +{fmt_num(coin_reward)} coins",
+                5.0,
+            )
+            self.spawn_particle_swarm("^", 14)
+            self.sound_manager.play("journey_level")
+        if levels == 0 and amount >= 8:
+            self.sound_manager.play("journey_point")
+        self.check_achievements()
+        return levels
+
+    def add_treasure_fragments(self, amount=1, source="adventure"):
+        """Add map pieces and automatically open every completed treasure map."""
+        amount = max(0, int(amount))
+        if amount <= 0:
+            return 0
+        self.treasure_fragments += amount
+        completed = 0
+        self.sound_manager.play("map_fragment")
+        while self.treasure_fragments >= TREASURE_MAP_FRAGMENT_TARGET:
+            self.treasure_fragments -= TREASURE_MAP_FRAGMENT_TARGET
+            self.treasure_maps_completed += 1
+            completed += 1
+            map_number = self.treasure_maps_completed
+            coin_reward = max(40, int(
+                (130 + map_number * 35) * self.early_economy_mult()
+            ))
+            self.coins += coin_reward
+            self.total_coins_earned += coin_reward
+            if map_number % 10 == 0:
+                crate_kind = "mythic"
+            elif map_number % 3 == 0:
+                crate_kind = "rare"
+            else:
+                crate_kind = "common"
+            self.grant_loot_box(crate_kind, 1, "Completed treasure map")
+            self.add_message(
+                f"TREASURE MAP #{map_number}! +{fmt_num(coin_reward)} coins and {LOOT_BOX_TYPES[crate_kind]['title']}",
+                6.0,
+            )
+            self.spawn_particle_swarm("$", 18, coin_reward)
+            self.sound_manager.play("treasure_complete")
+        return completed
+
+    def maybe_find_treasure_fragment(self, chance, source):
+        """Use one explicit probability for occasional active-play discoveries."""
+        if random.random() < max(0.0, min(1.0, float(chance))):
+            self.add_treasure_fragments(1, source)
+            self.add_message(f"{source}: found a treasure-map fragment!", 3.0)
+            return True
+        return False
+
+    def refresh_daily_contracts(self):
+        """Generate three stable contracts per local calendar day."""
+        today = datetime.now().date().isoformat()
+        if self.daily_contract_date == today and len(self.daily_contracts) == 3:
+            return False
+        # A stable date seed keeps today's board identical after restarting.
+        seed = int(today.replace("-", "")) + 1121
+        rng = random.Random(seed)
+        templates = rng.sample(list(DAILY_CONTRACT_POOL), 3)
+        self.daily_contracts = []
+        for template in templates:
+            target = int(rng.choice(template["targets"]))
+            self.daily_contracts.append({
+                "type": template["type"],
+                "target": target,
+                "label": template["label"].format(target=target),
+                "journey": int(template["journey"]),
+            })
+        self.daily_contract_date = today
+        self.daily_contract_progress = {item["type"]: 0 for item in self.daily_contracts}
+        self.daily_contract_claimed = set()
+        return True
+
+    def progress_daily_contract(self, event_type, amount=1):
+        """Advance matching daily goals and pay each contract exactly once."""
+        self.refresh_daily_contracts()
+        for contract in self.daily_contracts:
+            if contract.get("type") != event_type:
+                continue
+            key = str(contract["type"])
+            target = max(1, int(contract.get("target", 1)))
+            before = self.daily_contract_progress.get(key, 0)
+            after = min(target, before + max(0, int(amount)))
+            self.daily_contract_progress[key] = after
+            if after > before and after < target:
+                self.sound_manager.play("contract_progress")
+            if after >= target and key not in self.daily_contract_claimed:
+                self.daily_contract_claimed.add(key)
+                self.daily_contracts_completed += 1
+                journey = max(1, int(contract.get("journey", 25)))
+                coin_reward = max(15, int(
+                    (45 + self.caretaker_level * 6) * self.early_economy_mult()
+                ))
+                self.coins += coin_reward
+                self.total_coins_earned += coin_reward
+                self.grant_journey_points(journey, "daily contract")
+                self.add_treasure_fragments(1, "daily contract")
+                self.add_message(
+                    f"DAILY CONTRACT COMPLETE! +{journey} Journey, +{fmt_num(coin_reward)} coins",
+                    6.0,
+                )
+                self.sound_manager.play("contract_complete")
+                self.check_achievements()
+                self.save_game()
+            return after
+        return 0
+
+    def expedition_seconds_remaining(self):
+        if not self.expedition_kind or not self.expedition_end_time:
+            return 0
+        return max(0, int(math.ceil((self.expedition_end_time - datetime.now()).total_seconds())))
+
+    def expedition_ready(self):
+        return bool(self.expedition_kind and self.expedition_end_time and self.expedition_seconds_remaining() <= 0)
+
+    def start_expedition(self, kind):
+        """Send a non-active companion on one transparent real-time expedition."""
+        info = EXPEDITION_TYPES.get(kind)
+        if info is None:
+            return False
+        if self.expedition_kind:
+            self.add_message("An expedition is already active. Claim it when ready.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        candidates = [pet for index, pet in enumerate(self.pets) if index != self.active_pet_index]
+        if not candidates:
+            self.add_message("Adopt a second companion before starting expeditions.", 4.0)
+            self.sound_manager.play("error")
+            return False
+        if self.caretaker_level < info["level"]:
+            self.add_message(f"{info['title']} requires caretaker Lv.{info['level']}.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        pet = max(candidates, key=lambda candidate: (candidate.bond_level, candidate.battle_level))
+        if pet.bond_level < info["bond"]:
+            self.add_message(f"{info['title']} requires a spare pet with Bond Lv.{info['bond']}.", 4.0)
+            self.sound_manager.play("error")
+            return False
+        self.expedition_kind = kind
+        self.expedition_end_time = datetime.now() + timedelta(seconds=info["duration"])
+        self.expedition_pet_name = pet.nickname
+        self.expedition_pet_species = pet.species
+        self.expedition_ready_announced = False
+        self.add_message(f"{pet.nickname} departed on {info['title']}!", 4.0)
+        self.sound_manager.play("expedition_start")
+        self.save_game()
+        return True
+
+    def update_expedition_status(self):
+        if self.expedition_ready() and not self.expedition_ready_announced:
+            self.expedition_ready_announced = True
+            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press R.", 6.0)
+            self.sound_manager.play("expedition_ready")
+
+    def claim_expedition(self):
+        """Claim one finished expedition with tier-specific guaranteed rewards."""
+        if not self.expedition_kind:
+            self.add_message("No expedition is active.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        if not self.expedition_ready():
+            remaining = self.expedition_seconds_remaining()
+            self.add_message(f"Expedition returns in {remaining // 60}:{remaining % 60:02d}.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        kind = self.expedition_kind
+        info = EXPEDITION_TYPES[kind]
+        scale = max(0.35, self.early_economy_mult())
+        coin_reward = max(20, int(random.randint(*info["coins"]) * scale))
+        fragments = random.randint(*info["fragments"])
+        self.coins += coin_reward
+        self.total_coins_earned += coin_reward
+        self.grant_journey_points(info["journey"], info["title"])
+        self.add_treasure_fragments(fragments, info["title"])
+        if kind == "meadow":
+            if random.random() < 0.35:
+                self.grant_loot_box("common", 1, "Meadow expedition")
+        elif kind == "ruins":
+            self.grant_loot_box("common", 1, "Ruins expedition")
+            if random.random() < 0.20:
+                self.grant_loot_box("rare", 1, "Ruins discovery")
+        else:
+            self.grant_loot_box("rare", 1, "Mythic Rift expedition")
+            self.mythic_shards += random.randint(1, 3)
+        self.expeditions_completed += 1
+        self.progress_daily_contract("expedition", 1)
+        self.add_message(
+            f"EXPEDITION COMPLETE! +{fmt_num(coin_reward)} coins, +{fragments} map fragments",
+            6.0,
+        )
+        self.spawn_particle_swarm("*", 18)
+        self.sound_manager.play("expedition_claim")
+        self.expedition_kind = ""
+        self.expedition_end_time = None
+        self.expedition_pet_name = ""
+        self.expedition_pet_species = ""
+        self.expedition_ready_announced = False
+        self.check_achievements()
+        self.save_game()
+        return True
+
+    def open_adventure_screen(self):
+        self.adventure_screen_open = True
+        self.shop_open = self.prestige_shop_open = self.pet_select_open = False
+        self.adopt_screen_open = self.fight_screen_open = self.loot_screen_open = False
+        self.achievement_screen_open = self.lan_screen_open = False
+        self.input_mode = False
+        self.refresh_daily_contracts()
+        self.sound_manager.play("board_open")
+
+
+    # ---------- caretaker progression and adoption economy ----------
+    def caretaker_xp_needed(self):
+        """XP required to advance from the current caretaker level."""
+        return 100.0 + (self.caretaker_level - 1) * 75.0
+
+    def grant_caretaker_xp(self, amount, source="activity"):
+        """Grant caretaker XP and process all crossed levels safely."""
+        if amount <= 0:
+            return 0
+        self.caretaker_xp += float(amount)
+        levels = 0
+        while self.caretaker_level < 999:
+            needed = self.caretaker_xp_needed()
+            if self.caretaker_xp < needed:
+                break
+            self.caretaker_xp -= needed
+            self.caretaker_level += 1
+            levels += 1
+            reward = 100 * self.caretaker_level
+            self.coins += reward
+            self.total_coins_earned += reward
+            self.add_message(
+                f"Caretaker Lv.{self.caretaker_level}! +{fmt_num(reward)} coins",
+                5.0,
+            )
+            if self.caretaker_level % 10 == 0:
+                self.grant_loot_box("rare", 1, "Caretaker milestone")
+            elif self.caretaker_level % 5 == 0:
+                self.grant_loot_box("common", 1, "Caretaker milestone")
+        if levels:
+            effect = "level_milestone" if self.caretaker_level % 5 == 0 else "levelup"
+            self.sound_manager.play(effect)
+            self.check_achievements()
+        return levels
+
+    def adoption_cost(self, species):
+        """Calculate a rarity price with a moderate duplicate surcharge."""
+        tier = species_adoption_tier(species)
+        base = ADOPTION_TIER_INFO[tier]["cost"]
+        duplicates = sum(1 for pet in self.pets if pet.species == species)
+        duplicate_multiplier = 1.0 + duplicates * 0.40
+        # Prestige increases income dramatically, so prices scale gently to
+        # prevent late-game adoptions from becoming meaningless.
+        prestige_multiplier = 1.0 + self.prestige_points * 0.15
+        return max(1, int(base * duplicate_multiplier * prestige_multiplier))
+
+    def adoption_status(self, species):
+        """Return (allowed, short reason, cost, tier) for one shop entry."""
+        if species not in SPECIES:
+            return False, "unknown species", 0, "common"
+        tier = species_adoption_tier(species)
+        cost = self.adoption_cost(species)
+        if len(self.pets) >= 120:
+            return False, "sanctuary full (120)", cost, tier
+        if species in SUMMON_ONLY_SPECIES:
+            return False, "summon/trade only", cost, tier
+        minimum_level = ADOPTION_TIER_INFO[tier]["level"]
+        if self.caretaker_level < minimum_level:
+            return False, f"needs caretaker Lv.{minimum_level}", cost, tier
+        missions_needed = MISSION_EXCLUSIVE_SPECIES.get(species, 0)
+        if self.missions_completed < missions_needed:
+            return False, f"needs {missions_needed} missions", cost, tier
+        achievement_id = ACHIEVEMENT_REQUIRED_SPECIES.get(species)
+        if achievement_id and achievement_id not in self.achievements:
+            title = ACHIEVEMENT_DEFINITIONS.get(achievement_id, (achievement_id, "", 0, 0))[0]
+            return False, f"needs achievement: {title}", cost, tier
+        if self.coins < cost:
+            return False, f"needs {fmt_num(cost)} coins", cost, tier
+        return True, "available", cost, tier
+
+    def adopt_pet(self, species):
+        """Purchase one unlocked companion and persist the transaction."""
+        allowed, reason, cost, tier = self.adoption_status(species)
+        if not allowed:
+            self.add_message(f"Cannot adopt {species}: {reason}.", 4.0)
+            self.sound_manager.play("error")
+            return False
+        self.coins -= cost
+        if not self.add_new_pet(species, source="adoption"):
+            self.coins += cost
+            return False
+        self.grant_caretaker_xp(20 + ADOPTION_TIER_INFO[tier]["level"] * 3, "adoption")
+        self.add_message(f"Adopted {species} for {fmt_num(cost)} coins!", 5.0)
+        self.sound_manager.play("adopt")
+        self.check_achievements()
+        self.save_game()
+        return True
+
+    # ---------- achievement helper ----------
+    def unlock_achievement(self, achievement_id):
+        """Unlock and reward one catalogue achievement exactly once."""
+        if achievement_id in self.achievements:
+            return False
+        definition = ACHIEVEMENT_DEFINITIONS.get(achievement_id)
+        if definition is None:
+            return False
+        title, _description, coin_reward, xp_reward = definition
+        self.achievements.add(achievement_id)
+        self.coins += coin_reward
+        self.total_coins_earned += coin_reward
+        self.caretaker_xp += xp_reward
+        self.add_message(
+            f"Achievement: {title}! +{fmt_num(coin_reward)} coins, +{xp_reward} XP",
+            6.0,
+        )
+        self.spawn_particle_swarm("*", 12)
+        self.sound_manager.play("achievement")
+        return True
+
+    # ---------- local-network state and queue processing ----------
+    def get_lan_offer_pet(self):
+        if not self.pets:
+            return None
+        self.lan_offer_index = max(0, min(self.lan_offer_index, len(self.pets) - 1))
+        return self.pets[self.lan_offer_index]
+
+    def cycle_lan_offer(self, direction=1):
+        if not self.pets:
+            return
+        self.lan_offer_index = (self.lan_offer_index + direction) % len(self.pets)
+        pet = self.get_lan_offer_pet()
+        self.lan_status = f"Trade offer: {pet.nickname} ({pet.species})."
+
+    def open_lan_screen(self):
+        self.lan_screen_open = True
+        self.shop_open = self.prestige_shop_open = self.pet_select_open = False
+        self.adopt_screen_open = self.fight_screen_open = self.loot_screen_open = False
+        self.achievement_screen_open = False
+        self.adventure_screen_open = False
+        self.input_mode = False
+        self.sound_manager.play("open")
+
+    def open_achievement_screen(self):
+        self.achievement_screen_open = True
+        self.shop_open = self.prestige_shop_open = self.pet_select_open = False
+        self.adopt_screen_open = self.fight_screen_open = self.loot_screen_open = False
+        self.lan_screen_open = False
+        self.adventure_screen_open = False
+        self.input_mode = False
+        self.achievement_page = 0
+        self.sound_manager.play("open")
+
+    def _replace_pet_for_trade(self, index, received_data):
+        """Atomically replace one offered pet with a validated received pet."""
+        if len(self.pets) <= 1 or not (0 <= index < len(self.pets)):
+            return None
+        if not isinstance(received_data, dict):
+            return None
+        species = received_data.get("species")
+        if species not in SPECIES:
+            return None
+        old_pet = self.pets[index]
+        received = Pet.from_dict(received_data)
+        received.battle_level = min(received.battle_level, 500)
+        received.battle_xp = min(received.battle_xp, 50.0 * received.battle_level)
+        received.bond_level = min(received.bond_level, BOND_LEVEL_CAP)
+        received.bond_xp = min(received.bond_xp, received.bond_xp_needed())
+        # Network pets are clamped before insertion; preserve only gameplay data,
+        # never arbitrary extra fields from the remote JSON object.
+        self.pets[index] = received
+        self.active_pet_index = min(self.active_pet_index, len(self.pets) - 1)
+        self.lan_offer_index = min(self.lan_offer_index, len(self.pets) - 1)
+        self.update_quest("unique_species", len({pet.species for pet in self.pets}))
+        return old_pet
+
+    def _apply_lan_battle_result(self, won, opponent_name):
+        self.lan_battles += 1
+        if won:
+            self.lan_wins += 1
+            reward = int(500 * (1 + (self.active_pet.stage if self.active_pet else 0)) * self.coin_mult())
+            self.coins += reward
+            self.total_coins_earned += reward
+            self.fight_wins += 1
+            if self.active_pet:
+                self.active_pet.battle_xp += 35 * self.xp_mult()
+                self.grant_bond_xp(self.active_pet, 15.0, "LAN victory")
+            self.grant_caretaker_xp(45, "LAN victory")
+            self.add_festival_meter(18.0, "LAN victory")
+            if random.random() < 0.20:
+                self.grant_loot_box("rare", 1, "LAN victory")
+            self.lan_status = f"LAN victory over {opponent_name}! +{fmt_num(reward)} coins."
+            self.sound_manager.play("victory")
+        else:
+            self.lan_losses += 1
+            self.fight_losses += 1
+            self.grant_caretaker_xp(12, "LAN battle")
+            if self.active_pet:
+                self.grant_bond_xp(self.active_pet, 4.0, "LAN effort")
+            self.lan_status = f"LAN defeat against {opponent_name}."
+            self.sound_manager.play("defeat")
+        self.check_achievements()
+        self.save_game()
+
+    def process_lan_queues(self):
+        """Handle host requests and client results on the main game thread."""
+        while True:
+            try:
+                envelope = self.lan_request_queue.get_nowait()
+            except queue.Empty:
+                break
+            try:
+                request = envelope.get("request", {})
+                action = envelope.get("action")
+                remote_name = str(request.get("player_name", "LAN player"))[:24]
+                remote_pet_data = request.get("pet")
+                if not isinstance(remote_pet_data, dict) or remote_pet_data.get("species") not in SPECIES:
+                    envelope["response"] = {"ok": False, "error": "invalid companion data"}
+                elif action == "battle":
+                    host_pet = self.active_pet
+                    if host_pet is None:
+                        envelope["response"] = {"ok": False, "error": "host has no active companion"}
+                    else:
+                        host_score = host_pet.battle_power() * self.battle_power_mult() * random.uniform(0.88, 1.12)
+                        remote_score = _pet_snapshot_power(remote_pet_data) * random.uniform(0.88, 1.12)
+                        host_won = host_score >= remote_score
+                        self._apply_lan_battle_result(host_won, remote_name)
+                        envelope["response"] = {
+                            "ok": True,
+                            "action": "battle",
+                            "result": "loss" if host_won else "win",
+                            "host_name": self.player_name,
+                            "host_pet": host_pet.to_dict(),
+                            "host_score": round(host_score, 1),
+                            "client_score": round(remote_score, 1),
+                        }
+                elif action == "trade":
+                    if int(request.get("pet_count", 0) or 0) <= 1:
+                        envelope["response"] = {"ok": False, "error": "other player must keep one companion"}
+                    elif len(self.pets) <= 1:
+                        envelope["response"] = {"ok": False, "error": "host must keep one companion"}
+                    else:
+                        offer_index = max(0, min(self.lan_offer_index, len(self.pets) - 1))
+                        outgoing = self.pets[offer_index].to_dict()
+                        old = self._replace_pet_for_trade(offer_index, remote_pet_data)
+                        if old is None:
+                            envelope["response"] = {"ok": False, "error": "trade could not be completed"}
+                        else:
+                            self.lan_trades += 1
+                            self.grant_caretaker_xp(35, "LAN trade")
+                            self.lan_status = f"Traded {old.species} for {remote_pet_data.get('species')} with {remote_name}."
+                            self.sound_manager.play("trade")
+                            self.check_achievements()
+                            self.save_game()
+                            envelope["response"] = {
+                                "ok": True,
+                                "action": "trade",
+                                "received_pet": outgoing,
+                                "host_name": self.player_name,
+                            }
+                else:
+                    envelope["response"] = {"ok": False, "error": "unsupported action"}
+            except Exception as exc:
+                envelope["response"] = {"ok": False, "error": f"host error: {str(exc)[:80]}"}
+            finally:
+                envelope["done"].set()
+
+        while True:
+            try:
+                result = self.lan_client_results.get_nowait()
+            except queue.Empty:
+                break
+            self.lan_busy = False
+            if result.get("kind") == "manual_peer":
+                peer = result.get("peer")
+                if not isinstance(peer, dict):
+                    self.lan_status = f"LAN error: {result.get('error', 'host not reachable')}"
+                    continue
+                self.lan_peers = [existing for existing in self.lan_peers
+                                  if existing.get("room_id") != peer.get("room_id")]
+                self.lan_peers.insert(0, peer)
+                self.lan_selected_peer = 0
+                self.lan_status = f"Connected to {peer.get('player_name', 'LAN room')} at {peer.get('ip')}."
+                self.sound_manager.play("connect")
+                continue
+            if result.get("kind") == "scan":
+                self.lan_peers = result.get("peers", [])[:20]
+                self.lan_selected_peer = min(self.lan_selected_peer, max(0, len(self.lan_peers) - 1))
+                self.lan_status = (
+                    f"Found {len(self.lan_peers)} LAN room(s)."
+                    if self.lan_peers else
+                    "No rooms found. Both devices must be on the same Wi-Fi/hotspot."
+                )
+                self.sound_manager.play("scan" if self.lan_peers else "error")
+                continue
+
+            response = result.get("response", {})
+            peer = result.get("peer", {})
+            peer_name = str(peer.get("player_name", "LAN player"))[:24]
+            if not response.get("ok"):
+                self.lan_status = f"LAN error: {response.get('error', 'request failed')}"
+                self.sound_manager.play("error")
+                continue
+            action = result.get("action")
+            if action == "battle":
+                self._apply_lan_battle_result(response.get("result") == "win", peer_name)
+            elif action == "trade":
+                offer_index = result.get("offer_index")
+                received = response.get("received_pet")
+                old = self._replace_pet_for_trade(int(offer_index), received) if isinstance(offer_index, int) else None
+                if old is None:
+                    self.lan_status = "Trade response arrived, but the offered slot changed or was invalid."
+                else:
+                    self.lan_trades += 1
+                    self.grant_caretaker_xp(35, "LAN trade")
+                    self.lan_status = f"Traded {old.species} for {received.get('species')} with {peer_name}."
+                    self.sound_manager.play("trade")
+                    self.check_achievements()
+                    self.save_game()
+
+
+    # ---------- modifiers ----------
+    def global_mastery_level(self):
+        return sum(level for name, level in self.global_upgrades.items() if name.startswith("mastery_"))
+
+    def legacy_mastery_level(self):
+        return sum(level for name, level in self.prestige_upgrades.items() if name.startswith("legacy_"))
+
+    def hunger_decay_mult(self):
+        return max(0.20, 1.0 - self.global_upgrades.get("better_food",0)*0.10 - self.prestige_points*PRESTIGE_DECAY_REDUCTION - self.global_mastery_level()*0.0005)
+
+    def happiness_decay_mult(self):
+        return max(0.20, 1.0 - self.global_upgrades.get("soothing_music",0)*0.08 - self.prestige_upgrades.get("eternal_joy",0)*0.08 - self.global_mastery_level()*0.0004)
+
+    def energy_decay_mult(self):
+        return max(0.20, 1.0 - self.global_upgrades.get("cozy_bed",0)*0.08 - self.prestige_upgrades.get("deeper_sleep",0)*0.10 - self.global_mastery_level()*0.0004)
+
+    def cleanliness_decay_mult(self):
+        return max(0.20, 1.0 - self.global_upgrades.get("grooming_station",0)*0.08 - self.prestige_upgrades.get("clean_freak",0)*0.10 - self.global_mastery_level()*0.0004)
+
+    def playtime_coin_bonus(self):
+        lvl = self.prestige_upgrades.get("time_extender",0)
+        if lvl == 0: return 0.0
+        return min(0.5, (self.playtime/3600.0) * 0.005 * lvl)
+
+    def collection_bonus_mult(self):
+        """Reward species variety, with extra value for mythical discoveries."""
+        unique_species = len({pet.species for pet in self.pets})
+        mythical_species = len({
+            pet.species for pet in self.pets if pet.species in MYTHICAL_SPECIES
+        })
+        return 1.0 + min(0.75, unique_species * 0.004 + mythical_species * 0.010)
+
+    def bond_bonus_mult(self):
+        """Return the active companion's permanent bond multiplier."""
+        if not self.active_pet:
+            return 1.0
+        return 1.0 + min(0.50, max(0, self.active_pet.bond_level - 1) * 0.01)
+
+    def festival_active(self):
+        """Check festival state without mutating it; expiry is handled in tick."""
+        return bool(
+            self.festival_expire_time and datetime.now() < self.festival_expire_time
+        )
+
+    def early_economy_mult(self):
+        """Return a smooth 0.25-to-1.00 earnings ramp for early progression.
+
+        The first minutes now require active care and decisions instead of
+        immediately flooding the player with currency.  Progress from caretaker
+        levels, evolution stages, and completed missions gradually removes the
+        handicap; established saves and late-game players reach the full rate.
+        """
+        stage = self.active_pet.stage if self.active_pet else 0
+        level_progress = min(1.0, max(0.0, (self.caretaker_level - 1) / 14.0))
+        stage_progress = min(1.0, max(0.0, stage / 8.0))
+        mission_progress = min(1.0, max(0.0, self.missions_completed / 20.0))
+        weighted_progress = (
+            level_progress * 0.45
+            + stage_progress * 0.35
+            + mission_progress * 0.20
+        )
+        return 0.25 + 0.75 * min(1.0, weighted_progress)
+
+    def coin_mult(self):
+        mult = 1.0 + self.prestige_points*PRESTIGE_COIN_BONUS + self.prestige_upgrades.get("soul_mult",0)*0.5 + self.playtime_coin_bonus() + self.global_mastery_level()*0.002 + self.legacy_mastery_level()*0.02
+        mult *= self.early_economy_mult()
+        mult *= self.collection_bonus_mult() * self.bond_bonus_mult()
+        if self.boost_active and datetime.now() < self.boost_expire_time: mult *= 2
+        if self.festival_active(): mult *= FESTIVAL_COIN_MULTIPLIER
+        return mult
+
+    def progress_mult(self):
+        mul = 1.0 + self.global_upgrades.get("evolution_catalyst",0)*0.15 + self.prestige_upgrades.get("time_warper",0)*0.25 + self.global_mastery_level()*0.001 + self.legacy_mastery_level()*0.01
+        # Collection and bond affect evolution more gently than coin income.
+        mul *= 1.0 + (self.collection_bonus_mult() - 1.0) * 0.60
+        mul *= 1.0 + (self.bond_bonus_mult() - 1.0) * 0.75
+        if self.boost_active and datetime.now() < self.boost_expire_time: mul *= 2
+        if self.festival_active(): mul *= FESTIVAL_PROGRESS_MULTIPLIER
+        return mul
+
+    def passive_hunger_gain(self): return self.global_upgrades.get("auto_feeder",0) + self.prestige_upgrades.get("cosmic_feeder",0)*2
+    def passive_happiness_gain(self): return self.global_upgrades.get("toy_box",0)*0.5 + self.global_upgrades.get("auto_petter",0)*0.3
+    def passive_energy_gain(self): return self.global_upgrades.get("energy_booster",0)*0.3 + self.global_upgrades.get("training_auto",0)*0.2
+    def passive_cleanliness_gain(self): return self.global_upgrades.get("auto_bath",0)*0.3
+    def passive_coin_gain(self): return self.global_upgrades.get("coin_magnet",0)*0.2
+    def event_chance(self): return min(0.9, EVENT_CHANCE + self.global_upgrades.get("lucky_charm",0)*0.1)
+    def battle_power_mult(self): return 1.0 + self.global_upgrades.get("power_food",0)*0.05
+    def xp_mult(self): return 1.0 + self.prestige_upgrades.get("battle_boost",0)*0.3
+
+    # ---------- ten-minute active-auto check ----------
+    def register_user_interaction(self):
+        """Reset the unattended timer after any normal key press."""
+        if not self.attention_required:
+            self.auto_idle_seconds = 0.0
+
+    def interaction_seconds_remaining(self):
+        """Return the countdown used by the status line."""
+        return max(0.0, AUTO_INTERACTION_INTERVAL - self.auto_idle_seconds)
+
+    def complete_attention_check(self):
+        """Resume automation and apply the published return rewards."""
+        if not self.attention_required:
+            return False
+        self.attention_required = False
+        self.auto_idle_seconds = 0.0
+        self.attention_check_count += 1
+        self.care_check_streak += 1
+
+        self.grant_loot_box("common", 1, "Care check")
+        if self.care_check_streak % 3 == 0:
+            self.grant_loot_box("rare", 1, "3-check streak")
+        if self.care_check_streak % 10 == 0:
+            self.grant_loot_box("mythic", 1, "10-check streak")
+        if self.active_pet:
+            self.grant_bond_xp(self.active_pet, 10.0, "care check")
+        self.add_festival_meter(18.0, "care check")
+        self.grant_journey_points(15, "care check")
+        self.progress_daily_contract("attention", 1)
+        self.add_message(f"Care check complete! Streak {self.care_check_streak}", 4.0)
+        self.sound_manager.play("attention")
+        self.grant_caretaker_xp(20, "care check")
+        self.check_achievements()
+        self.save_game()
+        return True
+
+    # ---------- companion wishes, friendship gifts, research, and voices ----------
+    @staticmethod
+    def _request_label(action):
+        return {
+            "feed": "Feed", "pet": "Pet", "bathe": "Bathe", "train": "Train"
+        }.get(action, "Care")
+
+    def pet_request_status(self):
+        """Return a compact status token for the responsive footer."""
+        if self.pet_request_action:
+            seconds = max(0, int(math.ceil(self.pet_request_remaining)))
+            return f"Wish {self._request_label(self.pet_request_action)} {seconds // 60}:{seconds % 60:02d}"
+        seconds = max(0, int(math.ceil(self.pet_request_timer)))
+        return f"Wish in {seconds // 60}:{seconds % 60:02d}"
+
+    def _schedule_next_pet_request(self, minimum=None, maximum=None):
+        minimum = PET_REQUEST_MIN_SECONDS if minimum is None else max(10.0, float(minimum))
+        maximum = PET_REQUEST_MAX_SECONDS if maximum is None else max(minimum, float(maximum))
+        self.pet_request_action = ""
+        self.pet_request_remaining = 0.0
+        self.pet_request_timer = random.uniform(minimum, maximum)
+
+    def start_pet_request(self):
+        """Create a need-aware request for the currently displayed companion."""
+        pet = self.active_pet
+        if pet is None or self.pet_request_action:
+            return False
+        weighted_actions = (
+            ("feed", max(5.0, 115.0 - pet.hunger)),
+            ("pet", max(5.0, 115.0 - pet.happiness)),
+            ("train", max(5.0, 115.0 - pet.energy)),
+            ("bathe", max(5.0, 115.0 - pet.cleanliness)),
+        )
+        actions = [item[0] for item in weighted_actions]
+        weights = [item[1] for item in weighted_actions]
+        self.pet_request_action = random.choices(actions, weights=weights, k=1)[0]
+        self.pet_request_remaining = PET_REQUEST_LIFETIME_SECONDS
+        label = self._request_label(self.pet_request_action)
+        self.add_message(f"{pet.nickname} has a wish: {label}! Complete it for a friendship star.", 6.0)
+        self.trigger_pet_reaction(f"request_{self.pet_request_action}", 4.0)
+        self.sound_manager.play("pet_request")
+        # A family voice follows shortly instead of replacing the request cue.
+        self.pet_voice_timer = min(self.pet_voice_timer, 1.25)
+        return True
+
+    def grant_friendship_stars(self, amount=1, source="friendship"):
+        """Grant deterministic stars and automatically convert each five to a gift."""
+        amount = max(0, int(amount))
+        if amount <= 0:
+            return 0
+        self.friendship_stars += amount
+        self.friendship_stars_total += amount
+        self.add_message(
+            f"{source}: +{amount} friendship star{'s' if amount != 1 else ''}!",
+            3.0,
+        )
+        self.sound_manager.play("friendship_star")
+
+        gifts = 0
+        while self.friendship_stars >= FRIENDSHIP_STARS_PER_GIFT:
+            self.friendship_stars -= FRIENDSHIP_STARS_PER_GIFT
+            self.friendship_gifts_claimed += 1
+            gifts += 1
+            # Every fifth gift is Rare and every twentieth is Mythic. This is a
+            # transparent fixed schedule, not a hidden random chance.
+            if self.friendship_gifts_claimed % 20 == 0:
+                kind = "mythic"
+            elif self.friendship_gifts_claimed % 5 == 0:
+                kind = "rare"
+            else:
+                kind = "common"
+            self.grant_loot_box(kind, 1, "Friendship Gift")
+            self.add_message(
+                f"Friendship Gift #{self.friendship_gifts_claimed}: {LOOT_BOX_TYPES[kind]['title']}!",
+                5.0,
+            )
+            self.spawn_particle_swarm("*", 14)
+            self.sound_manager.play("friendship_gift")
+        return gifts
+
+    def fulfill_pet_request(self, action):
+        """Complete a matching wish; nonmatching care never causes a penalty."""
+        if not self.pet_request_action or action != self.pet_request_action:
+            return False
+        pet = self.active_pet
+        self.pet_requests_completed += 1
+        self.pet_request_streak += 1
+        self.best_pet_request_streak = max(
+            self.best_pet_request_streak, self.pet_request_streak
+        )
+        bonus_stars = 2 if self.pet_request_streak % 10 == 0 else 1
+        reward = max(10, int(
+            (35 + self.caretaker_level * 4 + (pet.stage if pet else 0) * 12)
+            * self.early_economy_mult()
+        ))
+        self.coins += reward
+        self.total_coins_earned += reward
+        if pet:
+            self.grant_bond_xp(pet, 12.0 + min(10.0, self.pet_request_streak), "wish")
+        self.grant_caretaker_xp(12 + min(18, self.pet_request_streak), "companion wish")
+        self.add_festival_meter(8.0 + min(6.0, self.pet_request_streak * 0.4), "companion wish")
+        self.grant_friendship_stars(bonus_stars, "Wish complete")
+        self.add_message(
+            f"WISH COMPLETE x{self.pet_request_streak}! +{fmt_num(reward)} coins",
+            5.0,
+        )
+        self.trigger_pet_reaction("wish_complete", 2.2)
+        self.sound_manager.play("pet_request_complete")
+        self.grant_journey_points(6, "companion wish")
+        self.progress_daily_contract("wish", 1)
+        self.maybe_find_treasure_fragment(0.08, "Companion wish")
+        self._schedule_next_pet_request()
+        self.check_achievements()
+        return True
+
+    def update_pet_request(self, dt):
+        """Advance active wish timers without affecting unattended-pause rules."""
+        if self.pet_request_action:
+            self.pet_request_remaining = max(0.0, self.pet_request_remaining - dt)
+            if self.pet_request_remaining <= 0.0:
+                missed = self._request_label(self.pet_request_action)
+                self.pet_request_streak = 0
+                self.add_message(f"{missed} wish passed. Another wish will appear later.", 3.5)
+                self.sound_manager.play("request_missed")
+                self._schedule_next_pet_request(75.0, 150.0)
+            return
+        self.pet_request_timer = max(0.0, self.pet_request_timer - dt)
+        if self.pet_request_timer <= 0.0:
+            self.start_pet_request()
+
+    def play_active_pet_voice(self):
+        """Play a stylized species-family voice without touching background music."""
+        pet = self.active_pet
+        if pet is None:
+            return False
+        style = SPECIES_ART_STYLE.get(pet.species, "small_mammal")
+        effect = PET_STYLE_SOUND_EFFECTS.get(style, "voice_small")
+        self.sound_manager.play(effect)
+        self.trigger_pet_reaction("voice", 1.4)
+        return True
+
+    def update_pet_voice(self, dt):
+        self.pet_voice_timer = max(0.0, self.pet_voice_timer - dt)
+        if self.pet_voice_timer <= 0.0:
+            self.play_active_pet_voice()
+            self.pet_voice_timer = random.uniform(PET_VOICE_MIN_SECONDS, PET_VOICE_MAX_SECONDS)
+
+    def browse_fact(self, direction):
+        """Move between educational cards and grant paced research milestones."""
+        pet = self.active_pet
+        if pet is None or not pet.get_facts():
+            self.sound_manager.play("error")
+            return False
+        facts = pet.get_facts()
+        pet.fact_index = (pet.fact_index + (1 if direction >= 0 else -1)) % len(facts)
+        self.fact_cycle_timer = 0.0
+
+        now = time.monotonic()
+        if now - self.last_fact_reward_time < FACT_RESEARCH_COOLDOWN:
+            self.sound_manager.play("fact")
+            return True
+        self.last_fact_reward_time = now
+        self.facts_studied += 1
+        self.knowledge_points += 1
+        self.grant_caretaker_xp(1, "research")
+        self.grant_journey_points(2, "research")
+        self.progress_daily_contract("fact", 1)
+        self.maybe_find_treasure_fragment(0.04, "Research")
+
+        milestone = self.knowledge_points % 5 == 0
+        if milestone:
+            reward = max(5, int((20 + self.caretaker_level * 3) * self.early_economy_mult()))
+            self.coins += reward
+            self.total_coins_earned += reward
+            self.grant_friendship_stars(1, "Research milestone")
+            if self.knowledge_points % 20 == 0:
+                self.grant_loot_box("common", 1, "Research notebook")
+            self.add_message(
+                f"Research {self.knowledge_points}! +{fmt_num(reward)} coins and a friendship star",
+                4.0,
+            )
+            self.sound_manager.play("research")
+            self.check_achievements()
+        else:
+            self.sound_manager.play("fact")
+        return True
+
+    # ---------- bond, combo, and festival progression ----------
+    def grant_bond_xp(self, pet, amount, source="care"):
+        """Add bond XP and process every level/reward crossed by one grant."""
+        if pet is None or amount <= 0 or pet.bond_level >= BOND_LEVEL_CAP:
+            return 0
+        pet.bond_xp += float(amount)
+        levels_gained = 0
+        while pet.bond_level < BOND_LEVEL_CAP:
+            needed = pet.bond_xp_needed()
+            if pet.bond_xp < needed:
+                break
+            pet.bond_xp -= needed
+            pet.bond_level += 1
+            levels_gained += 1
+
+            # Bond level-ups always pay coins and periodically grant crates.
+            reward = int((40 + pet.bond_level * 15) * (pet.stage + 1))
+            self.coins += reward
+            self.total_coins_earned += reward
+            self.add_message(
+                f"Bond Lv.{pet.bond_level} with {pet.nickname}! +{fmt_num(reward)} coins",
+                5.0,
+            )
+            if pet.bond_level % 20 == 0:
+                self.grant_loot_box("rare", 1, "Bond milestone")
+            elif pet.bond_level % 5 == 0:
+                self.grant_loot_box("common", 1, "Bond milestone")
+            self.spawn_particle_swarm("+", 10)
+            self.sound_manager.play(
+                "bond_milestone" if pet.bond_level % 5 == 0 else "bond"
+            )
+        if pet.bond_level >= BOND_LEVEL_CAP:
+            pet.bond_xp = 0.0
+        return levels_gained
+
+    def add_festival_meter(self, amount, source="activity"):
+        """Fill Sanctuary Spark and automatically start a festival at 100."""
+        if amount <= 0:
+            return False
+        self.festival_meter = min(
+            FESTIVAL_METER_MAX, self.festival_meter + float(amount)
+        )
+        if self.festival_meter < FESTIVAL_METER_MAX:
+            return False
+
+        self.festival_meter = 0.0
+        self.festivals_triggered += 1
+        now = datetime.now()
+        # Triggering another festival while one is active extends it instead of
+        # silently replacing the remaining time.
+        base = self.festival_expire_time if self.festival_active() else now
+        self.festival_expire_time = base + timedelta(seconds=FESTIVAL_DURATION_SECONDS)
+
+        for owned_pet in self.pets:
+            for attr in ("hunger", "happiness", "energy", "cleanliness"):
+                setattr(owned_pet, attr, min(100.0, getattr(owned_pet, attr) + 20.0))
+        self.grant_loot_box("common", 1, "Sanctuary Festival")
+        if self.festivals_triggered % 5 == 0:
+            self.grant_loot_box("rare", 1, "5-festival milestone")
+        self.add_message(
+            "SANCTUARY FESTIVAL! 1.75x coins and 1.5x evolution for 3 minutes!",
+            7.0,
+        )
+        self.spawn_particle_swarm("*", 24)
+        self.sound_manager.play("festival")
+        self.save_game()
+        return True
+
+    def register_care_action(self, action):
+        """Reward paced, varied care and track four-action Perfect Care cycles."""
+        if action not in CARE_ACTION_SET or self.active_pet is None:
+            return False
+
+        # Stats still respond instantly in the public action methods, but
+        # progression rewards are throttled to block accidental key-repeat spam.
+        now = time.monotonic()
+        if now - self.last_rewarded_care_time < CARE_REWARD_COOLDOWN:
+            return False
+        self.last_rewarded_care_time = now
+
+        pet = self.active_pet
+        pet.total_care_actions += 1
+        self.grant_caretaker_xp(2.0, action)
+        self.fulfill_pet_request(action)
+
+        if self.care_combo_timer > 0 and action != self.last_care_action:
+            self.care_combo = min(CARE_COMBO_MAX, self.care_combo + 1)
+        else:
+            self.care_combo = 1
+            self.care_cycle_actions = []
+        self.last_care_action = action
+        self.care_combo_timer = CARE_COMBO_WINDOW
+        self.best_care_combo = max(self.best_care_combo, self.care_combo)
+        if self.care_combo in (4, 8, 12, 16, CARE_COMBO_MAX):
+            self.sound_manager.play("combo")
+
+        # Maintain a distinct-action set for one complete feed/pet/bathe/train
+        # cycle. Repeating an action starts a fresh cycle from that action.
+        if action in self.care_cycle_actions:
+            self.care_cycle_actions = [action]
+        else:
+            self.care_cycle_actions.append(action)
+
+        bond_gain = 5.0 + min(8.0, self.care_combo * 0.40)
+        self.grant_bond_xp(pet, bond_gain, action)
+        self.add_festival_meter(2.0 + min(4.0, self.care_combo * 0.18), action)
+        self.grant_journey_points(1 + int(self.care_combo >= 8), action)
+        self.progress_daily_contract("care", 1)
+        self.maybe_find_treasure_fragment(0.025 + min(0.05, self.care_combo * 0.002), "Care combo")
+
+        # A modest immediate coin reward makes every deliberate action visible.
+        action_reward = max(1, int(
+            (8 + pet.stage * 3) * (1.0 + self.care_combo * 0.08)
+            * self.collection_bonus_mult() * self.early_economy_mult()
+        ))
+        self.coins += action_reward
+        self.total_coins_earned += action_reward
+
+        if len(self.care_cycle_actions) == len(CARE_ACTION_SET):
+            self.care_cycle_actions = []
+            self.perfect_care_cycles += 1
+            perfect_reward = max(20, int(100 * (pet.stage + 1) * self.collection_bonus_mult() * self.early_economy_mult()))
+            self.coins += perfect_reward
+            self.total_coins_earned += perfect_reward
+
+            # Perfect Care also advances the current evolution by two percent,
+            # which stays meaningful at every stage without skipping the game.
+            if pet.stage < len(STAGE_NAMES) - 1:
+                pet.age_in_stage += STAGE_TIMES[pet.stage] * 0.02
+            self.add_festival_meter(10.0, "Perfect Care")
+            if self.perfect_care_cycles % 3 == 0:
+                self.grant_loot_box("common", 1, "3 Perfect Care cycles")
+            if self.perfect_care_cycles % 12 == 0:
+                self.grant_loot_box("rare", 1, "12 Perfect Care cycles")
+            self.add_message(
+                f"PERFECT CARE #{self.perfect_care_cycles}! +{fmt_num(perfect_reward)} coins",
+                5.0,
+            )
+            self.spawn_particle_swarm("+", 16)
+            self.sound_manager.play("perfect_care")
+        else:
+            self.add_message(
+                f"Care Combo x{self.care_combo}! +{fmt_num(action_reward)} coins",
+                2.2,
+            )
+        self.check_achievements()
+        return True
+
+    # ---------- animation ----------
+    def update_animation(self, dt):
+        """Advance the long deterministic companion-animation timeline.
+
+        The interface refreshes at four frames per second. Matching the animation
+        step to that rate avoids duplicate redraws and Android terminal flicker,
+        while 720 phases provide three minutes of layered companion behavior.
+        """
+        self.anim_timer += dt
+        frame_time = 0.25
+        if self.anim_timer >= frame_time:
+            steps = max(1, int(self.anim_timer / frame_time))
+            self.anim_timer %= frame_time
+            self.anim_frame = (self.anim_frame + steps) % ANIMATION_CYCLE_FRAMES
+        if self.pet_reaction_timer > 0.0:
+            self.pet_reaction_timer = max(0.0, self.pet_reaction_timer - dt)
+            if self.pet_reaction_timer <= 0.0:
+                self.pet_reaction = ""
+
+    def trigger_pet_reaction(self, reaction, duration=1.4):
+        """Show a temporary visual response without changing saved pet data."""
+        self.pet_reaction = str(reaction or "")
+        self.pet_reaction_timer = max(0.0, float(duration))
+
+    # ---------- pet tick ----------
+    def evolve_pet(self, pet):
+        if pet.stage >= len(STAGE_NAMES)-1: return False
+        pet.stage += 1
+        pet.age_in_stage = 0.0
+        self.add_message(f"Evolved into {STAGE_NAMES[pet.stage]}!", 4.0)
+        for _ in range(20): self.spawn_particle("*",2.0,random.randint(-10,10),random.randint(-3,3))
+        self.sound_manager.play("evolve")
+        self.check_achievements()
+        self.update_quest("stage",pet.stage)
+        return True
+
+    def _tick_pet_stats(self, pet, dt, active=True):
+        decay_scale = 1.0 if active else 0.35
+        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * decay_scale
+        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * decay_scale
+        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * decay_scale
+        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * decay_scale
+
+        # Purchased passive care applies to every pet, with full strength on the active pet.
+        passive_scale = 1.0 if active else 0.5
+        pet.hunger += self.passive_hunger_gain() * dt * passive_scale
+        pet.happiness += self.passive_happiness_gain() * dt * passive_scale
+        pet.energy += self.passive_energy_gain() * dt * passive_scale
+        pet.cleanliness += self.passive_cleanliness_gain() * dt * passive_scale
+
+        for attr in ("hunger", "happiness", "energy", "cleanliness"):
+            setattr(pet, attr, max(MIN_STAT_VALUE, min(100.0, getattr(pet, attr))))
+
+    def _run_auto_care_pulse(self):
+        base_bonus = self.global_upgrades.get("veterinary_kit", 0) * 0.20
+        prestige_bonus = self.prestige_upgrades.get("caretaker_aura", 0) * 0.75
+        for pet in self.pets:
+            for attr in ("hunger", "happiness", "energy", "cleanliness"):
+                value = getattr(pet, attr)
+                if value < AUTO_CARE_THRESHOLD:
+                    pulse = random.uniform(AUTO_CARE_MIN_PULSE, AUTO_CARE_MAX_PULSE) + base_bonus + prestige_bonus
+                    setattr(pet, attr, min(AUTO_CARE_TARGET, value + pulse))
+
+    def tick(self, dt):
+        # A pending care check freezes stats, coins, evolution, and events while
+        # keeping the terminal responsive and the overlay visible.
+        if self.attention_required:
+            return
+
+        self.auto_idle_seconds += dt
+        if self.auto_idle_seconds >= AUTO_INTERACTION_INTERVAL:
+            self.auto_idle_seconds = AUTO_INTERACTION_INTERVAL
+            self.attention_required = True
+            self.add_message("Auto progress paused: press SPACE or ENTER.", 8.0)
+            self.sound_manager.beep()
+            self.save_game()
+            return
+
+        self.playtime += dt
+        self.refresh_daily_contracts()
+        self.update_expedition_status()
+
+        # Care combos expire naturally when the player stops interacting.
+        if self.care_combo_timer > 0:
+            self.care_combo_timer = max(0.0, self.care_combo_timer - dt)
+            if self.care_combo_timer <= 0:
+                self.care_combo = 0
+                self.last_care_action = ""
+                self.care_cycle_actions = []
+
+        # Expired festivals are cleared once and announced once.
+        if self.festival_expire_time and datetime.now() >= self.festival_expire_time:
+            self.festival_expire_time = None
+            self.add_message("Sanctuary Festival ended. Fill Spark to start another!", 4.0)
+            self.sound_manager.play("festival_end")
+
+        self.update_animation(dt)
+        self.update_pet_request(dt)
+        self.update_pet_voice(dt)
+        self.fact_cycle_timer += dt
+        if self.fact_cycle_timer >= 45.0:
+            self.fact_cycle_timer = 0.0
+            if self.active_pet:
+                facts = self.active_pet.get_facts()
+                self.active_pet.fact_index = (self.active_pet.fact_index + 1) % max(1, len(facts))
+
+        if not self.pets:
+            return
+
+        for index, owned_pet in enumerate(self.pets):
+            self._tick_pet_stats(owned_pet, dt, active=(index == self.active_pet_index))
+
+        self.auto_care_timer += dt
+        if self.auto_care_timer >= AUTO_CARE_INTERVAL:
+            self.auto_care_timer %= AUTO_CARE_INTERVAL
+            self._run_auto_care_pulse()
+
+        pet = self.active_pet
+        if pet is None:
+            return
+
+        # Coins and evolution are based on the currently displayed companion.
+        stage_mul = COIN_STAGE_MULT[pet.stage] if pet.stage < len(COIN_STAGE_MULT) else COIN_STAGE_MULT[-1]
+        mood = (pet.happiness / 100.0) * (pet.energy / 100.0) * (pet.cleanliness / 100.0)
+        coin_gain = COIN_BASE * stage_mul * mood * self.coin_mult() * dt
+        coin_gain += self.passive_coin_gain() * self.coin_mult() * dt
+        self.coins += coin_gain
+        self.total_coins_earned += coin_gain
+        self.coin_quest_buffer += coin_gain
+        if self.coin_quest_buffer >= 1.0:
+            whole_coins = int(self.coin_quest_buffer)
+            self.coin_quest_buffer -= whole_coins
+            self.update_quest("coins", whole_coins)
+
+        mood_factor = 0.45 + 0.55 * (pet.hunger / 100.0) * (pet.happiness / 100.0)
+        pet.age_in_stage += dt * mood_factor * self.progress_mult()
+        if pet.stage < len(STAGE_NAMES) - 1 and STAGE_TIMES[pet.stage] > 0 and pet.age_in_stage >= STAGE_TIMES[pet.stage]:
+            self.evolve_pet(pet)
+
+        self.event_timer -= dt
+        if self.event_timer <= 0:
+            self.event_timer = random.uniform(EVENT_MIN, EVENT_MAX)
+            if random.random() < self.event_chance():
+                self.random_event()
+        if self.prestige_upgrades.get("event_spawner", 0) > 0:
+            self.extra_event_timer += dt
+            if self.extra_event_timer >= 60.0:
+                self.extra_event_timer %= 60.0
+                self.random_event()
+
+        self.messages = [(text, ttl - dt) for text, ttl in self.messages if ttl - dt > 0]
+        self.particles = [(x, y, life - dt, symbol, amount) for x, y, life, symbol, amount in self.particles if life - dt > 0]
+
+        self.check_achievements()
+        self.update_quest("playtime", 0)
+        self.last_quest_refresh += dt
+        if self.last_quest_refresh > 30.0:
+            self.last_quest_refresh = 0.0
+            self.refresh_quests()
+
+        if self.boost_active and self.boost_expire_time and datetime.now() >= self.boost_expire_time:
+            self.boost_active = False
+            self.add_message("Boost expired!", 2.0)
+            self.sound_manager.play("close")
+
+    def random_event(self):
+        pet = self.active_pet
+        if pet is None: return
+
+        # Box events are deliberately uncommon and use the same visible
+        # inventory as purchased and milestone rewards.
+        if random.random() < 0.12:
+            kind = "rare" if random.random() < 0.10 else "common"
+            self.grant_loot_box(kind, 1, "Random event")
+            self.spawn_particle_swarm("?", 10)
+            self.sound_manager.play("loot")
+            return
+
+        r = random.random()
+        stage = pet.stage
+        if r < 0.2:
+            bonus = max(2, int(random.randint(10,60)*(stage+1)*self.early_economy_mult()))
+            self.coins += bonus; self.total_coins_earned += bonus
+            self.add_message(f"Found {fmt_num(bonus)} coins!",3.0)
+            self.spawn_particle_swarm("$",8,bonus)
+        elif r < 0.4:
+            amt = random.uniform(8,20)
+            pet.happiness = min(100.0, pet.happiness+amt)
+            self.add_message("Played with a butterfly! Happiness+",3.0)
+            self.spawn_particle_swarm("+",6,0)
+        elif r < 0.6:
+            amt = random.uniform(8,20)
+            pet.hunger = min(100.0, pet.hunger+amt)
+            self.add_message("Found some berries! Hunger+",3.0)
+            self.spawn_particle_swarm("@",6,0)
+        elif r < 0.8:
+            bonus = max(8, int(random.randint(50,150)*(stage+1)*self.early_economy_mult()))
+            self.coins += bonus; self.total_coins_earned += bonus
+            self.add_message(f"CRITICAL! +{fmt_num(bonus)} coins!",4.0)
+            self.spawn_particle_swarm("$",12,bonus)
+        elif r < 0.9:
+            pet.hunger = min(100.0, pet.hunger+15)
+            pet.happiness = min(100.0, pet.happiness+15)
+            pet.energy = min(100.0, pet.energy+15)
+            pet.cleanliness = min(100.0, pet.cleanliness+15)
+            self.add_message("Golden hour! All stats boosted!",4.0)
+            self.spawn_particle_swarm("~",10,0)
+        else:
+            pet.happiness = max(MIN_STAT_VALUE, pet.happiness-random.uniform(5,15))
+            self.add_message("Pet is lonely... Happiness-",3.0)
+            self.spawn_particle_swarm(".",4,0)
+        self.sound_manager.play("coins" if r < 0.9 else "error")
+
+    def spawn_particle_swarm(self, symbol, count, amount=0):
+        for _ in range(count):
+            self.spawn_particle(symbol,2.0,random.randint(-15,15),random.randint(-4,2),amount/count if amount else 0)
+
+    def spawn_particle(self, symbol, life, x_off, y_off, amount=0):
+        self.particles.append((x_off,y_off,life,symbol,amount))
+
+    # ---------- user actions ----------
+    def feed(self):
+        if self.active_pet:
+            self.active_pet.hunger = min(100.0, self.active_pet.hunger+30)
+            self.add_message(f"Fed {self.active_pet.nickname}! Hunger +30",2.0)
+            self.spawn_particle_swarm("@",4)
+            self.trigger_pet_reaction("feed")
+            self.sound_manager.play("feed")
+            self.update_quest("feed",1)
+            self.register_care_action("feed")
+
+    def pet_action(self):
+        if self.active_pet:
+            self.active_pet.happiness = min(100.0, self.active_pet.happiness+25)
+            self.add_message(f"Petted {self.active_pet.nickname}! Happiness +25",2.0)
+            self.spawn_particle_swarm("+",8)
+            self.trigger_pet_reaction("pet")
+            self.sound_manager.play("pet")
+            self.update_quest("pet",1)
+            self.register_care_action("pet")
+
+    def bathe(self):
+        if self.active_pet:
+            self.active_pet.cleanliness = min(100.0, self.active_pet.cleanliness+30)
+            self.add_message(f"Bathed {self.active_pet.nickname}! Cleanliness +30",2.0)
+            self.spawn_particle_swarm("~",5)
+            self.trigger_pet_reaction("bath", 1.8)
+            self.sound_manager.play("bath")
+            self.update_quest("bathe",1)
+            self.register_care_action("bathe")
+
+    def train(self):
+        if self.active_pet:
+            self.active_pet.energy = min(100.0, self.active_pet.energy+20)
+            self.add_message(f"Trained {self.active_pet.nickname}! Energy +20",2.0)
+            self.spawn_particle_swarm("!",4)
+            self.trigger_pet_reaction("train", 1.6)
+            self.sound_manager.play("train")
+            self.update_quest("train",1)
+            self.register_care_action("train")
+
+    # ---------- daily reward ----------
+    def try_daily_reward(self):
+        """Claim one escalating daily reward and update the consecutive streak."""
+        now = datetime.now()
+        if self.last_daily_claim is not None and now.date() <= self.last_daily_claim.date():
+            return False
+
+        if self.last_daily_claim is not None:
+            day_gap = (now.date() - self.last_daily_claim.date()).days
+            self.daily_streak = self.daily_streak + 1 if day_gap == 1 else 1
+        else:
+            self.daily_streak = 1
+        self.longest_daily_streak = max(self.longest_daily_streak, self.daily_streak)
+
+        # Coin growth is capped at day 30 so long-running saves remain balanced.
+        streak_scale = 1.0 + min(30, self.daily_streak - 1) * 0.25
+        bonus = int(100 * (self.prestige_points + 1) * streak_scale)
+        self.coins += bonus
+        self.total_coins_earned += bonus
+        self.grant_loot_box("common", 1, "Daily streak")
+        if self.daily_streak % 3 == 0:
+            self.grant_loot_box("rare", 1, "3-day streak milestone")
+        if self.daily_streak % 7 == 0:
+            self.grant_loot_box("mythic", 1, "7-day streak milestone")
+            self.mythic_shards += 2
+        self.add_festival_meter(15.0, "daily streak")
+        self.grant_journey_points(25 + min(25, self.daily_streak), "daily streak")
+        self.add_treasure_fragments(1 + int(self.daily_streak % 7 == 0), "daily streak")
+        self.add_message(
+            f"Daily Streak {self.daily_streak}! +{fmt_num(bonus)} coins!",
+            6.0,
+        )
+        self.last_daily_claim = now
+        self.sound_manager.play("streak")
+        self.grant_caretaker_xp(30 + min(30, self.daily_streak), "daily streak")
+        self.check_achievements()
+        self.save_game()
+        return True
+
+    # ---------- quests ----------
+    def refresh_quests(self, force=False):
+        if not force and len(self.active_quests) >= 3: return
+        new_quests = []
+        used_types = {q["type"] for q in self.active_quests}
+        available = [q for q in QUESTS if q["type"] not in used_types]
+        random.shuffle(available)
+        for q in available:
+            if len(new_quests)+len(self.active_quests) >= 3: break
+            scaled = dict(q)
+            if q["type"] in ("feed","pet","bathe","train"): scaled["target"] = max(1,q["target"]-self.prestige_points)
+            elif q["type"] == "coins": scaled["target"] = q["target"]*(1+self.prestige_points)
+            elif q["type"] == "playtime": scaled["target"] = max(10,q["target"]-self.prestige_points*5)
+            new_quests.append(scaled)
+        for nq in new_quests:
+            self.active_quests.append(nq)
+            qid = nq["type"]
+            if qid not in self.quest_progress: self.quest_progress[qid] = 0
+
+    def update_quest(self, qtype, amount=1):
+        for q in self.active_quests[:]:
+            if q["type"] == qtype:
+                if qtype in ("unique_species","pet_count"): self.quest_progress[qtype] = amount
+                elif qtype == "playtime": self.quest_progress[qtype] = int(self.playtime/60)
+                else: self.quest_progress[qtype] = self.quest_progress.get(qtype,0) + amount
+                if self.quest_progress[qtype] >= q["target"]:
+                    reward = max(10, int(q["reward_coins"]*(self.prestige_points+1)*self.early_economy_mult()))
+                    self.coins += reward; self.total_coins_earned += reward
+                    self.add_message(f"Quest complete: {q['desc'].format(target=q['target'])}! +{reward} coins",5.0)
+                    self.active_quests.remove(q)
+                    if qtype in self.quest_progress: del self.quest_progress[qtype]
+                    self.missions_completed += 1
+                    self.grant_caretaker_xp(50, "mission")
+                    self.grant_journey_points(20, "mission")
+                    self.progress_daily_contract("mission", 1)
+                    self.maybe_find_treasure_fragment(0.25, "Mission")
+                    self.spawn_particle_swarm("!",10)
+                    if random.random() < 0.35:
+                        self.grant_loot_box("common", 1, "Quest bonus")
+                    self.add_festival_meter(12.0, "quest")
+                    if self.active_pet:
+                        self.grant_bond_xp(self.active_pet, 8.0, "quest")
+                    self.sound_manager.play("mission_complete")
+                    self.check_achievements()
+                    self.refresh_quests(force=True)
+                break
+
+    # ---------- loot boxes ----------
+    def loot_economy_scale(self):
+        """Scale crate prices/rewards without bypassing the early economy."""
+        if not self.active_pet:
+            return 0.35
+        stage = max(0, min(self.active_pet.stage, len(COIN_STAGE_MULT) - 1))
+        stage_scale = max(0.35, COIN_STAGE_MULT[stage] * 0.40)
+        return stage_scale * (0.65 + 0.35 * self.early_economy_mult())
+
+    def loot_box_cost(self, kind):
+        info = LOOT_BOX_TYPES.get(kind)
+        if not info:
+            return 0
+        return max(1, int(info["base_cost"] * self.loot_economy_scale()))
+
+    def grant_loot_box(self, kind, amount=1, source="Reward"):
+        if kind not in LOOT_BOX_TYPES:
+            return False
+        amount = max(1, int(amount))
+        self.loot_boxes[kind] = self.loot_boxes.get(kind, 0) + amount
+        self.add_message(f"{source}: +{amount} {LOOT_BOX_TYPES[kind]['title']}", 4.0)
+        return True
+
+    def buy_loot_box(self, kind):
+        if kind not in LOOT_BOX_TYPES:
+            return False
+        cost = self.loot_box_cost(kind)
+        if self.coins < cost:
+            self.add_message(f"Need {fmt_num(cost)} coins for that box.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        self.coins -= cost
+        self.grant_loot_box(kind, 1, "Purchased")
+        self.sound_manager.play("purchase")
+        return True
+
+    @staticmethod
+    def _weighted_loot_choice(entries):
+        total = sum(max(0, int(weight)) for _, weight in entries)
+        roll = random.uniform(0, total)
+        cursor = 0.0
+        for reward, weight in entries:
+            cursor += max(0, int(weight))
+            if roll <= cursor:
+                return reward
+        return entries[-1][0]
+
+    def _level_active_pet_from_xp(self):
+        if not self.active_pet:
+            return
+        xp_needed = 50 * self.active_pet.battle_level
+        while self.active_pet.battle_xp >= xp_needed:
+            self.active_pet.battle_xp -= xp_needed
+            self.active_pet.battle_level += 1
+            self.add_message(f"Battle Lv {self.active_pet.battle_level}!", 3.0)
+            xp_needed = 50 * self.active_pet.battle_level
+
+    def _grant_random_mythical_pet(self):
+        if len(self.pets) >= 50:
+            self.mythic_shards += MYTHIC_SUMMON_COST
+            return f"Sanctuary full: converted pet to {MYTHIC_SUMMON_COST} shards"
+        owned = {pet.species for pet in self.pets}
+        candidates = [name for name in MYTHICAL_SPECIES if name not in owned]
+        if not candidates:
+            candidates = list(MYTHICAL_SPECIES)
+        if not candidates:
+            self.mythic_shards += 5
+            return "No mythical data available: +5 shards"
+        species = random.choice(candidates)
+        self.add_new_pet(species, species)
+        return f"Mythical companion: {species}"
+
+    def summon_mythical_pet(self):
+        if self.mythic_shards < MYTHIC_SUMMON_COST:
+            self.add_message(f"Need {MYTHIC_SUMMON_COST} mythic shards.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        if len(self.pets) >= 50:
+            self.add_message("Sanctuary is full; free a slot first.", 3.0)
+            self.sound_manager.play("error")
+            return False
+        self.mythic_shards -= MYTHIC_SUMMON_COST
+        result = self._grant_random_mythical_pet()
+        self.add_message(result, 5.0)
+        self.spawn_particle_swarm("*", 18)
+        self.sound_manager.play("summon")
+        self.save_game()
+        return True
+
+    def _roll_loot_rarity(self, kind, pity_triggered=False):
+        """Roll the visible reward rarity for one container."""
+        if pity_triggered:
+            return LOOT_PITY_MIN_RARITY[kind]
+        return self._weighted_loot_choice(LOOT_BOX_TYPES[kind]["rarity_odds"])
+
+    def open_loot_box(self, kind):
+        """Consume one box, roll a rarity, then roll that rarity's reward pool."""
+        if kind not in LOOT_BOX_TYPES:
+            return False
+        if self.loot_boxes.get(kind, 0) <= 0:
+            self.add_message(f"No {LOOT_BOX_TYPES[kind]['title']} available.", 3.0)
+            self.sound_manager.play("error")
+            return False
+
+        info = LOOT_BOX_TYPES[kind]
+        self.loot_boxes[kind] -= 1
+        self.loot_boxes_opened += 1
+        self.loot_pity[kind] = self.loot_pity.get(kind, 0) + 1
+
+        pity_limit = LOOT_PITY_LIMITS[kind]
+        pity_triggered = self.loot_pity[kind] >= pity_limit
+        reward_rarity = self._roll_loot_rarity(kind, pity_triggered)
+        pool = info["reward_pools"].get(reward_rarity, ("coins",))
+        reward = random.choice(tuple(pool))
+
+        # Rolling the box's highest published rarity naturally resets pity.
+        highest_rarity = info["rarity_odds"][-1][0]
+        if pity_triggered or reward_rarity == highest_rarity:
+            self.loot_pity[kind] = 0
+
+        rarity_info = LOOT_REWARD_RARITIES[reward_rarity]
+        rarity_mult = rarity_info["mult"]
+        scale = self.loot_economy_scale()
+        result = ""
+
+        if reward == "coins":
+            ranges = {
+                "common": (80, 220),
+                "rare": (1200, 3500),
+                "mythic": (12000, 30000),
+            }
+            low, high = ranges[kind]
+            amount = max(1, int(random.randint(low, high) * scale * rarity_mult))
+            self.coins += amount
+            self.total_coins_earned += amount
+            result = f"{fmt_num(amount)} coins"
+            self.spawn_particle_swarm("$", 14, amount)
+        elif reward == "care":
+            base = {"common": 9.0, "rare": 18.0, "mythic": 32.0}[kind]
+            amount = min(75.0, base * rarity_mult)
+            for pet in self.pets:
+                for attr in ("hunger", "happiness", "energy", "cleanliness"):
+                    setattr(pet, attr, min(100.0, getattr(pet, attr) + amount))
+            result = f"all pets +{int(amount)} care"
+            self.spawn_particle_swarm("+", 12)
+        elif reward == "xp":
+            base = {"common": 20, "rare": 100, "mythic": 350}[kind]
+            amount = max(1, int(base * rarity_mult))
+            if self.active_pet:
+                self.active_pet.battle_xp += amount * self.xp_mult()
+                self._level_active_pet_from_xp()
+            result = f"{amount} battle XP"
+            self.spawn_particle_swarm("!", 10)
+        elif reward == "progress":
+            base = {"common": 0.04, "rare": 0.12, "mythic": 0.30}[kind]
+            ratio = min(0.90, base * rarity_mult)
+            if self.active_pet and self.active_pet.stage < len(STAGE_NAMES) - 1:
+                threshold = STAGE_TIMES[self.active_pet.stage]
+                self.active_pet.age_in_stage += threshold * ratio
+                if self.active_pet.age_in_stage >= threshold:
+                    self.evolve_pet(self.active_pet)
+            result = f"{int(ratio * 100)}% evolution progress"
+            self.spawn_particle_swarm("^", 12)
+        elif reward == "upgrade":
+            eligible = [name for name, upgrade_info in GLOBAL_UPGRADES.items()
+                        if self.global_upgrades.get(name, 0) < upgrade_info["max_level"]]
+            if eligible:
+                name = random.choice(eligible)
+                levels = 1 + int(reward_rarity in ("legendary", "mythical"))
+                if kind == "mythic" and reward_rarity == "mythical":
+                    levels += 1
+                before = self.global_upgrades.get(name, 0)
+                maximum = GLOBAL_UPGRADES[name]["max_level"]
+                self.global_upgrades[name] = min(maximum, before + levels)
+                gained = self.global_upgrades[name] - before
+                result = f"{name.replace('_', ' ').title()} +{gained} level"
+            else:
+                amount = max(100, int(4000 * scale * rarity_mult))
+                self.coins += amount
+                self.total_coins_earned += amount
+                result = f"all upgrades max: {fmt_num(amount)} coins"
+        elif reward == "mythic_shards":
+            base = {"common": 1, "rare": 2, "mythic": 4}[kind]
+            amount = max(1, int(round(base * rarity_mult / 1.8)))
+            self.mythic_shards += amount
+            result = f"{amount} mythic shards"
+            self.spawn_particle_swarm("*", 15)
+        elif reward == "mythic_pet":
+            result = self._grant_random_mythical_pet()
+            self.spawn_particle_swarm("*", 20)
+        elif reward == "rare_box":
+            self.grant_loot_box("rare", 1, "Rare reward")
+            result = "1 Rare Chest"
+        elif reward == "bond_xp":
+            amount = max(5, int({"common": 18, "rare": 60, "mythic": 160}[kind] * rarity_mult))
+            if self.active_pet:
+                self.grant_bond_xp(self.active_pet, amount, "crate")
+            result = f"{amount} bond XP"
+        elif reward == "caretaker_xp":
+            amount = max(10, int({"common": 30, "rare": 100, "mythic": 280}[kind] * rarity_mult))
+            self.grant_caretaker_xp(amount, "crate")
+            result = f"{amount} caretaker XP"
+        elif reward == "double_box":
+            if kind == "common":
+                granted_kind, amount = "rare", 1
+            elif kind == "rare":
+                granted_kind, amount = ("mythic", 1) if reward_rarity == "legendary" else ("rare", 2)
+            else:
+                granted_kind, amount = "mythic", 2
+            self.grant_loot_box(granted_kind, amount, "Multi-box reward")
+            result = f"{amount} {LOOT_BOX_TYPES[granted_kind]['title']}"
+        elif reward == "festival":
+            # This fills enough Spark to feel special but still uses the normal
+            # festival system, including extension if a festival is active.
+            self.add_festival_meter(65.0, "crate jackpot")
+            result = "65 Sanctuary Spark"
+        elif reward == "prestige_point":
+            amount = 2 if reward_rarity == "mythical" else 1
+            self.prestige_points += amount
+            result = f"{amount} prestige point{'s' if amount != 1 else ''}"
+            self.spawn_particle_swarm("*", 18)
+
+        if pity_triggered:
+            result = f"PITY GUARANTEE - {result}"
+
+        self.add_festival_meter({"common": 4.0, "rare": 8.0, "mythic": 15.0}[kind], "loot")
+        if self.active_pet:
+            self.grant_bond_xp(
+                self.active_pet,
+                {"common": 2.0, "rare": 5.0, "mythic": 10.0}[kind],
+                "loot",
+            )
+
+        label = rarity_info["label"]
+        history_line = f"{info['title']} [{label}]: {result}"
+        self.loot_history.append(history_line)
+        self.loot_history = self.loot_history[-5:]
+        self.add_message(history_line, 6.0)
+        rarity_effect = {
+            "common": "crate_common", "uncommon": "crate_uncommon",
+            "rare": "crate_rare", "epic": "crate_epic",
+            "legendary": "crate_legendary", "mythical": "crate_mythical",
+        }.get(reward_rarity, "loot")
+        self.sound_manager.play("pity" if pity_triggered else rarity_effect)
+        self.grant_journey_points({"common": 3, "rare": 7, "mythic": 15}[kind], "loot")
+        self.progress_daily_contract("loot_open", 1)
+        self.maybe_find_treasure_fragment({"common": 0.04, "rare": 0.10, "mythic": 0.22}[kind], "Loot Vault")
+        self.check_achievements()
+        self.save_game()
+        return True
+
+    def open_loot_screen(self):
+        self.loot_screen_open = True
+        self.shop_open = False
+        self.prestige_shop_open = False
+        self.pet_select_open = False
+        self.adopt_screen_open = False
+        self.fight_screen_open = False
+        self.achievement_screen_open = False
+        self.lan_screen_open = False
+        self.adventure_screen_open = False
+        self.input_mode = False
+        self.sound_manager.play("open")
+
+    # ---------- shop ----------
+    def open_shop(self):
+        self.shop_open = True; self.prestige_shop_open = False; self.pet_select_open = False
+        self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
+        self.shop_page = 0
+        self.sound_manager.play("open")
+
+    def open_prestige_shop(self):
+        self.prestige_shop_open = True; self.shop_open = False; self.pet_select_open = False
+        self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
+        self.prestige_shop_page = 0
+        self.sound_manager.play("open")
+
+    def open_pet_select(self):
+        self.pet_select_open = True; self.shop_open = False; self.prestige_shop_open = False
+        self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
+        self.pet_select_page = max(0, self.active_pet_index // max(1, self.pet_select_page_size))
+        self.sound_manager.play("open")
+
+    def open_adopt_screen(self):
+        self.adopt_screen_open = True; self.shop_open = False; self.prestige_shop_open = False
+        self.pet_select_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
+        self.adopt_page = 0
+        self.sound_manager.play("open")
+
+    def open_fight_menu(self):
+        self.fight_screen_open = True; self.shop_open = False; self.prestige_shop_open = False
+        self.pet_select_open = False; self.adopt_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
+        self.sound_manager.play("open")
+
+    def buy_upgrade(self, name):
+        info = GLOBAL_UPGRADES[name]
+        lvl = self.global_upgrades[name]
+        if lvl >= info["max_level"]:
+            self.add_message("Max level reached!",2.0)
+            self.sound_manager.play("error")
+            return
+        cost = int(info["base_cost"] * (info["mult"] ** lvl))
+        if self.coins >= cost:
+            self.coins -= cost
+            self.global_upgrades[name] += 1
+            self.add_message(f"Upgraded {name.replace('_',' ').title()} to Lv.{lvl+1}",3.0)
+            self.spawn_particle_swarm("^",4)
+            self.sound_manager.play("purchase")
+        else:
+            self.add_message("Not enough coins!",2.0)
+            self.sound_manager.play("error")
+
+    def buy_prestige_upgrade(self, name):
+        info = PRESTIGE_UPGRADES[name]
+        lvl = self.prestige_upgrades[name]
+        cost = info["cost"] * (lvl+1)
+        if self.prestige_points >= cost:
+            self.prestige_points -= cost
+            self.prestige_upgrades[name] += 1
+            self.add_message(f"Prestige upgrade {name.replace('_',' ').title()} Lv.{lvl+1}",4.0)
+            self.spawn_particle_swarm("*",6)
+            self.sound_manager.play("purchase")
+        else:
+            self.add_message("Not enough prestige points!",2.0)
+            self.sound_manager.play("error")
+
+    def can_prestige(self):
+        return self.active_pet is not None and self.active_pet.stage >= len(STAGE_NAMES)-1
+
+    def do_prestige(self):
+        if not self.can_prestige(): return
+        self.prestige_points += 1
+        for p in self.pets:
+            p.stage = 0; p.age_in_stage = 0.0; p.hunger = 100.0; p.happiness = 100.0
+            p.energy = 100.0; p.cleanliness = 100.0; p.battle_xp = 0.0; p.battle_level = 1
+        self.coins = 0.0
+        self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
+        self.messages.clear()
+        self.add_message(f"Transcended! Prestige {self.prestige_points}",5.0)
+        self.spawn_particle_swarm("*",20)
+        self.sound_manager.play("prestige")
+        self.check_achievements()
+        self.save_game()
+
+    # ---------- new pet / switch ----------
+    def add_new_pet(self, species, nickname="", source="reward"):
+        """Add a validated companion without charging; adoption uses adopt_pet()."""
+        if species not in SPECIES:
+            self.add_message("Unknown companion species.", 2.0)
+            return False
+        if len(self.pets) >= 120:
+            self.add_message("Maximum 120 companions reached!", 2.0)
+            return False
+        new_pet = Pet(species, nickname if nickname else species)
+        self.pets.append(new_pet)
+        if source != "adoption":
+            self.add_message(f"Received a new {species}!", 3.0)
+            self.sound_manager.play("adopt")
+        self.update_quest("pet_count", len(self.pets))
+        unique = len({p.species for p in self.pets})
+        self.update_quest("unique_species", unique)
+        self.check_achievements()
+        return True
+
+    def switch_active_pet(self, index):
+        if 0 <= index < len(self.pets):
+            self.active_pet_index = index
+            self.add_message(f"Now caring for {self.pets[index].nickname}!",2.0)
+            self.trigger_pet_reaction("greet", 1.5)
+            self.sound_manager.play("switch")
+            self.pet_voice_timer = min(self.pet_voice_timer, 1.0)
+
+    # ---------- fight system ----------
+    def start_fight(self, opponent_pet_index=None):
+        if self.active_pet is None: return
+        pet1 = self.active_pet
+        if opponent_pet_index is not None and 0 <= opponent_pet_index < len(self.pets):
+            pet2 = self.pets[opponent_pet_index]
+            if pet2 == pet1: self.add_message("Can't fight itself!",2.0); return
+        else:
+            species_name = random.choice(list(SPECIES.keys()))
+            pet2 = Pet(species_name, "Wild "+species_name)
+            pet2.stage = random.randint(0,len(STAGE_NAMES)-1)
+            pet2.battle_level = random.randint(1, max(1, pet1.battle_level+3))
+        self.fight_opponent = pet2
+        self.fight_state = "preparing"
+        self.fight_log = []
+        self.fight_player_hp = 100; self.fight_enemy_hp = 100
+        player_power = pet1.battle_power() * self.battle_power_mult()
+        enemy_power = pet2.battle_power()
+        self.fight_player_dmg = max(5, int(player_power*0.8))
+        self.fight_enemy_dmg = max(5, int(enemy_power*0.8))
+        self.sound_manager.play("battle_start")
+
+    def fight_tick(self, action=None):
+        if self.fight_state in ("idle","finished"): return
+        if self.fight_state == "preparing":
+            self.fight_state = "player_turn"
+            self.fight_log.append("Fight begins!"); return
+        if self.fight_state == "player_turn":
+            if action == "attack":
+                dmg = self.fight_player_dmg + random.randint(-3,3)
+                self.fight_enemy_hp -= dmg
+                self.fight_log.append(f"{self.active_pet.nickname} attacks for {dmg}!")
+                self.sound_manager.play("hit")
+                if self.fight_enemy_hp <= 0:
+                    self.fight_enemy_hp = 0; self.fight_state = "finished"
+                    self.fight_log.append("Victory!"); self.resolve_fight_victory(); return
+                self.fight_state = "enemy_turn"
+            elif action == "special":
+                dmg = int(self.fight_player_dmg*1.8) + random.randint(-2,5)
+                self.fight_enemy_hp -= dmg
+                self.fight_log.append(f"{self.active_pet.nickname} special! {dmg}!")
+                self.sound_manager.play("special")
+                if self.fight_enemy_hp <= 0:
+                    self.fight_enemy_hp = 0; self.fight_state = "finished"
+                    self.fight_log.append("Victory!"); self.resolve_fight_victory(); return
+                self.fight_state = "enemy_turn"
+            elif action == "defend":
+                self.fight_log.append(f"{self.active_pet.nickname} defends.")
+                self.sound_manager.play("defend")
+                self.fight_state = "enemy_turn"
+            else: return
+        if self.fight_state == "enemy_turn":
+            dmg = self.fight_enemy_dmg + random.randint(-3,3)
+            if action == "defend": dmg = max(1, dmg//2)
+            self.fight_player_hp -= dmg
+            opp_name = self.fight_opponent.nickname
+            self.fight_log.append(f"{opp_name} attacks for {dmg}!")
+            self.sound_manager.play("hit")
+            if self.fight_player_hp <= 0:
+                self.fight_player_hp = 0; self.fight_state = "finished"
+                self.fight_log.append("Defeat..."); self.resolve_fight_defeat()
+            else: self.fight_state = "player_turn"
+
+    def resolve_fight_victory(self):
+        self.fight_wins += 1
+        self.grant_caretaker_xp(25, "fight victory")
+        coins_gain = max(20, int(100 * (self.fight_opponent.stage+1) * self.early_economy_mult()))
+        self.coins += coins_gain; self.total_coins_earned += coins_gain
+        xp_gain = 20 * (1+self.fight_opponent.stage) * self.xp_mult()
+        self.active_pet.battle_xp += xp_gain
+        self.add_message(f"Win! +{coins_gain} coins, +{xp_gain:.0f} XP",4.0)
+        xp_needed = 50 * self.active_pet.battle_level
+        while self.active_pet.battle_xp >= xp_needed:
+            self.active_pet.battle_xp -= xp_needed
+            self.active_pet.battle_level += 1
+            self.add_message(f"Battle Lv {self.active_pet.battle_level}!",3.0)
+            xp_needed = 50 * self.active_pet.battle_level
+        self.update_quest("fight_win",1)
+        self.grant_journey_points(10, "arena victory")
+        self.progress_daily_contract("fight_win", 1)
+        self.maybe_find_treasure_fragment(0.16, "Arena victory")
+        self.grant_bond_xp(self.active_pet, 12.0, "battle victory")
+        self.add_festival_meter(14.0, "battle victory")
+        box_roll = random.random()
+        if box_roll < 0.06:
+            self.grant_loot_box("rare", 1, "Battle victory")
+        elif box_roll < 0.28:
+            self.grant_loot_box("common", 1, "Battle victory")
+        self.sound_manager.play("victory")
+        self.check_achievements()
+        self.save_game()
+
+    def resolve_fight_defeat(self):
+        self.fight_losses += 1
+        self.grant_caretaker_xp(6, "fight effort")
+        self.add_message("Lost. Better luck next time!",3.0)
+        if self.active_pet:
+            self.grant_bond_xp(self.active_pet, 3.0, "battle effort")
+        self.add_festival_meter(3.0, "battle effort")
+        self.sound_manager.play("defeat")
+        self.check_achievements()
+        self.save_game()
+
+    # ---------- achievements ----------
+    def check_achievements(self):
+        """Evaluate catalogue conditions and process chained rewards safely."""
+        unlocked_any = False
+        # Three passes are enough for chains such as collection reward -> 1K
+        # coins -> level milestone, while the set prevents duplicate rewards.
+        for _pass in range(3):
+            active_stage = self.active_pet.stage if self.active_pet else 0
+            unique_species = len({pet.species for pet in self.pets})
+            mythical_owned = len({pet.species for pet in self.pets if pet.species in MYTHICAL_SPECIES})
+            max_bond = max((pet.bond_level for pet in self.pets), default=1)
+            conditions = {
+                "elder": active_stage >= 5,
+                "transcendent": active_stage >= 9,
+                "1K": self.coins >= 1000,
+                "1M": self.total_coins_earned >= 1000000,
+                "prestige1": self.prestige_points >= 1,
+                "collector5": len(self.pets) >= 5,
+                "collector10": len(self.pets) >= 10,
+                "collector25": len(self.pets) >= 25,
+                "collector50": len(self.pets) >= 50,
+                "collector100": len(self.pets) >= 100,
+                "species5": unique_species >= 5,
+                "species10": unique_species >= 10,
+                "species25": unique_species >= 25,
+                "species50": unique_species >= 50,
+                "species100": unique_species >= 100,
+                "first_box": self.loot_boxes_opened >= 1,
+                "box25": self.loot_boxes_opened >= 25,
+                "box100": self.loot_boxes_opened >= 100,
+                "mythical5": mythical_owned >= 5,
+                "mythical20": mythical_owned >= 20,
+                "mythical40": mythical_owned >= 40,
+                "bond10": max_bond >= 10,
+                "bond50": max_bond >= 50,
+                "bond100": max_bond >= 100,
+                "combo12": self.best_care_combo >= 12,
+                "perfect25": self.perfect_care_cycles >= 25,
+                "streak7": self.daily_streak >= 7,
+                "streak30": self.daily_streak >= 30,
+                "festival10": self.festivals_triggered >= 10,
+                "missions10": self.missions_completed >= 10,
+                "missions25": self.missions_completed >= 25,
+                "missions50": self.missions_completed >= 50,
+                "fight10": self.fight_wins >= 10,
+                "fight50": self.fight_wins >= 50,
+                "lan_first": self.lan_battles >= 1,
+                "lan_win10": self.lan_wins >= 10,
+                "lan_trade1": self.lan_trades >= 1,
+                "lan_trade10": self.lan_trades >= 10,
+                "level10": self.caretaker_level >= 10,
+                "level25": self.caretaker_level >= 25,
+                "level50": self.caretaker_level >= 50,
+                "wish1": self.pet_requests_completed >= 1,
+                "wish25": self.pet_requests_completed >= 25,
+                "wish100": self.pet_requests_completed >= 100,
+                "wish_streak10": self.best_pet_request_streak >= 10,
+                "stars50": self.friendship_stars_total >= 50,
+                "stars200": self.friendship_stars_total >= 200,
+                "research25": self.facts_studied >= 25,
+                "research100": self.facts_studied >= 100,
+                "journey10": self.journey_level >= 10,
+                "journey25": self.journey_level >= 25,
+                "journey50": self.journey_level >= 50,
+                "contracts10": self.daily_contracts_completed >= 10,
+                "contracts50": self.daily_contracts_completed >= 50,
+                "maps5": self.treasure_maps_completed >= 5,
+                "maps25": self.treasure_maps_completed >= 25,
+                "expeditions10": self.expeditions_completed >= 10,
+                "expeditions50": self.expeditions_completed >= 50,
+            }
+            pass_unlocked = False
+            for achievement_id, achieved in conditions.items():
+                if achieved:
+                    pass_unlocked = self.unlock_achievement(achievement_id) or pass_unlocked
+
+            levelled = False
+            while self.caretaker_level < 999 and self.caretaker_xp >= self.caretaker_xp_needed():
+                needed = self.caretaker_xp_needed()
+                self.caretaker_xp -= needed
+                self.caretaker_level += 1
+                levelled = True
+                reward = 100 * self.caretaker_level
+                self.coins += reward
+                self.total_coins_earned += reward
+                self.add_message(f"Caretaker Lv.{self.caretaker_level}! +{fmt_num(reward)} coins", 5.0)
+            unlocked_any = unlocked_any or pass_unlocked
+            if not pass_unlocked and not levelled:
+                break
+        return unlocked_any
+
+    def add_message(self, text, dur=2.0):
+        self.messages.append((text,dur))
+        if len(self.messages)>8: self.messages.pop(0)
+
+    # ---------- free link crate / internet boost ----------
+    def free_link_crate_seconds_remaining(self):
+        """Return the cooldown remaining before another free link crate."""
+        if self.last_free_link_crate_claim is None:
+            return 0
+        elapsed = (datetime.now() - self.last_free_link_crate_claim).total_seconds()
+        # A clock adjustment into the future must not create a permanent lock.
+        if elapsed < 0:
+            return 0
+        return max(0, int(math.ceil(FREE_LINK_CRATE_COOLDOWN_SECONDS - elapsed)))
+
+    def claim_free_link_crate(self):
+        """Open a random listed guide and award one virtual loot crate.
+
+        The reward is intentionally limited by a ten-minute cooldown and uses
+        published odds.  No real money, account login, or browsing verification
+        is involved; launching the link is treated as completing the action.
+        """
+        remaining = self.free_link_crate_seconds_remaining()
+        if remaining > 0:
+            minutes, seconds = divmod(remaining, 60)
+            self.add_message(
+                f"Free link crate ready in {minutes}:{seconds:02d}.", 3.0
+            )
+            self.sound_manager.play("error")
+            return False
+        if not check_internet():
+            self.add_message("No internet connection available.", 3.0)
+            self.sound_manager.play("error")
+            return False
+
+        open_url(random.choice(BOOST_URLS))
+        crate_kind = self._weighted_loot_choice(FREE_LINK_CRATE_ODDS)
+        self.last_free_link_crate_claim = datetime.now()
+        self.grant_loot_box(crate_kind, 1, "Free link crate")
+        self.loot_history.append(
+            f"Free link visit -> {LOOT_BOX_TYPES[crate_kind]['title']}"
+        )
+        self.loot_history = self.loot_history[-5:]
+        self.sound_manager.play("loot")
+        self.save_game()
+        return True
+
+    def request_boost(self):
+        if not check_internet():
+            self.add_message("No internet connection available.",3.0)
+            self.sound_manager.play("error")
+            return
+        url = random.choice(BOOST_URLS)
+        open_url(url)
+        self.boost_active = True
+        self.boost_expire_time = datetime.now() + timedelta(minutes=10)
+        self.add_message("Internet Boost active! 2x coins & speed for 10 min!",5.0)
+        self.sound_manager.play("boost")
+
+# Hand-drawn large portraits are used for species whose tiny five-line icon
+# becomes ambiguous when enlarged.  These frames are already sized for a
+# portrait Termux screen, so no character-stretching is applied to them.
+
+# Large portraits are hand-authored instead of mechanically stretching the
+# tiny five-line menu icons. Stretching punctuation corrupts faces, paws,
+# wings, and tails, which is why earlier portraits looked uncanny.
+def _portrait(block):
+    """Normalize one readable ASCII portrait while preserving its strokes."""
+    return tuple(
+        line.rstrip()
+        for line in textwrap.dedent(block).strip("\n").splitlines()
+    )
+
+
+ASCII_PORTRAITS = {
+    "dog": _portrait(r"""
+               / \__
+              (    @\___
+              /         O
+             /   (_____/
+            /_____/   U
+              /   \_______
+             /            \
+            /___/|______|\___\
+    """),
+    "canine": _portrait(r"""
+            /\       /\
+           /  \_____/  \
+          /             \
+         |   o       o   |
+         |       ^       |
+          \    \___/    /
+           \___________/
+             /  |  \
+    """),
+    "fox": _portrait(r"""
+            /\       /\
+           /  \_____/  \
+          /             \
+         |   o       o   |
+          \      V      /
+           \   \___/   /
+            \_________/
+          __/  /   \  \__
+    """),
+    "cat": _portrait(r"""
+             /\_/\
+            / o o \
+           (   ^   )
+            \ \_/ /
+            /|   |\
+           / |   | \
+             | | |
+             |_|_|
+    """),
+    "big_cat": _portrait(r"""
+            /\       /\
+           /  \_____/  \
+          /             \
+         |   o       o   |
+         |      /\       |
+          \    /  \     /
+           \__/____\___/
+             /    \
+    """),
+    "rabbit": _portrait(r"""
+             /\   /\
+            /  \ /  \
+           /    V    \
+          (  o     o  )
+           \    ^    /
+            \  ===  /
+            /|     |\
+           /_|_____|_\
+    """),
+    "small_mammal": _portrait(r"""
+            .------.
+           /  o  o  \
+          |    __    |
+          |   /  \   |
+           \  \__/  /
+            '.___.'
+            /  |  \
+           /___|___\
+    """),
+    "bear": _portrait(r"""
+          .--.       .--.
+         /    \_____/    \
+        |  o           o  |
+        |       ^          |
+         \     \_/        /
+          '.___   _____.'
+             /   \
+            /_____\
+    """),
+    "elephant": _portrait(r"""
+             /  \____
+            /        \__
+           |  o          \
+           |      ____    |
+            \____/    \___|
+               /       /
+              /       /
+             /__/\___/
+    """),
+    "primate": _portrait(r"""
+            .------.
+           /  o  o  \
+          |    __    |
+          |  \____/  |
+           \        /
+            '------'
+           /|  ||  |\
+          /_|__||__|_\
+    """),
+    "horse": _portrait(r"""
+            //|     /|
+           // |____/ |
+          /           \__
+         |   o           \__
+         |       __________/
+          \____/   \
+            /  \    \
+           /___/ \___\
+    """),
+    "bovine": _portrait(r"""
+           \   ^   ^   /
+            \  |___|  /
+              ( o o )
+              /  V  \
+             /|     |\
+            / |_____| \
+              / | | \
+             /__| |__\
+    """),
+    "deer": _portrait(r"""
+            \  /\  /
+             \/  \/
+             / /\ \
+            / o  o \
+           |   ^    |
+            \ \_/  /
+             \____/
+              /  \
+    """),
+    "giraffe": _portrait(r"""
+             /\ /\
+            ( o o )
+             \___/
+               ||
+               ||
+               ||____
+               |    \__
+              / \   /  \
+    """),
+    "heavy_mammal": _portrait(r"""
+            __________
+          _/  o       \__
+         /                \
+        |      ______      |
+         \____/      \____/
+           /  \      /  \
+          /____\    /____\
+            ||        ||
+    """),
+    "marine_mammal": _portrait(r"""
+               ____
+          ____/ o  \__
+      ___/             \___
+     <_____        _________)
+           \______/
+             /  \
+            /____\
+             ~~~~
+    """),
+    "bat": _portrait(r"""
+          /\             /\
+         /  \___________/  \
+        /                   \
+       /   /\   o o   /\    \
+      /___/  \   ^   /  \____\
+              \_____/
+              /     \
+             /_______\
+    """),
+    "bird": _portrait(r"""
+                __
+            ___/  \___
+           /   o      _\
+          <        ___/
+           \_____/
+              \      /
+               \____/
+                / \
+    """),
+    "owl": _portrait(r"""
+             /\_____ /\
+            /  o   o  \
+           |     V     |
+           |   \___/   |
+            \   | |   /
+             \__| |__/
+               /   \
+              /_____\
+    """),
+    "penguin": _portrait(r"""
+              .--.
+             |o_o |
+             |:_/ |
+            //   \ \
+           (|     | )
+          /'\_   _/`\
+          \___)=(___/
+             /   \
+    """),
+    "tall_bird": _portrait(r"""
+               __
+              /o )
+             /  /
+            /  /
+           /  /____
+          /        \
+         /__________\
+            /    \
+    """),
+    "fish": _portrait(r"""
+               ______
+          ____/  o   \__
+      ___/              _/
+     <_________________/
+            \       /
+             \_____/
+               / \
+              ~~~~~
+    """),
+    "whale": _portrait(r"""
+                __
+           ____/  \___
+       ___/   o       \___
+      <____________________)
+            \          /
+             \________/
+               \  /
+                \/
+    """),
+    "shark": _portrait(r"""
+                  /|
+            _____/ |
+       ____/  o    |____
+      <_________________ >
+             \          /
+              \________/
+                 /  \
+                ~~~~~
+    """),
+    "octopus": _portrait(r"""
+             .------.
+            / o    o \
+           |    ^     |
+            \  ____  /
+           __|______|__
+          /  / /  \ \  \
+         /__/ /    \ \__\
+           ~~        ~~
+    """),
+    "turtle": _portrait(r"""
+               ______
+           ___/      \___
+          /  _  _         \
+         |  / \/ \      o  |
+          \ \_/\_/  ______/
+           \________/
+            /  \  /  \
+           /____\/____\
+    """),
+    "frog": _portrait(r"""
+             _       _
+            (o)-----(o)
+           /           \
+          |    \___/    |
+           \   /___\   /
+            \_/     \_/
+            /|       |\
+           /_|_______|_\
+    """),
+    "snake": _portrait(r"""
+             /\__/\
+            /  o  O|
+       /\   \    _/
+      /  \___\__/  \
+      \             /
+       \___________/
+            \__
+               \__
+    """),
+    "lizard": _portrait(r"""
+               ______
+          ____/ o    \____
+      ___/                  \__
+     <_____      _____________/
+           \____/  \  \
+            /  \    \  \
+           /____\   /____\
+               \___/
+    """),
+    "insect": _portrait(r"""
+             \   /
+          ----(o o)----
+             /  V  \
+          __/|=====|\__
+         /___|=====|___\
+             |=====|
+              /   \
+             /_____\
+    """),
+    "spider": _portrait(r"""
+            \   |   /
+             \  |  /
+           .--(o o)--.
+          / /   ^   \ \
+         /_/|       |\_\
+            /|     |\
+           /_|_____|_\
+            /       \
+    """),
+    "dragon": _portrait(r"""
+             /\     /\
+            /  \___/  \
+           /  o     o  \
+          (      ^      )
+           \   \___/   /
+            \__/ | \__/
+             /   |   \
+            /_/\_|_/\_\
+    """),
+    "unicorn": _portrait(r"""
+                /\
+               /  \
+              /____\
+             /|    /|
+            / |___/ |
+           /   o o   \__
+          |     ^       \
+           \___/ \_______/
+    """),
+    "griffin": _portrait(r"""
+                __
+            ___/o \__
+           /   \__/  \___
+          /              _\
+         |      ____     /
+          \____/    \___/
+            / \     / \
+           /___\   /___\
+    """),
+    "cerberus": _portrait(r"""
+        /\_/\    /\_/\    /\_/\
+       ( o.o )  ( o.o )  ( o.o )
+        > ^ <    > ^ <    > ^ <
+           \       |       /
+            \______|______/
+              /    |    \
+             /_____|_____\
+               /  / \  \
+    """),
+    "hydra": _portrait(r"""
+        /\__/\   /\__/\   /\__/\
+       | o  O | | o  O | | o  O |
+        \_/\_/   \_/\_/   \_/\_/
+           \        |        /
+            \_______|_______/
+                /   |   \
+               /____|____\
+                  / \
+    """),
+    "humanoid": _portrait(r"""
+            .------.
+           /  o  o  \
+          |    ^     |
+           \  ===   /
+            '------'
+           /|  ||  |\
+          /_|__||__|_\
+            /  \  \
+    """),
+    "spirit": _portrait(r"""
+            .------.
+           /  o  o  \
+          |    --    |
+          |          |
+          |   /\ /\   |
+           \_/  V  \_/
+              \  /
+               \/
+    """),
+    "robot": _portrait(r"""
+           .----------.
+          |   o    o   |
+          |     --     |
+          |   [____]   |
+           '----------'
+            /|  ||  |\
+           /_|__||__|_\
+             /  \  \
+    """),
+    "pig": _portrait(r"""
+             .--------.
+            /  o    o  \
+           |     __     |
+           |    (oo)    |
+            \   ----   /
+             '--------'
+            /|        |\
+           /_|________|_\
+    """),
+    "kangaroo": _portrait(r"""
+               /\_
+              / o \__
+             /       \__
+            /   ___      \
+           |   /   \      |
+            \_/     \____/
+              \        \
+               \___/\___\
+    """),
+    "armadillo": _portrait(r"""
+              _________
+           __/ /////// \__
+          /  /////////    \
+         |  /////////  o   |
+          \__________   __/
+             /  \  /  \
+            /____\/____\
+                ~~
+    """),
+    "hedgehog": _portrait(r"""
+          /\/\/\/\/\/\/\
+         /            o \
+        |      ____      |
+         \____/    \_____/
+           /  \    /  \
+          /____\  /____\
+             /      \
+            /________\
+    """),
+    "walrus": _portrait(r"""
+             .--------.
+            /  o    o  \
+           |     __     |
+           |   /____\   |
+           |    /  \    |
+            \   ||||   /
+             '--------'
+               /    \
+    """),
+    "duck": _portrait(r"""
+                __
+            ___/ o)___
+           /    \__/  \
+          /            \
+          \__/\________/
+             /  \  /  \
+            /____\/____\
+               ~~~~~
+    """),
+    "parrot": _portrait(r"""
+                __
+             __/o )>
+            /  _  \
+           /  / \  \
+          |  |   |  |
+           \  \_/  /
+            \_____/
+              / \
+    """),
+    "peacock": _portrait(r"""
+          .-o-o-o-o-o-.
+         / o o o o o o \
+        | o o o o o o o |
+         \ o o o o o o /
+           \    /\    /
+             (o  )
+              \_/
+               /\
+    """),
+    "chicken": _portrait(r"""
+               _/\_
+              (o  o)
+             /  V   \
+            /|      |\
+           / |______| \
+             /  /\  \
+            /__/  \__\
+              ^^  ^^
+    """),
+    "flamingo": _portrait(r"""
+                __
+             __/o \
+            /      )
+            \_____/
+               \
+                \
+                 \____
+                 /   \
+    """),
+    "seahorse": _portrait(r"""
+                __
+              _/o \
+             /  __/
+            /  /
+           (  (___
+            \     \_
+             \__    )
+                `--'
+    """),
+    "jellyfish": _portrait(r"""
+             .--------.
+            /          \
+           |   o    o   |
+            \__________/
+             / / | \ \
+            /_/  |  \_\
+             ~   |   ~
+                 ~
+    """),
+    "starfish": _portrait(r"""
+                 /\
+            ____/  \____
+            \   o  o   /
+             \   /\   /
+             /  /  \  \
+            /__/    \__\
+               \  /
+                \/
+    """),
+    "bee": _portrait(r"""
+               \   /
+            ----(o o)----
+               / V \
+            __/|===|\__
+           /___|===|___\
+               |===|
+               /   \
+              /_____\
+    """),
+    "ant": _portrait(r"""
+               (o o)
+            ---  V  ---
+               / \
+           ___/___\___
+          /    ___    \
+         /____/   \____\
+           /  \   /  \
+          /____\_/____\
+    """),
+    "butterfly": _portrait(r"""
+          .==.         .==.
+         /   \_________/   \
+        /        o          \
+       |        /V\          |
+        \      / | \        /
+         \____/  |  \______/
+                / \
+               /___\
+    """),
+    "phoenix": _portrait(r"""
+               \  |  /
+            ----\ | /----
+                (o)
+            _____/V\_____
+           /     / \     \
+          /_____/   \_____\
+             /   |   \
+            /____|____\
+    """),
+    "fairy": _portrait(r"""
+               \  |  /
+            ----(o)----
+               /|\
+           ___/ | \___
+          /____/ \____\
+              /   \
+             /_____\
+               / \
+    """),
+    "alien": _portrait(r"""
+             .--------.
+            /  _    _  \
+           |  / \  / \  |
+           |      __     |
+            \    \__/   /
+             '--------'
+               /    \
+              /______\
+    """),
+    "dinosaur": _portrait(r"""
+                  __
+                 / _)
+          .-^^^^-/ /
+       __/         /
+      <__.|_|--|_|-
+           / \  / \
+          /___\/___\
+             \___
+    """),
+}
+
+
+ART_STYLE_SPECIES = {
+    "dog": {"Dog"},
+    "canine": {"Wolf", "African Wild Dog", "Coyote", "Hyena", "Fenrir", "Amarok", "Black Shuck"},
+    "fox": {"Fox", "Fennec Fox", "Kitsune"},
+    "cat": {"Cat"},
+    "big_cat": {"Tiger", "Lion", "Snow Leopard", "Cheetah", "Bobcat", "Caracal", "Jaguar", "Lynx", "Nian"},
+    "rabbit": {"Rabbit", "Moon Rabbit", "Jackalope", "Wolpertinger", "Quokka"},
+    "small_mammal": {
+        "Hamster", "Squirrel", "Raccoon", "Red Panda", "Badger", "Beaver",
+        "Ferret", "Meerkat", "Mongoose", "Skunk", "Jerboa", "Chinchilla",
+        "Hedgehog", "Porcupine", "Wombat", "Tasmanian Devil", "Carbuncle",
+        "Capybara", "Pangolin", "Armadillo", "Otter", "Platypus", "Aye-Aye",
+        "Koala", "Sloth", "Lemur",
+    },
+    "bear": {"Panda", "Polar Bear", "Baku"},
+    "elephant": {"Elephant"},
+    "primate": {"Monkey", "Gorilla"},
+    "horse": {"Horse", "Zebra", "Okapi", "Kelpie", "Qilin"},
+    "bovine": {"Cow", "Goat", "Bison", "Yak", "Camel", "Alpaca", "Llama", "Minotaur"},
+    "deer": {"Deer", "Moose", "Peryton"},
+    "giraffe": {"Giraffe"},
+    "heavy_mammal": {"Pig", "Hippopotamus", "Rhinoceros", "Tapir", "Kangaroo"},
+    "marine_mammal": {"Dolphin", "Beluga", "Narwhal", "Orca", "Seal", "Sea Lion", "Manatee", "Walrus", "Selkie"},
+    "bat": {"Bat"},
+    "bird": {"Owl", "Duck", "Parrot", "Peacock", "Chicken", "Crow", "Eagle", "Toucan", "Flamingo", "Roc", "Thunderbird", "Anzu", "Garuda", "Simurgh", "Ziz", "Phoenix"},
+    "owl": {"Owl"},
+    "penguin": {"Penguin"},
+    "tall_bird": {"Ostrich", "Emu", "Cassowary"},
+    "fish": {"Seahorse", "Mantis Shrimp"},
+    "whale": {"Blue Whale", "Beluga", "Narwhal", "Orca"},
+    "shark": {"Shark", "Leviathan"},
+    "octopus": {"Octopus", "Jellyfish", "Starfish", "Kraken"},
+    "turtle": {"Turtle"},
+    "frog": {"Frog", "Axolotl", "Salamander"},
+    "snake": {"Snake", "Basilisk", "Naga", "Sea Serpent"},
+    "lizard": {"Chameleon", "Gecko", "Crocodile", "Komodo Dragon"},
+    "insect": {"Bee", "Ant", "Butterfly"},
+    "spider": {"Spider"},
+    "dragon": {"Dragon", "Wyvern", "Cockatrice"},
+    "unicorn": {"Unicorn", "Alicorn"},
+    "griffin": {"Griffin", "Pegasus", "Hippogriff", "Lamassu", "Sphinx", "Manticore"},
+    "cerberus": {"Cerberus"},
+    "hydra": {"Hydra", "Chimera"},
+    "humanoid": {"Yeti", "Oni", "Tengu", "Dryad", "Fairy", "Djinn", "Dullahan"},
+    "spirit": {"Ghost", "Banshee", "Alien"},
+    "robot": {"Robot", "Golem"},
+    "pig": {"Pig"},
+    "kangaroo": {"Kangaroo"},
+    "armadillo": {"Armadillo", "Pangolin"},
+    "hedgehog": {"Hedgehog", "Porcupine"},
+    "walrus": {"Walrus"},
+    "duck": {"Duck"},
+    "parrot": {"Parrot", "Toucan"},
+    "peacock": {"Peacock"},
+    "chicken": {"Chicken"},
+    "flamingo": {"Flamingo"},
+    "seahorse": {"Seahorse"},
+    "jellyfish": {"Jellyfish"},
+    "starfish": {"Starfish"},
+    "bee": {"Bee"},
+    "ant": {"Ant"},
+    "butterfly": {"Butterfly"},
+    "phoenix": {"Phoenix"},
+    "fairy": {"Fairy"},
+    "alien": {"Alien"},
+    "dinosaur": {"Dinosaur"},
+}
+
+SPECIES_ART_STYLE = {}
+for _style_name, _species_names in ART_STYLE_SPECIES.items():
+    for _species_name in _species_names:
+        SPECIES_ART_STYLE[_species_name] = _style_name
+
+# ==================== DYNAMIC ASCII ART ====================
+def _trim_ascii(lines):
+    """Remove empty margins without changing any drawing strokes."""
+    cleaned = [str(line).rstrip() for line in lines]
+    while cleaned and not cleaned[0].strip():
+        cleaned.pop(0)
+    while cleaned and not cleaned[-1].strip():
+        cleaned.pop()
+    return cleaned
+
+
+def _compact_species_art(pet, frame):
+    """Return the original species icon unchanged for very small screens."""
+    return _trim_ascii(pet.get_base_art(frame))
+
+
+def _portrait_for_species(pet):
+    """Return a hand-authored anatomy-aware portrait for the active species."""
+    style = SPECIES_ART_STYLE.get(pet.species)
+    if style in ASCII_PORTRAITS:
+        return list(ASCII_PORTRAITS[style])
+    return []
+
+
+# Animation profiles are deterministic and anatomy-aware. Every registered
+# creature receives a long sequence of idle actions, blinks, breathing, mood
+# responses, and care reactions. Nothing random is sampled during rendering,
+# so the same frame always draws the same image and the terminal stays stable.
+
+# Action libraries are grouped by body plan. Individual species receive a
+# stable rotation plus signature actions, giving every pet its own timing even
+# when it shares a portrait silhouette with related animals.
+_STYLE_ACTIONS = {
+    "dog": ("tail_wag", "pant", "sniff", "ear_twitch", "paw_tap", "stretch", "look", "bounce", "shake", "sleep"),
+    "canine": ("tail_wag", "sniff", "ear_twitch", "howl", "paw_tap", "prowl", "look", "stretch", "shake", "sleep"),
+    "fox": ("tail_swish", "sniff", "ear_twitch", "pounce", "prowl", "look", "dig", "stretch", "bounce", "sleep"),
+    "cat": ("tail_swish", "purr", "whiskers", "groom", "paw_tap", "stretch", "look", "pounce", "bounce", "sleep"),
+    "big_cat": ("tail_swish", "roar", "prowl", "ear_twitch", "paw_tap", "stretch", "look", "pounce", "shake", "sleep"),
+    "rabbit": ("hop", "ear_twitch", "sniff", "chew", "paw_tap", "look", "dig", "stretch", "bounce", "sleep"),
+    "small_mammal": ("sniff", "chew", "paw_tap", "groom", "burrow", "look", "tail_wag", "bounce", "stretch", "sleep"),
+    "bear": ("sniff", "stomp", "roar", "paw_tap", "stretch", "look", "shake", "bounce", "chew", "sleep"),
+    "elephant": ("trumpet", "ear_twitch", "stomp", "sway", "spray", "look", "chew", "bounce", "stretch", "sleep"),
+    "primate": ("look", "groom", "wave", "paw_tap", "chew", "sway", "bounce", "stretch", "shake", "sleep"),
+    "horse": ("tail_swish", "ear_twitch", "sniff", "hoof_tap", "trot", "graze", "look", "shake", "stretch", "sleep"),
+    "bovine": ("tail_swish", "ear_twitch", "chew", "hoof_tap", "graze", "look", "sway", "stomp", "stretch", "sleep"),
+    "deer": ("ear_twitch", "sniff", "hoof_tap", "look", "graze", "bound", "tail_wag", "stretch", "sway", "sleep"),
+    "giraffe": ("look", "chew", "sway", "hoof_tap", "ear_twitch", "graze", "stretch", "tail_swish", "bounce", "sleep"),
+    "heavy_mammal": ("sniff", "stomp", "sway", "chew", "look", "shake", "hoof_tap", "stretch", "bounce", "sleep"),
+    "marine_mammal": ("swim", "bubble", "dive", "splash", "fin_flick", "look", "surface", "bounce", "spin", "sleep"),
+    "bat": ("wing_flap", "hover", "echolocate", "look", "dive", "wing_fold", "swoop", "shake", "bounce", "sleep"),
+    "bird": ("wing_flap", "head_bob", "preen", "chirp", "look", "peck", "hop", "wing_stretch", "bounce", "sleep"),
+    "owl": ("wing_flap", "head_turn", "slow_blink", "preen", "look", "hoot", "wing_stretch", "hop", "sway", "sleep"),
+    "penguin": ("waddle", "wing_flap", "look", "splash", "preen", "hop", "head_bob", "slide", "bounce", "sleep"),
+    "tall_bird": ("head_bob", "stride", "wing_flap", "peck", "look", "preen", "sprint", "wing_stretch", "bounce", "sleep"),
+    "fish": ("swim", "bubble", "fin_flick", "dive", "look", "dart", "surface", "spin", "bounce", "sleep"),
+    "whale": ("swim", "bubble", "surface", "spout", "dive", "fin_flick", "look", "splash", "bounce", "sleep"),
+    "shark": ("swim", "fin_flick", "prowl", "bubble", "dive", "look", "dart", "surface", "splash", "sleep"),
+    "octopus": ("tentacle", "bubble", "pulse", "look", "camouflage", "squirt", "crawl", "spin", "bounce", "sleep"),
+    "turtle": ("swim", "shell_peek", "bubble", "fin_flick", "look", "crawl", "stretch", "surface", "bounce", "sleep"),
+    "frog": ("hop", "croak", "slow_blink", "look", "swim", "tongue", "splash", "stretch", "bounce", "sleep"),
+    "snake": ("slither", "tongue", "coil", "look", "hiss", "sway", "strike", "stretch", "camouflage", "sleep"),
+    "lizard": ("crawl", "tongue", "look", "tail_swish", "camouflage", "climb", "sprint", "stretch", "bounce", "sleep"),
+    "insect": ("buzz", "wing_flap", "hover", "crawl", "look", "dance", "groom", "dart", "bounce", "sleep"),
+    "spider": ("scuttle", "web", "look", "crawl", "leg_wave", "pounce", "groom", "sway", "bounce", "sleep"),
+    "dragon": ("wing_flap", "flame", "tail_swish", "roar", "glow", "stomp", "hover", "charge", "bounce", "sleep"),
+    "unicorn": ("trot", "mane_toss", "glow", "spark", "hoof_tap", "look", "charge", "orbit", "bounce", "sleep"),
+    "griffin": ("wing_flap", "tail_swish", "roar", "hover", "claw_tap", "look", "charge", "wing_stretch", "bounce", "sleep"),
+    "cerberus": ("tail_wag", "roar", "sniff", "paw_tap", "look", "howl", "charge", "shake", "bounce", "sleep"),
+    "hydra": ("sway", "hiss", "look", "roar", "glow", "strike", "tail_swish", "charge", "bounce", "sleep"),
+    "humanoid": ("wave", "look", "sway", "orbit", "glow", "dance", "step", "stretch", "bounce", "sleep"),
+    "spirit": ("float", "glow", "fade", "look", "orbit", "sway", "spark", "spin", "bounce", "sleep"),
+    "robot": ("scan", "blink_light", "step", "look", "charge", "spark", "wave", "sway", "bounce", "sleep"),
+    "pig": ("sniff", "tail_wag", "chew", "stomp", "look", "roll", "bounce", "stretch", "shake", "sleep"),
+    "kangaroo": ("hop", "look", "paw_tap", "tail_swish", "bound", "stretch", "groom", "bounce", "shake", "sleep"),
+    "armadillo": ("crawl", "shell_peek", "sniff", "look", "dig", "roll", "stretch", "bounce", "shake", "sleep"),
+    "hedgehog": ("sniff", "crawl", "look", "curl", "chew", "groom", "stretch", "bounce", "shake", "sleep"),
+    "walrus": ("sway", "sniff", "look", "splash", "fin_flick", "bellow", "stretch", "bounce", "shake", "sleep"),
+    "duck": ("waddle", "wing_flap", "quack", "preen", "look", "splash", "head_bob", "peck", "bounce", "sleep"),
+    "parrot": ("wing_flap", "head_bob", "chirp", "preen", "look", "dance", "peck", "wing_stretch", "bounce", "sleep"),
+    "peacock": ("fan_tail", "wing_flap", "head_bob", "preen", "look", "strut", "dance", "wing_stretch", "bounce", "sleep"),
+    "chicken": ("peck", "head_bob", "wing_flap", "scratch", "look", "preen", "hop", "chirp", "bounce", "sleep"),
+    "flamingo": ("head_bob", "balance", "wing_flap", "preen", "look", "stride", "splash", "wing_stretch", "bounce", "sleep"),
+    "seahorse": ("swim", "bubble", "sway", "look", "fin_flick", "curl", "surface", "spin", "bounce", "sleep"),
+    "jellyfish": ("pulse", "float", "bubble", "sway", "glow", "look", "dive", "spin", "bounce", "sleep"),
+    "starfish": ("crawl", "wave", "bubble", "look", "stretch", "spin", "sway", "bounce", "shake", "sleep"),
+    "bee": ("buzz", "wing_flap", "hover", "dance", "look", "dart", "groom", "spin", "bounce", "sleep"),
+    "ant": ("crawl", "antenna", "carry", "look", "dig", "march", "groom", "bounce", "shake", "sleep"),
+    "butterfly": ("wing_flap", "hover", "glide", "look", "dance", "land", "wing_stretch", "spin", "bounce", "sleep"),
+    "phoenix": ("wing_flap", "flame", "glow", "hover", "spark", "roar", "wing_stretch", "orbit", "bounce", "sleep"),
+    "fairy": ("hover", "wing_flap", "spark", "orbit", "look", "dance", "glow", "spin", "bounce", "sleep"),
+    "alien": ("float", "scan", "blink_light", "look", "glow", "sway", "orbit", "spin", "bounce", "sleep"),
+    "dinosaur": ("stomp", "roar", "tail_swish", "look", "sniff", "charge", "step", "stretch", "bounce", "sleep"),
+}
+
+
+# Secondary behaviors lengthen every species' routine beyond its core actions.
+# They are grouped by body plan, then mixed with the per-species signatures and
+# rotated by a stable species seed.  Related animals therefore share believable
+# anatomy but do not perform their routines in the same order or timing.
+_STYLE_EXTRA_ACTIONS = {
+    "dog": ("sit", "circle", "listen", "yawn", "scratch_ground", "chase", "drink", "celebrate"),
+    "canine": ("guard", "circle", "listen", "yawn", "scratch_ground", "chase", "rest", "celebrate"),
+    "fox": ("listen", "hide", "peek", "circle", "leap", "forage", "rest", "celebrate"),
+    "cat": ("sit", "listen", "yawn", "scratch_ground", "chase", "nuzzle", "dream", "celebrate"),
+    "big_cat": ("guard", "listen", "yawn", "circle", "leap", "rest", "observe", "celebrate"),
+    "rabbit": ("listen", "forage", "hide", "peek", "leap", "drink", "rest", "celebrate"),
+    "small_mammal": ("forage", "hide", "peek", "circle", "drink", "dream", "rest", "celebrate"),
+    "bear": ("sit", "forage", "drink", "scratch_ground", "yawn", "rest", "observe", "celebrate"),
+    "elephant": ("drink", "listen", "guard", "forage", "shake_water", "rest", "observe", "celebrate"),
+    "primate": ("sit", "observe", "forage", "drink", "play", "nuzzle", "dream", "celebrate"),
+    "horse": ("listen", "circle", "drink", "forage", "leap", "rest", "guard", "celebrate"),
+    "bovine": ("forage", "drink", "listen", "rest", "guard", "observe", "scratch_ground", "celebrate"),
+    "deer": ("listen", "forage", "drink", "hide", "leap", "rest", "observe", "celebrate"),
+    "giraffe": ("forage", "listen", "drink", "observe", "rest", "guard", "circle", "celebrate"),
+    "heavy_mammal": ("guard", "forage", "drink", "scratch_ground", "rest", "observe", "charge", "celebrate"),
+    "marine_mammal": ("breach", "wave_ride", "deep_dive", "bubble_ring", "chase", "rest", "play", "celebrate"),
+    "fish": ("school", "bubble_ring", "deep_dive", "chase", "hide", "peek", "rest", "celebrate"),
+    "whale": ("breach", "deep_dive", "bubble_ring", "wave_ride", "sing", "rest", "observe", "celebrate"),
+    "shark": ("circle", "deep_dive", "chase", "guard", "observe", "rest", "dart", "celebrate"),
+    "octopus": ("ink_cloud", "hide", "peek", "reach", "play", "dream", "rest", "celebrate"),
+    "turtle": ("hide", "peek", "sunbathe", "deep_dive", "forage", "rest", "observe", "celebrate"),
+    "frog": ("listen", "leap", "hide", "peek", "drink", "rest", "sing", "celebrate"),
+    "snake": ("listen", "hide", "peek", "sunbathe", "circle", "guard", "rest", "celebrate"),
+    "lizard": ("sunbathe", "hide", "peek", "listen", "forage", "guard", "rest", "celebrate"),
+    "bird": ("flutter", "takeoff", "land", "forage", "listen", "drink", "rest", "celebrate"),
+    "owl": ("listen", "observe", "takeoff", "land", "guard", "dream", "rest", "celebrate"),
+    "penguin": ("belly_slide", "huddle", "shake_water", "dive", "chase", "rest", "play", "celebrate"),
+    "tall_bird": ("listen", "forage", "takeoff", "land", "guard", "rest", "observe", "celebrate"),
+    "bat": ("hang", "takeoff", "land", "circle", "listen", "rest", "dream", "celebrate"),
+    "insect": ("flutter", "circle", "land", "takeoff", "forage", "rest", "play", "celebrate"),
+    "bee": ("waggle", "circle", "land", "takeoff", "forage", "rest", "guard", "celebrate"),
+    "ant": ("forage", "guard", "circle", "carry", "dig", "rest", "observe", "celebrate"),
+    "butterfly": ("flutter", "circle", "land", "takeoff", "sunbathe", "rest", "glimmer", "celebrate"),
+    "spider": ("web_drop", "hide", "peek", "circle", "guard", "rest", "observe", "celebrate"),
+    "dragon": ("takeoff", "land", "guard", "circle", "glimmer", "sleep_smoke", "observe", "celebrate"),
+    "phoenix": ("takeoff", "land", "rebirth_glow", "glimmer", "circle", "rest", "observe", "celebrate"),
+    "unicorn": ("circle", "listen", "glimmer", "teleport", "drink", "rest", "observe", "celebrate"),
+    "griffin": ("takeoff", "land", "guard", "circle", "listen", "rest", "observe", "celebrate"),
+    "cerberus": ("guard", "circle", "listen", "sleep_smoke", "chase", "rest", "observe", "celebrate"),
+    "hydra": ("guard", "circle", "listen", "glimmer", "hide", "rest", "observe", "celebrate"),
+    "humanoid": ("sit", "observe", "play", "listen", "dream", "rest", "guard", "celebrate"),
+    "spirit": ("teleport", "glimmer", "fade", "circle", "dream", "rest", "observe", "celebrate"),
+    "fairy": ("flutter", "teleport", "glimmer", "circle", "land", "rest", "play", "celebrate"),
+    "robot": ("diagnostic", "guard", "circle", "recharge", "observe", "rest", "play", "celebrate"),
+    "alien": ("teleport", "diagnostic", "glimmer", "circle", "observe", "rest", "play", "celebrate"),
+    "dinosaur": ("guard", "listen", "circle", "forage", "leap", "rest", "observe", "celebrate"),
+}
+
+# Universal gestures are anatomy-safe margin/facial overlays. Every species gets
+# these in addition to its body-plan and signature actions, so related animals no
+# longer appear to repeat the same ten poses in the same order.
+_UNIVERSAL_ANIMATION_ACTIONS = (
+    "head_tilt", "look_left", "look_right", "double_blink", "wink",
+    "deep_breath", "idle_step", "tiptoe", "curious", "excited",
+    "content", "startle", "scratch_self", "nap", "wake", "request",
+    "snuggle", "shiver", "proud", "gaze", "listen_close", "tiny_jump",
+    "settle", "alert", "happy_spin", "slow_stretch", "peek_left",
+    "peek_right", "calm", "ready", "sit", "rest", "listen", "observe",
+    "yawn", "dream", "forage", "hide", "peek", "circle", "drink",
+    "celebrate", "play", "nuzzle", "guard", "scratch_ground", "sunbathe",
+    "wave", "spin", "stretch", "look", "bounce", "shake",
+)
+
+_SPECIES_SIGNATURES = {
+    "Dog": ("tail_wag", "pant", "sniff", "paw_tap", "bounce"),
+    "Cat": ("purr", "groom", "tail_swish", "whiskers", "pounce"),
+    "Wolf": ("howl", "prowl", "sniff", "ear_twitch", "tail_wag"),
+    "Fox": ("pounce", "tail_swish", "dig", "sniff", "ear_twitch"),
+    "Rabbit": ("hop", "chew", "ear_twitch", "dig", "sniff"),
+    "Elephant": ("trumpet", "spray", "ear_twitch", "stomp", "sway"),
+    "Horse": ("trot", "hoof_tap", "mane_toss", "graze", "tail_swish"),
+    "Owl": ("head_turn", "slow_blink", "hoot", "wing_flap", "preen"),
+    "Penguin": ("waddle", "slide", "splash", "wing_flap", "preen"),
+    "Dolphin": ("spin", "splash", "surface", "bubble", "swim"),
+    "Blue Whale": ("spout", "surface", "dive", "fin_flick", "swim"),
+    "Shark": ("prowl", "dart", "fin_flick", "dive", "swim"),
+    "Octopus": ("tentacle", "camouflage", "squirt", "crawl", "pulse"),
+    "Bee": ("buzz", "dance", "hover", "dart", "wing_flap"),
+    "Ant": ("carry", "march", "antenna", "dig", "crawl"),
+    "Butterfly": ("glide", "wing_flap", "hover", "land", "dance"),
+    "Snake": ("slither", "tongue", "coil", "hiss", "strike"),
+    "Spider": ("web", "scuttle", "leg_wave", "pounce", "crawl"),
+    "Bat": ("echolocate", "swoop", "hover", "wing_flap", "dive"),
+    "Dragon": ("flame", "wing_flap", "roar", "tail_swish", "glow"),
+    "Phoenix": ("flame", "glow", "spark", "wing_flap", "hover"),
+    "Unicorn": ("glow", "spark", "mane_toss", "trot", "orbit"),
+    "Cerberus": ("roar", "howl", "tail_wag", "sniff", "charge"),
+    "Hydra": ("hiss", "sway", "strike", "roar", "glow"),
+    "Ghost": ("float", "fade", "glow", "orbit", "sway"),
+    "Robot": ("scan", "blink_light", "step", "charge", "spark"),
+}
+
+
+def _stable_species_seed(name):
+    """Return a repeatable integer; Python's salted hash changes each launch."""
+    return sum((index + 1) * ord(char) for index, char in enumerate(str(name)))
+
+
+def _animation_profile_for(species, style):
+    """Build and cache a minimum forty-action profile for one species."""
+    cache = getattr(_animation_profile_for, "_cache", None)
+    if cache is None:
+        cache = {}
+        _animation_profile_for._cache = cache
+    key = (species, style)
+    if key in cache:
+        return cache[key]
+
+    seed = _stable_species_seed(species)
+    base = list(_STYLE_ACTIONS.get(style, (
+        "look", "sway", "stretch", "bounce", "shake", "sleep",
+    )))
+    actions = []
+    extra = list(_STYLE_EXTRA_ACTIONS.get(style, ()))
+    for action in (
+        list(_SPECIES_SIGNATURES.get(species, ()))
+        + base
+        + extra
+        + list(_UNIVERSAL_ANIMATION_ACTIONS)
+    ):
+        if action not in actions:
+            actions.append(action)
+    fillers = (
+        "look", "sway", "stretch", "bounce", "shake", "sleep",
+        "listen", "observe", "rest", "celebrate", "dream", "play",
+        "head_tilt", "deep_breath", "curious", "content", "alert", "calm",
+    )
+    while len(actions) < ANIMATION_MIN_ACTIONS:
+        candidate = fillers[len(actions) % len(fillers)]
+        # Repetition is allowed only after the unique library is exhausted;
+        # the different slot/subphase timing still produces a distinct motion.
+        actions.append(candidate)
+    rotation = seed % len(actions)
+    actions = actions[rotation:] + actions[:rotation]
+
+    profile = {
+        "seed": seed,
+        "offset": seed % ANIMATION_CYCLE_FRAMES,
+        "blink_offset": seed % 23,
+        "amplitude": 1 + (seed % 2),
+        "actions": tuple(actions),
+    }
+    cache[key] = profile
+    return profile
+
+
+def _subject_bounds(canvas):
+    """Return top, bottom, left, right bounds of visible portrait strokes."""
+    points = [
+        (row, column)
+        for row, line in enumerate(canvas)
+        for column, char in enumerate(line)
+        if char != " "
+    ]
+    if not points:
+        return 0, 0, 0, 0
+    rows = [point[0] for point in points]
+    columns = [point[1] for point in points]
+    return min(rows), max(rows), min(columns), max(columns)
+
+
+def _place_motion_token(canvas, row, token, side="right"):
+    """Place a token only in contiguous outer padding, never inside the pet."""
+    if not canvas or not token:
+        return False
+    row = max(0, min(len(canvas) - 1, int(row)))
+    line = canvas[row]
+    width = len(line)
+    token = str(token)
+    if len(token) > width:
+        return False
+
+    if side == "left":
+        margin = 0
+        while margin < width and line[margin] == " ":
+            margin += 1
+        # Keep at least one blank cell between a motion mark and the animal.
+        # This prevents breaths, hearts, bubbles, and sound waves from becoming
+        # accidental ears, limbs, or outlines in the ASCII silhouette.
+        if margin < len(token) + 1:
+            return False
+        start = 0
+    else:
+        margin = 0
+        while margin < width and line[width - margin - 1] == " ":
+            margin += 1
+        if margin < len(token) + 1:
+            return False
+        start = width - len(token)
+
+    for offset, char in enumerate(token):
+        line[start + offset] = char
+    return True
+
+
+def _replace_glyph(canvas, targets, replacement, row_start=0, row_end=None, limit=1):
+    """Replace a small known glyph region without distorting body strokes."""
+    if row_end is None:
+        row_end = len(canvas)
+    changed = 0
+    for row in range(max(0, row_start), min(len(canvas), row_end)):
+        for column, char in enumerate(canvas[row]):
+            if char in targets:
+                canvas[row][column] = replacement
+                changed += 1
+                if changed >= limit:
+                    return changed
+    return changed
+
+
+def _blink_portrait(canvas, style, expression="-"):
+    """Close only known eye glyphs near the top of a portrait."""
+    targets = ("@",) if style == "dog" else ("o",)
+    one_eye = {"dog", "bird", "fish", "whale", "shark", "seahorse", "flamingo", "dinosaur"}
+    count = 1 if style in one_eye else 2
+    _replace_glyph(canvas, targets, expression, 0, min(len(canvas), 5), count)
+
+
+def _happy_eyes(canvas, style):
+    """Briefly change known eye glyphs into a happy expression."""
+    targets = ("@",) if style == "dog" else ("o",)
+    one_eye = {"dog", "bird", "fish", "whale", "shark", "seahorse", "flamingo", "dinosaur"}
+    count = 1 if style in one_eye else 2
+    _replace_glyph(canvas, targets, "^", 0, min(len(canvas), 5), count)
+
+
+def _motion_shift(action, subphase, amplitude):
+    """Move the intact drawing inside fixed padding for real body movement."""
+    wave = (0, 1, 1, 0, -1, -1, 0, 0)[subphase % 8]
+    travel = {"swim", "dart", "glide", "swoop", "prowl", "slither", "crawl", "scuttle", "stride", "trot", "march", "sprint", "chase", "circle", "wave_ride", "school", "takeoff", "land", "idle_step", "tiptoe", "peek_left", "peek_right"}
+    bounce = {"hop", "bound", "pounce", "bounce", "waddle", "dance", "spin", "hover", "float", "slide", "leap", "breach", "belly_slide", "celebrate", "play", "excited", "tiny_jump", "happy_spin"}
+    if action in travel:
+        return wave * amplitude
+    if action in bounce:
+        return wave
+    return 0
+
+
+def _apply_action(canvas, action, subphase, style):
+    """Render one gesture using safe margins and a few known facial glyphs."""
+    if not canvas or subphase not in (1, 2, 3, 4, 5, 6, 7, 8):
+        return
+    top, bottom, _left, _right = _subject_bounds(canvas)
+    upper = min(bottom, top + 1)
+    face = min(bottom, top + 2)
+    middle = min(bottom, max(top, (top + bottom) // 2))
+    lower = max(top, bottom - 1)
+    peak = subphase in (3, 4, 5)
+    even = subphase % 2 == 0
+
+    if action in {"tail_wag", "tail_swish"}:
+        _place_motion_token(canvas, lower if even else middle, "~~" if peak else "~", "left")
+    elif action == "pant":
+        if not _replace_glyph(canvas, ("U", "u"), "u" if even else "U", top, bottom + 1, 1):
+            _place_motion_token(canvas, face, "u", "right")
+    elif action == "sniff":
+        _place_motion_token(canvas, face, ".." if peak else ".", "right")
+    elif action in {"ear_twitch", "antenna"}:
+        _place_motion_token(canvas, upper, "^" if even else "'", "left")
+        _place_motion_token(canvas, upper, "'" if even else "^", "right")
+    elif action in {"paw_tap", "hoof_tap", "claw_tap", "step"}:
+        _place_motion_token(canvas, bottom, "_." if even else "._", "right")
+    elif action == "stretch":
+        _place_motion_token(canvas, middle, "<", "left")
+        _place_motion_token(canvas, middle, ">", "right")
+    elif action == "look":
+        _place_motion_token(canvas, face, ">" if even else "<", "right")
+    elif action in {"bounce", "purr"}:
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "<3" if peak else "*", "right")
+    elif action == "whiskers":
+        _place_motion_token(canvas, face, "<" if even else "-", "left")
+        _place_motion_token(canvas, face, ">" if even else "-", "right")
+    elif action == "groom":
+        _place_motion_token(canvas, middle, "*" if even else ".", "right")
+    elif action in {"chew", "graze", "peck", "scratch"}:
+        row = lower if action == "scratch" else face
+        _place_motion_token(canvas, row, ".*" if peak else ".", "right")
+    elif action in {"roar", "howl", "hoot", "chirp", "quack", "croak", "hiss", "bellow", "trumpet", "echolocate"}:
+        marks = {"hoot": "oo", "chirp": ">>", "quack": "))", "croak": "()", "hiss": "sss"}
+        _place_motion_token(canvas, face, marks.get(action, ")))"), "right")
+    elif action in {"stomp", "charge", "sprint"}:
+        _place_motion_token(canvas, bottom, "!!" if peak else "!", "left")
+        _place_motion_token(canvas, bottom, "!!" if peak else "!", "right")
+    elif action in {"shake", "mane_toss", "head_bob", "head_turn", "sway"}:
+        _place_motion_token(canvas, upper, "~" if even else "'", "left")
+        _place_motion_token(canvas, upper, "'" if even else "~", "right")
+    elif action in {"dig", "burrow"}:
+        _place_motion_token(canvas, bottom, "..." if peak else ".", "right")
+    elif action in {"roll", "curl", "coil"}:
+        _place_motion_token(canvas, middle, "(" if even else ")", "left")
+        _place_motion_token(canvas, middle, ")" if even else "(", "right")
+    elif action in {"wing_flap", "wing_stretch", "fan_tail"}:
+        if even:
+            _place_motion_token(canvas, middle, "/", "left")
+            _place_motion_token(canvas, middle, "\\", "right")
+        else:
+            _place_motion_token(canvas, upper, "\\", "left")
+            _place_motion_token(canvas, upper, "/", "right")
+    elif action in {"hover", "glide", "swoop", "dive", "land", "wing_fold"}:
+        _place_motion_token(canvas, lower, "~" if even else "-", "left")
+        _place_motion_token(canvas, lower, "-" if even else "~", "right")
+    elif action == "preen":
+        _place_motion_token(canvas, middle, "<" if even else "*", "right")
+    elif action in {"waddle", "stride", "trot", "march", "bound", "strut", "slide"}:
+        _place_motion_token(canvas, bottom, "_/" if even else "\\_", "right")
+    elif action == "balance":
+        _place_motion_token(canvas, bottom, "|" if even else "/", "right")
+    elif action in {"swim", "dart", "surface"}:
+        _place_motion_token(canvas, lower, "~~~" if peak else "~", "left")
+        if action == "surface":
+            _place_motion_token(canvas, upper, ".", "right")
+    elif action in {"bubble", "splash", "spray", "spout", "squirt"}:
+        _place_motion_token(canvas, upper if action in {"spout", "spray"} else face, "o." if even else ".o", "right")
+        if action == "splash":
+            _place_motion_token(canvas, lower, "~~~", "left")
+    elif action == "fin_flick":
+        _place_motion_token(canvas, middle, ">" if even else "<", "left")
+    elif action in {"tentacle", "pulse"}:
+        _place_motion_token(canvas, lower, "~~~" if even else "~ ~", "left")
+        _place_motion_token(canvas, lower, "~ ~" if even else "~~~", "right")
+    elif action in {"tongue", "strike"}:
+        _place_motion_token(canvas, face, "Y" if even else "==", "right")
+    elif action in {"slither", "crawl", "scuttle", "climb"}:
+        _place_motion_token(canvas, bottom, "~_" if even else "_~", "right")
+    elif action == "shell_peek":
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, face, "?", "right")
+    elif action == "web":
+        _place_motion_token(canvas, middle, "#" if peak else "+", "right")
+    elif action == "leg_wave":
+        _place_motion_token(canvas, middle, "/\\" if even else "\\/", "right")
+    elif action == "buzz":
+        _place_motion_token(canvas, upper, "zZ" if even else "Zz", "right")
+    elif action in {"glow", "spark", "orbit", "flame", "fade", "scan", "blink_light"}:
+        token = {"glow": "*", "spark": "+*", "orbit": "o*", "flame": "^^", "fade": ".", "scan": "--", "blink_light": "[]"}[action]
+        _place_motion_token(canvas, upper if even else lower, token, "right")
+        if action in {"orbit", "glow", "flame"}:
+            _place_motion_token(canvas, lower if even else upper, token[-1], "left")
+    elif action in {"float", "spin", "dance", "wave"}:
+        _place_motion_token(canvas, middle, "~" if even else "*", "left")
+        _place_motion_token(canvas, middle, "*" if even else "~", "right")
+    elif action == "camouflage":
+        _place_motion_token(canvas, upper, ".", "left")
+        _place_motion_token(canvas, middle, ".", "right")
+        _place_motion_token(canvas, lower, ".", "left")
+    elif action == "carry":
+        _place_motion_token(canvas, upper, "[]", "right")
+    elif action in {"sit", "rest", "huddle", "hang"}:
+        _place_motion_token(canvas, bottom, "__" if even else "--", "left")
+        if action in {"rest", "huddle", "hang"}:
+            _blink_portrait(canvas, style, "_")
+    elif action in {"listen", "observe", "guard", "diagnostic"}:
+        _place_motion_token(canvas, upper, "?" if action == "listen" else "!", "right")
+        if action == "diagnostic":
+            _place_motion_token(canvas, lower, "01" if even else "10", "left")
+    elif action in {"yawn", "dream", "sleep_smoke"}:
+        _blink_portrait(canvas, style, "_")
+        token = "~o" if action == "yawn" else ("z*" if action == "dream" else "~~")
+        _place_motion_token(canvas, upper, token, "right")
+    elif action in {"scratch_ground", "forage"}:
+        _place_motion_token(canvas, bottom, "..*" if peak else "...", "right")
+    elif action in {"hide", "peek"}:
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, face, "...?" if action == "peek" else "...", "right")
+    elif action in {"circle", "chase", "school"}:
+        _place_motion_token(canvas, middle, "<o" if even else "o>", "right")
+        _place_motion_token(canvas, lower, "~" if even else "-", "left")
+    elif action in {"leap", "takeoff", "breach"}:
+        _place_motion_token(canvas, bottom, "^^" if peak else "^", "left")
+        _place_motion_token(canvas, upper, "*" if peak else ".", "right")
+    elif action in {"drink", "sunbathe"}:
+        _place_motion_token(canvas, lower, "~~~" if action == "drink" else "\\|/", "right")
+    elif action in {"celebrate", "play", "nuzzle"}:
+        _happy_eyes(canvas, style)
+        token = "*<3" if action == "celebrate" else ("o." if action == "play" else "<3")
+        _place_motion_token(canvas, upper, token, "right")
+    elif action in {"shake_water", "bubble_ring", "ink_cloud"}:
+        token = ".o." if action == "bubble_ring" else ("###" if action == "ink_cloud" else ".o.")
+        _place_motion_token(canvas, upper, token, "left")
+        _place_motion_token(canvas, lower, token[::-1], "right")
+    elif action in {"deep_dive", "wave_ride", "belly_slide"}:
+        _place_motion_token(canvas, lower, "~~~~" if peak else "~~~", "left")
+        _place_motion_token(canvas, middle, "v" if action == "deep_dive" else ">", "right")
+    elif action in {"sing", "waggle", "flutter"}:
+        token = ")))" if action == "sing" else ("<>" if action == "waggle" else "/\\")
+        _place_motion_token(canvas, upper, token, "right")
+    elif action in {"web_drop", "reach"}:
+        _place_motion_token(canvas, middle, "|#" if action == "web_drop" else "~~~>", "right")
+    elif action in {"glimmer", "rebirth_glow", "teleport", "recharge"}:
+        token = {"glimmer": "+*+", "rebirth_glow": "^^*", "teleport": ":*:", "recharge": "[++]."}[action]
+        _place_motion_token(canvas, upper, token, "right")
+        _place_motion_token(canvas, lower, token[-1], "left")
+    elif action in {"sleep", "slow_blink"}:
+        _blink_portrait(canvas, style, "_")
+        if action == "sleep":
+            _place_motion_token(canvas, upper, "zZ" if even else "Zz", "right")
+    elif action in {"head_tilt", "curious", "listen_close"}:
+        _place_motion_token(canvas, upper, "?" if action != "head_tilt" else "/", "right")
+        _place_motion_token(canvas, face, "<" if even else ">", "left")
+    elif action in {"look_left", "peek_left"}:
+        _place_motion_token(canvas, face, "<<", "left")
+    elif action in {"look_right", "peek_right"}:
+        _place_motion_token(canvas, face, ">>", "right")
+    elif action in {"double_blink", "wink"}:
+        _blink_portrait(canvas, style, "-" if action == "double_blink" else "^")
+        if action == "double_blink" and peak:
+            _place_motion_token(canvas, upper, "..", "right")
+    elif action in {"deep_breath", "calm", "settle"}:
+        _place_motion_token(canvas, middle, "((" if even else "(", "left")
+        _place_motion_token(canvas, middle, "))" if even else ")", "right")
+        if action in {"calm", "settle"}:
+            _blink_portrait(canvas, style, "_")
+    elif action in {"idle_step", "tiptoe"}:
+        _place_motion_token(canvas, bottom, "._" if even else "_.", "right")
+    elif action in {"excited", "happy_spin", "tiny_jump"}:
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "*<3" if peak else "**", "right")
+        _place_motion_token(canvas, bottom, "^^" if peak else "^", "left")
+    elif action in {"content", "snuggle", "proud"}:
+        _happy_eyes(canvas, style)
+        token = "<3" if action != "proud" else "*!"
+        _place_motion_token(canvas, upper, token, "right")
+    elif action in {"startle", "alert", "ready"}:
+        _place_motion_token(canvas, upper, "!!" if peak else "!", "left")
+        _place_motion_token(canvas, upper, "!!" if peak else "!", "right")
+    elif action == "scratch_self":
+        _place_motion_token(canvas, middle, "*.*" if peak else ".*", "right")
+    elif action in {"nap", "sleepy_blink"}:
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, upper, "z.." if even else "..z", "right")
+    elif action == "wake":
+        _place_motion_token(canvas, upper, "!", "right")
+        if peak:
+            _happy_eyes(canvas, style)
+    elif action == "request":
+        _place_motion_token(canvas, upper, "?", "right")
+        _place_motion_token(canvas, middle, "<3", "right")
+    elif action == "shiver":
+        _place_motion_token(canvas, upper, "~~~", "left")
+        _place_motion_token(canvas, lower, "~~~", "right")
+    elif action == "gaze":
+        _place_motion_token(canvas, face, "o", "right")
+    elif action == "slow_stretch":
+        _place_motion_token(canvas, middle, "<<<", "left")
+        _place_motion_token(canvas, middle, ">>>", "right")
+
+
+def _apply_mood_animation(canvas, pet, phase, style):
+    """Use current care statistics to add occasional body-language overlays."""
+    if not canvas:
+        return
+    top, bottom, _left, _right = _subject_bounds(canvas)
+    upper = min(bottom, top + 1)
+    middle = min(bottom, max(top, (top + bottom) // 2))
+    lower = max(top, bottom - 1)
+    if getattr(pet, "energy", 100.0) < 62.0 and phase % 24 in (20, 21, 22):
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, upper, "z", "right")
+    if getattr(pet, "hunger", 100.0) < 62.0 and phase % 32 in (10, 11):
+        _place_motion_token(canvas, middle, "...", "right")
+    if getattr(pet, "happiness", 0.0) > 92.0 and phase % 28 in (4, 5):
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "<3", "right")
+    if getattr(pet, "cleanliness", 100.0) < 62.0 and phase % 40 in (34, 35):
+        _place_motion_token(canvas, lower, "~", "left")
+
+
+def _animate_portrait(pet, base_lines, frame, reaction="", compact=False):
+    """Create a 720-frame anatomy-safe animation for every registered pet."""
+    if not base_lines:
+        return []
+    style = SPECIES_ART_STYLE.get(pet.species, "")
+    profile = _animation_profile_for(pet.species, style)
+    phase = int(frame) % ANIMATION_CYCLE_FRAMES
+    local_phase = (phase + profile["offset"]) % ANIMATION_CYCLE_FRAMES
+    slot = (local_phase // ANIMATION_FRAMES_PER_ACTION)
+    subphase = local_phase % ANIMATION_FRAMES_PER_ACTION
+    action = profile["actions"][slot % len(profile["actions"])]
+
+    # The drawing moves inside permanent side padding. This produces visible
+    # walking, swimming, hovering, hopping, and prowling without stretching or
+    # rewriting the animal's anatomy.
+    base_width = max(len(line) for line in base_lines)
+    side_padding = 3 if compact else 6
+    canvas_width = base_width + side_padding * 2
+    shift = _motion_shift(action, subphase, profile["amplitude"])
+    left_padding = max(0, side_padding + shift)
+    canvas = []
+    for line in base_lines:
+        raw = str(line).rstrip()
+        right_padding = max(0, canvas_width - left_padding - len(raw))
+        canvas.append(list(" " * left_padding + raw + " " * right_padding))
+
+    # Two natural blink windows plus continuous breathing make the animal alive
+    # even while its larger signature action is between poses.
+    blink_phase = (phase + profile["blink_offset"]) % 72
+    if blink_phase in (11, 12, 34, 55, 56):
+        _blink_portrait(canvas, style)
+    top, bottom, _left, _right = _subject_bounds(canvas)
+    breath_row = max(top, min(bottom, (top + bottom) // 2))
+    if phase % 10 in (1, 2, 3):
+        _place_motion_token(canvas, breath_row, ")", "right")
+    elif phase % 10 in (6, 7, 8):
+        _place_motion_token(canvas, breath_row, "(", "left")
+
+    _apply_action(canvas, action, subphase, style)
+
+    # Secondary micro-actions run on slower, offset clocks. They add tiny ear,
+    # tail, bubble, sparkle, or paw movements without replacing the main pose.
+    micro_phase = (phase + profile["seed"]) % 96
+    if micro_phase in (7, 8):
+        _apply_action(canvas, "listen", 2, style)
+    elif micro_phase in (19, 20):
+        _apply_action(canvas, "look", 3, style)
+    elif micro_phase in (31, 32):
+        _apply_action(canvas, "celebrate" if getattr(pet, "happiness", 0) > 90 else "rest", 2, style)
+    elif micro_phase in (43, 44):
+        _apply_action(canvas, "head_tilt", 4, style)
+    elif micro_phase in (55, 56):
+        aquatic_styles = {"fish", "whale", "shark", "octopus", "marine_mammal", "seahorse", "jellyfish"}
+        _apply_action(canvas, "bubble_ring" if style in aquatic_styles else "sniff", 3, style)
+    elif micro_phase in (67, 68):
+        _apply_action(canvas, "deep_breath", 4, style)
+    elif micro_phase in (79, 80):
+        _apply_action(canvas, "curious", 3, style)
+    elif micro_phase in (91, 92):
+        _apply_action(canvas, "content" if getattr(pet, "happiness", 0) > 75 else "settle", 3, style)
+
+    _apply_mood_animation(canvas, pet, phase, style)
+
+    # Interaction reactions layer over the idle behavior instead of replacing
+    # it, making care actions feel immediate while animation remains continuous.
+    top, bottom, _left, _right = _subject_bounds(canvas)
+    upper = min(bottom, top + 1)
+    middle = min(bottom, max(top, (top + bottom) // 2))
+    lower = max(top, bottom - 1)
+    if reaction == "feed":
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, middle, "* yum", "right")
+    elif reaction == "pet":
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "<3", "right")
+        _place_motion_token(canvas, lower, "~", "left")
+    elif reaction == "bath":
+        _place_motion_token(canvas, upper, "o.", "left")
+        _place_motion_token(canvas, middle, ".o", "right")
+        _place_motion_token(canvas, lower, "o.", "left")
+    elif reaction == "train":
+        _place_motion_token(canvas, middle, "!!", "left")
+        _place_motion_token(canvas, middle, "!!", "right")
+        _place_motion_token(canvas, lower, "_/", "right")
+    elif reaction == "greet":
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "!", "right")
+    elif reaction.startswith("request_"):
+        request_mark = {
+            "request_feed": "food?", "request_pet": "<3?",
+            "request_bathe": "o.?", "request_train": "!!?",
+        }.get(reaction, "?")
+        _place_motion_token(canvas, upper, request_mark, "right")
+        _apply_action(canvas, "curious", 4, style)
+    elif reaction == "wish_complete":
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "*<3*", "right")
+        _place_motion_token(canvas, lower, "^^", "left")
+    elif reaction == "voice":
+        _place_motion_token(canvas, face, ")))" if style not in {"fish", "whale", "shark"} else "oO", "right")
+    elif reaction:
+        _place_motion_token(canvas, upper, "*", "right")
+
+    # Preserve the padded width on every frame. The portrait border therefore
+    # remains fixed even when a far-edge motion token appears or disappears.
+    return ["".join(row) for row in canvas]
+
+
+def get_detailed_art(game, width, max_height):
+    """Return a complete framed portrait without stretching or mid-art cuts."""
+    if game.active_pet is None:
+        return ["No active pet"]
+
+    pet = game.active_pet
+    portrait = _portrait_for_species(pet)
+    if portrait:
+        portrait = _animate_portrait(
+            pet,
+            portrait,
+            game.anim_frame,
+            getattr(game, "pet_reaction", ""),
+        )
+    compact = _animate_portrait(
+        pet,
+        _compact_species_art(pet, game.anim_frame),
+        game.anim_frame,
+        getattr(game, "pet_reaction", ""),
+        compact=True,
+    )
+    available_inner_height = max(1, max_height - 2)
+
+    if portrait and len(portrait) <= available_inner_height:
+        art = portrait
+    elif compact and len(compact) <= available_inner_height:
+        art = compact
+    else:
+        # A one-line label is preferable to displaying half an animal when the
+        # terminal is temporarily too short (for example while the keyboard is
+        # open in a very large font).
+        art = [f"< {pet.species} >"]
+
+    art_width = max((len(line) for line in art), default=1)
+    inner_width = min(max(3, width - 4), art_width + 4)
+    border = "+" + "-" * inner_width + "+"
+    block = [border]
+    for line in art:
+        block.append("|" + line.center(inner_width)[:inner_width] + "|")
+    block.append(border)
+    return block
+
+# ==================== CURSES UI ====================
+def draw_animated_bar(stdscr, y, x, val, max_val, width, cp, tseed, filled_char="=", empty_char=" "):
+    # Clamp fill length so invalid external save values can never construct a
+    # massive string or draw beyond the intended terminal region.
+    filled = int((val / max_val) * width) if max_val > 0 else 0
+    filled = max(0, min(width, filled))
+    shimmer = int((tseed * 5) % (width + 10)) - 5
+    bar = []
+    for i in range(width):
+        ch = filled_char if i < filled else empty_char
+        if i == shimmer and i < filled: ch = ">"
+        bar.append(ch)
+    try: stdscr.addstr(y, x, f"[{''.join(bar)}] {val:5.1f}/{max_val:.0f}", curses.color_pair(cp)|curses.A_BOLD)
+    except: pass
+
+def draw_bar(stdscr, y, x, val, max_val, width, cp):
+    filled = int((val / max_val) * width) if max_val > 0 else 0
+    filled = max(0, min(width, filled))
+    try: stdscr.addstr(y, x, f"[{'='*filled}{' '*(width-filled)}]", curses.color_pair(cp))
+    except: pass
+
+def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, is_prestige=False):
+    """Draw ten compact, color-coded store rows on every page.
+
+    Green means affordable, yellow means nearly affordable, red means locked by
+    price, and magenta marks a completed/MAX upgrade.  Row ten uses key 0 so a
+    normal keyboard can select all ten entries without a two-key input mode.
+    """
+    h, w = stdscr.getmaxyx()
+    names = list(upgrades_dict.keys())
+    page_size = max(1, min(getattr(game, "shop_page_size", 10), 10))
+    page_attr = "prestige_shop_page" if is_prestige else "shop_page"
+    page = max(0, int(getattr(game, page_attr, 0)))
+    total_pages = max(1, math.ceil(len(names) / page_size))
+    page = min(page, total_pages - 1)
+    setattr(game, page_attr, page)
+    page_names = names[page * page_size:(page + 1) * page_size]
+
+    balance = game.prestige_points if is_prestige else game.coins
+    rows = []
+    for index, name in enumerate(page_names):
+        info = upgrades_dict[name]
+        level = player_levels.get(name, 0)
+        if is_prestige:
+            cost = info["cost"] * (level + 1)
+            is_max = False
+        else:
+            maximum = info["max_level"]
+            is_max = level >= maximum
+            cost = 0 if is_max else int(info["base_cost"] * (info["mult"] ** level))
+
+        key_label = "0" if index == 9 else str(index + 1)
+        display_name = name.replace("_", " ").title()
+        if is_max:
+            status = "MAX"
+            attr = curses.color_pair(9) | curses.A_BOLD
+        elif balance >= cost:
+            status = f"{fmt_num(cost)}"
+            attr = curses.color_pair(1) | curses.A_BOLD
+        elif balance >= cost * 0.65:
+            status = f"{fmt_num(cost)}"
+            attr = curses.color_pair(10) | curses.A_BOLD
+        else:
+            status = f"{fmt_num(cost)}"
+            attr = curses.color_pair(6) | curses.A_BOLD
+
+        # Keep one physical terminal row per item so ten entries fit even on a
+        # standard 80x24 Termux window. The description remains visible after a
+        # separator and is clipped only at the actual modal boundary.
+        row_text = f"[{key_label}] {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
+        rows.append((row_text, attr))
+
+    title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
+    header = [
+        (f"-- {title} --", title_attr),
+        (f"Page {page + 1}/{total_pages} | Balance: {fmt_num(balance)}", curses.color_pair(7) | curses.A_BOLD),
+        ("GREEN affordable  YELLOW close  RED expensive  MAGENTA max", curses.color_pair(3)),
+        ("", curses.color_pair(7)),
+    ]
+    footer = [
+        ("", curses.color_pair(7)),
+        ("[1-9/0] buy  [n/right] next  [p/left] prev  [esc] close", curses.color_pair(3) | curses.A_BOLD),
+    ]
+    lines = header + rows + footer
+
+    box_h = min(h - 2, len(lines) + 2)
+    max_width = max(len(line) for line, _attr in lines) if lines else 20
+    box_w = min(w - 2, max(30, max_width + 4))
+    start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+
+    # Use the terminal's normal background instead of a solid white panel so
+    # rarity and affordability colors remain readable in dark Termux themes.
+    for row in range(box_h):
+        try: stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(7))
+        except curses.error: pass
+    try:
+        border_attr = title_attr
+        stdscr.addstr(start_y, start_x, "+" + "=" * (box_w - 2) + "+", border_attr)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(start_y + row, start_x, "|", border_attr)
+            stdscr.addstr(start_y + row, start_x + box_w - 1, "|", border_attr)
+        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "=" * (box_w - 2) + "+", border_attr)
+    except curses.error:
+        pass
+
+    usable_width = max(0, box_w - 4)
+    for row, (line, attr) in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(start_y + 1 + row, start_x + 2, line[:usable_width], attr)
+        except curses.error: pass
+
+
+def draw_pet_select(stdscr, game):
+    h, w = stdscr.getmaxyx()
+    page_size = max(1, min(getattr(game, "pet_select_page_size", 10), 10))
+    total_pages = max(1, math.ceil(len(game.pets) / page_size))
+    game.pet_select_page = max(0, min(getattr(game, "pet_select_page", 0), total_pages - 1))
+    start = game.pet_select_page * page_size
+    page_pets = game.pets[start:start + page_size]
+    lines = ["-- SELECT ACTIVE PET --", f"Page {game.pet_select_page + 1}/{total_pages}", ""]
+    for local_index, pet in enumerate(page_pets, 1):
+        absolute_index = start + local_index - 1
+        mark = ">" if absolute_index == game.active_pet_index else " "
+        key_label = "0" if local_index == 10 else str(local_index)
+        lines.append(f"{mark} {key_label}. {pet.nickname[:16]} ({pet.species}) - {STAGE_NAMES[pet.stage]}")
+    lines.extend(["", "[1-9/0] switch  [n/right] next  [p/left] prev  [esc] back"])
+    box_h = min(h - 2, len(lines) + 2)
+    box_w = min(w - 2, max(len(line) for line in lines) + 4)
+    start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(4))
+        except curses.error: pass
+    try:
+        stdscr.addstr(start_y, start_x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(start_y + row, start_x, "|", curses.color_pair(4))
+            stdscr.addstr(start_y + row, start_x + box_w - 1, "|", curses.color_pair(4))
+        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+    except curses.error:
+        pass
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(start_y + 1 + row, start_x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
+        except curses.error: pass
+
+
+def draw_adopt_screen(stdscr, game):
+    """Draw priced, rarity-labelled, progression-gated adoption entries."""
+    h, w = stdscr.getmaxyx()
+    species_list = list(SPECIES.keys())
+    page_size = max(1, min(getattr(game, "adopt_page_size", 10), 10))
+    total_pages = max(1, math.ceil(len(species_list) / page_size))
+    game.adopt_page = max(0, min(getattr(game, "adopt_page", 0), total_pages - 1))
+    start = game.adopt_page * page_size
+    page_species = species_list[start:start + page_size]
+
+    lines = [
+        f"-- ADOPTION CENTER ({len(species_list)} SPECIES) --",
+        f"Caretaker Lv.{game.caretaker_level} | Missions {game.missions_completed} | Coins {fmt_num(game.coins)}",
+        f"Page {game.adopt_page + 1}/{total_pages}",
+        "",
+    ]
+    owned_counts = {}
+    for pet in game.pets:
+        owned_counts[pet.species] = owned_counts.get(pet.species, 0) + 1
+    for number, name in enumerate(page_species, 1):
+        allowed, reason, cost, tier = game.adoption_status(name)
+        marker = "READY" if allowed else "LOCK"
+        owned = f" x{owned_counts[name]}" if name in owned_counts else ""
+        key_label = "0" if number == 10 else str(number)
+        lines.append(
+            f"{key_label}. {name}{owned} [{tier.upper()}] {fmt_num(cost)} - {marker}: {reason}"
+        )
+    lines.extend(["", "[1-9/0] adopt  [n/right] next  [p/left] prev  [esc] back"])
+
+    box_h = min(h - 2, len(lines) + 2)
+    box_w = min(w - 2, max(len(line) for line in lines) + 4)
+    y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(4))
+        except curses.error: pass
+    try:
+        stdscr.addstr(y, x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", curses.color_pair(4))
+            stdscr.addstr(y + row, x + box_w - 1, "|", curses.color_pair(4))
+        stdscr.addstr(y + box_h - 1, x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+    except curses.error:
+        pass
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(y + 1 + row, x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
+        except curses.error: pass
+
+def draw_loot_screen(stdscr, game):
+    """Draw color-coded container tiers, reward rarities, pity, and history."""
+    h, w = stdscr.getmaxyx()
+    free_remaining = game.free_link_crate_seconds_remaining()
+    if free_remaining > 0:
+        free_minutes, free_seconds = divmod(free_remaining, 60)
+        free_crate_line = f"[v] FREE link crate in {free_minutes}:{free_seconds:02d}"
+    else:
+        free_crate_line = "[v] visit a random guide -> FREE crate"
+
+    lines = [
+        ("-- LOOT VAULT --", curses.color_pair(9) | curses.A_BOLD),
+        ("Virtual rewards only - no real-money purchases", curses.color_pair(3)),
+        (f"Mythic shards: {game.mythic_shards}/{MYTHIC_SUMMON_COST}", curses.color_pair(10) | curses.A_BOLD),
+        (free_crate_line, curses.color_pair(1) | curses.A_BOLD),
+        ("Free box odds: Common 80% | Rare 18% | Mythic 2%", curses.color_pair(7)),
+        ("", curses.color_pair(7)),
+    ]
+
+    for number, kind in enumerate(LOOT_BOX_ORDER, 1):
+        info = LOOT_BOX_TYPES[kind]
+        container_attr = curses.color_pair(info.get("container_color", 7)) | curses.A_BOLD
+        pity_now = game.loot_pity.get(kind, 0)
+        pity_limit = LOOT_PITY_LIMITS[kind]
+        pity_rarity = LOOT_REWARD_RARITIES[LOOT_PITY_MIN_RARITY[kind]]["label"]
+        lines.append((
+            f"[{number}] OPEN {info['title']}  owned:{game.loot_boxes.get(kind, 0)}   "
+            f"[{number + 3}] BUY {fmt_num(game.loot_box_cost(kind))}",
+            container_attr,
+        ))
+
+        rarity_parts = []
+        for rarity, weight in info["rarity_odds"]:
+            rarity_parts.append(f"{LOOT_REWARD_RARITIES[rarity]['label']} {weight}%")
+        lines.append(("    " + " | ".join(rarity_parts), curses.color_pair(7)))
+        lines.append((
+            f"    pity {pity_now}/{pity_limit} -> guaranteed {pity_rarity}",
+            curses.color_pair(10 if pity_now + 1 >= pity_limit else 3),
+        ))
+
+    lines.extend([
+        ("", curses.color_pair(7)),
+        (f"[s] summon a random mythical pet for {MYTHIC_SUMMON_COST} shards", curses.color_pair(11) | curses.A_BOLD),
+        ("[1-3] open  [4-6] buy  [esc] close", curses.color_pair(3) | curses.A_BOLD),
+    ])
+    if game.loot_history:
+        lines.extend([("", curses.color_pair(7)), ("Recent rewards:", curses.color_pair(10) | curses.A_BOLD)])
+        for entry in game.loot_history[-3:]:
+            history_attr = curses.color_pair(7)
+            for rarity, rarity_info in LOOT_REWARD_RARITIES.items():
+                if f"[{rarity_info['label']}]" in entry:
+                    history_attr = curses.color_pair(rarity_info["color_pair"]) | curses.A_BOLD
+                    break
+            lines.append((f"- {entry}", history_attr))
+
+    box_h = min(max(3, h - 2), len(lines) + 2)
+    max_width = max(len(line) for line, _attr in lines) if lines else 20
+    box_w = min(max(12, w - 2), max_width + 4)
+    y = max(0, (h - box_h) // 2)
+    x = max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(7))
+        except curses.error: pass
+    try:
+        border_attr = curses.color_pair(9) | curses.A_BOLD
+        stdscr.addstr(y, x, "+" + "=" * (box_w - 2) + "+", border_attr)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", border_attr)
+            stdscr.addstr(y + row, x + box_w - 1, "|", border_attr)
+        stdscr.addstr(y + box_h - 1, x, "+" + "=" * (box_w - 2) + "+", border_attr)
+    except curses.error:
+        pass
+    usable_width = max(0, box_w - 4)
+    for row, (line, attr) in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(y + 1 + row, x + 2, line[:usable_width], attr)
+        except curses.error: pass
+
+
+def draw_adventure_screen(stdscr, game):
+    """Draw the Journey track, daily contracts, maps, and expeditions together."""
+    h, w = stdscr.getmaxyx()
+    game.refresh_daily_contracts()
+    lines = [
+        ("-- SANCTUARY ADVENTURE BOARD --", curses.color_pair(3) | curses.A_BOLD),
+        (
+            f"Journey Lv.{game.journey_level}  {int(game.journey_points)}/{int(game.journey_points_needed())} points"
+            f" | Levels cleared {game.journey_levels_completed}",
+            curses.color_pair(2) | curses.A_BOLD,
+        ),
+        (
+            f"Treasure map {game.treasure_fragments}/{TREASURE_MAP_FRAGMENT_TARGET} fragments"
+            f" | Maps completed {game.treasure_maps_completed}",
+            curses.color_pair(10) | curses.A_BOLD,
+        ),
+        ("", curses.color_pair(7)),
+        (f"Daily contracts - {game.daily_contract_date}", curses.A_UNDERLINE | curses.A_BOLD),
+    ]
+    for contract in game.daily_contracts:
+        key = str(contract.get("type", ""))
+        target = max(1, int(contract.get("target", 1)))
+        progress = min(target, int(game.daily_contract_progress.get(key, 0)))
+        done = key in game.daily_contract_claimed
+        mark = "[X]" if done else "[ ]"
+        attr = curses.color_pair(1) | curses.A_BOLD if done else curses.color_pair(7)
+        lines.append((f"{mark} {contract.get('label', key)} ({progress}/{target})", attr))
+
+    lines.extend([
+        ("", curses.color_pair(7)),
+        ("Expeditions", curses.A_UNDERLINE | curses.A_BOLD),
+    ])
+    if game.expedition_kind:
+        info = EXPEDITION_TYPES[game.expedition_kind]
+        remaining = game.expedition_seconds_remaining()
+        state = "READY - press C" if remaining <= 0 else f"returns in {remaining // 60}:{remaining % 60:02d}"
+        lines.append((
+            f"{game.expedition_pet_name} ({game.expedition_pet_species}) | {info['title']} | {state}",
+            curses.color_pair(1 if remaining <= 0 else 2) | curses.A_BOLD,
+        ))
+    else:
+        for number, kind in enumerate(("meadow", "ruins", "rift"), 1):
+            info = EXPEDITION_TYPES[kind]
+            minutes = info["duration"] // 60
+            lines.append((
+                f"[{number}] {info['title']} {minutes}m | Keeper Lv.{info['level']} | spare Bond Lv.{info['bond']}",
+                curses.color_pair(8 + min(number - 1, 2)) | curses.A_BOLD,
+            ))
+    lines.extend([
+        ("", curses.color_pair(7)),
+        ("[1-3] start expedition  [C] claim finished expedition  [esc] back", curses.A_BOLD),
+        ("Journey rewards: every 5 levels Common, 10 Rare, 25 Mythic.", curses.A_DIM),
+        ("Treasure rewards: every 3rd map Rare, every 10th map Mythic.", curses.A_DIM),
+    ])
+
+    box_h = min(max(3, h - 2), len(lines) + 2)
+    max_line = max(len(line) for line, _attr in lines)
+    box_w = min(max(20, w - 2), max_line + 4)
+    y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try:
+            stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(7))
+        except curses.error:
+            pass
+    border = curses.color_pair(3) | curses.A_BOLD
+    try:
+        stdscr.addstr(y, x, "+" + "=" * (box_w - 2) + "+", border)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", border)
+            stdscr.addstr(y + row, x + box_w - 1, "|", border)
+        stdscr.addstr(y + box_h - 1, x, "+" + "=" * (box_w - 2) + "+", border)
+    except curses.error:
+        pass
+    usable = max(0, box_w - 4)
+    for row, (line, attr) in enumerate(lines[:max(0, box_h - 2)]):
+        try:
+            stdscr.addstr(y + 1 + row, x + 2, line[:usable], attr)
+        except curses.error:
+            pass
+
+
+def draw_attention_screen(stdscr, game):
+    """Block automatic progress until the player completes the care check."""
+    h, w = stdscr.getmaxyx()
+    lines = [
+        "-- CARE CHECK --",
+        "Automatic progress paused after 10 unattended minutes.",
+        f"Completed checks: {game.attention_check_count}",
+        f"Current streak: {game.care_check_streak}",
+        "Resume reward: 1 Common Crate",
+        "Every 3rd check: +1 Rare Chest",
+        "Every 10th check: +1 Mythic Vault",
+        "+Bond XP and +18 Sanctuary Spark every check",
+        "",
+        "Press SPACE or ENTER to continue",
+        "Press q to save and quit",
+    ]
+    box_h = min(max(3, h - 2), len(lines) + 2)
+    box_w = min(max(12, w - 2), max(len(line) for line in lines) + 4)
+    y = max(0, (h - box_h) // 2)
+    x = max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(6) | curses.A_BOLD)
+        except curses.error: pass
+    try:
+        stdscr.addstr(y, x, "+" + "=" * (box_w - 2) + "+", curses.color_pair(6) | curses.A_BOLD)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", curses.color_pair(6) | curses.A_BOLD)
+            stdscr.addstr(y + row, x + box_w - 1, "|", curses.color_pair(6) | curses.A_BOLD)
+        stdscr.addstr(y + box_h - 1, x, "+" + "=" * (box_w - 2) + "+", curses.color_pair(6) | curses.A_BOLD)
+    except curses.error:
+        pass
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(y + 1 + row, x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
+        except curses.error: pass
+
+
+def draw_fight_screen(stdscr, game):
+
+    h, w = stdscr.getmaxyx()
+    lines = ["-- FIGHT --", ""]
+    if game.fight_state == "player_turn": lines.append("Your turn: [a]ttack, [s]pecial, [d]efend")
+    elif game.fight_state == "finished": lines.append("Fight finished. Press [esc]")
+    lines.append(f"Your HP: {game.fight_player_hp}/100")
+    lines.append(f"Enemy HP: {game.fight_enemy_hp}/100")
+    lines.append("")
+    for log in game.fight_log[-4:]: lines.append(log)
+    box_h, box_w = len(lines)+2, max(len(l) for l in lines)+4
+    start_y, start_x = max(0,(h-box_h)//2), max(0,(w-box_w)//2)
+    for i in range(box_h):
+        try: stdscr.addstr(start_y+i, start_x, " "*box_w, curses.color_pair(4))
+        except: pass
+    try:
+        stdscr.addstr(start_y, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
+        for i in range(1,box_h-1):
+            stdscr.addstr(start_y+i, start_x, "|", curses.color_pair(4))
+            stdscr.addstr(start_y+i, start_x+box_w-1, "|", curses.color_pair(4))
+        stdscr.addstr(start_y+box_h-1, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
+    except: pass
+    for i, line in enumerate(lines):
+        try: stdscr.addstr(start_y+1+i, start_x+2, line, curses.A_BOLD)
+        except: pass
+
+
+def draw_achievement_screen(stdscr, game):
+    """Draw ten compact achievement rows per page."""
+    h, w = stdscr.getmaxyx()
+    items = list(ACHIEVEMENT_DEFINITIONS.items())
+    page_size = max(1, min(game.achievement_page_size, 10))
+    total_pages = max(1, math.ceil(len(items) / page_size))
+    game.achievement_page = max(0, min(game.achievement_page, total_pages - 1))
+    page_items = items[game.achievement_page * page_size:(game.achievement_page + 1) * page_size]
+    lines = [
+        "-- ACHIEVEMENTS --",
+        f"Unlocked {len(game.achievements)}/{len(ACHIEVEMENT_DEFINITIONS)} | Page {game.achievement_page + 1}/{total_pages}",
+        "",
+    ]
+    for achievement_id, (title, description, coins, xp) in page_items:
+        mark = "[X]" if achievement_id in game.achievements else "[ ]"
+        lines.append(
+            f"{mark} {title} | {description} | {fmt_num(coins)}c/{xp}xp"
+        )
+    lines.extend(["", "[n/right] next  [p/left] prev  [esc] back"])
+    box_h = min(h - 2, len(lines) + 2)
+    box_w = min(w - 2, max(len(line) for line in lines) + 4)
+    y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(7))
+        except curses.error: pass
+    try:
+        border_attr = curses.color_pair(3) | curses.A_BOLD
+        stdscr.addstr(y, x, "+" + "=" * (box_w - 2) + "+", border_attr)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", border_attr)
+            stdscr.addstr(y + row, x + box_w - 1, "|", border_attr)
+        stdscr.addstr(y + box_h - 1, x, "+" + "=" * (box_w - 2) + "+", border_attr)
+    except curses.error:
+        pass
+    usable_width = max(0, box_w - 4)
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
+        attr = curses.color_pair(1) | curses.A_BOLD if line.startswith("[X]") else curses.color_pair(7)
+        if row == 0:
+            attr = curses.color_pair(3) | curses.A_BOLD
+        try: stdscr.addstr(y + 1 + row, x + 2, line[:usable_width], attr)
+        except curses.error: pass
+
+
+def draw_lan_screen(stdscr, game):
+    """Draw host, discovery, battle, and trade controls for same-network play."""
+    h, w = stdscr.getmaxyx()
+    manager = game.lan_manager
+    offer = game.get_lan_offer_pet()
+    selected = None
+    if game.lan_peers:
+        game.lan_selected_peer = max(0, min(game.lan_selected_peer, len(game.lan_peers) - 1))
+        selected = game.lan_peers[game.lan_selected_peer]
+    host_state = f"ON at {manager.local_ip}:{LAN_TCP_PORT}" if manager.hosting else "OFF"
+    offer_text = f"{offer.nickname} ({offer.species})" if offer else "none"
+    lines = [
+        "-- LOCAL NETWORK ARENA & EXCHANGE --",
+        f"{game.player_name} Lv.{game.caretaker_level} | Host {host_state} | "
+        f"Record {game.lan_wins}W/{game.lan_losses}L | Trades {game.lan_trades}",
+        f"Offer: {offer_text} | Same Wi-Fi/hotspot only",
+        f"Status: {game.lan_status}",
+        "Rooms:",
+    ]
+    if not game.lan_peers:
+        lines.append("  (none - press r to scan)")
+    else:
+        for index, peer in enumerate(game.lan_peers[:10], 1):
+            pet_data = peer.get("active_pet") or {}
+            trade_data = peer.get("trade_offer") or {}
+            mark = ">" if index - 1 == game.lan_selected_peer else " "
+            lines.append(
+                f"{mark}{0 if index == 10 else index}. {str(peer.get('player_name', 'Player'))[:14]} "
+                f"Lv.{peer.get('caretaker_level', '?')} | "
+                f"{pet_data.get('species', '?')} | offer:{trade_data.get('species', 'none')}"
+            )
+    lines.extend([
+        "",
+        "[h] host on/off  [r] scan  [i] enter host IP  [1-9/0] select",
+        "[b] battle  [t] trade offers  [o] next offer  [u] rename  [esc] back",
+    ])
+    box_h = min(h - 2, len(lines) + 2)
+    box_w = min(w - 2, max(len(line) for line in lines) + 4)
+    y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
+        try: stdscr.addstr(y + row, x, " " * box_w, curses.color_pair(4))
+        except curses.error: pass
+    try:
+        stdscr.addstr(y, x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(y + row, x, "|", curses.color_pair(4))
+            stdscr.addstr(y + row, x + box_w - 1, "|", curses.color_pair(4))
+        stdscr.addstr(y + box_h - 1, x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+    except curses.error:
+        pass
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
+        try: stdscr.addstr(y + 1 + row, x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
+        except curses.error: pass
+
+
+def draw_input_prompt(stdscr, game):
+    h, w = stdscr.getmaxyx()
+    line = f"{game.input_prompt}: {game.input_buffer}_"
+    start_y, start_x = h//2, max(0,(w-len(line))//2)
+    try: stdscr.addstr(start_y, start_x, line, curses.A_REVERSE)
+    except: pass
+
+MAIN_CONTROL_TOKENS = (
+    "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[L] Loot",
+    "[c] Pets", "[a] Adopt", "[F] Fight", "[N] LAN", "[A] Achievements",
+    "[R] Adventure", "[P] Prestige", "[B] Boost", "[n] Rename", "[C] Color", "[M] SFX",
+    "[K] Music", "[U] Mute All", "[[] PrevFact", "[]] NextFact", "[q] Quit",
+)
+
+
+def _pack_tokens_for_width(tokens, width):
+    """Greedily wrap command tokens so none are silently cut off."""
+    usable = max(18, width - 4)
+    lines = []
+    current = ""
+    for token in tokens:
+        candidate = token if not current else f"{current}  {token}"
+        if len(candidate) <= usable:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = token
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _safe_addstr(stdscr, y, x, text, attr=0):
+    """Draw within the current terminal bounds and ignore edge-cell errors."""
+    h, w = stdscr.getmaxyx()
+    if not (0 <= y < h) or x >= w:
+        return
+    x = max(0, x)
+    available = max(0, w - x - 1)
+    if available <= 0:
+        return
+    try:
+        stdscr.addstr(y, x, str(text)[:available], attr)
+    except curses.error:
+        pass
+    except Exception:
+        pass
+
+
+def _learning_card_lines(pet, width):
+    """Wrap and return the entire current educational card.
+
+    The old fixed three-line limit silently removed the end of longer facts.
+    Portraits now shrink before educational text is shortened.
+    """
+    facts = pet.get_facts()
+    if not facts:
+        return []
+
+    index = pet.fact_index % len(facts)
+    fictional = pet.species in FICTIONAL_SPECIES
+    kind = "MYTHOLOGY CARD" if fictional else "LEARNING CARD"
+    header = f"{kind} {index + 1}/{len(facts)}  ([ and ] browse)"
+    usable = max(20, width - 4)
+    wrapped = textwrap.wrap(
+        facts[index],
+        width=usable,
+        break_long_words=False,
+        break_on_hyphens=False,
+        replace_whitespace=True,
+        drop_whitespace=True,
+    )
+    return [header] + (wrapped or [""])
+
+
+def _status_tokens(game):
+    """Return independent status items so portrait screens can wrap them."""
+    remaining = max(0, int(game.interaction_seconds_remaining()))
+    timer_text = f"{remaining // 60}:{remaining % 60:02d}"
+    boxes = (
+        f"C/R/M {game.loot_boxes.get('common', 0)}/"
+        f"{game.loot_boxes.get('rare', 0)}/"
+        f"{game.loot_boxes.get('mythic', 0)}"
+    )
+    combo_text = f"x{game.care_combo}" if game.care_combo > 0 else "-"
+    xp_needed = game.caretaker_xp_needed()
+    tokens = [
+        f"XP {int(game.caretaker_xp)}/{int(xp_needed)}",
+        f"Missions {game.missions_completed}",
+        f"Boxes {boxes}",
+        f"Combo {combo_text}",
+        f"Spark {int(game.festival_meter)}/100",
+        game.pet_request_status(),
+        f"Stars {game.friendship_stars}/{FRIENDSHIP_STARS_PER_GIFT}",
+        f"Research {game.knowledge_points}",
+        f"Journey L{game.journey_level} {int(game.journey_points)}/{int(game.journey_points_needed())}",
+        f"Map {game.treasure_fragments}/{TREASURE_MAP_FRAGMENT_TARGET}",
+        f"Check {timer_text}",
+    ]
+    if game.sound_manager.muted:
+        tokens.append("AUDIO MUTED")
+    return tuple(tokens)
+
+
+def _message_lines(game, width):
+    """Wrap the newest message instead of cutting it at the right edge."""
+    if not game.messages:
+        return []
+    usable = max(20, width - 4)
+    message = str(game.messages[-1][0])
+    return textwrap.wrap(
+        message,
+        width=usable,
+        break_long_words=False,
+        break_on_hyphens=False,
+        replace_whitespace=True,
+        drop_whitespace=True,
+    ) or [message]
+
+
+def _title_for_width(game, width):
+    """Choose a complete title variant; never slice a name in half."""
+    nickname = game.active_pet.nickname if game.active_pet else "?"
+    species = game.active_pet.species if game.active_pet else "?"
+    coins = fmt_num(game.coins)
+
+    candidates = [
+        f" Pet Friends | {nickname} the {species} | Keeper Lv.{game.caretaker_level} | {coins} coins ",
+        f" Pet Friends | {nickname} ({species}) | Lv.{game.caretaker_level} | {coins}c ",
+        f" {nickname} ({species}) | Lv.{game.caretaker_level} | {coins}c ",
+        " Pet Friends ",
+    ]
+    usable = max(1, width - 1)
+    for candidate in candidates:
+        if len(candidate) <= usable:
+            return candidate.center(usable)
+    return "Pet Friends"[:usable].center(usable)
+
+
+def draw_ui(stdscr, game):
+    stdscr.erase()
+    h, w = stdscr.getmaxyx()
+
+    # Status items and controls are wrapped independently.  This prevents the
+    # right side of "Check", box counts, or key labels from disappearing.
+    status_lines = _pack_tokens_for_width(_status_tokens(game), w)
+    control_lines = _pack_tokens_for_width(MAIN_CONTROL_TOKENS, w)
+    footer_lines = status_lines + control_lines
+    footer_top = max(2, h - len(footer_lines))
+    content_bottom = footer_top - 1
+
+    title = _title_for_width(game, w)
+    if game.festival_active() and len(title.rstrip()) + 11 < max(1, w - 1):
+        title = (title.strip() + " | FESTIVAL ").center(max(1, w - 1))
+    elif game.boost_active and len(title.rstrip()) + 8 < max(1, w - 1):
+        title = (title.strip() + " | BOOST ").center(max(1, w - 1))
+    _safe_addstr(stdscr, 0, 0, title, curses.A_REVERSE)
+
+    p = game.active_pet
+    card_lines = _learning_card_lines(p, w) if p else []
+    message_lines = _message_lines(game, w)
+
+    # Four care bars plus power, bond, and evolution require seven rows.  The
+    # full fact and newest message are reserved before deciding portrait size.
+    card_rows = (1 + len(card_lines)) if card_lines else 0
+    reserved_after_art = 2 + 7 + card_rows + len(message_lines)
+    max_art_height = max(3, content_bottom - reserved_after_art)
+
+    art_lines = get_detailed_art(game, w, max_art_height)
+    pet_y = 1
+    art_attr = curses.color_pair(p.color if p else 7) | curses.A_BOLD
+    for offset, line in enumerate(art_lines):
+        if pet_y + offset >= content_bottom:
+            break
+        _safe_addstr(
+            stdscr,
+            pet_y + offset,
+            max(0, (w - len(line)) // 2),
+            line,
+            art_attr,
+        )
+
+    row = pet_y + len(art_lines) + 1
+    bar_w = max(8, min(18, w - 34))
+
+    if p:
+        stat_rows = (
+            ("Hunger", p.hunger, 1, 1.0),
+            ("Happiness", p.happiness, 2, 0.9),
+            ("Energy", p.energy, 3, 1.1),
+            ("Cleanliness", p.cleanliness, 4, 0.8),
+        )
+        for label, value, colour, seed_scale in stat_rows:
+            if row >= content_bottom:
+                break
+            _safe_addstr(stdscr, row, 2, f"{label:<12}", curses.A_BOLD)
+            draw_animated_bar(
+                stdscr,
+                row,
+                15,
+                value,
+                100,
+                bar_w,
+                colour,
+                game.anim_frame * seed_scale,
+            )
+            row += 1
+
+        if row < content_bottom:
+            power = int(p.battle_power() * game.battle_power_mult())
+            _safe_addstr(
+                stdscr,
+                row,
+                2,
+                f"Battle power {power}   Level {p.battle_level}",
+            )
+            row += 1
+
+        if row < content_bottom:
+            needed = p.bond_xp_needed() if p.bond_level < BOND_LEVEL_CAP else 1.0
+            _safe_addstr(stdscr, row, 2, f"Bond Lv.{p.bond_level}", curses.A_BOLD)
+            draw_bar(
+                stdscr,
+                row,
+                15,
+                p.bond_xp if p.bond_level < BOND_LEVEL_CAP else 1.0,
+                needed,
+                bar_w,
+                2,
+            )
+            row += 1
+
+        if row < content_bottom:
+            if p.stage < len(STAGE_NAMES) - 1 and STAGE_TIMES[p.stage] > 0:
+                threshold = STAGE_TIMES[p.stage]
+                next_name = STAGE_NAMES[p.stage + 1]
+                prefix = f"Next: {next_name}"
+                _safe_addstr(stdscr, row, 2, prefix)
+                evolution_x = min(max(15, len(prefix) + 4), max(15, w - bar_w - 13))
+                draw_animated_bar(
+                    stdscr,
+                    row,
+                    evolution_x,
+                    p.age_in_stage,
+                    threshold,
+                    bar_w,
+                    3,
+                    game.anim_frame * 1.2,
+                    "#",
+                    ".",
+                )
+            else:
+                _safe_addstr(
+                    stdscr,
+                    row,
+                    2,
+                    "Evolution: maximum stage reached",
+                    curses.A_BOLD,
+                )
+            row += 1
+
+        pet_center_x = w // 2
+        pet_center_y = pet_y + len(art_lines) // 2
+        for x_offset, y_offset, life, symbol, amount in game.particles:
+            if life <= 0:
+                continue
+            px = pet_center_x + int(x_offset)
+            py = pet_center_y + int(y_offset)
+            if pet_y <= py < min(content_bottom, pet_y + len(art_lines)):
+                particle_text = f"+{fmt_num(amount)}" if amount > 0 else symbol
+                _safe_addstr(stdscr, py, px, particle_text, curses.A_BOLD)
+
+        if card_lines and row < content_bottom:
+            row += 1
+            for line_index, line in enumerate(card_lines):
+                if row >= content_bottom:
+                    break
+                attribute = curses.A_UNDERLINE if line_index == 0 else curses.A_DIM
+                _safe_addstr(stdscr, row, 2, line, attribute)
+                row += 1
+
+        if w >= 105 and game.active_quests:
+            quest_x = w - 32
+            quest_y = pet_y + len(art_lines) + 1
+            _safe_addstr(stdscr, quest_y, quest_x, "Active quests", curses.A_UNDERLINE)
+            for index, quest in enumerate(game.active_quests[:3]):
+                progress = game.quest_progress.get(quest["type"], 0)
+                description = quest["desc"].format(target=quest["target"])
+                _safe_addstr(
+                    stdscr,
+                    quest_y + 1 + index,
+                    quest_x,
+                    f"{description} ({int(progress)}/{quest['target']})",
+                )
+
+        for line in message_lines:
+            if row >= content_bottom:
+                break
+            _safe_addstr(stdscr, row, 2, line, curses.A_BOLD)
+            row += 1
+
+    for index, line in enumerate(footer_lines):
+        y = footer_top + index
+        attribute = curses.A_BOLD if index >= len(status_lines) else curses.A_DIM
+        _safe_addstr(stdscr, y, 2, line, attribute)
+
+    if game.shop_open:
+        draw_shop(stdscr, game, "SHOP", GLOBAL_UPGRADES, game.global_upgrades, lambda name: game.buy_upgrade(name), False)
+    elif game.prestige_shop_open:
+        draw_shop(stdscr, game, "PRESTIGE SHOP", PRESTIGE_UPGRADES, game.prestige_upgrades, lambda name: game.buy_prestige_upgrade(name), True)
+    elif game.pet_select_open:
+        draw_pet_select(stdscr, game)
+    elif game.adopt_screen_open:
+        draw_adopt_screen(stdscr, game)
+    elif game.loot_screen_open:
+        draw_loot_screen(stdscr, game)
+    elif game.fight_screen_open:
+        draw_fight_screen(stdscr, game)
+    elif game.achievement_screen_open:
+        draw_achievement_screen(stdscr, game)
+    elif game.adventure_screen_open:
+        draw_adventure_screen(stdscr, game)
+    elif game.lan_screen_open:
+        draw_lan_screen(stdscr, game)
+    elif game.input_mode:
+        draw_input_prompt(stdscr, game)
+
+    if game.attention_required:
+        draw_attention_screen(stdscr, game)
+
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
+def main(stdscr):
+    curses.curs_set(0)
+    curses.noecho()
+    curses.cbreak()
+    stdscr.keypad(True)
+    try: stdscr.leaveok(True)
+    except curses.error: pass
+    try:
+        curses.set_escdelay(25)
+    except:
+        pass
+    stdscr.nodelay(True)
+    stdscr.timeout(250)  # 4 FPS stays responsive while reducing Android terminal flicker
+
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_GREEN, -1)
+    curses.init_pair(2, curses.COLOR_YELLOW, -1)
+    curses.init_pair(3, curses.COLOR_CYAN, -1)
+    curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_WHITE)
+    curses.init_pair(5, curses.COLOR_MAGENTA, -1)
+    curses.init_pair(6, curses.COLOR_RED, -1)
+    curses.init_pair(7, curses.COLOR_WHITE, -1)
+    # Dedicated store/loot colors. Pair 4 remains the legacy blue-on-white
+    # modal style; these foreground-only pairs stay readable on Termux themes.
+    curses.init_pair(8, curses.COLOR_BLUE, -1)      # Rare
+    curses.init_pair(9, curses.COLOR_MAGENTA, -1)   # Epic / prestige
+    curses.init_pair(10, curses.COLOR_YELLOW, -1)   # Legendary / caution
+    curses.init_pair(11, curses.COLOR_RED, -1)      # Mythical / jackpot
+
+    game = Game()
+    last_tick = time.time()
+    game.try_daily_reward()
+    game.sound_manager.start_music()
+    game.sound_manager.play("startup")
+
+    while True:
+        now = time.time()
+        dt = min(now - last_tick, 0.5)
+        last_tick = now
+
+        # Network queues are always serviced, even while a menu or battle
+        # overlay is open, so another device never waits for a frozen host.
+        game.process_lan_queues()
+        if not game.input_mode and not game.fight_screen_open:
+            game.tick(dt)
+
+        key = stdscr.getch()
+
+        # The ten-minute care check blocks every command except resume and safe
+        # quit. This is the required interaction when the game runs unattended.
+        if game.attention_required:
+            if key in (ord('q'), ord('Q')):
+                game.save_game()
+                game.sound_manager.play("quit", force=True)
+                time.sleep(0.18)
+                game.sound_manager.shutdown()
+                game.lan_manager.shutdown()
+                break
+            if key in (ord(' '), 10, 13):
+                game.complete_attention_check()
+            elif key != -1:
+                game.sound_manager.play("error")
+            draw_ui(stdscr, game)
+            continue
+
+        if key != -1:
+            game.register_user_interaction()
+            if game.input_mode:
+                if key in (10, 13):
+                    if game.input_callback:
+                        game.input_callback(game.input_buffer.strip())
+                    game.sound_manager.play("confirm")
+                    game.input_mode = False
+                    game.input_buffer = ""
+                elif key == 27:
+                    game.sound_manager.play("close")
+                    game.input_mode = False
+                    game.input_buffer = ""
+                elif key in (8, 127):
+                    game.input_buffer = game.input_buffer[:-1]
+                    game.sound_manager.play("back")
+                elif 32 <= key <= 126 and len(game.input_buffer) < 24:
+                    game.input_buffer += chr(key)
+                    game.sound_manager.play("key")
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.achievement_screen_open:
+                items = list(ACHIEVEMENT_DEFINITIONS)
+                total_pages = max(1, math.ceil(len(items) / max(1, game.achievement_page_size)))
+                if key == 27:
+                    game.achievement_screen_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                    game.achievement_page = (game.achievement_page + 1) % total_pages
+                    game.sound_manager.play("page")
+                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                    game.achievement_page = (game.achievement_page - 1) % total_pages
+                    game.sound_manager.play("page")
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.lan_screen_open:
+                if key == 27:
+                    game.lan_screen_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('h'), ord('H')):
+                    if game.lan_manager.hosting:
+                        game.lan_manager.stop_host()
+                        game.lan_status = "Hosting stopped."
+                        game.sound_manager.play("disconnect")
+                    elif game.lan_manager.start_host():
+                        game.lan_status = f"Hosting at {game.lan_manager.local_ip}:{LAN_TCP_PORT}."
+                        game.sound_manager.play("connect")
+                    else:
+                        game.lan_status = f"Could not host: {game.lan_manager.last_error}"
+                        game.sound_manager.play("error")
+                elif key in (ord('r'), ord('R')):
+                    game.lan_manager.start_scan()
+                    game.sound_manager.play("scan")
+                elif (ord('1') <= key <= ord('9')) or key == ord('0'):
+                    selected = 9 if key == ord('0') else key - ord('1')
+                    if selected < len(game.lan_peers):
+                        game.lan_selected_peer = selected
+                        game.lan_status = f"Selected {game.lan_peers[selected].get('player_name', 'player')}."
+                        game.sound_manager.play("page")
+                    else:
+                        game.sound_manager.play("error")
+                elif key in (ord('o'), ord('O')):
+                    game.cycle_lan_offer(1)
+                    game.sound_manager.play("page")
+                elif key in (ord('i'), ord('I')):
+                    game.lan_screen_open = False
+                    game.input_mode = True
+                    game.sound_manager.play("open")
+                    game.input_prompt = "Host IPv4 address"
+                    game.input_callback = lambda address: game.lan_manager.start_manual_peer(address) if address else None
+                elif key in (ord('u'), ord('U')):
+                    game.lan_screen_open = False
+                    game.input_mode = True
+                    game.sound_manager.play("open")
+                    game.input_prompt = "LAN player name"
+                    def _set_lan_name(name):
+                        if name:
+                            game.player_name = name[:24]
+                            game.add_message(f"LAN name set to {game.player_name}.", 2.0)
+                            game.sound_manager.play("rename")
+                            game.save_game()
+                    game.input_callback = _set_lan_name
+                elif key in (ord('b'), ord('B')):
+                    if game.lan_peers:
+                        peer = game.lan_peers[game.lan_selected_peer]
+                        game.lan_manager.start_action("battle", peer)
+                        game.sound_manager.play("battle_start")
+                    else:
+                        game.lan_status = "Scan and select a room first."
+                        game.sound_manager.play("error")
+                elif key in (ord('t'), ord('T')):
+                    if game.lan_peers:
+                        peer = game.lan_peers[game.lan_selected_peer]
+                        if not peer.get("trade_offer"):
+                            game.lan_status = "That room is not offering a companion."
+                            game.sound_manager.play("error")
+                        else:
+                            game.lan_manager.start_action("trade", peer, game.lan_offer_index)
+                            game.sound_manager.play("confirm")
+                    else:
+                        game.lan_status = "Scan and select a room first."
+                        game.sound_manager.play("error")
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.adventure_screen_open:
+                if key == 27:
+                    game.adventure_screen_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('1'), ord('2'), ord('3')):
+                    kinds = ("meadow", "ruins", "rift")
+                    game.start_expedition(kinds[key - ord('1')])
+                elif key in (ord('c'), ord('C')):
+                    game.claim_expedition()
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.loot_screen_open:
+                if key == 27:
+                    game.loot_screen_open = False
+                    game.sound_manager.play("close")
+                elif ord('1') <= key <= ord('3'):
+                    game.open_loot_box(LOOT_BOX_ORDER[key - ord('1')])
+                elif ord('4') <= key <= ord('6'):
+                    game.buy_loot_box(LOOT_BOX_ORDER[key - ord('4')])
+                elif key in (ord('s'), ord('S')):
+                    game.summon_mythical_pet()
+                elif key in (ord('v'), ord('V')):
+                    game.claim_free_link_crate()
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.fight_screen_open:
+                if key == 27:
+                    game.fight_screen_open = False
+                    game.fight_state = "idle"
+                    game.sound_manager.play("close")
+                elif game.fight_state in ("player_turn","preparing"):
+                    if key == ord('a'): game.fight_tick("attack")
+                    elif key == ord('s'): game.fight_tick("special")
+                    elif key == ord('d'): game.fight_tick("defend")
+                    else: game.sound_manager.play("error")
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if game.shop_open:
+                names = list(GLOBAL_UPGRADES.keys())
+                page_size = max(1, min(game.shop_page_size, 10))
+                total_pages = max(1, math.ceil(len(names) / page_size))
+                if key == 27:
+                    game.shop_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                    game.shop_page = (game.shop_page + 1) % total_pages
+                    game.sound_manager.play("page")
+                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                    game.shop_page = (game.shop_page - 1) % total_pages
+                    game.sound_manager.play("page")
+                elif (ord('1') <= key <= ord('9')) or key == ord('0'):
+                    local = 9 if key == ord('0') else key - ord('1')
+                    chosen = game.shop_page * page_size + local
+                    if local < page_size and chosen < len(names):
+                        game.buy_upgrade(names[chosen])
+                    else:
+                        game.sound_manager.play("error")
+                continue
+            if game.prestige_shop_open:
+                names = list(PRESTIGE_UPGRADES.keys())
+                page_size = max(1, min(game.shop_page_size, 10))
+                total_pages = max(1, math.ceil(len(names) / page_size))
+                if key == 27:
+                    game.prestige_shop_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                    game.prestige_shop_page = (game.prestige_shop_page + 1) % total_pages
+                    game.sound_manager.play("page")
+                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                    game.prestige_shop_page = (game.prestige_shop_page - 1) % total_pages
+                    game.sound_manager.play("page")
+                elif (ord('1') <= key <= ord('9')) or key == ord('0'):
+                    local = 9 if key == ord('0') else key - ord('1')
+                    chosen = game.prestige_shop_page * page_size + local
+                    if local < page_size and chosen < len(names):
+                        game.buy_prestige_upgrade(names[chosen])
+                    else:
+                        game.sound_manager.play("error")
+                continue
+            if game.pet_select_open:
+                page_size = max(1, min(game.pet_select_page_size, 10))
+                total_pages = max(1, math.ceil(len(game.pets) / page_size))
+                if key == 27:
+                    game.pet_select_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                    game.pet_select_page = (game.pet_select_page + 1) % total_pages
+                    game.sound_manager.play("page")
+                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                    game.pet_select_page = (game.pet_select_page - 1) % total_pages
+                    game.sound_manager.play("page")
+                elif (ord('1') <= key <= ord('9')) or key == ord('0'):
+                    local = 9 if key == ord('0') else key - ord('1')
+                    chosen = game.pet_select_page * page_size + local
+                    if chosen < len(game.pets):
+                        game.switch_active_pet(chosen)
+                        game.pet_select_open = False
+                    else:
+                        game.sound_manager.play("error")
+                else:
+                    game.sound_manager.play("error")
+                continue
+            if game.adopt_screen_open:
+                if key == 27:
+                    game.adopt_screen_open = False
+                    game.sound_manager.play("close")
+                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                    total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
+                    game.adopt_page = (game.adopt_page + 1) % total_pages
+                    game.sound_manager.play("page")
+                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                    total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
+                    game.adopt_page = (game.adopt_page - 1) % total_pages
+                    game.sound_manager.play("page")
+                elif (ord('1') <= key <= ord('9')) or key == ord('0'):
+                    idx = 9 if key == ord('0') else key - ord('1')
+                    names = list(SPECIES.keys())
+                    start = game.adopt_page * max(1, min(game.adopt_page_size, 10))
+                    chosen = start + idx
+                    if 0 <= chosen < len(names) and idx < min(game.adopt_page_size, 10) and chosen < start + max(1, min(game.adopt_page_size, 10)):
+                        if game.adopt_pet(names[chosen]):
+                            game.adopt_screen_open = False
+                    else:
+                        game.sound_manager.play("error")
+                else:
+                    game.sound_manager.play("error")
+                continue
+
+            if key == ord('q'):
+                game.save_game()
+                game.sound_manager.play("quit", force=True)
+                time.sleep(0.18)
+                game.sound_manager.shutdown()
+                game.lan_manager.shutdown()
+                break
+            elif key == ord('f'): game.feed()
+            elif key == ord('p'): game.pet_action()
+            elif key == ord('b'): game.bathe()
+            elif key == ord('t'): game.train()
+            elif key == ord('s'): game.open_shop()
+            elif key == ord('L'): game.open_loot_screen()
+            elif key == ord('P'):
+                if game.can_prestige():
+                    game.do_prestige()
+                else:
+                    game.add_message("Reach transcendent stage to prestige!",2.0)
+                    game.sound_manager.play("error")
+            elif key == ord('c'): game.open_pet_select()
+            elif key == ord('n'):
+                if game.active_pet:
+                    game.input_mode = True
+                    game.input_prompt = "New nickname"
+                    game.sound_manager.play("open")
+                    def _rename_active_pet(name):
+                        if name and game.active_pet:
+                            game.active_pet.nickname = name[:24]
+                            game.add_message(f"Renamed to {game.active_pet.nickname}!", 2.0)
+                            game.sound_manager.play("rename")
+                            game.save_game()
+                    game.input_callback = _rename_active_pet
+            elif key == ord('F'): game.open_fight_menu(); game.start_fight()
+            elif key == ord('N'): game.open_lan_screen()
+            elif key == ord('A'): game.open_achievement_screen()
+            elif key == ord('R'): game.open_adventure_screen()
+            elif key == ord('a'): game.open_adopt_screen()
+            elif key == ord('B'): game.request_boost()
+            elif key == ord('M'):
+                was_enabled = game.sound_manager.on
+                if was_enabled:
+                    game.sound_manager.play("close", force=True)
+                    time.sleep(0.06)
+                enabled = game.sound_manager.toggle()
+                if enabled:
+                    game.sound_manager.play("confirm", force=True)
+                mute_note = " | master mute is ON" if game.sound_manager.muted else ""
+                game.add_message(
+                    f"SFX {'ON' if enabled else 'OFF'} ({game.sound_manager.backend_name}){mute_note}",
+                    2.0,
+                )
+                game.save_game()
+            elif key == ord('K'):
+                enabled = game.sound_manager.toggle_music()
+                game.sound_manager.play("confirm" if enabled else "close", force=True)
+                mute_note = " | master mute is ON" if game.sound_manager.muted else ""
+                game.add_message(
+                    f"Music {'ON' if enabled else 'OFF'} ({game.sound_manager.music_backend_name}){mute_note}",
+                    2.0,
+                )
+                game.save_game()
+            elif key == ord('U'):
+                muted = game.sound_manager.toggle_mute()
+                if not muted:
+                    game.sound_manager.play("confirm", force=True)
+                game.add_message(
+                    "All audio MUTED for this session. It resets next launch; press U to restore now."
+                    if muted else
+                    "Audio restored using your previous SFX/music settings.",
+                    2.5,
+                )
+                game.save_game()
+            elif key == ord('['):
+                game.browse_fact(-1)
+            elif key == ord(']'):
+                game.browse_fact(1)
+            elif key == ord('C'):
+                if game.active_pet:
+                    game.active_pet.color = (game.active_pet.color % 7) + 1
+                    game.add_message("Color changed!",1.0)
+                    game.sound_manager.play("colour")
+            else:
+                game.sound_manager.play("error")
+
+        draw_ui(stdscr, game)
+        if random.random() < 0.005: game.save_game()
+
+if __name__ == "__main__":
+    curses.wrapper(main)
