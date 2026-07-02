@@ -5943,7 +5943,7 @@ EL_WORDS = {
     "playing":"παιχνίδι", "breed":"αναπαράγονται", "breeding":"αναπαραγωγή", "reproduce":"αναπαράγονται",
     "reproduction":"αναπαραγωγή", "mate":"ζευγαρώνουν", "mating":"ζευγάρωμα", "incubation":"επώαση",
     "survive":"επιβιώνουν", "survival":"επιβίωση", "protect":"προστατεύουν", "protection":"προστασία",
-    "defend":"υπερασπίζονται", "escape":"διαφεύγουν", "hide":"κρύβονται", "camouflage":"καμουφλάζ",
+    "escape":"διαφεύγουν", "hide":"κρύβονται", "camouflage":"καμουφλάζ",
     "detect":"ανιχνεύουν", "recognize":"αναγνωρίζουν", "remember":"θυμούνται", "use":"χρησιμοποιούν",
     "uses":"χρησιμοποιεί", "help":"βοηθούν", "helps":"βοηθά", "provide":"παρέχουν", "provides":"παρέχει",
     "reduce":"μειώνουν", "reduces":"μειώνει", "increase":"αυξάνουν", "increases":"αυξάνει",
@@ -5966,8 +5966,8 @@ EL_WORDS = {
     "open":"άνοιγμα", "close":"κλείσιμο", "back":"επιστροφή", "next":"επόμενο", "previous":"προηγούμενο",
     "select":"επιλογή", "choose":"επίλεξε", "enter":"εισαγωγή", "confirm":"επιβεβαίωση", "cancel":"ακύρωση",
     "quit":"έξοδος", "exit":"έξοδος", "settings":"ρυθμίσεις", "music":"μουσική", "audio":"ήχος",
-    "sound":"ήχος", "mute":"σίγαση", "volume":"ένταση", "save":"αποθήκευση", "load":"φόρτωση",
-    "new":"νέο", "name":"όνομα", "nickname":"ψευδώνυμο", "colour":"χρώμα", "coins":"νομίσματα",
+    "mute":"σίγαση", "volume":"ένταση", "save":"αποθήκευση", "load":"φόρτωση",
+    "new":"νέο", "name":"όνομα", "nickname":"ψευδώνυμο", "coins":"νομίσματα",
     "coin":"νόμισμα", "cost":"κόστος", "price":"τιμή", "balance":"υπόλοιπο", "reward":"ανταμοιβή",
     "rewards":"ανταμοιβές", "shop":"κατάστημα", "store":"κατάστημα", "buy":"αγορά", "purchase":"αγορά",
     "upgrade":"αναβάθμιση", "upgrades":"αναβαθμίσεις", "level":"επίπεδο", "levels":"επίπεδα", "stage":"στάδιο",
@@ -5985,7 +5985,7 @@ EL_WORDS = {
     "bond":"δεσμός", "friendship":"φιλία", "star":"αστέρι", "stars":"αστέρια", "combo":"συνδυασμός",
     "festival":"φεστιβάλ", "boost":"ενίσχυση", "prestige":"κύρος", "request":"αίτημα", "timer":"χρονόμετρο",
     "time":"χρόνος", "seconds":"δευτερόλεπτα", "second":"δευτερόλεπτο", "minutes":"λεπτά", "minute":"λεπτό",
-    "hours":"ώρες", "hour":"ώρα", "days":"ημέρες", "day":"ημέρα", "years":"χρόνια", "year":"χρόνος",
+    "hours":"ώρες", "hour":"ώρα", "days":"ημέρες", "years":"χρόνια", "year":"χρόνος",
     "old":"ηλικίας", "age":"ηλικία", "lifespan":"διάρκεια ζωής", "long":"μακρύ", "short":"κοντό",
     "large":"μεγάλο", "largest":"μεγαλύτερο", "small":"μικρό", "smallest":"μικρότερο", "strong":"ισχυρό",
     "fast":"γρήγορο", "faster":"γρηγορότερο", "slow":"αργό", "high":"υψηλό", "low":"χαμηλό",
@@ -5993,7 +5993,7 @@ EL_WORDS = {
     "clear":"καθαρό", "unique":"μοναδικό", "special":"ειδικό", "complex":"σύνθετο", "important":"σημαντικό",
     "essential":"απαραίτητο", "responsible":"υπεύθυνο", "reliable":"αξιόπιστο", "possible":"πιθανό",
     "impossible":"αδύνατο", "real":"πραγματικό", "fictional":"φανταστικό", "wild":"άγριο", "domestic":"οικόσιτο",
-    "solitary":"μοναχικό", "social":"κοινωνικό", "active":"ενεργό", "nocturnal":"νυκτόβιο", "diurnal":"ημερόβιο",
+    "solitary":"μοναχικό", "active":"ενεργό", "nocturnal":"νυκτόβιο", "diurnal":"ημερόβιο",
     "crepuscular":"δραστήριο στο λυκόφως", "excellent":"εξαιρετικό", "powerful":"ισχυρό", "similar":"παρόμοιο",
     "complete":"ολοκληρωμένο", "completed":"ολοκληρωμένο", "available":"διαθέσιμο", "locked":"κλειδωμένο",
     "unlocked":"ξεκλειδωμένο", "current":"τρέχον", "total":"συνολικό", "maximum":"μέγιστο", "minimum":"ελάχιστο",
@@ -7053,6 +7053,39 @@ SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
 SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
 SAVE_VERSION = 14
 os.makedirs(SAVE_DIR, exist_ok=True)
+
+def _safe_int(value, default=0, minimum=None, maximum=None):
+    """Convert external/save data to a bounded integer without raising."""
+    try:
+        result = int(value)
+    except (TypeError, ValueError, OverflowError):
+        result = int(default)
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+
+def _safe_float(value, default=0.0, minimum=None, maximum=None):
+    """Convert external/save data to a finite bounded float without raising."""
+    try:
+        result = float(value)
+    except (TypeError, ValueError, OverflowError):
+        result = float(default)
+    if not math.isfinite(result):
+        result = float(default)
+    if minimum is not None:
+        result = max(minimum, result)
+    if maximum is not None:
+        result = min(maximum, result)
+    return result
+
+
+def _safe_port(value, default=45873):
+    """Return a valid TCP/UDP port from untrusted LAN profile data."""
+    return _safe_int(value, default, 1, 65535)
+
 
 class Sound:
     """Dependency-free sound effects and looping background music.
@@ -12643,7 +12676,7 @@ def _validate_species_data():
         if len(art) == 1:
             art = [art[0], list(art[0])]
         data["art"] = [list(frame) for frame in art[:2]]
-        data["color"] = max(1, min(7, int(data.get("color", 7))))
+        data["color"] = _safe_int(data.get("color", 7), 7, 1, 7)
         data["facts"] = list(data.get("facts") or [f"{name} is part of Pet Friends."])
 
 
@@ -13490,22 +13523,46 @@ BOOST_URLS = [
 
 # ==================== UTILS ====================
 def fmt_num(n):
-    if n < 1000: return f"{n:.0f}"
-    for unit in ["K","M","B","T","P"]:
+    n = _safe_float(n, 0.0)
+    if n < 1000:
+        return f"{n:.0f}"
+    for unit in ["K", "M", "B", "T", "P"]:
         n /= 1000.0
-        if n < 1000.0: return f"{n:.2f}{unit}"
+        if n < 1000.0:
+            return f"{n:.2f}{unit}"
     return f"{n:.2f}P"
+
 
 def check_internet():
     try:
-        socket.create_connection(("8.8.8.8",53), timeout=2)
-        return True
-    except OSError: return False
+        with socket.create_connection(("8.8.8.8", 53), timeout=2):
+            return True
+    except OSError:
+        return False
+
 
 def open_url(url):
-    for cmd in ["termux-open-url","xdg-open"]:
-        try: os.system(f"{cmd} '{url}' >/dev/null 2>&1"); return
-        except: continue
+    """Open a trusted web link with the first available platform command."""
+    url = str(url).strip()
+    if not url.startswith(("https://", "http://")):
+        return False
+    for command_name in ("termux-open-url", "xdg-open"):
+        executable = shutil.which(command_name)
+        if not executable:
+            continue
+        try:
+            completed = subprocess.run(
+                [executable, url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5.0,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode == 0:
+            return True
+    return False
 
 
 # ==================== LOCAL NETWORK HELPERS ====================
@@ -13553,12 +13610,11 @@ def _recv_lan_json(sock):
 
 def _pet_snapshot_power(data):
     """Calculate a conservative battle score from a validated pet snapshot."""
-    try:
-        stage = max(0, min(len(STAGE_NAMES) - 1, int(data.get("stage", 0))))
-        battle_level = max(1, min(10000, int(data.get("battle_level", 1))))
-        bond_level = max(1, min(BOND_LEVEL_CAP, int(data.get("bond_level", 1))))
-    except (TypeError, ValueError, AttributeError):
+    if not isinstance(data, dict):
         return 1.0
+    stage = _safe_int(data.get("stage", 0), 0, 0, len(STAGE_NAMES) - 1)
+    battle_level = _safe_int(data.get("battle_level", 1), 1, 1, 10000)
+    bond_level = _safe_int(data.get("bond_level", 1), 1, 1, BOND_LEVEL_CAP)
     return ((stage + 1) * 10.0 + battle_level * 5.0) * (1.0 + (bond_level - 1) * 0.005)
 
 
@@ -13774,7 +13830,7 @@ class LANManager:
                 if info.get("room_id") == self.room_id:
                     continue
                 info["ip"] = address[0]
-                info["port"] = int(info.get("port", LAN_TCP_PORT))
+                info["port"] = _safe_port(info.get("port", LAN_TCP_PORT), LAN_TCP_PORT)
                 peers[str(info.get("room_id", address[0]))] = info
         finally:
             sock.close()
@@ -13813,7 +13869,7 @@ class LANManager:
             if not profile.get("ok") or profile.get("protocol") != LAN_PROTOCOL:
                 raise ValueError(profile.get("error", "invalid room profile"))
             profile["ip"] = address
-            profile["port"] = int(profile.get("port", LAN_TCP_PORT))
+            profile["port"] = _safe_port(profile.get("port", LAN_TCP_PORT), LAN_TCP_PORT)
             result["peer"] = profile
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             result["error"] = str(exc)[:100]
@@ -13863,7 +13919,7 @@ class LANManager:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(6.0)
         try:
-            sock.connect((str(peer.get("ip")), int(peer.get("port", LAN_TCP_PORT))))
+            sock.connect((str(peer.get("ip")), _safe_port(peer.get("port", LAN_TCP_PORT), LAN_TCP_PORT)))
             _send_lan_json(sock, request)
             response = _recv_lan_json(sock)
             result["response"] = response
@@ -13948,42 +14004,39 @@ class Pet:
 
     @staticmethod
     def from_dict(d):
+        """Build a pet from save/LAN data without trusting external field types."""
         if not isinstance(d, dict):
             return Pet("Dog", "Buddy")
-        species = d.get("species", "Dog")
+
+        species = str(d.get("species", "Dog"))
         if species not in SPECIES:
             species = "Dog"
-        p = Pet(species, str(d.get("nickname", ""))[:24], d.get("color"))
-        p.stage = max(0, min(len(STAGE_NAMES) - 1, int(d.get("stage", 0))))
-        p.age_in_stage = max(0.0, float(d.get("age_in_stage", 0.0)))
+        nickname_value = d.get("nickname", "")
+        nickname = "" if nickname_value is None else str(nickname_value).strip()[:24]
+        color = _safe_int(d.get("color", SPECIES[species]["color"]), SPECIES[species]["color"], 1, 7)
+        p = Pet(species, nickname, color)
+
+        p.stage = _safe_int(d.get("stage", 0), 0, 0, len(STAGE_NAMES) - 1)
+        p.age_in_stage = _safe_float(d.get("age_in_stage", 0.0), 0.0, 0.0, 10**12)
         for attr in ("hunger", "happiness", "energy", "cleanliness"):
-            try:
-                value = float(d.get(attr, 100.0))
-            except (TypeError, ValueError):
-                value = 100.0
-            setattr(p, attr, max(MIN_STAT_VALUE, min(100.0, value)))
-        p.battle_xp = max(0.0, float(d.get("battle_xp", 0.0)))
-        p.battle_level = max(1, int(d.get("battle_level", 1)))
+            value = _safe_float(d.get(attr, 100.0), 100.0, MIN_STAT_VALUE, 100.0)
+            setattr(p, attr, value)
+
+        p.battle_xp = _safe_float(d.get("battle_xp", 0.0), 0.0, 0.0, 10**12)
+        p.battle_level = _safe_int(d.get("battle_level", 1), 1, 1, 10000)
         facts = p.get_facts()
-        p.fact_index = int(d.get("fact_index", 0)) % max(1, len(facts))
+        p.fact_index = _safe_int(d.get("fact_index", 0), 0) % max(1, len(facts))
 
         # Older save files have no bond fields, so defaults preserve their pets
         # while malformed hand-edits are clamped to safe values.
-        try:
-            p.bond_level = max(1, min(BOND_LEVEL_CAP, int(d.get("bond_level", 1))))
-        except (TypeError, ValueError):
-            p.bond_level = 1
-        try:
-            # Clamp imported XP to a generous finite range so a corrupted or
-            # hand-edited save cannot create an enormous terminal bar/string.
-            p.bond_xp = max(0.0, float(d.get("bond_xp", 0.0)))
-            p.bond_xp = min(p.bond_xp, p.bond_xp_needed() * 10.0)
-        except (TypeError, ValueError):
-            p.bond_xp = 0.0
-        try:
-            p.total_care_actions = max(0, int(d.get("total_care_actions", 0)))
-        except (TypeError, ValueError):
-            p.total_care_actions = 0
+        p.bond_level = _safe_int(d.get("bond_level", 1), 1, 1, BOND_LEVEL_CAP)
+        p.bond_xp = _safe_float(
+            d.get("bond_xp", 0.0),
+            0.0,
+            0.0,
+            p.bond_xp_needed() * 10.0,
+        )
+        p.total_care_actions = _safe_int(d.get("total_care_actions", 0), 0, 0, 10**9)
         return p
 
 # ==================== GAME CLASS ====================
@@ -14265,146 +14318,146 @@ class Game:
                 pass
 
     def load_game(self):
-        if not os.path.exists(SAVE_FILE): return
+        """Load a save defensively; malformed fields fall back instead of crashing."""
+        if not os.path.exists(SAVE_FILE):
+            return
         try:
-            with open(SAVE_FILE) as f: data = json.load(f)
-        except: return
-        self.pets = [Pet.from_dict(pd) for pd in data.get("pets", []) if isinstance(pd, dict)]
-        self.active_pet_index = data.get("active_pet_index",0)
-        if self.active_pet_index >= len(self.pets): self.active_pet_index = 0
-        self.coins = data.get("coins",0.0)
-        self.prestige_points = data.get("prestige_points",0)
-        self.total_coins_earned = data.get("total_coins_earned",0.0)
-        self.playtime = data.get("playtime",0.0)
-        try:
-            self.caretaker_level = max(1, min(999, int(data.get("caretaker_level", 1))))
-        except (TypeError, ValueError):
-            self.caretaker_level = 1
-        try:
-            self.caretaker_xp = max(0.0, float(data.get("caretaker_xp", 0.0)))
-        except (TypeError, ValueError):
-            self.caretaker_xp = 0.0
-        for field in ("missions_completed", "fight_wins", "fight_losses", "lan_battles", "lan_wins", "lan_losses", "lan_trades"):
-            try:
-                setattr(self, field, max(0, int(data.get(field, getattr(self, field)))))
-            except (TypeError, ValueError):
-                pass
+            with open(SAVE_FILE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, UnicodeError, json.JSONDecodeError, TypeError, ValueError):
+            return
+        if not isinstance(data, dict):
+            return
+
+        saved_pets = data.get("pets", [])
+        if isinstance(saved_pets, list):
+            self.pets = [Pet.from_dict(item) for item in saved_pets if isinstance(item, dict)]
+        else:
+            self.pets = []
+        if self.pets:
+            self.active_pet_index = _safe_int(
+                data.get("active_pet_index", 0), 0, 0, len(self.pets) - 1
+            )
+        else:
+            self.active_pet_index = 0
+
+        self.coins = _safe_float(data.get("coins", 0.0), 0.0, 0.0, 1e300)
+        self.prestige_points = _safe_int(data.get("prestige_points", 0), 0, 0, 10**9)
+        self.total_coins_earned = _safe_float(
+            data.get("total_coins_earned", 0.0), 0.0, 0.0, 1e300
+        )
+        self.playtime = _safe_float(data.get("playtime", 0.0), 0.0, 0.0, 10**12)
+        self.caretaker_level = _safe_int(data.get("caretaker_level", 1), 1, 1, 999)
+        self.caretaker_xp = _safe_float(data.get("caretaker_xp", 0.0), 0.0, 0.0, 1e12)
+
+        for field in (
+            "missions_completed", "fight_wins", "fight_losses", "lan_battles",
+            "lan_wins", "lan_losses", "lan_trades",
+        ):
+            setattr(self, field, _safe_int(data.get(field, getattr(self, field)), getattr(self, field), 0, 10**9))
+
         loaded_name = str(data.get("player_name", self.player_name)).strip()
         if loaded_name:
             self.player_name = loaded_name[:24]
-        for k in GLOBAL_UPGRADES: self.global_upgrades[k] = data.get("global_upgrades",{}).get(k,0)
-        for k in PRESTIGE_UPGRADES: self.prestige_upgrades[k] = data.get("prestige_upgrades",{}).get(k,0)
-        self.achievements = set(data.get("achievements",[]))
-        if data.get("last_daily_claim"):
-            try: self.last_daily_claim = datetime.fromisoformat(data["last_daily_claim"])
-            except: self.last_daily_claim = None
-        quest_types = data.get("quests",[])
+
+        saved_global = data.get("global_upgrades", {})
+        if not isinstance(saved_global, dict):
+            saved_global = {}
+        for name, info in GLOBAL_UPGRADES.items():
+            self.global_upgrades[name] = _safe_int(
+                saved_global.get(name, 0), 0, 0, _safe_int(info.get("max_level", 0), 0, 0)
+            )
+
+        saved_prestige = data.get("prestige_upgrades", {})
+        if not isinstance(saved_prestige, dict):
+            saved_prestige = {}
+        for name in PRESTIGE_UPGRADES:
+            self.prestige_upgrades[name] = _safe_int(
+                saved_prestige.get(name, 0), 0, 0, 10**6
+            )
+
+        saved_achievements = data.get("achievements", [])
+        if isinstance(saved_achievements, (list, tuple, set)):
+            self.achievements = {
+                str(item) for item in saved_achievements
+                if str(item) in ACHIEVEMENT_DEFINITIONS
+            }
+        else:
+            self.achievements = set()
+
+        saved_daily_claim = data.get("last_daily_claim")
+        if saved_daily_claim:
+            try:
+                self.last_daily_claim = datetime.fromisoformat(str(saved_daily_claim))
+            except (TypeError, ValueError, OverflowError):
+                self.last_daily_claim = None
+
+        quest_types = data.get("quests", [])
+        if not isinstance(quest_types, (list, tuple, set)):
+            quest_types = []
+        quest_types = {str(item) for item in quest_types}
         self.active_quests = [q for q in QUESTS if q["type"] in quest_types]
-        self.quest_progress = data.get("quest_progress",{})
-        if not self.active_quests: self.refresh_quests(force=True)
-        try:
-            loaded_save_version = int(data.get("version", 0))
-        except (TypeError, ValueError):
-            loaded_save_version = 0
-        if loaded_save_version >= 9 and "sound_enabled" in data:
-            self.sound_manager.on = bool(data["sound_enabled"])
+
+        saved_quest_progress = data.get("quest_progress", {})
+        if isinstance(saved_quest_progress, dict):
+            self.quest_progress = {
+                str(key): _safe_float(value, 0.0, 0.0, 1e12)
+                for key, value in saved_quest_progress.items()
+                if isinstance(key, str)
+            }
         else:
-            # Older versions only had a terminal bell and defaulted to OFF.
-            # Enable the real effect engine once so returning players hear it.
+            self.quest_progress = {}
+        if not self.active_quests:
+            self.refresh_quests(force=True)
+
+        loaded_save_version = _safe_int(data.get("version", 0), 0, 0)
+        if loaded_save_version >= 9 and isinstance(data.get("sound_enabled"), bool):
+            self.sound_manager.on = data["sound_enabled"]
+        else:
             self.sound_manager.on = True
-
-        if loaded_save_version >= 10 and "music_enabled" in data:
-            self.sound_manager.music_on = bool(data["music_enabled"])
+        if loaded_save_version >= 10 and isinstance(data.get("music_enabled"), bool):
+            self.sound_manager.music_on = data["music_enabled"]
         else:
-            # Background music is a new, separately controllable option.
             self.sound_manager.music_on = True
-
-        # Master mute is deliberately temporary.  It resets to OFF on every
-        # launch, while the independent SFX and music preferences still persist.
-        # Older save files may contain ``audio_muted``; it is intentionally
-        # ignored so a force-closed muted session never starts silently forever.
         self.sound_manager.muted = False
 
-        # These fields did not exist in older saves, so every value has a safe
-        # default and invalid external edits are ignored rather than crashing.
         saved_boxes = data.get("loot_boxes", {})
         if isinstance(saved_boxes, dict):
             for kind in LOOT_BOX_ORDER:
-                try:
-                    self.loot_boxes[kind] = max(0, int(saved_boxes.get(kind, self.loot_boxes[kind])))
-                except (TypeError, ValueError):
-                    pass
-        try:
-            self.mythic_shards = max(0, int(data.get("mythic_shards", 0)))
-        except (TypeError, ValueError):
-            self.mythic_shards = 0
-        try:
-            self.loot_boxes_opened = max(0, int(data.get("loot_boxes_opened", 0)))
-        except (TypeError, ValueError):
-            self.loot_boxes_opened = 0
+                self.loot_boxes[kind] = _safe_int(
+                    saved_boxes.get(kind, self.loot_boxes[kind]),
+                    self.loot_boxes[kind], 0, 10**9,
+                )
+        self.mythic_shards = _safe_int(data.get("mythic_shards", 0), 0, 0, 10**9)
+        self.loot_boxes_opened = _safe_int(data.get("loot_boxes_opened", 0), 0, 0, 10**9)
         history = data.get("loot_history", [])
         self.loot_history = [str(item)[:90] for item in history[-5:]] if isinstance(history, list) else []
-        try:
-            self.attention_check_count = max(0, int(data.get("attention_check_count", 0)))
-        except (TypeError, ValueError):
-            self.attention_check_count = 0
-        try:
-            self.care_check_streak = max(0, int(data.get("care_check_streak", 0)))
-        except (TypeError, ValueError):
-            self.care_check_streak = 0
-
-        # Engagement fields are all optional to preserve old save compatibility.
-        try:
-            self.best_care_combo = max(0, int(data.get("best_care_combo", 0)))
-        except (TypeError, ValueError):
-            self.best_care_combo = 0
-        try:
-            self.perfect_care_cycles = max(0, int(data.get("perfect_care_cycles", 0)))
-        except (TypeError, ValueError):
-            self.perfect_care_cycles = 0
 
         for field in (
-            "pet_requests_completed", "pet_request_streak", "best_pet_request_streak",
-            "friendship_stars", "friendship_stars_total", "friendship_gifts_claimed",
-            "knowledge_points", "facts_studied",
+            "attention_check_count", "care_check_streak", "best_care_combo",
+            "perfect_care_cycles", "pet_requests_completed", "pet_request_streak",
+            "best_pet_request_streak", "friendship_stars", "friendship_stars_total",
+            "friendship_gifts_claimed", "knowledge_points", "facts_studied",
         ):
-            try:
-                setattr(self, field, max(0, int(data.get(field, getattr(self, field)))))
-            except (TypeError, ValueError):
-                pass
-        self.friendship_stars = min(
-            FRIENDSHIP_STARS_PER_GIFT - 1, self.friendship_stars
-        )
-        self.best_pet_request_streak = max(
-            self.best_pet_request_streak, self.pet_request_streak
-        )
-        # Reconcile gift progress if a hand-edited or old save has totals but no
-        # claimed counter; no reward is duplicated during migration.
+            setattr(self, field, _safe_int(data.get(field, getattr(self, field)), getattr(self, field), 0, 10**9))
+
+        self.friendship_stars = min(FRIENDSHIP_STARS_PER_GIFT - 1, self.friendship_stars)
+        self.best_pet_request_streak = max(self.best_pet_request_streak, self.pet_request_streak)
         expected_claimed = self.friendship_stars_total // FRIENDSHIP_STARS_PER_GIFT
         self.friendship_gifts_claimed = max(
             self.friendship_gifts_claimed,
             max(0, expected_claimed - (1 if self.friendship_stars else 0)),
         )
-        try:
-            self.daily_streak = max(0, int(data.get("daily_streak", 0)))
-        except (TypeError, ValueError):
-            self.daily_streak = 0
-        try:
-            self.longest_daily_streak = max(
-                self.daily_streak, int(data.get("longest_daily_streak", self.daily_streak))
-            )
-        except (TypeError, ValueError):
-            self.longest_daily_streak = self.daily_streak
-        try:
-            self.festival_meter = max(
-                0.0, min(FESTIVAL_METER_MAX, float(data.get("festival_meter", 0.0)))
-            )
-        except (TypeError, ValueError):
-            self.festival_meter = 0.0
-        try:
-            self.festivals_triggered = max(0, int(data.get("festivals_triggered", 0)))
-        except (TypeError, ValueError):
-            self.festivals_triggered = 0
+
+        self.daily_streak = _safe_int(data.get("daily_streak", 0), 0, 0, 10**9)
+        self.longest_daily_streak = _safe_int(
+            data.get("longest_daily_streak", self.daily_streak),
+            self.daily_streak, self.daily_streak, 10**9,
+        )
+        self.festival_meter = _safe_float(
+            data.get("festival_meter", 0.0), 0.0, 0.0, FESTIVAL_METER_MAX
+        )
+        self.festivals_triggered = _safe_int(data.get("festivals_triggered", 0), 0, 0, 10**9)
 
         saved_festival_expire = data.get("festival_expire_time")
         if saved_festival_expire:
@@ -14412,71 +14465,88 @@ class Game:
                 parsed_expire = datetime.fromisoformat(str(saved_festival_expire))
                 if parsed_expire > datetime.now():
                     self.festival_expire_time = parsed_expire
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 self.festival_expire_time = None
 
         saved_pity = data.get("loot_pity", {})
         if isinstance(saved_pity, dict):
             for kind in LOOT_BOX_ORDER:
-                try:
-                    limit = LOOT_PITY_LIMITS[kind]
-                    self.loot_pity[kind] = max(
-                        0, min(limit - 1, int(saved_pity.get(kind, 0)))
-                    )
-                except (TypeError, ValueError):
-                    self.loot_pity[kind] = 0
+                limit = LOOT_PITY_LIMITS[kind]
+                self.loot_pity[kind] = _safe_int(
+                    saved_pity.get(kind, 0), 0, 0, limit - 1
+                )
 
         saved_free_claim = data.get("last_free_link_crate_claim")
         if saved_free_claim:
             try:
                 self.last_free_link_crate_claim = datetime.fromisoformat(str(saved_free_claim))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 self.last_free_link_crate_claim = None
 
-        # Adventure Board migration. Every field is optional so saves from all
-        # previous versions continue from their existing sanctuary unchanged.
         for field, minimum in (
             ("journey_level", 1), ("journey_levels_completed", 0),
             ("treasure_fragments", 0), ("treasure_maps_completed", 0),
             ("daily_contracts_completed", 0), ("expeditions_completed", 0),
         ):
-            try:
-                setattr(self, field, max(minimum, int(data.get(field, getattr(self, field)))))
-            except (TypeError, ValueError):
-                pass
-        try:
-            self.journey_points = max(0.0, float(data.get("journey_points", 0.0)))
-        except (TypeError, ValueError):
-            self.journey_points = 0.0
+            setattr(self, field, _safe_int(data.get(field, getattr(self, field)), getattr(self, field), minimum, 10**9))
+        self.journey_points = _safe_float(data.get("journey_points", 0.0), 0.0, 0.0, 1e12)
         self.treasure_fragments %= TREASURE_MAP_FRAGMENT_TARGET
 
-        saved_contracts = data.get("daily_contracts", [])
-        if isinstance(saved_contracts, list):
-            self.daily_contracts = [item for item in saved_contracts if isinstance(item, dict)][:3]
         self.daily_contract_date = str(data.get("daily_contract_date", ""))[:10]
+        saved_contracts = data.get("daily_contracts", [])
+        contract_templates = {item["type"]: item for item in DAILY_CONTRACT_POOL}
+        validated_contracts = []
+        if isinstance(saved_contracts, list):
+            for item in saved_contracts[:3]:
+                if not isinstance(item, dict):
+                    continue
+                contract_type = str(item.get("type", ""))
+                template = contract_templates.get(contract_type)
+                if not template:
+                    continue
+                target = _safe_int(item.get("target", 1), 1, 1, 10**6)
+                validated_contracts.append({
+                    "type": contract_type,
+                    "target": target,
+                    "label": template["label"].format(target=target),
+                    "journey": _safe_int(item.get("journey", template["journey"]), template["journey"], 1, 10**6),
+                })
+        self.daily_contracts = validated_contracts if len(validated_contracts) == 3 else []
+
         saved_progress = data.get("daily_contract_progress", {})
         if isinstance(saved_progress, dict):
             self.daily_contract_progress = {
-                str(key): max(0, int(value))
+                str(key): _safe_int(value, 0, 0, 10**9)
                 for key, value in saved_progress.items()
-                if isinstance(key, str) and isinstance(value, (int, float))
+                if isinstance(key, str)
             }
+        else:
+            self.daily_contract_progress = {}
         claimed = data.get("daily_contract_claimed", [])
-        if isinstance(claimed, list):
-            self.daily_contract_claimed = {str(value) for value in claimed}
+        if isinstance(claimed, (list, tuple, set)):
+            valid_contract_types = {item["type"] for item in self.daily_contracts}
+            self.daily_contract_claimed = {
+                str(value) for value in claimed if str(value) in valid_contract_types
+            }
+        else:
+            self.daily_contract_claimed = set()
 
         saved_expedition = str(data.get("expedition_kind", ""))
         if saved_expedition in EXPEDITION_TYPES:
-            self.expedition_kind = saved_expedition
-            self.expedition_pet_name = str(data.get("expedition_pet_name", ""))[:24]
-            self.expedition_pet_species = str(data.get("expedition_pet_species", ""))[:32]
             saved_end = data.get("expedition_end_time")
-            if saved_end:
-                try:
-                    self.expedition_end_time = datetime.fromisoformat(str(saved_end))
-                except (TypeError, ValueError):
-                    self.expedition_kind = ""
-                    self.expedition_end_time = None
+            try:
+                parsed_end = datetime.fromisoformat(str(saved_end)) if saved_end else None
+            except (TypeError, ValueError, OverflowError):
+                parsed_end = None
+            if parsed_end is not None:
+                self.expedition_kind = saved_expedition
+                self.expedition_pet_name = str(data.get("expedition_pet_name", ""))[:24]
+                species_name = str(data.get("expedition_pet_species", ""))
+                self.expedition_pet_species = species_name[:32] if species_name in SPECIES else ""
+                self.expedition_end_time = parsed_end
+            else:
+                self.expedition_kind = ""
+                self.expedition_end_time = None
 
 
     # ---------- Adventure Board: journey, contracts, maps, expeditions ----------
@@ -14872,7 +14942,7 @@ class Game:
             return None
         if not isinstance(received_data, dict):
             return None
-        species = received_data.get("species")
+        species = str(received_data.get("species", ""))
         if species not in SPECIES:
             return None
         old_pet = self.pets[index]
@@ -14929,7 +14999,8 @@ class Game:
                 action = envelope.get("action")
                 remote_name = str(request.get("player_name", "LAN player"))[:24]
                 remote_pet_data = request.get("pet")
-                if not isinstance(remote_pet_data, dict) or remote_pet_data.get("species") not in SPECIES:
+                remote_species = str(remote_pet_data.get("species", "")) if isinstance(remote_pet_data, dict) else ""
+                if not isinstance(remote_pet_data, dict) or remote_species not in SPECIES:
                     envelope["response"] = {"ok": False, "error": "invalid companion data"}
                 elif action == "battle":
                     host_pet = self.active_pet
@@ -14950,7 +15021,7 @@ class Game:
                             "client_score": round(remote_score, 1),
                         }
                 elif action == "trade":
-                    if int(request.get("pet_count", 0) or 0) <= 1:
+                    if _safe_int(request.get("pet_count", 0), 0, 0, 10**6) <= 1:
                         envelope["response"] = {"ok": False, "error": "other player must keep one companion"}
                     elif len(self.pets) <= 1:
                         envelope["response"] = {"ok": False, "error": "host must keep one companion"}
@@ -17783,8 +17854,10 @@ def _animate_portrait(pet, base_lines, frame, reaction="", compact=False):
     # it, making care actions feel immediate while animation remains continuous.
     top, bottom, _left, _right = _subject_bounds(canvas)
     upper = min(bottom, top + 1)
+    face = min(bottom, top + 2)
     middle = min(bottom, max(top, (top + bottom) // 2))
     lower = max(top, bottom - 1)
+    reaction = str(reaction or "")
     if reaction == "feed":
         _happy_eyes(canvas, style)
         _place_motion_token(canvas, middle, "* yum", "right")
@@ -17878,14 +17951,18 @@ def draw_animated_bar(stdscr, y, x, val, max_val, width, cp, tseed, filled_char=
         ch = filled_char if i < filled else empty_char
         if i == shimmer and i < filled: ch = ">"
         bar.append(ch)
-    try: stdscr.addstr(y, x, f"[{''.join(bar)}] {val:5.1f}/{max_val:.0f}", curses.color_pair(cp)|curses.A_BOLD)
-    except: pass
+    try:
+        stdscr.addstr(y, x, f"[{''.join(bar)}] {val:5.1f}/{max_val:.0f}", curses.color_pair(cp) | curses.A_BOLD)
+    except curses.error:
+        pass
 
 def draw_bar(stdscr, y, x, val, max_val, width, cp):
     filled = int((val / max_val) * width) if max_val > 0 else 0
     filled = max(0, min(width, filled))
-    try: stdscr.addstr(y, x, f"[{'='*filled}{' '*(width-filled)}]", curses.color_pair(cp))
-    except: pass
+    try:
+        stdscr.addstr(y, x, f"[{'=' * filled}{' ' * (width - filled)}]", curses.color_pair(cp))
+    except curses.error:
+        pass
 
 def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, is_prestige=False):
     """Draw ten compact, color-coded store rows on every page.
@@ -18265,18 +18342,23 @@ def draw_fight_screen(stdscr, game):
     box_h, box_w = len(lines)+2, max(len(l) for l in lines)+4
     start_y, start_x = max(0,(h-box_h)//2), max(0,(w-box_w)//2)
     for i in range(box_h):
-        try: stdscr.addstr(start_y+i, start_x, " "*box_w, curses.color_pair(4))
-        except: pass
+        try:
+            stdscr.addstr(start_y + i, start_x, " " * box_w, curses.color_pair(4))
+        except curses.error:
+            pass
     try:
         stdscr.addstr(start_y, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
         for i in range(1,box_h-1):
             stdscr.addstr(start_y+i, start_x, "|", curses.color_pair(4))
             stdscr.addstr(start_y+i, start_x+box_w-1, "|", curses.color_pair(4))
         stdscr.addstr(start_y+box_h-1, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
-    except: pass
+    except curses.error:
+        pass
     for i, line in enumerate(lines):
-        try: stdscr.addstr(start_y+1+i, start_x+2, line, curses.A_BOLD)
-        except: pass
+        try:
+            stdscr.addstr(start_y + 1 + i, start_x + 2, line, curses.A_BOLD)
+        except curses.error:
+            pass
 
 
 def draw_achievement_screen(stdscr, game):
@@ -18327,10 +18409,8 @@ def draw_lan_screen(stdscr, game):
     h, w = stdscr.getmaxyx()
     manager = game.lan_manager
     offer = game.get_lan_offer_pet()
-    selected = None
     if game.lan_peers:
         game.lan_selected_peer = max(0, min(game.lan_selected_peer, len(game.lan_peers) - 1))
-        selected = game.lan_peers[game.lan_selected_peer]
     host_state = f"ΕΝΕΡΓΟ στη διεύθυνση {manager.local_ip}:{LAN_TCP_PORT}" if manager.hosting else "ΑΝΕΝΕΡΓΟ"
     offer_text = f"{offer.nickname} ({offer.species})" if offer else "κανένα"
     lines = [
@@ -18381,13 +18461,15 @@ def draw_input_prompt(stdscr, game):
     h, w = stdscr.getmaxyx()
     line = raw_display(f"{el_text(game.input_prompt)}: {game.input_buffer}_")
     start_y, start_x = h//2, max(0,(w-display_len(line))//2)
-    try: stdscr.addstr(start_y, start_x, line, curses.A_REVERSE)
-    except: pass
+    try:
+        stdscr.addstr(start_y, start_x, line, curses.A_REVERSE)
+    except curses.error:
+        pass
 
 MAIN_CONTROL_TOKENS = (
     "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[L] Loot",
     "[c] Pets", "[a] Adopt", "[F] Fight", "[N] LAN", "[A] Achievements",
-    "[R] Adventure", "[P] Prestige", "[B] Boost", "[n] Rename", "[C] Color", "[M] SFX",
+    "[R] Adventure", "[P] Prestige", "[G] Prestige Shop", "[B] Boost", "[n] Rename", "[C] Color", "[M] SFX",
     "[K] Music", "[U] Mute All", "[[] PrevFact", "[]] NextFact", "[q] Quit",
 )
 
@@ -18424,8 +18506,6 @@ def _safe_addstr(stdscr, y, x, text, attr=0):
     try:
         stdscr.addstr(y, x, raw_display(str(text)[:available]), attr)
     except curses.error:
-        pass
-    except Exception:
         pass
 
 
@@ -18717,7 +18797,10 @@ def draw_ui(stdscr, game):
 
 def main(stdscr):
     stdscr = GreekWindow(stdscr)
-    curses.curs_set(0)
+    try:
+        curses.curs_set(0)
+    except curses.error:
+        pass
     curses.noecho()
     curses.cbreak()
     stdscr.keypad(True)
@@ -18725,26 +18808,34 @@ def main(stdscr):
     except curses.error: pass
     try:
         curses.set_escdelay(25)
-    except:
+    except (AttributeError, curses.error):
         pass
     stdscr.nodelay(True)
     stdscr.timeout(250)  # 4 FPS stays responsive while reducing Android terminal flicker
 
-    curses.start_color()
-    curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_GREEN, -1)
-    curses.init_pair(2, curses.COLOR_YELLOW, -1)
-    curses.init_pair(3, curses.COLOR_CYAN, -1)
-    curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_WHITE)
-    curses.init_pair(5, curses.COLOR_MAGENTA, -1)
-    curses.init_pair(6, curses.COLOR_RED, -1)
-    curses.init_pair(7, curses.COLOR_WHITE, -1)
-    # Dedicated store/loot colors. Pair 4 remains the legacy blue-on-white
-    # modal style; these foreground-only pairs stay readable on Termux themes.
-    curses.init_pair(8, curses.COLOR_BLUE, -1)      # Rare
-    curses.init_pair(9, curses.COLOR_MAGENTA, -1)   # Epic / prestige
-    curses.init_pair(10, curses.COLOR_YELLOW, -1)   # Legendary / caution
-    curses.init_pair(11, curses.COLOR_RED, -1)      # Mythical / jackpot
+    try:
+        curses.start_color()
+        curses.use_default_colors()
+        color_pairs = (
+            (1, curses.COLOR_GREEN, -1),
+            (2, curses.COLOR_YELLOW, -1),
+            (3, curses.COLOR_CYAN, -1),
+            (4, curses.COLOR_BLUE, curses.COLOR_WHITE),
+            (5, curses.COLOR_MAGENTA, -1),
+            (6, curses.COLOR_RED, -1),
+            (7, curses.COLOR_WHITE, -1),
+            (8, curses.COLOR_BLUE, -1),
+            (9, curses.COLOR_MAGENTA, -1),
+            (10, curses.COLOR_YELLOW, -1),
+            (11, curses.COLOR_RED, -1),
+        )
+        for pair_number, foreground, background in color_pairs:
+            try:
+                curses.init_pair(pair_number, foreground, background)
+            except curses.error:
+                pass
+    except curses.error:
+        pass
 
     game = Game()
     last_tick = time.time()
@@ -18754,7 +18845,7 @@ def main(stdscr):
 
     while True:
         now = time.time()
-        dt = min(now - last_tick, 0.5)
+        dt = max(0.0, min(now - last_tick, 0.5))
         last_tick = now
 
         # Network queues are always serviced, even while a menu or battle
@@ -19045,6 +19136,8 @@ def main(stdscr):
                 else:
                     game.add_message("Reach transcendent stage to prestige!",2.0)
                     game.sound_manager.play("error")
+            elif key == ord('G'):
+                game.open_prestige_shop()
             elif key == ord('c'): game.open_pet_select()
             elif key == ord('n'):
                 if game.active_pet:
