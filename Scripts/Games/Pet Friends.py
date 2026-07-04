@@ -7,6 +7,7 @@ Save: ~/Pet Friends/petfriends_save.json
 An idle companion game with 160+ real, legendary, and mythical pets,
 educational learning cards and clearly labelled mythology per pet, paid adoptions, mission locks,
 local-network battles/trades, achievements, quests, upgrades, and care checks.
+Accessible controls revision: menu actions use lowercase letters or numbers; x closes menus, n/p change pages, r resumes care checks, and 1/2 browse facts.
 """
 
 import curses, time, json, os, random, math, socket, sys, threading, queue, uuid, textwrap, subprocess, shutil, wave, struct, atexit, signal
@@ -7675,7 +7676,7 @@ class Game:
     def update_expedition_status(self):
         if self.expedition_ready() and not self.expedition_ready_announced:
             self.expedition_ready_announced = True
-            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press R.", 6.0)
+            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press r.", 6.0)
             self.sound_manager.play("expedition_ready")
 
     def claim_expedition(self):
@@ -8579,7 +8580,7 @@ class Game:
         if self.auto_idle_seconds >= AUTO_INTERACTION_INTERVAL:
             self.auto_idle_seconds = AUTO_INTERACTION_INTERVAL
             self.attention_required = True
-            self.add_message("Auto progress paused: press SPACE or ENTER.", 8.0)
+            self.add_message("Auto progress paused: press r.", 8.0)
             self.sound_manager.beep()
             self.save_game()
             return
@@ -10953,7 +10954,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
         # Keep one physical terminal row per item so ten entries fit even on a
         # standard 80x24 Termux window. The description remains visible after a
         # separator and is clipped only at the actual modal boundary.
-        row_text = f"[{key_label}] {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
+        row_text = f"{key_label}. {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
         rows.append((row_text, attr))
 
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
@@ -10965,7 +10966,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
     ]
     footer = [
         ("", curses.color_pair(7)),
-        ("[1-9/0] buy  [n/right] next  [p/left] prev  [esc] close", curses.color_pair(3) | curses.A_BOLD),
+        ("1 to 9 or 0 Buy   n Next page   p Previous page   x Close", curses.color_pair(3) | curses.A_BOLD),
     ]
     lines = header + rows + footer
 
@@ -11008,7 +11009,7 @@ def draw_pet_select(stdscr, game):
         mark = ">" if absolute_index == game.active_pet_index else " "
         key_label = "0" if local_index == 10 else str(local_index)
         lines.append(f"{mark} {key_label}. {pet.nickname[:16]} ({pet.species}) - {STAGE_NAMES[pet.stage]}")
-    lines.extend(["", "[1-9/0] switch  [n/right] next  [p/left] prev  [esc] back"])
+    lines.extend(["", "1 to 9 or 0 Switch   n Next page   p Previous page   x Back"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
     start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -11055,7 +11056,7 @@ def draw_adopt_screen(stdscr, game):
         lines.append(
             f"{key_label}. {name}{owned} [{tier.upper()}] {fmt_num(cost)} - {marker}: {reason}"
         )
-    lines.extend(["", "[1-9/0] adopt  [n/right] next  [p/left] prev  [esc] back"])
+    lines.extend(["", "1 to 9 or 0 Adopt   n Next page   p Previous page   x Back"])
 
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
@@ -11081,9 +11082,9 @@ def draw_loot_screen(stdscr, game):
     free_remaining = game.free_link_crate_seconds_remaining()
     if free_remaining > 0:
         free_minutes, free_seconds = divmod(free_remaining, 60)
-        free_crate_line = f"[v] FREE link crate in {free_minutes}:{free_seconds:02d}"
+        free_crate_line = f"v Free link crate in {free_minutes}:{free_seconds:02d}"
     else:
-        free_crate_line = "[v] visit a random guide -> FREE crate"
+        free_crate_line = "v Visit a random guide for a free crate"
 
     lines = [
         ("-- LOOT VAULT --", curses.color_pair(9) | curses.A_BOLD),
@@ -11101,8 +11102,8 @@ def draw_loot_screen(stdscr, game):
         pity_limit = LOOT_PITY_LIMITS[kind]
         pity_rarity = LOOT_REWARD_RARITIES[LOOT_PITY_MIN_RARITY[kind]]["label"]
         lines.append((
-            f"[{number}] OPEN {info['title']}  owned:{game.loot_boxes.get(kind, 0)}   "
-            f"[{number + 3}] BUY {fmt_num(game.loot_box_cost(kind))}",
+            f"{number} OPEN {info['title']}  owned:{game.loot_boxes.get(kind, 0)}   "
+            f"{number + 3} BUY {fmt_num(game.loot_box_cost(kind))}",
             container_attr,
         ))
 
@@ -11117,8 +11118,8 @@ def draw_loot_screen(stdscr, game):
 
     lines.extend([
         ("", curses.color_pair(7)),
-        (f"[s] summon a random mythical pet for {MYTHIC_SUMMON_COST} shards", curses.color_pair(11) | curses.A_BOLD),
-        ("[1-3] open  [4-6] buy  [esc] close", curses.color_pair(3) | curses.A_BOLD),
+        (f"s Summon a random mythical pet for {MYTHIC_SUMMON_COST} shards", curses.color_pair(11) | curses.A_BOLD),
+        ("1 to 3 Open   4 to 6 Buy   x Close", curses.color_pair(3) | curses.A_BOLD),
     ])
     if game.loot_history:
         lines.extend([("", curses.color_pair(7)), ("Recent rewards:", curses.color_pair(10) | curses.A_BOLD)])
@@ -11177,7 +11178,7 @@ def draw_adventure_screen(stdscr, game):
         target = max(1, int(contract.get("target", 1)))
         progress = min(target, int(game.daily_contract_progress.get(key, 0)))
         done = key in game.daily_contract_claimed
-        mark = "[X]" if done else "[ ]"
+        mark = "DONE" if done else "OPEN"
         attr = curses.color_pair(1) | curses.A_BOLD if done else curses.color_pair(7)
         lines.append((f"{mark} {contract.get('label', key)} ({progress}/{target})", attr))
 
@@ -11188,7 +11189,7 @@ def draw_adventure_screen(stdscr, game):
     if game.expedition_kind:
         info = EXPEDITION_TYPES[game.expedition_kind]
         remaining = game.expedition_seconds_remaining()
-        state = "READY - press C" if remaining <= 0 else f"returns in {remaining // 60}:{remaining % 60:02d}"
+        state = "READY - press c" if remaining <= 0 else f"returns in {remaining // 60}:{remaining % 60:02d}"
         lines.append((
             f"{game.expedition_pet_name} ({game.expedition_pet_species}) | {info['title']} | {state}",
             curses.color_pair(1 if remaining <= 0 else 2) | curses.A_BOLD,
@@ -11198,12 +11199,12 @@ def draw_adventure_screen(stdscr, game):
             info = EXPEDITION_TYPES[kind]
             minutes = info["duration"] // 60
             lines.append((
-                f"[{number}] {info['title']} {minutes}m | Keeper Lv.{info['level']} | spare Bond Lv.{info['bond']}",
+                f"{number}. {info['title']} {minutes}m | Keeper Lv.{info['level']} | spare Bond Lv.{info['bond']}",
                 curses.color_pair(8 + min(number - 1, 2)) | curses.A_BOLD,
             ))
     lines.extend([
         ("", curses.color_pair(7)),
-        ("[1-3] start expedition  [C] claim finished expedition  [esc] back", curses.A_BOLD),
+        ("1 to 3 Start expedition   c Claim finished expedition   x Back", curses.A_BOLD),
         ("Journey rewards: every 5 levels Common, 10 Rare, 25 Mythic.", curses.A_DIM),
         ("Treasure rewards: every 3rd map Rare, every 10th map Mythic.", curses.A_DIM),
     ])
@@ -11247,7 +11248,7 @@ def draw_attention_screen(stdscr, game):
         "Every 10th check: +1 Mythic Vault",
         "+Bond XP and +18 Sanctuary Spark every check",
         "",
-        "Press SPACE or ENTER to continue",
+        "Press r to continue",
         "Press q to save and quit",
     ]
     box_h = min(max(3, h - 2), len(lines) + 2)
@@ -11274,8 +11275,8 @@ def draw_fight_screen(stdscr, game):
 
     h, w = stdscr.getmaxyx()
     lines = ["-- FIGHT --", ""]
-    if game.fight_state == "player_turn": lines.append("Your turn: [a]ttack, [s]pecial, [d]efend")
-    elif game.fight_state == "finished": lines.append("Fight finished. Press [esc]")
+    if game.fight_state == "player_turn": lines.append("Your turn: a Attack   s Special   d Defend")
+    elif game.fight_state == "finished": lines.append("Fight finished. Press x")
     lines.append(f"Your HP: {game.fight_player_hp}/100")
     lines.append(f"Enemy HP: {game.fight_enemy_hp}/100")
     lines.append("")
@@ -11316,11 +11317,11 @@ def draw_achievement_screen(stdscr, game):
         "",
     ]
     for achievement_id, (title, description, coins, xp) in page_items:
-        mark = "[X]" if achievement_id in game.achievements else "[ ]"
+        mark = "DONE" if achievement_id in game.achievements else "LOCKED"
         lines.append(
             f"{mark} {title} | {description} | {fmt_num(coins)}c/{xp}xp"
         )
-    lines.extend(["", "[n/right] next  [p/left] prev  [esc] back"])
+    lines.extend(["", "n Next page   p Previous page   x Back"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
     y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -11338,7 +11339,7 @@ def draw_achievement_screen(stdscr, game):
         pass
     usable_width = max(0, box_w - 4)
     for row, line in enumerate(lines[:max(0, box_h - 2)]):
-        attr = curses.color_pair(1) | curses.A_BOLD if line.startswith("[X]") else curses.color_pair(7)
+        attr = curses.color_pair(1) | curses.A_BOLD if line.startswith("DONE") else curses.color_pair(7)
         if row == 0:
             attr = curses.color_pair(3) | curses.A_BOLD
         try: stdscr.addstr(y + 1 + row, x + 2, line[:usable_width], attr)
@@ -11376,8 +11377,8 @@ def draw_lan_screen(stdscr, game):
             )
     lines.extend([
         "",
-        "[h] host on/off  [r] scan  [i] enter host IP  [1-9/0] select",
-        "[b] battle  [t] trade offers  [o] next offer  [u] rename  [esc] back",
+        "h Host on or off   r Scan   i Enter host IP   1 to 9 or 0 Select",
+        "b Battle   t Trade offers   o Next offer   u Rename   x Back",
     ])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
@@ -11408,10 +11409,10 @@ def draw_input_prompt(stdscr, game):
         pass
 
 MAIN_CONTROL_TOKENS = (
-    "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[L] Loot",
-    "[c] Pets", "[a] Adopt", "[F] Fight", "[N] LAN", "[A] Achievements",
-    "[R] Adventure", "[P] Prestige", "[G] Prestige Shop", "[B] Boost", "[n] Rename", "[C] Color", "[M] SFX",
-    "[K] Music", "[U] Mute All", "[[] PrevFact", "[]] NextFact", "[q] Quit",
+    "f Feed", "p Pet", "b Bath", "t Train", "s Shop", "l Loot",
+    "c Pets", "a Adopt", "d Fight", "w LAN", "h Achievements",
+    "r Adventure", "e Prestige", "g Prestige Shop", "v Boost", "n Rename", "o Color", "m SFX",
+    "k Music", "u Mute All", "1 Previous Fact", "2 Next Fact", "q Quit",
 )
 
 
@@ -11461,7 +11462,7 @@ def _learning_card_lines(pet, width):
     index = pet.fact_index % len(facts)
     fictional = pet.species in FICTIONAL_SPECIES
     kind = "MYTHOLOGY CARD" if fictional else "LEARNING CARD"
-    header = f"{kind} {index + 1}/{len(facts)}  ([ and ] browse)"
+    header = f"{kind} {index + 1}/{len(facts)}  (1 Previous, 2 Next)"
     usable = max(20, width - 4)
     wrapped = textwrap.wrap(
         facts[index],
@@ -11796,14 +11797,14 @@ def main(stdscr):
         # The ten-minute care check blocks every command except resume and safe
         # quit. This is the required interaction when the game runs unattended.
         if game.attention_required:
-            if key in (ord('q'), ord('Q')):
+            if key == ord('q'):
                 game.save_game()
                 game.sound_manager.play("quit", force=True)
                 time.sleep(0.18)
                 game.sound_manager.shutdown()
                 game.lan_manager.shutdown()
                 break
-            if key in (ord(' '), 10, 13):
+            if key == ord('r'):
                 game.complete_attention_check()
             elif key != -1:
                 game.sound_manager.play("error")
@@ -11836,13 +11837,13 @@ def main(stdscr):
             if game.achievement_screen_open:
                 items = list(ACHIEVEMENT_DEFINITIONS)
                 total_pages = max(1, math.ceil(len(items) / max(1, game.achievement_page_size)))
-                if key == 27:
+                if key == ord('x'):
                     game.achievement_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.achievement_page = (game.achievement_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.achievement_page = (game.achievement_page - 1) % total_pages
                     game.sound_manager.play("page")
                 else:
@@ -11850,10 +11851,10 @@ def main(stdscr):
                 continue
 
             if game.lan_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.lan_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('h'), ord('H')):
+                elif key == ord('h'):
                     if game.lan_manager.hosting:
                         game.lan_manager.stop_host()
                         game.lan_status = "Hosting stopped."
@@ -11864,7 +11865,7 @@ def main(stdscr):
                     else:
                         game.lan_status = f"Could not host: {game.lan_manager.last_error}"
                         game.sound_manager.play("error")
-                elif key in (ord('r'), ord('R')):
+                elif key == ord('r'):
                     game.lan_manager.start_scan()
                     game.sound_manager.play("scan")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -11875,16 +11876,16 @@ def main(stdscr):
                         game.sound_manager.play("page")
                     else:
                         game.sound_manager.play("error")
-                elif key in (ord('o'), ord('O')):
+                elif key == ord('o'):
                     game.cycle_lan_offer(1)
                     game.sound_manager.play("page")
-                elif key in (ord('i'), ord('I')):
+                elif key == ord('i'):
                     game.lan_screen_open = False
                     game.input_mode = True
                     game.sound_manager.play("open")
                     game.input_prompt = "Host IPv4 address"
                     game.input_callback = lambda address: game.lan_manager.start_manual_peer(address) if address else None
-                elif key in (ord('u'), ord('U')):
+                elif key == ord('u'):
                     game.lan_screen_open = False
                     game.input_mode = True
                     game.sound_manager.play("open")
@@ -11896,7 +11897,7 @@ def main(stdscr):
                             game.sound_manager.play("rename")
                             game.save_game()
                     game.input_callback = _set_lan_name
-                elif key in (ord('b'), ord('B')):
+                elif key == ord('b'):
                     if game.lan_peers:
                         peer = game.lan_peers[game.lan_selected_peer]
                         game.lan_manager.start_action("battle", peer)
@@ -11904,7 +11905,7 @@ def main(stdscr):
                     else:
                         game.lan_status = "Scan and select a room first."
                         game.sound_manager.play("error")
-                elif key in (ord('t'), ord('T')):
+                elif key == ord('t'):
                     if game.lan_peers:
                         peer = game.lan_peers[game.lan_selected_peer]
                         if not peer.get("trade_offer"):
@@ -11921,36 +11922,36 @@ def main(stdscr):
                 continue
 
             if game.adventure_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.adventure_screen_open = False
                     game.sound_manager.play("close")
                 elif key in (ord('1'), ord('2'), ord('3')):
                     kinds = ("meadow", "ruins", "rift")
                     game.start_expedition(kinds[key - ord('1')])
-                elif key in (ord('c'), ord('C')):
+                elif key == ord('c'):
                     game.claim_expedition()
                 else:
                     game.sound_manager.play("error")
                 continue
 
             if game.loot_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.loot_screen_open = False
                     game.sound_manager.play("close")
                 elif ord('1') <= key <= ord('3'):
                     game.open_loot_box(LOOT_BOX_ORDER[key - ord('1')])
                 elif ord('4') <= key <= ord('6'):
                     game.buy_loot_box(LOOT_BOX_ORDER[key - ord('4')])
-                elif key in (ord('s'), ord('S')):
+                elif key == ord('s'):
                     game.summon_mythical_pet()
-                elif key in (ord('v'), ord('V')):
+                elif key == ord('v'):
                     game.claim_free_link_crate()
                 else:
                     game.sound_manager.play("error")
                 continue
 
             if game.fight_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.fight_screen_open = False
                     game.fight_state = "idle"
                     game.sound_manager.play("close")
@@ -11967,13 +11968,13 @@ def main(stdscr):
                 names = list(GLOBAL_UPGRADES.keys())
                 page_size = max(1, min(game.shop_page_size, 10))
                 total_pages = max(1, math.ceil(len(names) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.shop_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.shop_page = (game.shop_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.shop_page = (game.shop_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -11988,13 +11989,13 @@ def main(stdscr):
                 names = list(PRESTIGE_UPGRADES.keys())
                 page_size = max(1, min(game.shop_page_size, 10))
                 total_pages = max(1, math.ceil(len(names) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.prestige_shop_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.prestige_shop_page = (game.prestige_shop_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.prestige_shop_page = (game.prestige_shop_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -12008,13 +12009,13 @@ def main(stdscr):
             if game.pet_select_open:
                 page_size = max(1, min(game.pet_select_page_size, 10))
                 total_pages = max(1, math.ceil(len(game.pets) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.pet_select_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.pet_select_page = (game.pet_select_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.pet_select_page = (game.pet_select_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -12029,14 +12030,14 @@ def main(stdscr):
                     game.sound_manager.play("error")
                 continue
             if game.adopt_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.adopt_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
                     game.adopt_page = (game.adopt_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
                     game.adopt_page = (game.adopt_page - 1) % total_pages
                     game.sound_manager.play("page")
@@ -12066,14 +12067,14 @@ def main(stdscr):
             elif key == ord('b'): game.bathe()
             elif key == ord('t'): game.train()
             elif key == ord('s'): game.open_shop()
-            elif key == ord('L'): game.open_loot_screen()
-            elif key == ord('P'):
+            elif key == ord('l'): game.open_loot_screen()
+            elif key == ord('e'):
                 if game.can_prestige():
                     game.do_prestige()
                 else:
                     game.add_message("Reach transcendent stage to prestige!",2.0)
                     game.sound_manager.play("error")
-            elif key == ord('G'):
+            elif key == ord('g'):
                 game.open_prestige_shop()
             elif key == ord('c'): game.open_pet_select()
             elif key == ord('n'):
@@ -12088,13 +12089,13 @@ def main(stdscr):
                             game.sound_manager.play("rename")
                             game.save_game()
                     game.input_callback = _rename_active_pet
-            elif key == ord('F'): game.open_fight_menu(); game.start_fight()
-            elif key == ord('N'): game.open_lan_screen()
-            elif key == ord('A'): game.open_achievement_screen()
-            elif key == ord('R'): game.open_adventure_screen()
+            elif key == ord('d'): game.open_fight_menu(); game.start_fight()
+            elif key == ord('w'): game.open_lan_screen()
+            elif key == ord('h'): game.open_achievement_screen()
+            elif key == ord('r'): game.open_adventure_screen()
             elif key == ord('a'): game.open_adopt_screen()
-            elif key == ord('B'): game.request_boost()
-            elif key == ord('M'):
+            elif key == ord('v'): game.request_boost()
+            elif key == ord('m'):
                 was_enabled = game.sound_manager.on
                 if was_enabled:
                     game.sound_manager.play("close", force=True)
@@ -12108,7 +12109,7 @@ def main(stdscr):
                     2.0,
                 )
                 game.save_game()
-            elif key == ord('K'):
+            elif key == ord('k'):
                 enabled = game.sound_manager.toggle_music()
                 game.sound_manager.play("confirm" if enabled else "close", force=True)
                 mute_note = " | master mute is ON" if game.sound_manager.muted else ""
@@ -12117,22 +12118,22 @@ def main(stdscr):
                     2.0,
                 )
                 game.save_game()
-            elif key == ord('U'):
+            elif key == ord('u'):
                 muted = game.sound_manager.toggle_mute()
                 if not muted:
                     game.sound_manager.play("confirm", force=True)
                 game.add_message(
-                    "All audio MUTED for this session. It resets next launch; press U to restore now."
+                    "All audio MUTED for this session. It resets next launch; press u to restore now."
                     if muted else
                     "Audio restored using your previous SFX/music settings.",
                     2.5,
                 )
                 game.save_game()
-            elif key == ord('['):
+            elif key == ord('1'):
                 game.browse_fact(-1)
-            elif key == ord(']'):
+            elif key == ord('2'):
                 game.browse_fact(1)
-            elif key == ord('C'):
+            elif key == ord('o'):
                 if game.active_pet:
                     game.active_pet.color = (game.active_pet.color % 7) + 1
                     game.add_message("Color changed!",1.0)
