@@ -7,6 +7,7 @@
 Παιχνίδι εικονικής συντροφιάς με 160+ πραγματικά, θρυλικά και μυθικά ζωάκια,
 εκπαιδευτικές κάρτες και σαφή επισήμανση μυθολογίας, υιοθεσίες, αποστολές,
 μάχες/ανταλλαγές τοπικού δικτύου, επιτεύγματα, αναβαθμίσεις και ελέγχους φροντίδας.
+Έκδοση προσβάσιμων χειρισμών: οι ενέργειες χρησιμοποιούν γράμματα ή αριθμούς· X κλείνει τα μενού, N/P αλλάζουν σελίδα, R συνεχίζει τον έλεγχο και 1/2 αλλάζουν στοιχεία.
 """
 
 import curses, time, json, os, random, math, socket, sys, threading, queue, uuid, textwrap, subprocess, shutil, wave, struct, atexit, signal, re, functools, locale
@@ -6130,29 +6131,29 @@ EL_EXACT.update({
 
 # Επιμελημένες αποδόσεις των βασικών πλήκτρων και των συχνότερων συμβάντων.
 EL_EXACT.update({
-    "[f] Feed": "[f] Τάισμα", "[p] Pet": "[p] Χάιδεμα", "[b] Bath": "[b] Μπάνιο",
-    "[t] Train": "[t] Εκπαίδευση", "[s] Shop": "[s] Κατάστημα", "[L] Loot": "[L] Λάφυρα",
-    "[c] Pets": "[c] Ζωάκια", "[a] Adopt": "[a] Υιοθεσία", "[F] Fight": "[F] Μάχη",
-    "[N] LAN": "[N] LAN", "[A] Achievements": "[A] Επιτεύγματα", "[R] Adventure": "[R] Περιπέτεια",
-    "[P] Prestige": "[P] Κύρος", "[B] Boost": "[B] Ενίσχυση", "[n] Rename": "[n] Μετονομασία",
-    "[C] Color": "[C] Χρώμα", "[M] SFX": "[M] Εφέ", "[K] Music": "[K] Μουσική",
-    "[U] Mute All": "[U] Σίγαση όλων", "[[] PrevFact": "[[] Προηγ. στοιχείο",
-    "[]] NextFact": "[]] Επόμ. στοιχείο", "[q] Quit": "[q] Έξοδος",
+    "f Feed": "f Τάισμα", "p Pet": "p Χάιδεμα", "b Bath": "b Μπάνιο",
+    "t Train": "t Εκπαίδευση", "s Shop": "s Κατάστημα", "l Loot": "l Λάφυρα",
+    "c Pets": "c Ζωάκια", "a Adopt": "a Υιοθεσία", "d Fight": "d Μάχη",
+    "w LAN": "w LAN", "h Achievements": "h Επιτεύγματα", "r Adventure": "r Περιπέτεια",
+    "e Prestige": "e Κύρος", "g Prestige Shop": "g Κατάστημα κύρους", "v Boost": "v Ενίσχυση",
+    "n Rename": "n Μετονομασία", "o Color": "o Χρώμα", "m SFX": "m Εφέ",
+    "k Music": "k Μουσική", "u Mute All": "u Σίγαση όλων",
+    "1 Previous Fact": "1 Προηγούμενο στοιχείο", "2 Next Fact": "2 Επόμενο στοιχείο", "q Quit": "q Έξοδος",
     "Feed": "Τάισμα", "Pet": "Χάιδεμα", "Bath": "Μπάνιο", "Train": "Εκπαίδευση",
     "Fight": "Μάχη", "Rename": "Μετονομασία", "Color": "Χρώμα", "Quit": "Έξοδος",
     "Lost. Better luck next time!": "Έχασες. Περισσότερη τύχη την επόμενη φορά!",
     "Internet Boost active! 2x coins & speed for 10 min!": "Η ενίσχυση Internet ενεργοποιήθηκε! Διπλά νομίσματα και ταχύτητα για 10 λεπτά!",
-    "Your turn: [a]ttack, [s]pecial, [d]efend": "Η σειρά σου: [a] Επίθεση, [s] Ειδική κίνηση, [d] Άμυνα",
+    "Your turn: a Attack   s Special   d Defend": "Η σειρά σου: a Επίθεση   s Ειδική κίνηση   d Άμυνα",
     "  (none - press r to scan)": "  (κανένα — πάτησε r για σάρωση)",
     "An expedition is already active. Claim it when ready.": "Υπάρχει ήδη ενεργή εξερεύνηση. Παρέλαβέ την όταν ολοκληρωθεί.",
     "Adopt a second companion before starting expeditions.": "Υιοθέτησε δεύτερο ζωάκι πριν ξεκινήσεις εξερευνήσεις.",
-    "Auto progress paused: press SPACE or ENTER.": "Η αυτόματη πρόοδος σταμάτησε: πάτησε SPACE ή ENTER.",
+    "Auto progress paused: press r.": "Η αυτόματη πρόοδος σταμάτησε: πάτησε r.",
     "Sanctuary Festival ended. Fill Spark to start another!": "Το Φεστιβάλ Καταφυγίου τελείωσε. Γέμισε τη Σπίθα για να ξεκινήσει νέο!",
     "Boost expired!": "Η ενίσχυση έληξε!", "Sanctuary is full; free a slot first.": "Το καταφύγιο γέμισε· ελευθέρωσε πρώτα μία θέση.",
     "Max level reached!": "Έφτασες στο μέγιστο επίπεδο!", "Unknown companion species.": "Άγνωστο είδος ζώου.",
     "Maximum 120 companions reached!": "Έφτασες το όριο των 120 ζώων!", "Fight begins!": "Η μάχη ξεκινά!",
     "No internet connection available.": "Δεν υπάρχει διαθέσιμη σύνδεση στο Internet.",
-    "Fight finished. Press [esc]": "Η μάχη τελείωσε. Πάτησε [esc]",
+    "Fight finished. Press x": "Η μάχη τελείωσε. Πάτησε x",
     "Played with a butterfly! Happiness+": "Έπαιξες με μια πεταλούδα! Χαρά+",
     "Can't fight itself!": "Δεν μπορεί να πολεμήσει τον εαυτό του!",
     "Found some berries! Hunger+": "Βρέθηκαν μούρα! Πείνα+",
@@ -6645,7 +6646,7 @@ EL_MESSAGE_PATTERNS = (
     (re.compile(r"^(.+): found a treasure-map fragment!$", re.I), lambda source: f"{_el_group(source)}: βρέθηκε ένα θραύσμα χάρτη θησαυρού!"),
     (re.compile(r"^(.+) requires caretaker Lv\.(\d+)\.$", re.I), lambda title, lv: f"{_el_group(title)} απαιτεί επίπεδο φροντιστή {lv}."),
     (re.compile(r"^(.+) requires a spare pet with Bond Lv\.(\d+)\.$", re.I), lambda title, lv: f"{_el_group(title)} απαιτεί ένα διαθέσιμο ζωάκι με επίπεδο δεσμού {lv}."),
-    (re.compile(r"^(.+)'s expedition is ready to claim! Press R\.$", re.I), lambda n: f"Η εξερεύνηση του/της {n} είναι έτοιμη! Πάτησε R για παραλαβή."),
+    (re.compile(r"^(.+)'s expedition is ready to claim! Press r\.$", re.I), lambda n: f"Η εξερεύνηση του/της {n} είναι έτοιμη! Πάτησε r για παραλαβή."),
     (re.compile(r"^Expedition returns in (\d+):(\d{2})\.$", re.I), lambda m, sec: f"Η εξερεύνηση επιστρέφει σε {m}:{sec}."),
     (re.compile(r"^Caretaker Lv\.(\d+)! \+([\d,.]+) coins$", re.I), lambda lv, c: f"Φροντιστής Επ.{lv}! +{c} νομίσματα"),
     (re.compile(r"^Cannot adopt (.+): (.+)\.$", re.I), lambda sp, reason: f"Δεν μπορείς να υιοθετήσεις {_el_species_group(sp)}: {_el_group(reason)}."),
@@ -14734,7 +14735,7 @@ class Game:
     def update_expedition_status(self):
         if self.expedition_ready() and not self.expedition_ready_announced:
             self.expedition_ready_announced = True
-            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press R.", 6.0)
+            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press r.", 6.0)
             self.sound_manager.play("expedition_ready")
 
     def claim_expedition(self):
@@ -15638,7 +15639,7 @@ class Game:
         if self.auto_idle_seconds >= AUTO_INTERACTION_INTERVAL:
             self.auto_idle_seconds = AUTO_INTERACTION_INTERVAL
             self.attention_required = True
-            self.add_message("Auto progress paused: press SPACE or ENTER.", 8.0)
+            self.add_message("Auto progress paused: press r.", 8.0)
             self.sound_manager.beep()
             self.save_game()
             return
@@ -18012,7 +18013,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
         # Keep one physical terminal row per item so ten entries fit even on a
         # standard 80x24 Termux window. The description remains visible after a
         # separator and is clipped only at the actual modal boundary.
-        row_text = f"[{key_label}] {display_name}  Επ.{level}  Κόστος:{status}  | {el_text(info['desc'])}"
+        row_text = f"{key_label}. {display_name}  Επ.{level}  Κόστος:{status}  | {el_text(info['desc'])}"
         rows.append((row_text, attr))
 
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
@@ -18024,7 +18025,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
     ]
     footer = [
         ("", curses.color_pair(7)),
-        ("[1-9/0] αγορά  [n/→] επόμενο  [p/←] προηγούμενο  [esc] κλείσιμο", curses.color_pair(3) | curses.A_BOLD),
+        ("1 έως 9 ή 0 Αγορά   n Επόμενη σελίδα   p Προηγούμενη σελίδα   x Κλείσιμο", curses.color_pair(3) | curses.A_BOLD),
     ]
     lines = header + rows + footer
 
@@ -18067,7 +18068,7 @@ def draw_pet_select(stdscr, game):
         mark = ">" if absolute_index == game.active_pet_index else " "
         key_label = "0" if local_index == 10 else str(local_index)
         lines.append(f"{mark} {key_label}. {pet.nickname[:16]} ({el_species(pet.species)}) - {el_text(STAGE_NAMES[pet.stage])}")
-    lines.extend(["", "[1-9/0] αλλαγή  [n/→] επόμενο  [p/←] προηγούμενο  [esc] επιστροφή"])
+    lines.extend(["", "1 έως 9 ή 0 Αλλαγή   n Επόμενη σελίδα   p Προηγούμενη σελίδα   x Επιστροφή"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(display_len(line) for line in lines) + 4)
     start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -18114,7 +18115,7 @@ def draw_adopt_screen(stdscr, game):
         lines.append(
             f"{key_label}. {el_species(name)}{owned} [{el_text(tier.upper())}] {fmt_num(cost)} - {marker}: {el_text(reason)}"
         )
-    lines.extend(["", "[1-9/0] υιοθεσία  [n/→] επόμενο  [p/←] προηγούμενο  [esc] επιστροφή"])
+    lines.extend(["", "1 έως 9 ή 0 Υιοθεσία   n Επόμενη σελίδα   p Προηγούμενη σελίδα   x Επιστροφή"])
 
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(display_len(line) for line in lines) + 4)
@@ -18140,9 +18141,9 @@ def draw_loot_screen(stdscr, game):
     free_remaining = game.free_link_crate_seconds_remaining()
     if free_remaining > 0:
         free_minutes, free_seconds = divmod(free_remaining, 60)
-        free_crate_line = f"[v] ΔΩΡΕΑΝ κιβώτιο συνδέσμου σε {free_minutes}:{free_seconds:02d}"
+        free_crate_line = f"v Δωρεάν κιβώτιο συνδέσμου σε {free_minutes}:{free_seconds:02d}"
     else:
-        free_crate_line = "[v] επίσκεψη σε τυχαίο οδηγό → ΔΩΡΕΑΝ κιβώτιο"
+        free_crate_line = "v Επίσκεψη σε τυχαίο οδηγό για δωρεάν κιβώτιο"
 
     lines = [
         ("-- ΘΗΣΑΥΡΟΦΥΛΑΚΙΟ ΛΑΦΥΡΩΝ --", curses.color_pair(9) | curses.A_BOLD),
@@ -18160,8 +18161,8 @@ def draw_loot_screen(stdscr, game):
         pity_limit = LOOT_PITY_LIMITS[kind]
         pity_rarity = LOOT_REWARD_RARITIES[LOOT_PITY_MIN_RARITY[kind]]["label"]
         lines.append((
-            f"[{number}] ΑΝΟΙΓΜΑ {el_text(info['title'])}  διαθέσιμα:{game.loot_boxes.get(kind, 0)}   "
-            f"[{number + 3}] ΑΓΟΡΑ {fmt_num(game.loot_box_cost(kind))}",
+            f"{number} ΑΝΟΙΓΜΑ {el_text(info['title'])}  διαθέσιμα:{game.loot_boxes.get(kind, 0)}   "
+            f"{number + 3} ΑΓΟΡΑ {fmt_num(game.loot_box_cost(kind))}",
             container_attr,
         ))
 
@@ -18176,8 +18177,8 @@ def draw_loot_screen(stdscr, game):
 
     lines.extend([
         ("", curses.color_pair(7)),
-        (f"[s] επίκληση τυχαίου μυθικού ζώου για {MYTHIC_SUMMON_COST} θραύσματα", curses.color_pair(11) | curses.A_BOLD),
-        ("[1-3] άνοιγμα  [4-6] αγορά  [esc] κλείσιμο", curses.color_pair(3) | curses.A_BOLD),
+        (f"s Επίκληση τυχαίου μυθικού ζώου για {MYTHIC_SUMMON_COST} θραύσματα", curses.color_pair(11) | curses.A_BOLD),
+        ("1 έως 3 Άνοιγμα   4 έως 6 Αγορά   x Κλείσιμο", curses.color_pair(3) | curses.A_BOLD),
     ])
     if game.loot_history:
         lines.extend([("", curses.color_pair(7)), ("Πρόσφατες ανταμοιβές:", curses.color_pair(10) | curses.A_BOLD)])
@@ -18236,7 +18237,7 @@ def draw_adventure_screen(stdscr, game):
         target = max(1, int(contract.get("target", 1)))
         progress = min(target, int(game.daily_contract_progress.get(key, 0)))
         done = key in game.daily_contract_claimed
-        mark = "[X]" if done else "[ ]"
+        mark = "ΕΤΟΙΜΟ" if done else "ΑΝΟΙΧΤΟ"
         attr = curses.color_pair(1) | curses.A_BOLD if done else curses.color_pair(7)
         lines.append((f"{mark} {el_text(contract.get('label', key))} ({progress}/{target})", attr))
 
@@ -18247,7 +18248,7 @@ def draw_adventure_screen(stdscr, game):
     if game.expedition_kind:
         info = EXPEDITION_TYPES[game.expedition_kind]
         remaining = game.expedition_seconds_remaining()
-        state = "ΕΤΟΙΜΗ — πάτησε C" if remaining <= 0 else f"επιστρέφει σε {remaining // 60}:{remaining % 60:02d}"
+        state = "ΕΤΟΙΜΗ — πάτησε c" if remaining <= 0 else f"επιστρέφει σε {remaining // 60}:{remaining % 60:02d}"
         lines.append((
             f"{game.expedition_pet_name} ({el_species(game.expedition_pet_species)}) | {el_text(info['title'])} | {state}",
             curses.color_pair(1 if remaining <= 0 else 2) | curses.A_BOLD,
@@ -18257,12 +18258,12 @@ def draw_adventure_screen(stdscr, game):
             info = EXPEDITION_TYPES[kind]
             minutes = info["duration"] // 60
             lines.append((
-                f"[{number}] {el_text(info['title'])} {minutes}λ | Φροντιστής Επ.{info['level']} | εφεδρικός Δεσμός Επ.{info['bond']}",
+                f"{number}. {el_text(info['title'])} {minutes}λ | Φροντιστής Επ.{info['level']} | εφεδρικός Δεσμός Επ.{info['bond']}",
                 curses.color_pair(8 + min(number - 1, 2)) | curses.A_BOLD,
             ))
     lines.extend([
         ("", curses.color_pair(7)),
-        ("[1-3] έναρξη εξερεύνησης  [C] παραλαβή ολοκληρωμένης  [esc] επιστροφή", curses.A_BOLD),
+        ("1 έως 3 Έναρξη εξερεύνησης   c Παραλαβή ολοκληρωμένης   x Επιστροφή", curses.A_BOLD),
         ("Ανταμοιβές διαδρομής: κάθε 5 επίπεδα Κοινό, κάθε 10 Σπάνιο, κάθε 25 Μυθικό.", curses.A_DIM),
         ("Ανταμοιβές θησαυρού: κάθε 3ος χάρτης Σπάνιο, κάθε 10ος χάρτης Μυθικό.", curses.A_DIM),
     ])
@@ -18306,7 +18307,7 @@ def draw_attention_screen(stdscr, game):
         "Κάθε 10ος έλεγχος: +1 Μυθικό Θησαυροφυλάκιο",
         "+XP δεσμού και +18 Σπίθα Καταφυγίου σε κάθε έλεγχο",
         "",
-        "Πάτησε SPACE ή ENTER για συνέχεια",
+        "Πάτησε r για συνέχεια",
         "Πάτησε q για αποθήκευση και έξοδο",
     ]
     box_h = min(max(3, h - 2), len(lines) + 2)
@@ -18333,8 +18334,8 @@ def draw_fight_screen(stdscr, game):
 
     h, w = stdscr.getmaxyx()
     lines = ["-- ΜΑΧΗ --", ""]
-    if game.fight_state == "player_turn": lines.append("Η σειρά σου: [a] επίθεση, [s] ειδική κίνηση, [d] άμυνα")
-    elif game.fight_state == "finished": lines.append("Η μάχη τελείωσε. Πάτησε [esc]")
+    if game.fight_state == "player_turn": lines.append("Η σειρά σου: a Επίθεση   s Ειδική κίνηση   d Άμυνα")
+    elif game.fight_state == "finished": lines.append("Η μάχη τελείωσε. Πάτησε x")
     lines.append(f"Δική σου Υγεία: {game.fight_player_hp}/100")
     lines.append(f"Υγεία αντιπάλου: {game.fight_enemy_hp}/100")
     lines.append("")
@@ -18375,11 +18376,11 @@ def draw_achievement_screen(stdscr, game):
         "",
     ]
     for achievement_id, (title, description, coins, xp) in page_items:
-        mark = "[X]" if achievement_id in game.achievements else "[ ]"
+        mark = "ΕΤΟΙΜΟ" if achievement_id in game.achievements else "ΚΛΕΙΔΩΜΕΝΟ"
         lines.append(
             f"{mark} {el_text(title)} | {el_text(description)} | {fmt_num(coins)} νομ./{xp} XP"
         )
-    lines.extend(["", "[n/→] επόμενο  [p/←] προηγούμενο  [esc] επιστροφή"])
+    lines.extend(["", "n Επόμενη σελίδα   p Προηγούμενη σελίδα   x Επιστροφή"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(display_len(line) for line in lines) + 4)
     y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -18397,7 +18398,7 @@ def draw_achievement_screen(stdscr, game):
         pass
     usable_width = max(0, box_w - 4)
     for row, line in enumerate(lines[:max(0, box_h - 2)]):
-        attr = curses.color_pair(1) | curses.A_BOLD if line.startswith("[X]") else curses.color_pair(7)
+        attr = curses.color_pair(1) | curses.A_BOLD if line.startswith("ΕΤΟΙΜΟ") else curses.color_pair(7)
         if row == 0:
             attr = curses.color_pair(3) | curses.A_BOLD
         try: stdscr.addstr(y + 1 + row, x + 2, line[:usable_width], attr)
@@ -18435,8 +18436,8 @@ def draw_lan_screen(stdscr, game):
             )
     lines.extend([
         "",
-        "[h] φιλοξενία ναι/όχι  [r] σάρωση  [i] IP οικοδεσπότη  [1-9/0] επιλογή",
-        "[b] μάχη  [t] ανταλλαγή  [o] επόμενη προσφορά  [u] μετονομασία  [esc] επιστροφή",
+        "h Φιλοξενία ναι ή όχι   r Σάρωση   i IP οικοδεσπότη   1 έως 9 ή 0 Επιλογή",
+        "b Μάχη   t Ανταλλαγή   o Επόμενη προσφορά   u Μετονομασία   x Επιστροφή",
     ])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(display_len(line) for line in lines) + 4)
@@ -18467,10 +18468,10 @@ def draw_input_prompt(stdscr, game):
         pass
 
 MAIN_CONTROL_TOKENS = (
-    "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[L] Loot",
-    "[c] Pets", "[a] Adopt", "[F] Fight", "[N] LAN", "[A] Achievements",
-    "[R] Adventure", "[P] Prestige", "[G] Prestige Shop", "[B] Boost", "[n] Rename", "[C] Color", "[M] SFX",
-    "[K] Music", "[U] Mute All", "[[] PrevFact", "[]] NextFact", "[q] Quit",
+    "f Τάισμα", "p Χάιδεμα", "b Μπάνιο", "t Εκπαίδευση", "s Κατάστημα", "l Λάφυρα",
+    "c Ζωάκια", "a Υιοθεσία", "d Μάχη", "w Τοπικό δίκτυο", "h Επιτεύγματα",
+    "r Περιπέτεια", "e Κύρος", "g Κατάστημα κύρους", "v Ενίσχυση", "n Μετονομασία", "o Χρώμα", "m Εφέ",
+    "k Μουσική", "u Σίγαση όλων", "1 Προηγούμενο στοιχείο", "2 Επόμενο στοιχείο", "q Έξοδος",
 )
 
 
@@ -18522,7 +18523,7 @@ def _learning_card_lines(pet, width):
     index = pet.fact_index % len(facts)
     fictional = pet.species in FICTIONAL_SPECIES
     kind = "ΚΑΡΤΑ ΜΥΘΟΛΟΓΙΑΣ" if fictional else "ΚΑΡΤΑ ΓΝΩΣΕΩΝ"
-    header = f"{kind} {index + 1}/{len(facts)}  ([ και ] περιήγηση)"
+    header = f"{kind} {index + 1}/{len(facts)}  (1 Προηγούμενο, 2 Επόμενο)"
     usable = max(20, width - 4)
     wrapped = textwrap.wrap(
         facts[index],
@@ -18859,14 +18860,14 @@ def main(stdscr):
         # The ten-minute care check blocks every command except resume and safe
         # quit. This is the required interaction when the game runs unattended.
         if game.attention_required:
-            if key in (ord('q'), ord('Q')):
+            if key == ord('q'):
                 game.save_game()
                 game.sound_manager.play("quit", force=True)
                 time.sleep(0.18)
                 game.sound_manager.shutdown()
                 game.lan_manager.shutdown()
                 break
-            if key in (ord(' '), 10, 13):
+            if key == ord('r'):
                 game.complete_attention_check()
             elif key != -1:
                 game.sound_manager.play("error")
@@ -18899,13 +18900,13 @@ def main(stdscr):
             if game.achievement_screen_open:
                 items = list(ACHIEVEMENT_DEFINITIONS)
                 total_pages = max(1, math.ceil(len(items) / max(1, game.achievement_page_size)))
-                if key == 27:
+                if key == ord('x'):
                     game.achievement_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.achievement_page = (game.achievement_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.achievement_page = (game.achievement_page - 1) % total_pages
                     game.sound_manager.play("page")
                 else:
@@ -18913,10 +18914,10 @@ def main(stdscr):
                 continue
 
             if game.lan_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.lan_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('h'), ord('H')):
+                elif key == ord('h'):
                     if game.lan_manager.hosting:
                         game.lan_manager.stop_host()
                         game.lan_status = "Hosting stopped."
@@ -18927,7 +18928,7 @@ def main(stdscr):
                     else:
                         game.lan_status = f"Could not host: {game.lan_manager.last_error}"
                         game.sound_manager.play("error")
-                elif key in (ord('r'), ord('R')):
+                elif key == ord('r'):
                     game.lan_manager.start_scan()
                     game.sound_manager.play("scan")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -18938,16 +18939,16 @@ def main(stdscr):
                         game.sound_manager.play("page")
                     else:
                         game.sound_manager.play("error")
-                elif key in (ord('o'), ord('O')):
+                elif key == ord('o'):
                     game.cycle_lan_offer(1)
                     game.sound_manager.play("page")
-                elif key in (ord('i'), ord('I')):
+                elif key == ord('i'):
                     game.lan_screen_open = False
                     game.input_mode = True
                     game.sound_manager.play("open")
                     game.input_prompt = "Διεύθυνση IPv4 οικοδεσπότη"
                     game.input_callback = lambda address: game.lan_manager.start_manual_peer(address) if address else None
-                elif key in (ord('u'), ord('U')):
+                elif key == ord('u'):
                     game.lan_screen_open = False
                     game.input_mode = True
                     game.sound_manager.play("open")
@@ -18959,7 +18960,7 @@ def main(stdscr):
                             game.sound_manager.play("rename")
                             game.save_game()
                     game.input_callback = _set_lan_name
-                elif key in (ord('b'), ord('B')):
+                elif key == ord('b'):
                     if game.lan_peers:
                         peer = game.lan_peers[game.lan_selected_peer]
                         game.lan_manager.start_action("battle", peer)
@@ -18967,7 +18968,7 @@ def main(stdscr):
                     else:
                         game.lan_status = "Scan and select a room first."
                         game.sound_manager.play("error")
-                elif key in (ord('t'), ord('T')):
+                elif key == ord('t'):
                     if game.lan_peers:
                         peer = game.lan_peers[game.lan_selected_peer]
                         if not peer.get("trade_offer"):
@@ -18984,36 +18985,36 @@ def main(stdscr):
                 continue
 
             if game.adventure_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.adventure_screen_open = False
                     game.sound_manager.play("close")
                 elif key in (ord('1'), ord('2'), ord('3')):
                     kinds = ("meadow", "ruins", "rift")
                     game.start_expedition(kinds[key - ord('1')])
-                elif key in (ord('c'), ord('C')):
+                elif key == ord('c'):
                     game.claim_expedition()
                 else:
                     game.sound_manager.play("error")
                 continue
 
             if game.loot_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.loot_screen_open = False
                     game.sound_manager.play("close")
                 elif ord('1') <= key <= ord('3'):
                     game.open_loot_box(LOOT_BOX_ORDER[key - ord('1')])
                 elif ord('4') <= key <= ord('6'):
                     game.buy_loot_box(LOOT_BOX_ORDER[key - ord('4')])
-                elif key in (ord('s'), ord('S')):
+                elif key == ord('s'):
                     game.summon_mythical_pet()
-                elif key in (ord('v'), ord('V')):
+                elif key == ord('v'):
                     game.claim_free_link_crate()
                 else:
                     game.sound_manager.play("error")
                 continue
 
             if game.fight_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.fight_screen_open = False
                     game.fight_state = "idle"
                     game.sound_manager.play("close")
@@ -19030,13 +19031,13 @@ def main(stdscr):
                 names = list(GLOBAL_UPGRADES.keys())
                 page_size = max(1, min(game.shop_page_size, 10))
                 total_pages = max(1, math.ceil(len(names) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.shop_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.shop_page = (game.shop_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.shop_page = (game.shop_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -19051,13 +19052,13 @@ def main(stdscr):
                 names = list(PRESTIGE_UPGRADES.keys())
                 page_size = max(1, min(game.shop_page_size, 10))
                 total_pages = max(1, math.ceil(len(names) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.prestige_shop_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.prestige_shop_page = (game.prestige_shop_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.prestige_shop_page = (game.prestige_shop_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -19071,13 +19072,13 @@ def main(stdscr):
             if game.pet_select_open:
                 page_size = max(1, min(game.pet_select_page_size, 10))
                 total_pages = max(1, math.ceil(len(game.pets) / page_size))
-                if key == 27:
+                if key == ord('x'):
                     game.pet_select_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     game.pet_select_page = (game.pet_select_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     game.pet_select_page = (game.pet_select_page - 1) % total_pages
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
@@ -19092,14 +19093,14 @@ def main(stdscr):
                     game.sound_manager.play("error")
                 continue
             if game.adopt_screen_open:
-                if key == 27:
+                if key == ord('x'):
                     game.adopt_screen_open = False
                     game.sound_manager.play("close")
-                elif key in (ord('n'), curses.KEY_RIGHT, curses.KEY_NPAGE):
+                elif key == ord('n'):
                     total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
                     game.adopt_page = (game.adopt_page + 1) % total_pages
                     game.sound_manager.play("page")
-                elif key in (ord('p'), curses.KEY_LEFT, curses.KEY_PPAGE):
+                elif key == ord('p'):
                     total_pages = max(1, math.ceil(len(SPECIES) / max(1, min(game.adopt_page_size, 10))))
                     game.adopt_page = (game.adopt_page - 1) % total_pages
                     game.sound_manager.play("page")
@@ -19129,14 +19130,14 @@ def main(stdscr):
             elif key == ord('b'): game.bathe()
             elif key == ord('t'): game.train()
             elif key == ord('s'): game.open_shop()
-            elif key == ord('L'): game.open_loot_screen()
-            elif key == ord('P'):
+            elif key == ord('l'): game.open_loot_screen()
+            elif key == ord('e'):
                 if game.can_prestige():
                     game.do_prestige()
                 else:
                     game.add_message("Reach transcendent stage to prestige!",2.0)
                     game.sound_manager.play("error")
-            elif key == ord('G'):
+            elif key == ord('g'):
                 game.open_prestige_shop()
             elif key == ord('c'): game.open_pet_select()
             elif key == ord('n'):
@@ -19151,13 +19152,13 @@ def main(stdscr):
                             game.sound_manager.play("rename")
                             game.save_game()
                     game.input_callback = _rename_active_pet
-            elif key == ord('F'): game.open_fight_menu(); game.start_fight()
-            elif key == ord('N'): game.open_lan_screen()
-            elif key == ord('A'): game.open_achievement_screen()
-            elif key == ord('R'): game.open_adventure_screen()
+            elif key == ord('d'): game.open_fight_menu(); game.start_fight()
+            elif key == ord('w'): game.open_lan_screen()
+            elif key == ord('h'): game.open_achievement_screen()
+            elif key == ord('r'): game.open_adventure_screen()
             elif key == ord('a'): game.open_adopt_screen()
-            elif key == ord('B'): game.request_boost()
-            elif key == ord('M'):
+            elif key == ord('v'): game.request_boost()
+            elif key == ord('m'):
                 was_enabled = game.sound_manager.on
                 if was_enabled:
                     game.sound_manager.play("close", force=True)
@@ -19171,7 +19172,7 @@ def main(stdscr):
                     2.0,
                 )
                 game.save_game()
-            elif key == ord('K'):
+            elif key == ord('k'):
                 enabled = game.sound_manager.toggle_music()
                 game.sound_manager.play("confirm" if enabled else "close", force=True)
                 mute_note = " | η γενική σίγαση είναι ενεργή" if game.sound_manager.muted else ""
@@ -19180,22 +19181,22 @@ def main(stdscr):
                     2.0,
                 )
                 game.save_game()
-            elif key == ord('U'):
+            elif key == ord('u'):
                 muted = game.sound_manager.toggle_mute()
                 if not muted:
                     game.sound_manager.play("confirm", force=True)
                 game.add_message(
-                    "Όλος ο ήχος τέθηκε σε σίγαση για αυτή τη συνεδρία. Η σίγαση μηδενίζεται στην επόμενη εκκίνηση· πάτησε U για άμεση επαναφορά."
+                    "Όλος ο ήχος τέθηκε σε σίγαση για αυτή τη συνεδρία. Η σίγαση μηδενίζεται στην επόμενη εκκίνηση· πάτησε u για άμεση επαναφορά."
                     if muted else
                     "Ο ήχος επανήλθε με τις προηγούμενες ρυθμίσεις εφέ και μουσικής.",
                     2.5,
                 )
                 game.save_game()
-            elif key == ord('['):
+            elif key == ord('1'):
                 game.browse_fact(-1)
-            elif key == ord(']'):
+            elif key == ord('2'):
                 game.browse_fact(1)
-            elif key == ord('C'):
+            elif key == ord('o'):
                 if game.active_pet:
                     game.active_pet.color = (game.active_pet.color % 7) + 1
                     game.add_message("Color changed!",1.0)
