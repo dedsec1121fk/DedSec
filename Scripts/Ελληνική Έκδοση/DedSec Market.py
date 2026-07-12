@@ -35,6 +35,7 @@ PARSER_VERSION = 6
 REPOSITORIES = [
     {"url": "https://github.com/dedsec1121fk/Offline-Survival-Project"},
     {"url": "https://github.com/dedsec1121fk/Corrupted-Files-Project"},
+    {"url": "https://github.com/dedsec1121fk/Pocket-AI"},
 ]
 
 SESSION_CACHE = {}
