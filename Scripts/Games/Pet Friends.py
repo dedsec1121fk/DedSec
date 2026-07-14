@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 # ----------------------------- CONFIG -----------------------------
 SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
 SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
-SAVE_VERSION = 16
+SAVE_VERSION = 18
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 def _safe_int(value, default=0, minimum=None, maximum=None):
@@ -6135,53 +6135,6 @@ def _educational_topic(text, fictional=False):
     return "BIOLOGY"
 
 
-def _detail_fact_card(card, fictional=False):
-    """Turn a short fact into a fuller field-guide card without inventing data."""
-    text = str(card).strip()
-    match = re.match(r"^\[([^\]]+)\]\s*(.*)$", text)
-    topic = match.group(1).upper() if match else ("MYTHOLOGY" if fictional else "SCIENCE")
-    fact = match.group(2).strip() if match else text
-    contexts = {
-        "ANATOMY": (
-            "Field note: anatomy is best understood as an adaptation shaped by movement, feeding, protection, and the surrounding habitat.",
-            "Field note: body structures usually work together, so this feature should be considered with the animal's senses, diet, and locomotion.",
-        ),
-        "BEHAVIOR": (
-            "Field note: behaviour can change with age, season, social setting, available food, and perceived danger.",
-            "Field note: observations describe common patterns rather than a rule followed identically by every individual.",
-        ),
-        "ECOLOGY": (
-            "Field note: ecological traits connect the animal to food webs, nutrient cycles, habitat structure, and the survival of other species.",
-            "Field note: changes to habitat quality can alter this relationship even when the species itself remains present.",
-        ),
-        "CONSERVATION": (
-            "Field note: conservation status depends on population trend, geographic range, habitat pressure, exploitation, disease, and climate risk.",
-            "Field note: effective protection normally combines habitat management, law enforcement, research, and cooperation with local communities.",
-        ),
-        "PHYSIOLOGY": (
-            "Field note: physiology explains how the body regulates energy, temperature, oxygen, water, and recovery under real environmental demands.",
-            "Field note: these processes vary with body size, health, activity, temperature, and access to food or water.",
-        ),
-        "EVOLUTION": (
-            "Field note: evolutionary explanations concern inherited traits across populations and many generations, not purposeful changes by one animal.",
-            "Field note: related species may share this trait through common ancestry or evolve similar solutions independently.",
-        ),
-        "MYTHOLOGY": (
-            "Cultural note: this describes a traditional story or symbolic interpretation, not a verified zoological claim.",
-            "Cultural note: versions can differ between regions, languages, historical periods, and individual storytellers.",
-        ),
-        "SCIENCE": (
-            "Research note: reliable interpretation compares multiple observations and distinguishes measured evidence from anecdotes.",
-            "Research note: exact values can vary by species, population, age, environment, and study method.",
-        ),
-    }
-    options = contexts.get(topic, contexts["SCIENCE"])
-    index = sum(ord(ch) for ch in fact) % len(options)
-    if len(fact) >= 210:
-        return f"[{topic}] {fact}"
-    return f"[{topic}] {fact} {options[index]}"
-
-
 def _prepare_educational_facts():
     """Build the displayed learning-card list for every real and fictional pet."""
     all_species_names = {name.casefold() for name in SPECIES}
@@ -6233,26 +6186,104 @@ def _prepare_educational_facts():
 
         # A creature with many good source entries keeps all of them.  A future
         # minimal entry still receives a substantial, honest educational set.
-        base_cards = cards or [
+        data["educational_facts"] = cards or [
             f"[SCIENCE] Reliable information about {name} should distinguish verified evidence from guesses and anecdotes."
         ]
-        data["educational_facts"] = [_detail_fact_card(card, fictional) for card in base_cards]
 
 
 _prepare_educational_facts()
 
 
+_ENRICHED_FACT_CACHE = {}
+_FACT_CONTEXTS = {
+    "ANATOMY": (
+        "This structure influences movement, feeding, sensation, protection, or temperature control. Researchers compare anatomy, medical imaging, museum specimens, and living behaviour to understand how form supports function.",
+        "Anatomical traits work as part of a complete body system rather than in isolation. Their effect can change with age, body size, health, and the environment in which the animal lives.",
+        "The same basic body plan can be modified greatly across related species. Comparing bones, muscles, organs, and soft tissues helps scientists reconstruct both function and evolutionary history.",
+    ),
+    "BEHAVIOUR": (
+        "Behaviour varies with age, season, social setting, previous experience, and individual personality. Field researchers therefore repeat observations before treating one action as a typical species pattern.",
+        "This behaviour has costs and benefits involving energy, safety, communication, or access to resources. Context matters because the same movement or call can carry different meanings in different situations.",
+        "Scientists study behaviour through direct observation, video, acoustic recording, tracking, and carefully designed experiments. Combining methods reduces the risk of mistaking a rare event for a general rule.",
+    ),
+    "ECOLOGY": (
+        "This relationship connects the animal to food webs, habitat structure, climate, competitors, predators, and other species. A change in one part of the ecosystem can therefore alter survival or reproduction elsewhere.",
+        "Ecological patterns are measured across places and seasons because conditions are never identical everywhere. Long-term monitoring is especially important for separating normal variation from sustained population decline.",
+        "Protecting a species usually requires more than protecting individual animals. Breeding areas, feeding grounds, migration routes, water, shelter, and genetic connections between populations may all be necessary.",
+    ),
+    "LIFE CYCLE": (
+        "Life-cycle timing affects population growth because survival at eggs, young, juvenile, and adult stages is rarely equal. Food supply, temperature, parental care, disease, and predation can change each stage differently.",
+        "Growth and reproduction require substantial energy, so animals balance them against maintenance and survival. The balance can shift with season, age, body condition, and environmental stress.",
+        "Researchers combine nest or den monitoring, growth measurements, genetics, and long-term identification of individuals to understand development and reproductive success.",
+    ),
+    "HISTORY": (
+        "Historical claims are strongest when archaeological remains, dated documents, genetics, art, and environmental evidence agree. A popular story may preserve a real event while also accumulating later interpretation.",
+        "Domestication and human-animal relationships developed gradually rather than in one moment. Different regions may have followed different pathways depending on climate, food, transport, belief, and local species.",
+        "Dates and names can change when new evidence appears, so reliable summaries distinguish confirmed findings from estimates and traditional accounts.",
+    ),
+    "ANIMAL CARE": (
+        "Good care must match the species and the individual, including diet, temperature, space, social needs, enrichment, hygiene, and veterinary support. A method suitable for one animal may be harmful to another.",
+        "Welfare includes emotional state as well as physical health. Appetite, posture, movement, grooming, sleep, social behaviour, and waste output can all provide early warning that something is wrong.",
+        "Preventive care is safer than waiting for an emergency. Keepers should use evidence-based guidance and consult a qualified veterinarian for species-specific medical decisions.",
+    ),
+    "SCIENCE": (
+        "A strong scientific conclusion depends on repeatable methods, suitable sample sizes, transparent uncertainty, and evidence that alternative explanations were considered. One observation alone cannot establish a universal rule.",
+        "Researchers improve confidence by combining independent lines of evidence such as field surveys, experiments, genetics, imaging, environmental DNA, telemetry, and long-term records.",
+        "Scientific knowledge is provisional: reliable conclusions can be refined when better measurements or broader datasets become available. This is a strength of the method, not a weakness.",
+    ),
+    "BIOLOGY": (
+        "Biological traits reflect interactions among genes, development, physiology, behaviour, and environment. Individuals of the same species can therefore differ without either one being abnormal.",
+        "Every adaptation involves trade-offs. A feature that improves performance in one situation may consume energy, reduce flexibility, or create a disadvantage under different conditions.",
+        "Understanding the whole organism requires connecting cells and organs with behaviour, habitat, population dynamics, and evolutionary history.",
+    ),
+    "MYTHOLOGY": (
+        "This is a cultural tradition rather than a zoological claim. Versions can differ by region, period, language, storyteller, ritual use, and the surviving source in which the account was recorded.",
+        "Mythological creatures often combine real animal anatomy with symbols of power, danger, protection, transformation, weather, death, or social order. The meaning is not identical in every culture.",
+        "A responsible retelling names the tradition it draws from and separates ancient evidence from modern fantasy additions. Contradictory versions can all be historically important.",
+    ),
+    "LORE STUDIES": (
+        "Modern worldbuilding becomes more convincing when anatomy, habitat, diet, movement, life cycle, social behaviour, and limitations follow consistent rules. Power without cost usually weakens dramatic tension.",
+        "A fictional species can reflect older folklore while still being a new creative design. Clear attribution helps readers distinguish inherited tradition from contemporary invention.",
+        "Visual design, sound, silhouette, and behaviour all communicate lore. Repeated motifs help players recognize the creature before reading its description.",
+    ),
+}
+
+def _fact_body_only(card):
+    text = " ".join(str(card).strip().split())
+    match = re.match(r"^\[([^\]]+)\]\s*(.*)$", text)
+    return match.group(2).strip() if match else text
+
+
+def _enrich_fact_card(species, card, index=0, related_card=""):
+    """Turn one short entry into a detailed, species-linked learning card."""
+    text = " ".join(str(card).strip().split())
+    match = re.match(r"^\[([^\]]+)\]\s*(.*)$", text)
+    topic = match.group(1).strip().upper() if match else "BIOLOGY"
+    body = match.group(2).strip() if match else text
+    fictional = species in FICTIONAL_SPECIES
+    if fictional and topic not in {"MYTHOLOGY", "LORE STUDIES"}:
+        topic = "MYTHOLOGY"
+    related = _fact_body_only(related_card)
+    related_sentence = ""
+    if related and related.casefold() != body.casefold():
+        related_sentence = f" Related detail: {related}"
+    contexts = _FACT_CONTEXTS.get(topic, _FACT_CONTEXTS["BIOLOGY"])
+    selector = (sum(ord(ch) for ch in species) + index * 7 + len(body)) % len(contexts)
+    context = contexts[selector]
+    return f"[{topic}] {body}{related_sentence} {context}"
+
+
 # ----------------------------- ADOPTION PROGRESSION -----------------------------
-# Adoption is intentionally priced by rarity.  Rarity and species rank make purchases more
+# Adoption is intentionally priced by rarity.  Duplicate adoptions become more
 # expensive, while mission/achievement locks make high-value species long-term
 # goals instead of a flat list that can be exhausted immediately.
 ADOPTION_TIER_INFO = {
-    "common": {"cost": 750, "level": 1},
-    "uncommon": {"cost": 7500, "level": 4},
-    "rare": {"cost": 75000, "level": 8},
-    "epic": {"cost": 750000, "level": 14},
-    "legendary": {"cost": 7500000, "level": 22},
-    "mythical": {"cost": 75000000, "level": 32},
+    "common": {"cost": 300, "level": 1},
+    "uncommon": {"cost": 1200, "level": 3},
+    "rare": {"cost": 5500, "level": 7},
+    "epic": {"cost": 22000, "level": 12},
+    "legendary": {"cost": 90000, "level": 20},
+    "mythical": {"cost": 300000, "level": 30},
 }
 
 UNCOMMON_SPECIES = {
@@ -6642,47 +6673,55 @@ LOOT_PITY_MIN_RARITY = {
 }
 MYTHIC_SUMMON_COST = 10
 
-# ----------------------------- UPGRADES (UNIQUE, MEANINGFUL ITEMS) -----------------------------
-# Every shop entry is unique.  Each item can be developed to level 333 and has
-# a real, bounded gameplay effect.  Version-15 generic ``mastery_###`` levels
-# are migrated into hidden legacy power so established saves lose no benefit.
-SHOP_MAX_LEVEL = 333
+# ----------------------------- UPGRADES (300+) -----------------------------
 GLOBAL_UPGRADES = {
-    "auto_feeder": {"base_cost": 60, "mult": 1.040, "desc": "Steadily restores hunger for every companion.", "max_level": SHOP_MAX_LEVEL},
-    "toy_box": {"base_cost": 75, "mult": 1.040, "desc": "Steadily restores happiness through enrichment.", "max_level": SHOP_MAX_LEVEL},
-    "energy_booster": {"base_cost": 85, "mult": 1.041, "desc": "Steadily restores energy and improves training recovery.", "max_level": SHOP_MAX_LEVEL},
-    "auto_bath": {"base_cost": 85, "mult": 1.041, "desc": "Steadily restores cleanliness for every companion.", "max_level": SHOP_MAX_LEVEL},
-    "coin_magnet": {"base_cost": 120, "mult": 1.043, "desc": "Raises all earned coins and passive coin income.", "max_level": SHOP_MAX_LEVEL},
-    "lucky_charm": {"base_cost": 180, "mult": 1.044, "desc": "Raises event frequency without exceeding a safe cap.", "max_level": SHOP_MAX_LEVEL},
-    "power_food": {"base_cost": 210, "mult": 1.044, "desc": "Raises battle power and attack consistency.", "max_level": SHOP_MAX_LEVEL},
-    "better_food": {"base_cost": 145, "mult": 1.042, "desc": "Slows hunger loss, especially at advanced stages.", "max_level": SHOP_MAX_LEVEL},
-    "soothing_music": {"base_cost": 150, "mult": 1.042, "desc": "Slows happiness loss as companions evolve.", "max_level": SHOP_MAX_LEVEL},
-    "cozy_bed": {"base_cost": 155, "mult": 1.042, "desc": "Slows energy loss and improves rest efficiency.", "max_level": SHOP_MAX_LEVEL},
-    "grooming_station": {"base_cost": 155, "mult": 1.042, "desc": "Slows cleanliness loss and strengthens bathing.", "max_level": SHOP_MAX_LEVEL},
-    "evolution_catalyst": {"base_cost": 260, "mult": 1.046, "desc": "Accelerates evolution progress with diminishing returns.", "max_level": SHOP_MAX_LEVEL},
-    "auto_petter": {"base_cost": 220, "mult": 1.044, "desc": "Adds passive happiness and strengthens petting.", "max_level": SHOP_MAX_LEVEL},
-    "training_auto": {"base_cost": 230, "mult": 1.044, "desc": "Adds passive energy and improves battle XP gains.", "max_level": SHOP_MAX_LEVEL},
-    "veterinary_kit": {"base_cost": 300, "mult": 1.047, "desc": "Strengthens automatic care pulses below the safety threshold.", "max_level": SHOP_MAX_LEVEL},
-    "nutrition_science": {"base_cost": 280, "mult": 1.046, "desc": "Makes feeding stronger and improves hunger resilience.", "max_level": SHOP_MAX_LEVEL},
-    "enrichment_program": {"base_cost": 290, "mult": 1.046, "desc": "Makes happiness care stronger and increases bond gains.", "max_level": SHOP_MAX_LEVEL},
-    "endurance_training": {"base_cost": 310, "mult": 1.047, "desc": "Makes training stronger and improves combat endurance.", "max_level": SHOP_MAX_LEVEL},
-    "hygiene_protocol": {"base_cost": 300, "mult": 1.046, "desc": "Makes bathing stronger and improves cleanliness resilience.", "max_level": SHOP_MAX_LEVEL},
-    "sanctuary_mastery": {"base_cost": 500, "mult": 1.050, "desc": "Improves coins, evolution, care strength, and automatic systems.", "max_level": SHOP_MAX_LEVEL},
+    "auto_feeder": {"base_cost": 35, "mult": 1.32, "desc": "Adds passive hunger recovery.", "max_level": 25},
+    "toy_box": {"base_cost": 45, "mult": 1.34, "desc": "Adds passive happiness recovery.", "max_level": 25},
+    "energy_booster": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive energy recovery.", "max_level": 25},
+    "auto_bath": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive cleanliness recovery.", "max_level": 25},
+    "coin_magnet": {"base_cost": 75, "mult": 1.38, "desc": "Adds passive coin income.", "max_level": 50},
+    "lucky_charm": {"base_cost": 120, "mult": 1.42, "desc": "Raises the random-event chance.", "max_level": 5},
+    "power_food": {"base_cost": 140, "mult": 1.40, "desc": "Raises battle power by 5% per level.", "max_level": 30},
+    "better_food": {"base_cost": 90, "mult": 1.36, "desc": "Slows hunger decay.", "max_level": 5},
+    "soothing_music": {"base_cost": 90, "mult": 1.36, "desc": "Slows happiness decay.", "max_level": 8},
+    "cozy_bed": {"base_cost": 100, "mult": 1.37, "desc": "Slows energy decay.", "max_level": 8},
+    "grooming_station": {"base_cost": 100, "mult": 1.37, "desc": "Slows cleanliness decay.", "max_level": 8},
+    "evolution_catalyst": {"base_cost": 180, "mult": 1.45, "desc": "Speeds evolution progress.", "max_level": 25},
+    "auto_petter": {"base_cost": 160, "mult": 1.42, "desc": "Extra automatic happiness care.", "max_level": 20},
+    "training_auto": {"base_cost": 170, "mult": 1.42, "desc": "Extra automatic energy care.", "max_level": 20},
+    "veterinary_kit": {"base_cost": 240, "mult": 1.48, "desc": "Raises the automatic-care pulse.", "max_level": 20},
 }
+_GENERIC_UPGRADE_DESCRIPTIONS = [
+    "Slightly improves all coin income and evolution speed.",
+    "Adds a small permanent caretaker-efficiency bonus.",
+    "Builds collection mastery across every owned pet.",
+    "Adds a tiny universal idle-progress bonus.",
+]
+for i in range(1, 321 - len(GLOBAL_UPGRADES)):
+    GLOBAL_UPGRADES[f"mastery_{i:03d}"] = {
+        "base_cost": 250 + i * 18,
+        "mult": 1.18 + (i % 5) * 0.01,
+        "desc": _GENERIC_UPGRADE_DESCRIPTIONS[(i - 1) % len(_GENERIC_UPGRADE_DESCRIPTIONS)],
+        "max_level": 20,
+    }
 
 PRESTIGE_UPGRADES = {
-    "cosmic_feeder": {"cost": 1, "desc": "Permanent hunger recovery and feeding efficiency.", "max_level": SHOP_MAX_LEVEL},
-    "eternal_joy": {"cost": 1, "desc": "Permanently slows happiness loss.", "max_level": SHOP_MAX_LEVEL},
-    "deeper_sleep": {"cost": 1, "desc": "Permanently slows energy loss.", "max_level": SHOP_MAX_LEVEL},
-    "clean_freak": {"cost": 1, "desc": "Permanently slows cleanliness loss.", "max_level": SHOP_MAX_LEVEL},
-    "time_extender": {"cost": 2, "desc": "Playtime gradually raises all coin income.", "max_level": SHOP_MAX_LEVEL},
-    "soul_mult": {"cost": 2, "desc": "Adds a permanent coin multiplier.", "max_level": SHOP_MAX_LEVEL},
-    "time_warper": {"cost": 2, "desc": "Adds permanent evolution speed.", "max_level": SHOP_MAX_LEVEL},
-    "battle_boost": {"cost": 2, "desc": "Adds permanent battle XP and power.", "max_level": SHOP_MAX_LEVEL},
-    "event_spawner": {"cost": 3, "desc": "Shortens the interval between bonus events.", "max_level": SHOP_MAX_LEVEL},
-    "caretaker_aura": {"cost": 3, "desc": "Strengthens every automatic-care pulse.", "max_level": SHOP_MAX_LEVEL},
-    "legacy_core": {"cost": 4, "desc": "A single universal legacy item replacing repeated entries.", "max_level": SHOP_MAX_LEVEL},
+    "cosmic_feeder": {"cost": 1, "desc": "Strong permanent hunger recovery."},
+    "eternal_joy": {"cost": 1, "desc": "Permanently slows happiness decay."},
+    "deeper_sleep": {"cost": 1, "desc": "Permanently slows energy decay."},
+    "clean_freak": {"cost": 1, "desc": "Permanently slows cleanliness decay."},
+    "time_extender": {"cost": 2, "desc": "Playtime gradually adds coin income."},
+    "soul_mult": {"cost": 2, "desc": "Adds a large permanent coin multiplier."},
+    "time_warper": {"cost": 2, "desc": "Adds permanent evolution speed."},
+    "battle_boost": {"cost": 2, "desc": "Adds permanent battle XP gains."},
+    "event_spawner": {"cost": 3, "desc": "Creates an extra random event each minute."},
+    "caretaker_aura": {"cost": 3, "desc": "Strengthens every automatic-care pulse."},
 }
+for i in range(1, 31 - len(PRESTIGE_UPGRADES)):
+    PRESTIGE_UPGRADES[f"legacy_{i:02d}"] = {
+        "cost": 2 + i // 4,
+        "desc": "Adds a small universal legacy multiplier.",
+    }
 
 # ----------------------------- QUESTS -----------------------------
 QUESTS = [
@@ -7363,8 +7402,22 @@ class Pet:
         return True
 
     def get_facts(self):
+        cached = _ENRICHED_FACT_CACHE.get(self.species)
+        if cached is not None:
+            return list(cached)
         data = SPECIES[self.species]
-        return data.get("educational_facts") or data.get("facts", [])
+        source = data.get("educational_facts") or data.get("facts", [])
+        detailed = tuple(
+            _enrich_fact_card(
+                self.species,
+                card,
+                index,
+                source[(index + 1) % len(source)] if source else "",
+            )
+            for index, card in enumerate(source)
+        )
+        _ENRICHED_FACT_CACHE[self.species] = detailed
+        return list(detailed)
 
     def bond_xp_needed(self):
         """Return XP needed for the next bond level at the current level."""
@@ -7528,8 +7581,6 @@ class Game:
 
         self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
         self.prestige_upgrades = {k:0 for k in PRESTIGE_UPGRADES}
-        self.legacy_upgrade_power = 0
-        self.legacy_prestige_power = 0
 
         self.messages = []
         self.achievements = set()
@@ -7691,8 +7742,6 @@ class Game:
             "lan_trades": self.lan_trades,
             "global_upgrades": self.global_upgrades,
             "prestige_upgrades": self.prestige_upgrades,
-            "legacy_upgrade_power": self.legacy_upgrade_power,
-            "legacy_prestige_power": self.legacy_prestige_power,
             "achievements": list(self.achievements),
             "last_daily_claim": self.last_daily_claim.isoformat() if self.last_daily_claim else None,
             "quests": [q["type"] for q in self.active_quests],
@@ -7809,32 +7858,16 @@ class Game:
             saved_global = {}
         for name, info in GLOBAL_UPGRADES.items():
             self.global_upgrades[name] = _safe_int(
-                saved_global.get(name, 0), 0, 0, _safe_int(info.get("max_level", SHOP_MAX_LEVEL), SHOP_MAX_LEVEL, 0)
+                saved_global.get(name, 0), 0, 0, _safe_int(info.get("max_level", 0), 0, 0)
             )
-        old_mastery_total = sum(
-            _safe_int(value, 0, 0, 10**6)
-            for name, value in saved_global.items()
-            if isinstance(name, str) and name.startswith("mastery_")
-        )
-        self.legacy_upgrade_power = _safe_int(
-            data.get("legacy_upgrade_power", old_mastery_total), old_mastery_total, 0, 10**9
-        )
 
         saved_prestige = data.get("prestige_upgrades", {})
         if not isinstance(saved_prestige, dict):
             saved_prestige = {}
-        for name, info in PRESTIGE_UPGRADES.items():
+        for name in PRESTIGE_UPGRADES:
             self.prestige_upgrades[name] = _safe_int(
-                saved_prestige.get(name, 0), 0, 0, _safe_int(info.get("max_level", SHOP_MAX_LEVEL), SHOP_MAX_LEVEL, 0)
+                saved_prestige.get(name, 0), 0, 0, 10**6
             )
-        old_legacy_total = sum(
-            _safe_int(value, 0, 0, 10**6)
-            for name, value in saved_prestige.items()
-            if isinstance(name, str) and name.startswith("legacy_") and name != "legacy_core"
-        )
-        self.legacy_prestige_power = _safe_int(
-            data.get("legacy_prestige_power", old_legacy_total), old_legacy_total, 0, 10**9
-        )
 
         saved_achievements = data.get("achievements", [])
         if isinstance(saved_achievements, (list, tuple, set)):
@@ -8290,16 +8323,12 @@ class Game:
         return levels
 
     def adoption_cost(self, species):
-        """Calculate a rarity-led one-time purchase price for a species."""
+        """Calculate the one-time purchase price for a species."""
         tier = species_adoption_tier(species)
         base = ADOPTION_TIER_INFO[tier]["cost"]
-        members = sorted(name for name in SPECIES if species_adoption_tier(name) == tier)
-        try:
-            rank = members.index(species)
-        except ValueError:
-            rank = 0
-        rank_multiplier = 1.0 if len(members) <= 1 else 1.0 + 0.65 * rank / (len(members) - 1)
-        return max(1, int(round(base * rank_multiplier)))
+        prestige_multiplier = 1.0 + self.prestige_points * 0.15
+        return max(1, int(base * prestige_multiplier))
+
     def adoption_status(self, species):
         """Return (allowed, short reason, cost, tier) for one buy entry."""
         if species not in SPECIES:
@@ -8626,63 +8655,28 @@ class Game:
                     self.check_achievements()
                     self.save_game()
 
-    def _curve(self, name, pace=55.0, prestige=False):
-        """Return a bounded 0..1 effectiveness curve for a level-333 item."""
-        levels = self.prestige_upgrades if prestige else self.global_upgrades
-        level = max(0.0, float(levels.get(name, 0)))
-        return 1.0 - math.exp(-level / max(1.0, float(pace)))
-
     def global_mastery_level(self):
-        return self.global_upgrades.get("sanctuary_mastery", 0)
+        return sum(level for name, level in self.global_upgrades.items() if name.startswith("mastery_"))
 
     def legacy_mastery_level(self):
-        return self.prestige_upgrades.get("legacy_core", 0)
+        return sum(level for name, level in self.prestige_upgrades.items() if name.startswith("legacy_"))
 
     def hunger_decay_mult(self):
-        reduction = 0.63 * self._curve("better_food", 70.0)
-        reduction += 0.12 * self._curve("nutrition_science", 85.0)
-        reduction += 0.10 * self._curve("cosmic_feeder", 60.0, True)
-        reduction += min(0.10, self.prestige_points * 0.006)
-        reduction += min(0.08, self.legacy_upgrade_power * 0.0005)
-        return max(0.22, 1.0 - reduction)
+        return max(0.20, 1.0 - self.global_upgrades.get("better_food",0)*0.10 - self.prestige_points*PRESTIGE_DECAY_REDUCTION - self.global_mastery_level()*0.0005)
 
     def happiness_decay_mult(self):
-        reduction = 0.64 * self._curve("soothing_music", 70.0)
-        reduction += 0.12 * self._curve("enrichment_program", 85.0)
-        reduction += 0.12 * self._curve("eternal_joy", 60.0, True)
-        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
-        return max(0.20, 1.0 - reduction)
+        return max(0.20, 1.0 - self.global_upgrades.get("soothing_music",0)*0.08 - self.prestige_upgrades.get("eternal_joy",0)*0.08 - self.global_mastery_level()*0.0004)
 
     def energy_decay_mult(self):
-        reduction = 0.62 * self._curve("cozy_bed", 70.0)
-        reduction += 0.13 * self._curve("endurance_training", 85.0)
-        reduction += 0.12 * self._curve("deeper_sleep", 60.0, True)
-        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
-        return max(0.22, 1.0 - reduction)
+        return max(0.20, 1.0 - self.global_upgrades.get("cozy_bed",0)*0.08 - self.prestige_upgrades.get("deeper_sleep",0)*0.10 - self.global_mastery_level()*0.0004)
 
     def cleanliness_decay_mult(self):
-        reduction = 0.63 * self._curve("grooming_station", 70.0)
-        reduction += 0.12 * self._curve("hygiene_protocol", 85.0)
-        reduction += 0.12 * self._curve("clean_freak", 60.0, True)
-        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
-        return max(0.21, 1.0 - reduction)
-
-    def evolution_care_pressure(self, pet, stat):
-        """Advanced forms demand more care; happiness scales most strongly."""
-        stage = max(0, min(len(STAGE_NAMES) - 1, int(getattr(pet, "stage", 0))))
-        linear, quadratic = {
-            "hunger": (0.050, 0.0010),
-            "happiness": (0.070, 0.0015),
-            "energy": (0.055, 0.0012),
-            "cleanliness": (0.045, 0.0010),
-        }.get(stat, (0.050, 0.0010))
-        return 1.0 + linear * stage + quadratic * stage * stage
+        return max(0.20, 1.0 - self.global_upgrades.get("grooming_station",0)*0.08 - self.prestige_upgrades.get("clean_freak",0)*0.10 - self.global_mastery_level()*0.0004)
 
     def playtime_coin_bonus(self):
         lvl = self.prestige_upgrades.get("time_extender",0)
         if lvl == 0: return 0.0
-        return min(2.0, (self.playtime/3600.0) * 0.0025 * lvl)
-
+        return min(0.5, (self.playtime/3600.0) * 0.005 * lvl)
 
     def collection_bonus_mult(self):
         """Reward species variety, with extra value for mythical discoveries."""
@@ -8724,14 +8718,7 @@ class Game:
         return 0.25 + 0.75 * min(1.0, weighted_progress)
 
     def coin_mult(self):
-        mastery = self._curve("sanctuary_mastery", 90.0)
-        magnet = self._curve("coin_magnet", 75.0)
-        legacy = self.legacy_upgrade_power * 0.002 + self.legacy_prestige_power * 0.02
-        mult = 1.0 + self.prestige_points * PRESTIGE_COIN_BONUS
-        mult += self.prestige_upgrades.get("soul_mult", 0) * 0.12
-        mult += self.playtime_coin_bonus() + legacy
-        legacy_core = self._curve("legacy_core", 85.0, True)
-        mult *= 1.0 + magnet * 2.75 + mastery * 1.25 + legacy_core * 1.50
+        mult = 1.0 + self.prestige_points*PRESTIGE_COIN_BONUS + self.prestige_upgrades.get("soul_mult",0)*0.5 + self.playtime_coin_bonus() + self.global_mastery_level()*0.002 + self.legacy_mastery_level()*0.02
         mult *= self.early_economy_mult()
         mult *= self.collection_bonus_mult() * self.bond_bonus_mult()
         if self.boost_active and datetime.now() < self.boost_expire_time: mult *= 2
@@ -8739,69 +8726,22 @@ class Game:
         return mult
 
     def progress_mult(self):
-        catalyst = self._curve("evolution_catalyst", 80.0)
-        mastery = self._curve("sanctuary_mastery", 95.0)
-        legacy = self.legacy_upgrade_power * 0.001 + self.legacy_prestige_power * 0.01
-        legacy_core = self._curve("legacy_core", 85.0, True)
-        mul = 1.0 + catalyst * 4.0 + mastery * 1.0 + legacy_core * 0.80 + legacy
-        mul += self.prestige_upgrades.get("time_warper", 0) * 0.08
+        mul = 1.0 + self.global_upgrades.get("evolution_catalyst",0)*0.15 + self.prestige_upgrades.get("time_warper",0)*0.25 + self.global_mastery_level()*0.001 + self.legacy_mastery_level()*0.01
+        # Collection and bond affect evolution more gently than coin income.
         mul *= 1.0 + (self.collection_bonus_mult() - 1.0) * 0.60
         mul *= 1.0 + (self.bond_bonus_mult() - 1.0) * 0.75
         if self.boost_active and datetime.now() < self.boost_expire_time: mul *= 2
         if self.festival_active(): mul *= FESTIVAL_PROGRESS_MULTIPLIER
         return mul
 
-    def passive_hunger_gain(self):
-        return 0.22 * self._curve("auto_feeder", 52.0) + 0.10 * self._curve("cosmic_feeder", 50.0, True)
-
-    def passive_happiness_gain(self):
-        return 0.15 * self._curve("toy_box", 52.0) + 0.10 * self._curve("auto_petter", 58.0)
-
-    def passive_energy_gain(self):
-        return 0.14 * self._curve("energy_booster", 52.0) + 0.09 * self._curve("training_auto", 58.0)
-
-    def passive_cleanliness_gain(self):
-        return 0.20 * self._curve("auto_bath", 52.0)
-
-    def passive_coin_gain(self):
-        return 2.0 + 28.0 * self._curve("coin_magnet", 70.0)
-
-    def event_chance(self):
-        return min(0.92, EVENT_CHANCE + 0.38 * self._curve("lucky_charm", 65.0))
-
-    def battle_power_mult(self):
-        return 1.0 + 2.50 * self._curve("power_food", 75.0) + 1.20 * self._curve("endurance_training", 90.0) + 0.80 * self._curve("legacy_core", 90.0, True) + self.prestige_upgrades.get("battle_boost", 0) * 0.04
-
-    def xp_mult(self):
-        return 1.0 + 2.0 * self._curve("training_auto", 75.0) + 1.5 * self._curve("battle_boost", 65.0, True)
-
-    def manual_care_amount(self, action):
-        mastery = self._curve("sanctuary_mastery", 100.0)
-        if action == "feed":
-            return 24.0 + 24.0 * self._curve("nutrition_science", 70.0) + 5.0 * mastery
-        if action == "pet":
-            return 20.0 + 25.0 * self._curve("enrichment_program", 70.0) + 8.0 * self._curve("auto_petter", 85.0) + 5.0 * mastery
-        if action == "bathe":
-            return 24.0 + 25.0 * self._curve("hygiene_protocol", 70.0) + 7.0 * self._curve("grooming_station", 85.0) + 5.0 * mastery
-        if action == "train":
-            return 18.0 + 24.0 * self._curve("endurance_training", 70.0) + 8.0 * self._curve("energy_booster", 85.0) + 5.0 * mastery
-        return 20.0
-
-    def auto_care_pulse_bonus(self):
-        """Combined bounded strength added to every automatic-care pulse."""
-        return (
-            5.0 * self._curve("veterinary_kit", 70.0)
-            + 2.5 * self._curve("sanctuary_mastery", 95.0)
-            + 5.0 * self._curve("caretaker_aura", 60.0, True)
-            + 1.5 * self._curve("legacy_core", 90.0, True)
-        )
-
-    def event_spawn_interval(self):
-        """Seconds between prestige bonus events; zero levels disable the system."""
-        if self.prestige_upgrades.get("event_spawner", 0) <= 0:
-            return math.inf
-        return max(8.0, 60.0 / (1.0 + 2.5 * self._curve("event_spawner", 70.0, True)))
-
+    def passive_hunger_gain(self): return self.global_upgrades.get("auto_feeder",0) + self.prestige_upgrades.get("cosmic_feeder",0)*2
+    def passive_happiness_gain(self): return self.global_upgrades.get("toy_box",0)*0.5 + self.global_upgrades.get("auto_petter",0)*0.3
+    def passive_energy_gain(self): return self.global_upgrades.get("energy_booster",0)*0.3 + self.global_upgrades.get("training_auto",0)*0.2
+    def passive_cleanliness_gain(self): return self.global_upgrades.get("auto_bath",0)*0.3
+    def passive_coin_gain(self): return self.global_upgrades.get("coin_magnet",0)*0.2
+    def event_chance(self): return min(0.9, EVENT_CHANCE + self.global_upgrades.get("lucky_charm",0)*0.1)
+    def battle_power_mult(self): return 1.0 + self.global_upgrades.get("power_food",0)*0.05
+    def xp_mult(self): return 1.0 + self.prestige_upgrades.get("battle_boost",0)*0.3
 
     # ---------- ten-minute active-auto check ----------
     def register_user_interaction(self):
@@ -9212,13 +9152,12 @@ class Game:
 
     def _tick_pet_stats(self, pet, dt, active=True):
         decay_scale = 1.0 if active else 0.35
-        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * self.evolution_care_pressure(pet, "hunger") * decay_scale
-        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * self.evolution_care_pressure(pet, "happiness") * decay_scale
-        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * self.evolution_care_pressure(pet, "energy") * decay_scale
-        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * self.evolution_care_pressure(pet, "cleanliness") * decay_scale
+        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * decay_scale
+        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * decay_scale
+        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * decay_scale
+        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * decay_scale
 
-        # Automatic care remains useful but cannot completely erase the challenge
-        # of a highly evolved companion.
+        # Purchased passive care applies to every pet, with full strength on the active pet.
         passive_scale = 1.0 if active else 0.5
         pet.hunger += self.passive_hunger_gain() * dt * passive_scale
         pet.happiness += self.passive_happiness_gain() * dt * passive_scale
@@ -9227,14 +9166,17 @@ class Game:
 
         for attr in ("hunger", "happiness", "energy", "cleanliness"):
             setattr(pet, attr, max(MIN_STAT_VALUE, min(100.0, getattr(pet, attr))))
+
     def _run_auto_care_pulse(self):
-        pulse_bonus = self.auto_care_pulse_bonus()
+        base_bonus = self.global_upgrades.get("veterinary_kit", 0) * 0.20
+        prestige_bonus = self.prestige_upgrades.get("caretaker_aura", 0) * 0.75
         for pet in self.pets:
             for attr in ("hunger", "happiness", "energy", "cleanliness"):
                 value = getattr(pet, attr)
                 if value < AUTO_CARE_THRESHOLD:
-                    pulse = random.uniform(AUTO_CARE_MIN_PULSE, AUTO_CARE_MAX_PULSE) + pulse_bonus
+                    pulse = random.uniform(AUTO_CARE_MIN_PULSE, AUTO_CARE_MAX_PULSE) + base_bonus + prestige_bonus
                     setattr(pet, attr, min(AUTO_CARE_TARGET, value + pulse))
+
     def tick(self, dt):
         # A pending care check freezes stats, coins, evolution, and events while
         # keeping the terminal responsive and the overlay visible.
@@ -9295,8 +9237,7 @@ class Game:
 
         # Coins and evolution are based on the currently displayed companion.
         stage_mul = COIN_STAGE_MULT[pet.stage] if pet.stage < len(COIN_STAGE_MULT) else COIN_STAGE_MULT[-1]
-        care_product = (pet.hunger / 100.0) * (pet.happiness / 100.0) * (pet.energy / 100.0) * (pet.cleanliness / 100.0)
-        mood = max(0.02, care_product ** 0.75)
+        mood = (pet.happiness / 100.0) * (pet.energy / 100.0) * (pet.cleanliness / 100.0)
         coin_gain = COIN_BASE * stage_mul * mood * self.coin_mult() * dt
         coin_gain += self.passive_coin_gain() * self.coin_mult() * dt
         self.coins += coin_gain
@@ -9307,7 +9248,7 @@ class Game:
             self.coin_quest_buffer -= whole_coins
             self.update_quest("coins", whole_coins)
 
-        mood_factor = 0.25 + 0.75 * math.sqrt(max(0.0, care_product))
+        mood_factor = 0.45 + 0.55 * (pet.hunger / 100.0) * (pet.happiness / 100.0)
         pet.age_in_stage += dt * mood_factor * self.progress_mult()
         if pet.stage < len(STAGE_NAMES) - 1 and STAGE_TIMES[pet.stage] > 0 and pet.age_in_stage >= STAGE_TIMES[pet.stage]:
             self.evolve_pet(pet)
@@ -9317,11 +9258,10 @@ class Game:
             self.event_timer = random.uniform(EVENT_MIN, EVENT_MAX)
             if random.random() < self.event_chance():
                 self.random_event()
-        event_interval = self.event_spawn_interval()
-        if math.isfinite(event_interval):
+        if self.prestige_upgrades.get("event_spawner", 0) > 0:
             self.extra_event_timer += dt
-            if self.extra_event_timer >= event_interval:
-                self.extra_event_timer %= event_interval
+            if self.extra_event_timer >= 60.0:
+                self.extra_event_timer %= 60.0
                 self.random_event()
 
         self.messages = [(text, ttl - dt) for text, ttl in self.messages if ttl - dt > 0]
@@ -9397,38 +9337,43 @@ class Game:
     # ---------- user actions ----------
     def feed(self):
         if self.active_pet:
-            amount = self.manual_care_amount("feed")
-            self.active_pet.hunger = min(100.0, self.active_pet.hunger + amount)
-            self.add_message(f"Fed {self.active_pet.nickname}! Hunger +{amount:.0f}",2.0)
-            self.spawn_particle_swarm("@",4); self.trigger_pet_reaction("feed"); self.sound_manager.play("feed")
-            self.update_quest("feed",1); self.register_care_action("feed")
+            self.active_pet.hunger = min(100.0, self.active_pet.hunger+30)
+            self.add_message(f"Fed {self.active_pet.nickname}! Hunger +30",2.0)
+            self.spawn_particle_swarm("@",4)
+            self.trigger_pet_reaction("feed")
+            self.sound_manager.play("feed")
+            self.update_quest("feed",1)
+            self.register_care_action("feed")
 
     def pet_action(self):
         if self.active_pet:
-            amount = self.manual_care_amount("pet")
-            self.active_pet.happiness = min(100.0, self.active_pet.happiness + amount)
-            self.add_message(f"Petted {self.active_pet.nickname}! Happiness +{amount:.0f}",2.0)
-            self.spawn_particle_swarm("+",8); self.trigger_pet_reaction("pet"); self.sound_manager.play("pet")
-            self.update_quest("pet",1); self.register_care_action("pet")
-            self.grant_bond_xp(self.active_pet, 1.0 + 3.0 * self._curve("enrichment_program", 80.0), "enrichment")
+            self.active_pet.happiness = min(100.0, self.active_pet.happiness+25)
+            self.add_message(f"Petted {self.active_pet.nickname}! Happiness +25",2.0)
+            self.spawn_particle_swarm("+",8)
+            self.trigger_pet_reaction("pet")
+            self.sound_manager.play("pet")
+            self.update_quest("pet",1)
+            self.register_care_action("pet")
 
     def bathe(self):
         if self.active_pet:
-            amount = self.manual_care_amount("bathe")
-            self.active_pet.cleanliness = min(100.0, self.active_pet.cleanliness + amount)
-            self.add_message(f"Bathed {self.active_pet.nickname}! Cleanliness +{amount:.0f}",2.0)
-            self.spawn_particle_swarm("~",5); self.trigger_pet_reaction("bath", 1.8); self.sound_manager.play("bath")
-            self.update_quest("bathe",1); self.register_care_action("bathe")
+            self.active_pet.cleanliness = min(100.0, self.active_pet.cleanliness+30)
+            self.add_message(f"Bathed {self.active_pet.nickname}! Cleanliness +30",2.0)
+            self.spawn_particle_swarm("~",5)
+            self.trigger_pet_reaction("bath", 1.8)
+            self.sound_manager.play("bath")
+            self.update_quest("bathe",1)
+            self.register_care_action("bathe")
 
     def train(self):
         if self.active_pet:
-            amount = self.manual_care_amount("train")
-            self.active_pet.energy = min(100.0, self.active_pet.energy + amount)
-            self.add_message(f"Trained {self.active_pet.nickname}! Energy +{amount:.0f}",2.0)
-            self.spawn_particle_swarm("!",4); self.trigger_pet_reaction("train", 1.6); self.sound_manager.play("train")
-            self.update_quest("train",1); self.register_care_action("train")
-            self.grant_battle_xp(self.active_pet, 1.0 + 4.0 * self._curve("endurance_training", 80.0), announce=False)
-
+            self.active_pet.energy = min(100.0, self.active_pet.energy+20)
+            self.add_message(f"Trained {self.active_pet.nickname}! Energy +20",2.0)
+            self.spawn_particle_swarm("!",4)
+            self.trigger_pet_reaction("train", 1.6)
+            self.sound_manager.play("train")
+            self.update_quest("train",1)
+            self.register_care_action("train")
 
     # ---------- daily reward ----------
     def try_daily_reward(self):
@@ -9806,12 +9751,14 @@ class Game:
         self.shop_open = True; self.prestige_shop_open = False; self.pet_select_open = False
         self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
         self.shop_page = 0
+        reset_shop_marquee(self)
         self.sound_manager.play("open")
 
     def open_prestige_shop(self):
         self.prestige_shop_open = True; self.shop_open = False; self.pet_select_open = False
         self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
         self.prestige_shop_page = 0
+        reset_shop_marquee(self)
         self.sound_manager.play("open")
 
     def open_pet_select(self):
@@ -9852,40 +9799,42 @@ class Game:
     def buy_prestige_upgrade(self, name):
         info = PRESTIGE_UPGRADES[name]
         lvl = self.prestige_upgrades[name]
-        maximum = info.get("max_level", SHOP_MAX_LEVEL)
-        if lvl >= maximum:
-            self.add_message("Max level reached!",2.0); self.sound_manager.play("error"); return
-        cost = info["cost"] * (lvl + 1)
+        cost = info["cost"] * (lvl+1)
         if self.prestige_points >= cost:
-            self.prestige_points -= cost; self.prestige_upgrades[name] += 1
-            self.add_message(f"Prestige upgrade {name.replace('_',' ').title()} Lv.{lvl+1}/{maximum}",4.0)
-            self.spawn_particle_swarm("*",6); self.sound_manager.play("purchase")
+            self.prestige_points -= cost
+            self.prestige_upgrades[name] += 1
+            self.add_message(f"Prestige upgrade {name.replace('_',' ').title()} Lv.{lvl+1}",4.0)
+            self.spawn_particle_swarm("*",6)
+            self.sound_manager.play("purchase")
         else:
-            self.add_message("Not enough prestige points!",2.0); self.sound_manager.play("error")
+            self.add_message("Not enough prestige points!",2.0)
+            self.sound_manager.play("error")
 
+    def prestige_points_for_current_level(self):
+        """Award exactly two prestige points for every complete ten Keeper levels."""
+        return max(0, (self.caretaker_level // 10) * 2)
 
     def can_prestige(self):
-        return self.caretaker_level >= 10 and self.active_pet is not None
+        return self.active_pet is not None and self.caretaker_level >= 10
 
     def do_prestige(self):
-        if not self.can_prestige(): return
-        old_level = self.caretaker_level
-        highest_stage = max((p.stage for p in self.pets), default=0)
-        earned = max(1, 1 + (old_level - 10) // 5 + highest_stage // 10)
-        self.prestige_points += earned
+        if not self.can_prestige():
+            return
+        gained = self.prestige_points_for_current_level()
+        self.prestige_points += gained
         for p in self.pets:
-            p.stage = 0; p.age_in_stage = 0.0
-            p.hunger = p.happiness = p.energy = p.cleanliness = 100.0
-            p.battle_xp = 0.0; p.battle_level = 1
+            p.stage = 0; p.age_in_stage = 0.0; p.hunger = 100.0; p.happiness = 100.0
+            p.energy = 100.0; p.cleanliness = 100.0; p.battle_xp = 0.0; p.battle_level = 1
         self.coins = 0.0
-        self.caretaker_level = 1; self.caretaker_xp = 0.0
+        self.caretaker_level = 1
+        self.caretaker_xp = 0.0
         self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
-        self.legacy_upgrade_power = 0
         self.messages.clear()
-        self.add_message(f"Transcended from Keeper Lv.{old_level}! +{earned} prestige point(s).",5.0)
-        self.spawn_particle_swarm("*",20); self.sound_manager.play("prestige")
-        self.check_achievements(); self.save_game()
-
+        self.add_message(f"Transcended! +{gained} prestige points | Total {self.prestige_points}",5.0)
+        self.spawn_particle_swarm("*",20)
+        self.sound_manager.play("prestige")
+        self.check_achievements()
+        self.save_game()
 
     # ---------- new pet / switch ----------
     def add_new_pet(self, species, nickname="", source="reward"):
@@ -10869,6 +10818,904 @@ ASCII_PORTRAITS = {
 }
 
 
+# High-detail portraits are used whenever the terminal has enough room.  They
+# are independent drawings rather than stretched copies, so eyes, limbs,
+# feathers, fins, horns, and tails retain recognizable proportions.
+ASCII_PORTRAITS_HD = {
+    "dog": _portrait(r"""
+                         __
+                    _.-"  `-._
+                  .'  _      _ `.
+                 /   / \____/ \  \
+                |   |  o    o  |  |
+                |   |     ^    |  |
+                 \   \  .---. /  /
+                  `._ `-.___.-' .'
+                 ___/`-._____.-'\___
+               .'      /  |  \      `.
+              /_______/   |   \_______\
+                 /  /     |     \  \
+                /__/      |      \__\
+               /___\     / \     /___\
+    """),
+    "canine": _portrait(r"""
+                     /\             /\
+                    /  \___________/  \
+                   /                   \
+                  /   /\           /\   \
+                 |   /  \  o   o  /  \   |
+                 |         \_^_/         |
+                  \       .-___-.       /
+                   `-.___/  / \  \___.-'
+                      /   _/   \_   \
+                 ____/___/       \___\____
+                /      /           \      \
+               /______/             \______\
+                  /_/                 \_\
+    """),
+    "fox": _portrait(r"""
+                      /\               /\
+                     /  \_____________/  \
+                    /      /\     /\      \
+                   /      /  \___/  \      \
+                  |      |  o   o  |      |
+                  |      |    V    |      |
+                   \      \  ___  /      /
+                    `-.__  `-._.-'  __.-'
+                         `--.___.--'
+                     ____/   / \   \____
+                   .'       /   \       `.
+                  /_____.--'     `--._____\
+                      _/             \_
+                     /___/         \___\
+    """),
+    "cat": _portrait(r"""
+                     /\                 /\
+                    /  \_______________/  \
+                   /                       \
+                  /     /\           /\     \
+                 |     /  \  o   o  /  \     |
+                 |          \  ^  /          |
+                 |        .-`---'-.          |
+                  \      /  \___/  \        /
+                   `-.__/           \___.-'
+                       /|  /| |\  |\
+                      / | / | | \ | \
+                     /__|/  | |  \|__\
+                       /    / \    \
+                      /____/   \____\
+    """),
+    "big_cat": _portrait(r"""
+                  .-~~~~~~~~~~~~~~~~~~~~-.
+                .'    _             _     `.
+               /    .' \___________/ `.     \
+              /    /                   \     \
+             |    |    o           o    |    |
+             |    |         /\          |    |
+             |     \       /  \        /     |
+              \     `-.___/____\___.-'      /
+               `._      /  /\  \       _.-'
+                  `----/__/  \__\-----'
+                    __/  /____\  \__
+                  .'    /      \    `.
+                 /_____/        \_____\
+                    /_/          \_\
+    """),
+    "rabbit": _portrait(r"""
+                    /\             /\
+                   /  \           /  \
+                  /    \         /    \
+                 /      \_______/      \
+                /                       \
+               |      o           o      |
+               |            Y             |
+                \        .-===-.         /
+                 `-.___ /  ___  \ ___.-'
+                       /  /   \  \
+                      /|  |   |  |\
+                     /_|__|___|__|_\
+                       /  /   \  \
+                      /__/     \__\
+    """),
+    "small_mammal": _portrait(r"""
+                        .-~~~~~~~~-.
+                     .-'            `-.
+                   .'    _        _    `.
+                  /     / \  o o / \     \
+                 |      \_/  ^  \_/      |
+                 |          ___           |
+                  \       .'   `.        /
+                   `-.___/  ___  \___.-'
+                      /  | /   \ |  \
+                 ____/___|/     \|___\____
+                /        /       \        \
+               /________/         \________\
+                    /_/             \_\
+    """),
+    "bear": _portrait(r"""
+                 .--.                 .--.
+               .'    `._____________.'    `.
+              /                           \
+             /      .--.           .--.      \
+            |      / o  \         /  o \      |
+            |      \____/    ^    \____/      |
+            |             .-----.              |
+             \           /  ___  \            /
+              `-.___     \_____/      ___.-'
+                    `---._______..---'
+                    ___/  /   \  \___
+                  .'     /     \     `.
+                 /______/       \______\
+                   /___\         /___\
+    """),
+    "elephant": _portrait(r"""
+                         _..-''''-.._
+                    _.-"              "-._
+                  .'      _        _      `.
+                 /       / \  o o / \       \
+                |        \_/  ^  \_/        |
+                |      .-----------.          |
+                 \    /  _       _  \        /
+                  `._|  / \_____/ \  |___.-'
+                     |  \         /  |
+                     |   \_______/   |____
+                     |       ||          `\
+                     |       ||           |
+                    / \      ||          / \
+                   /___\____/  \________/___\
+    """),
+    "primate": _portrait(r"""
+                      .-~~~~~~~~~-.
+                   .-'             `-.
+                  /    .-'''''-.      \
+                 /    /  o   o  \      \
+                |    |     ^     |      |
+                |    |   \___/   |      |
+                 \    \         /      /
+                  `-._ `-.___.-'  _.-'
+                     /`--.___.--'\
+                  __/  /|     |\  \__
+                .'    / |     | \    `.
+               /_____/  |_____|  \_____\
+                    /___/     \___\
+                   /__/         \__\
+    """),
+    "horse": _portrait(r"""
+                         //|         /|
+                        // |________/ |
+                       //              |____
+                      /     /\              `-._
+                     |     /  \   o             `\
+                     |          \____             |
+                      \       .------`------------'
+                       `-.___/  /   \
+                           /   /     \____
+                      ____/___/           `-.
+                     /       /               \
+                    /_______/                 \
+                      /  /      _______       |
+                     /__/      /______/\______|
+    """),
+    "bovine": _portrait(r"""
+                   \      /\         /\      /
+                    \____/  \_______/  \____/
+                       /                 \
+                      /   o           o   \
+                     |         ___         |
+                     |       .'   `.       |
+                      \      \_____/      /
+                       `-.___       ___.-'
+                             |     |
+                    _________|     |_________
+                   /         |     |         \
+                  /_________/|_____|\_________\
+                     /  /             \  \
+                    /__/               \__\
+    """),
+    "deer": _portrait(r"""
+                  \  /\  /\         /\  /\  /
+                   \/  \/  \_______/  \/  \/
+                       /               \
+                      /   o         o   \
+                     |        /\         |
+                     |       /  \        |
+                      \      \__/       /
+                       `-.___    ___.-'
+                            |  |
+                       _____|  |_____
+                      /     |  |     \
+                     /_____/|  |\_____\
+                        /  /    \  \
+                       /__/      \__\
+    """),
+    "giraffe": _portrait(r"""
+                         /\   /\
+                        /  \_/  \
+                       |  o   o  |
+                       |    ^    |
+                        \  ___  /
+                         `-._.-'
+                           ||
+                           ||
+                           ||
+                     ______||_______
+                    /   .  ||  .    `-.
+                   / .   . || .  .     \
+                  /________||___________\
+                     /  /      \  \
+                    /__/        \__\
+    """),
+    "heavy_mammal": _portrait(r"""
+                    ______________________
+                _.-'                      `-._
+              .'       _              _       `.
+             /        / \    o   o   / \        \
+            |         \_/     ^     \_/         |
+            |             .-------.              |
+             \           /         \            /
+              `-.___     \_________/      ___.-'
+                    `----._________.----'
+                     ___/  /     \  \___
+                   .'     /       \     `.
+                  /______/         \______\
+                    /___\           /___\
+    """),
+    "marine_mammal": _portrait(r"""
+                              __
+                         ____/  \____
+                    ____/   o        \____
+               ____/                       `-.___
+              <        _________                 `--.
+               `------'         `-.___               \
+                                     `--.___________/
+                         ____      ____/
+                    ____/    \____/ 
+               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                  ~~~~~~~~   ~~~~~~~~~~   ~~~~~~~~~
+    """),
+    "bat": _portrait(r"""
+              /\                                   /\
+             /  \_________________________________/  \
+            /                                         \
+           /     /\        /\       /\        /\      \
+          /_____/  \______/  \_____/  \______/  \_____\
+                       /   o       o   \
+                      |        ^        |
+                       \     \___/     /
+                        `-.___   ___.-'
+                              | |
+                             /   \
+                            /_____\
+    """),
+    "bird": _portrait(r"""
+                           ___
+                      ____/   \____
+                 ____/    o        `-.___
+                /       .-----.           `-.
+               <       /       \             \
+                \_____/         \____         |
+                     \               `------./
+                      \     _________        /
+                       `---'         `------'
+                            /  /\  \
+                           /__/  \__\
+                             /    \
+                            /______\
+    """),
+    "owl": _portrait(r"""
+                    /\_________________/\
+                   /                     \
+                  /    .----.   .----.    \
+                 |    /  o  \   /  o  \    |
+                 |    \_____/ V \_____/    |
+                 |          /___\           |
+                  \       .-------.        /
+                   `-.___/  / | \  \___.-'
+                       /___/  |  \___\
+                          /   |   \
+                         /____|____\
+                           /   \
+                          /_____\
+    """),
+    "penguin": _portrait(r"""
+                         .--------.
+                       .'          `.
+                      /      o o     \
+                     |        V       |
+                     |      .---.     |
+                     |     /     \    |
+                      \   |       |  /
+                       `._|       |_.'
+                        / |       | \
+                       /  |       |  \
+                      /___|_______|___\
+                         /  /   \  \
+                        /__/     \__\
+    """),
+    "tall_bird": _portrait(r"""
+                              __
+                           __/ o)
+                         _/   _/
+                       _/   _/
+                     _/   _/
+                    /    /________________
+                   /                      `-.
+                  /                          \
+                 /____________________________\
+                       /   /        \   \
+                      /   /          \   \
+                     /___/            \___\
+                       ^^              ^^
+    """),
+    "fish": _portrait(r"""
+                         _____________
+                    ____/   o          \____
+               ____/     .---------.        `-.__
+              <          /           \            `>
+               `---.     \___________/       .---'
+                    `-.___             ___.-'
+                          `-----------'
+                         /             \
+                  ~~~~~~/_______________\~~~~~~
+             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "whale": _portrait(r"""
+                              ___
+                         ____/   \____
+                    ____/    o        \________
+               ____/                           `-.___
+              <        _____________________________ `>
+               `------'                             / 
+                            ________               /
+                       ____/        \_____________/
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "shark": _portrait(r"""
+                                   /|
+                         _________/ |
+                    ____/   o       |_______
+               ____/                       _ `-.__
+              <___________________________/ \_____>
+                   `-.___              __.-'
+                         `------------'
+                              /  \
+                             /____\
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "octopus": _portrait(r"""
+                       .----------------.
+                    .-'                  `-.
+                   /      o          o      \
+                  |            ^             |
+                   \        .------.         /
+                    `-.___ /________\ ___.-'
+                       __/ / / /\ \ \ \__
+                    __/___/ / /  \ \ \___\__
+                   /______/ /      \ \______\
+                      /___/          \___\
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "turtle": _portrait(r"""
+                         ______________
+                    ____/  _  _  _  _  \____
+                 __/  _/ \/ \/ \/ \/ \_    `-.__
+               _/   _/  /\ /\ /\ /\  \_        \
+              /____/___/__/__V__\__\___\____  o  |
+              \                              ____/
+               `-.___                  ___.-'
+                     `----._______.----'
+                       __/  /   \  \__
+                      /____/     \____\
+    """),
+    "frog": _portrait(r"""
+                    _                     _
+                 .-' `-.               .-' `-.
+                /   o   \_____________/   o   \
+               /                               \
+              |               ___               |
+              |             .'   `.             |
+               \           /  ___  \           /
+                `-.___     \_____/      ___.-'
+                      `---._______..---'
+                      ___/  /   \  \___
+                    _/_____/     \_____\_
+                   /_____________________\
+    """),
+    "snake": _portrait(r"""
+                              /\____/\
+                             /  o  O  |
+                             \    __  /
+                         _____`--'  `-.___
+                    ____/                  `-.__
+               ____/                           `-.
+              /                                  \
+              \__                               _/
+                 `-.___                    __.-'
+                       `----.________.----'
+                            \______/
+    """),
+    "lizard": _portrait(r"""
+                              __________
+                         ____/   o      \____
+                    ____/                   `-.___
+               ____/       _________              `-.
+              <___________/         \_______________>
+                     /  /             \  \
+                    /  /               \  \
+                   /__/                 \__\
+                      \____         ____/
+                           `-------'
+    """),
+    "insect": _portrait(r"""
+                        \      |      /
+                         \     |     /
+                    ------\---(o o)---/------
+                           \   /V\   /
+                       _____\_/===\_/_____
+                     .'      |===|      `.
+                    /________|===|________\
+                         ____|===|____
+                        /    |===|    \
+                       /_____/   \_____\
+                          /         \
+    """),
+    "spider": _portrait(r"""
+                \       \       |       /       /
+                 \       \      |      /       /
+                  \       .----(o o)----.      /
+                   \    .'      /V\      `.   /
+                    \  /      .----- .     \ /
+                     \/      /         \     \
+                     /\      \         /     /\
+                    /  \      `-.___.-'     /  \
+                   /    \_____/  |  \______/    \
+                  /          /   |   \           \
+    """),
+    "dragon": _portrait(r"""
+                    /\                       /\
+                   /  \_____________________/  \
+                  /      /\             /\      \
+                 /      /  \   o   o   /  \      \
+                |      |        ^        |       |
+                |       \    .-------.   /        |
+                 \       `-./  _____  \.-'       /
+                  `-.___    \_/     \_/    ___.-'
+                       /\____/|     |\____/\
+                  ____/  \   |_____|   /  \____
+                 /    \___\__/     \__/___/    \
+                /__________/         \__________\
+                     /_/               \_\
+    """),
+    "unicorn": _portrait(r"""
+                              /\
+                             /  \
+                            /____\
+                         //|      /|
+                        // |_____/ |
+                       //           |____
+                      /    o             `-._
+                     |          ______        `\
+                      \______.-'      `--------'
+                          /   /       \____
+                     ____/___/             `-.
+                    /       /                 \
+                   /_______/__________________\
+                      /  /              \  \
+                     /__/                \__\
+    """),
+    "griffin": _portrait(r"""
+                            ____
+                       ____/ o  \____
+                  ____/     \__/     `-.___
+                 /      /\              ___`-.
+                /______/  \____________/      \
+                     /      /\          \      |
+                    /______/  \__________\_____|
+                       /  /      /  \
+                  ____/__/______/____\____
+                 /        /          \     \
+                /________/            \_____\
+                    /_/                  \_\
+    """),
+    "cerberus": _portrait(r"""
+          /\____/\       /\____/\       /\____/\
+         /  o  o  \     /  o  o  \     /  o  o  \
+        |     ^     |   |     ^     |   |     ^     |
+         \  \___/  /     \  \___/  /     \  \___/  /
+          `-.___.-'       `-.___.-'       `-.___.-'
+               \             |             /
+                \____________|____________/
+                       /      |      \
+                  ____/_______|_______\____
+                 /          /   \          \
+                /__________/     \__________\
+                    /_/             \_\
+    """),
+    "hydra": _portrait(r"""
+          /\____/\      /\____/\      /\____/\
+         /  o  O  \    /  o  O  \    /  o  O  \
+         \    __  /    \    __  /    \    __  /
+          `--'  `-.___  `--'  `-.___  `--'  `-.___
+                    \          |          /
+                     \_________|_________/
+                         _____|_____
+                    ____/     |     \____
+                   /          |          \
+                  /___________|___________\
+                      /  /    |    \  \
+                     /__/     |     \__\
+    """),
+    "humanoid": _portrait(r"""
+                        .-----------.
+                       /   o     o   \
+                      |       ^       |
+                      |     \___/     |
+                       \             /
+                        `-.___ ___.-'
+                            /| |\
+                       ____/ | | \____
+                      /      | |      \
+                     /_______| |_______\
+                        /    | |    \
+                       /_____| |_____\
+                          /_/   \_\
+    """),
+    "spirit": _portrait(r"""
+                       .-~~~~~~~~~~~-. 
+                    .-'               `-.
+                   /       o     o       \
+                  |          ---          |
+                  |                       |
+                  |      /\       /\      |
+                  |     /  \     /  \     |
+                   \___/    \___/    \___/
+                       \             /
+                        \           /
+                         `-._____.-'
+                              V
+    """),
+    "robot": _portrait(r"""
+                   .---------------------.
+                  |   [ ]           [ ]   |
+                  |          ___           |
+                  |       .-[___]-.        |
+                  |      |  _____  |       |
+                  |      | |_____| |       |
+                   '-----|---------|------'
+                      ___|  |   |  |___
+                     /   |  |   |  |   \
+                    /____|__|___|__|____\
+                       /___/     \___\
+                      /__/         \__\
+    """),
+    "dinosaur": _portrait(r"""
+                                  __
+                                 / _)
+                        _.----._/ /
+                      .'          `-._
+                 ____/   o            `-.__
+                <____        _____________/
+                     `-.__.-'  |  |
+                         /     |  |____
+                    ____/      |       `-.
+                   /          /           \
+                  /__________/_____________\
+                     /  /          \  \
+                    /__/            \__\
+    """),
+}
+
+ASCII_PORTRAITS_HD.update({
+    "pig": _portrait(r"""
+                     .----------------.
+                  .-'                  `-.
+                 /      o          o      \
+                |            __            |
+                |          .'oo`.          |
+                |          \____/          |
+                 \        .------.        /
+                  `-.___ /        \ ___.-'
+                      / |          | \
+                 ____/  |__________|  \____
+                /      /            \      \
+               /______/              \______\
+                  /_/                  \_\
+    """),
+    "kangaroo": _portrait(r"""
+                              /\_
+                             / o \__
+                            /       `-.__
+                      _____/   ___        `-.
+                     /        /   \          \
+                    |        |     |          |
+                     \        \___/          /
+                      `-.__                _.'
+                           `--._________.--'
+                              /       \
+                         ____/         \____
+                        /                  _\
+                       /___________/\______\
+    """),
+    "armadillo": _portrait(r"""
+                         ___________________
+                    ____/ / / / / / / / /  \____
+                 __/ / / / / / / / / / / /     `-.__
+               _/ / / / / / / / / / / / /    o     \
+              /__/__/__/__/__/__/__/__/__/____________>
+               \                                      /
+                `-.___                          ___.-'
+                      `----.______________.----'
+                        __/  /          \  \__
+                       /____/            \____\
+    """),
+    "hedgehog": _portrait(r"""
+                 /\/\/\/\/\/\/\/\/\/\/\/\/\
+               /                                 `-.
+              /      /\   /\   /\   /\            \
+             |      /  \ /  \ /  \ /  \       o    |
+             |                 ______             __/
+              \_______________/      \___________/
+                   /   /                    \   \
+              ____/___/                      \___\____
+             /          /\              /\          \
+            /__________/  \____________/  \__________\
+                 /_/                        \_\
+    """),
+    "walrus": _portrait(r"""
+                       .----------------.
+                    .-'                  `-.
+                   /      o          o      \
+                  |            __            |
+                  |         .-'  `-.         |
+                  |        /  /\ /\  \        |
+                   \       \  || ||  /       /
+                    `-.___  `-||-||-'  ___.-'
+                         \     ||     /
+                          \____||____/
+                       ___/    ||    \___
+                      /_______/  \_______\
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "duck": _portrait(r"""
+                              ____
+                         ____/ o  )====
+                    ____/     __/     `-.__
+                   /       .-'             `-.
+                  /       /                   \
+                 |       |                     |
+                  \       \                   /
+                   `-.___  `-.___________.-'
+                         `--._________.--'
+                           /  /     \  \
+                          /__/       \__\
+                     ~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "parrot": _portrait(r"""
+                              ______
+                         ____/  o   )>>
+                    ____/    .----'  `-.__
+                   /        /             `-.
+                  /   ____ /                 \
+                 |   /    \                   |
+                 |  |      |                  |
+                  \  \____/                 _/
+                   `-.___          ______.-'
+                         `--------'
+                           /  /\  \
+                          /__/  \__\
+                            /____\
+    """),
+    "peacock": _portrait(r"""
+              .-o-o-o-o-o-o-o-o-o-o-o-o-o-o-.
+            .' o  o  o  o  o  o  o  o  o  o  `.
+           / o  o  o  o  o  o  o  o  o  o  o   \
+          | o  o  o  o  o  o  o  o  o  o  o  o |
+           \  o  o  o  o  o  o  o  o  o  o  o /
+            `-. o  o  o  o  o  o  o  o  o .-'
+               `------._________.------'
+                       /  o  \
+                      |   V   |
+                       \_____/
+                         /|\
+                        / | \
+                       /__|__\
+    """),
+    "chicken": _portrait(r"""
+                           _/\_/\_
+                         _/  o o  \_
+                        /      V     \
+                       /    .----.    \
+                      |    /      \    |
+                      |    \______/    |
+                       \              /
+                        `-.___  ___.-'
+                           / |  | \
+                      ____/  |  |  \____
+                     /______/    \______\
+                         ^^      ^^
+    """),
+    "flamingo": _portrait(r"""
+                                  ____
+                             ____/ o  \__
+                            /           _)
+                            \__________/
+                                  \
+                                   \
+                                    \
+                                     \________
+                                     /        \
+                                    /          \
+                                   /            \
+                                  /              \
+                                 /__             _\
+                                    \___________/
+                                          \
+                                           \
+                                           /\
+    """),
+    "seahorse": _portrait(r"""
+                              ____
+                           __/ o  \_
+                         _/   ___   \
+                        /    /   \___/
+                       /    /
+                      |    |
+                      |    |____
+                       \        `-.__
+                        `-.__         \
+                             `-.       )
+                                \     /
+                                 `---'
+                    ~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "jellyfish": _portrait(r"""
+                      .----------------------.
+                   .-'                        `-.
+                  /      o              o        \
+                 |              __                |
+                  \          .-'  `-.            /
+                   `-.___    \______/     ___.-'
+                         `-------------'
+                     /   /   /  |  \   \   \
+                    /   /   /   |   \   \   \
+                   /___/___/    |    \___\___\
+                      ~   ~      |      ~   ~
+                                 ~
+                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    """),
+    "starfish": _portrait(r"""
+                              /\
+                             /  \
+                            /    \
+                       ____/      \____
+                       \      o o      /
+                        \      ^      /
+                         \    / \    /
+                     _____\__/   \__/_____
+                     \                   /
+                      \                 /
+                       \      /\       /
+                        \____/  \_____/
+                           \      /
+                            \____/
+    """),
+    "bee": _portrait(r"""
+                         \        /
+                          \      /
+                    .------\----/------.
+                 .-'         (o o)       `-.
+                /      _______/V\_______    \
+               /______/      |===|      \____\
+                    /________|===|________\
+                         ____|===|____
+                        /    |===|    \
+                       /_____/   \_____\
+                          /         \
+                         /___________\
+    """),
+    "ant": _portrait(r"""
+                          \      /
+                           \    /
+                            (o o)
+                       ------V------
+                           _/ \_
+                    ______/_____\______
+                   /       _____       \
+                  /_______/     \_______\
+                     ___/         \___
+                    /   \         /   \
+                   /_____\       /_____\
+    """),
+    "butterfly": _portrait(r"""
+              .----------------.   .----------------.
+           .-'                  `-.-'                  `-.
+          /                       o                       \
+         /                      / V \                      \
+        |                      /  |  \                      |
+         \                    /   |   \                    /
+          `-.___          ___/    |    \___          __.-'
+                `--------'        |        `--------'
+                                  |
+                                 / \
+                                /___\
+    """),
+    "phoenix": _portrait(r"""
+                             \   |   /
+                         -----\  |  /-----
+                               \ | /
+                          ______(o)______
+                     ____/      /V\      \____
+                    /          / | \          \
+                   /__________/  |  \__________\
+                       ____/     |     \____
+                      /          |          \
+                     /___________|___________\
+                          /   /\   \
+                         /___/  \___\
+                    * * *   FLAME   * * *
+    """),
+    "fairy": _portrait(r"""
+                 .---------.                 .---------.
+              .-'           `-.           .-'           `-.
+             /                 \         /                 \
+            |                   \  (o)  /                   |
+             \                   \/|\//                   /
+              `-.___          ___/ | \___          ___.-'
+                    `--------'    / \    `--------'
+                                /   \
+                               /_____\
+                                 / \
+                                /___\
+                          *  .  *  .  *
+    """),
+    "alien": _portrait(r"""
+                       .------------------.
+                    .-'                    `-.
+                   /       ________           \
+                  |      .'  ____  `.          |
+                  |     /   /    \   \         |
+                  |    |   | o  o |   |        |
+                  |    |   |  __  |   |        |
+                   \    \   \____/   /        /
+                    `-._ `-.______.-'    _.-'
+                        `--._________.--'
+                           /  /  \  \
+                          /__/    \__\
+                      .  *  .  *  .  *  .
+    """),
+})
+
+
+# Specific species may share a body plan but still need a recognizable visual
+# signature.  These lightweight overlays add coat pattern, horns, tusks,
+# antlers, crests, fins, wings, or magical energy without corrupting anatomy.
+def _species_portrait_traits(species):
+    name = str(species).casefold()
+    traits = []
+    if any(word in name for word in ("tiger", "zebra", "striped", "okapi")):
+        traits.append("////  ////  ////  ////")
+    if any(word in name for word in ("leopard", "cheetah", "jaguar", "giraffe", "dalmatian")):
+        traits.append(". o . o . o . o .")
+    if "lion" in name or "manticore" in name or "nian" in name:
+        traits.append("{~~~~~~~  ~~~~~~~}")
+    if any(word in name for word in ("deer", "moose", "jackalope", "peryton")):
+        traits.append(r"\V/\V/  \V/\V/")
+    if any(word in name for word in ("rhino", "unicorn", "narwhal", "qilin")):
+        traits.append("/\\  /\\")
+    if any(word in name for word in ("elephant", "walrus", "mammoth")):
+        traits.append(")   (    )   (")
+    if any(word in name for word in ("peacock", "phoenix", "thunderbird")):
+        traits.append("<*><*><*><*><*>")
+    if any(word in name for word in ("dragon", "wyvern", "griffin", "pegasus", "alicorn", "fairy")):
+        traits.append("<<\\        />>")
+    if any(word in name for word in ("fish", "shark", "whale", "dolphin", "orca", "beluga", "seal", "seahorse", "jellyfish", "octopus", "kraken", "leviathan", "serpent")):
+        traits.append("~~~  ~~~~~  ~~~  ~~~~~")
+    if any(word in name for word in ("ghost", "banshee", "djinn", "spirit", "kitsune", "carbuncle", "alien", "golem", "robot")):
+        traits.append("* . * . * . * . *")
+    return traits
+
+
 ART_STYLE_SPECIES = {
     "dog": {"Dog"},
     "canine": {"Wolf", "African Wild Dog", "Coyote", "Hyena", "Fenrir", "Amarok", "Black Shuck"},
@@ -10966,112 +11813,25 @@ def _compact_species_art(pet, frame):
     return _trim_ascii(pet.get_base_art(frame))
 
 
-# Species-specific visual details are layered over the anatomy-aware family
-# portrait only when the terminal has enough room.  Small terminals retain the
-# compact original icon, while larger screens gain markings, appendages, water,
-# aura, and stage detail without stretching punctuation into blocky shapes.
-_STRIPED_ASCII_SPECIES = {"Tiger", "Zebra", "Okapi", "Tasmanian Devil", "Thylacine"}
-_SPOTTED_ASCII_SPECIES = {"Cheetah", "Leopard", "Jaguar", "Giraffe", "Hyena", "Dalmatian", "Snow Leopard"}
-_MANED_ASCII_SPECIES = {"Lion", "Sea Lion", "Manticore", "Chimera"}
-_ANTLERED_ASCII_SPECIES = {"Deer", "Moose", "Reindeer", "Elk", "Jackalope", "Wolpertinger"}
-_HORNED_ASCII_SPECIES = {"Goat", "Bison", "Yak", "Rhinoceros", "Unicorn", "Qilin", "Minotaur", "Triceratops"}
-_TUSKED_ASCII_SPECIES = {"Elephant", "Walrus", "Boar", "Warthog", "Mammoth"}
-_SHELLED_ASCII_SPECIES = {"Turtle", "Tortoise", "Armadillo", "Pangolin"}
-_WINGED_ASCII_SPECIES = {"Dragon", "Wyvern", "Griffin", "Pegasus", "Phoenix", "Thunderbird", "Roc", "Hippogriff", "Peryton", "Garuda", "Anzu", "Ziz"}
-_AQUATIC_ASCII_STYLES = {"marine_mammal", "fish", "whale", "shark", "octopus", "turtle", "seahorse", "jellyfish"}
-_GLOWING_ASCII_SPECIES = set(MYTHICAL_SPECIES) | {"Axolotl", "Mantis Shrimp", "Firefly"}
-
-
-def _mark_ascii_interior(rows, glyph, every=5):
-    for y, row in enumerate(rows):
-        first = next((i for i, ch in enumerate(row) if ch != " "), None)
-        last = next((i for i in range(len(row) - 1, -1, -1) if row[i] != " "), None)
-        if first is None or last is None or last - first < 7:
-            continue
-        for x in range(first + 2 + (y % 2), last - 1, max(3, every)):
-            if row[x] == " ":
-                row[x] = glyph
-
-
-def _decorate_species_portrait(lines, pet, ultra=False):
-    if not lines:
-        return []
-    species = pet.species
-    style = SPECIES_ART_STYLE.get(species, "")
-    pad = 6 if ultra else 4
-    width = max(len(line) for line in lines) + pad * 2
-    rows = [list(" " * width) for _ in range(2 if ultra else 1)]
-    for line in lines:
-        raw = str(line).rstrip()
-        left = max(0, (width - len(raw)) // 2)
-        rows.append(list(" " * left + raw + " " * (width - left - len(raw))))
-
-    if species in _STRIPED_ASCII_SPECIES:
-        _mark_ascii_interior(rows, "/", 5)
-    elif species in _SPOTTED_ASCII_SPECIES:
-        _mark_ascii_interior(rows, ".", 6)
-
-    top, bottom, left, right = _subject_bounds(rows)
-    centre = (left + right) // 2
-    if species in _ANTLERED_ASCII_SPECIES and ultra:
-        antler = r"\|/       \|/"
-        x = max(0, centre - len(antler) // 2)
-        for i, ch in enumerate(antler[:width - x]): rows[0][x + i] = ch
-    elif species in _HORNED_ASCII_SPECIES:
-        horn = "/\\" if species not in {"Rhinoceros", "Unicorn"} else "  /\\"
-        x = max(0, centre - len(horn) // 2)
-        for i, ch in enumerate(horn[:width - x]): rows[0][x + i] = ch
-
-    if species in _MANED_ASCII_SPECIES:
-        for y in range(max(top + 1, 1), min(bottom, top + 5) + 1):
-            if left > 1: rows[y][left - 1] = "{" if y % 2 else "<"
-            if right + 1 < width: rows[y][right + 1] = "}" if y % 2 else ">"
-    if species in _TUSKED_ASCII_SPECIES:
-        y = min(bottom, top + 3)
-        token = r"\__/"
-        x = max(0, centre - len(token) // 2)
-        for i, ch in enumerate(token[:width - x]):
-            if rows[y][x + i] == " ": rows[y][x + i] = ch
-    if species in _SHELLED_ASCII_SPECIES and ultra:
-        y = min(bottom, max(top, (top + bottom) // 2))
-        for x in range(max(1, left - 2), min(width - 1, right + 3)):
-            if rows[y][x] == " ": rows[y][x] = "="
-    if species in _WINGED_ASCII_SPECIES and ultra:
-        y = min(bottom, top + 3)
-        _place_motion_token(rows, y, "<<<", "left")
-        _place_motion_token(rows, y, ">>>", "right")
-    if style in _AQUATIC_ASCII_STYLES:
-        wave = "~ ~~~ ~~~~ ~~~ ~"
-        rows.append(list(wave.center(width)))
-    if species in _GLOWING_ASCII_SPECIES and ultra:
-        _place_motion_token(rows, max(0, top), "*", "left")
-        _place_motion_token(rows, max(0, top), "*", "right")
-        _place_motion_token(rows, min(len(rows) - 1, bottom), ".", "left")
-        _place_motion_token(rows, min(len(rows) - 1, bottom), ".", "right")
-
-    # Evolution adds visible aura rather than merely changing a label.
-    aura = min(4, max(0, int(getattr(pet, "stage", 0)) // 7))
-    for ring in range(aura):
-        y = min(len(rows) - 1, max(0, top + ring))
-        token = "*" if ring % 2 == 0 else "+"
-        if ring < width: rows[y][ring] = token
-        if width - 1 - ring >= 0: rows[y][width - 1 - ring] = token
-
-    if ultra:
-        label = f"{species.upper()}  |  {STAGE_NAMES[pet.stage].upper()}"
-        rows.insert(0, list(label.center(width)[:width]))
-    return ["".join(row).rstrip() for row in rows]
-
-
-def _portrait_for_species(pet, width=0, max_height=0):
-    """Return the richest portrait that safely fits the current terminal."""
+def _portrait_for_species(pet, width=999, max_height=999):
+    """Choose the richest complete portrait that fits without clipping."""
     style = SPECIES_ART_STYLE.get(pet.species)
-    if style not in ASCII_PORTRAITS:
-        return []
-    base = list(ASCII_PORTRAITS[style])
-    ultra = width >= 96 and max_height >= len(base) + 8
-    detailed = width >= 68 and max_height >= len(base) + 4
-    return _decorate_species_portrait(base, pet, ultra=ultra) if detailed else base
+    candidates = []
+    if style in ASCII_PORTRAITS_HD:
+        candidates.append(list(ASCII_PORTRAITS_HD[style]))
+    if style in ASCII_PORTRAITS:
+        candidates.append(list(ASCII_PORTRAITS[style]))
+    usable_width = max(8, int(width) - 10)
+    usable_height = max(3, int(max_height))
+    for candidate in candidates:
+        trait_rows = _species_portrait_traits(pet.species)
+        detailed = list(candidate)
+        if trait_rows and len(detailed) + len(trait_rows) <= usable_height:
+            detailed.extend(["", *trait_rows])
+        if len(detailed) <= usable_height and max((len(line) for line in detailed), default=0) <= usable_width:
+            return detailed
+    return candidates[-1] if candidates else []
+
 
 # Animation profiles are deterministic and anatomy-aware. Every registered
 # creature receives a long sequence of idle actions, blinks, breathing, mood
@@ -11672,8 +12432,9 @@ def _animate_portrait(pet, base_lines, frame, reaction="", compact=False):
     # walking, swimming, hovering, hopping, and prowling without stretching or
     # rewriting the animal's anatomy.
     base_width = max(len(line) for line in base_lines)
-    side_padding = 3 if compact else 6
-    vertical_padding = 1 if compact else 2
+    large_drawing = len(base_lines) >= 10 or base_width >= 32
+    side_padding = 2 if large_drawing else (3 if compact else 6)
+    vertical_padding = 0 if large_drawing else (1 if compact else 2)
     canvas_width = base_width + side_padding * 2
     horizontal_shift = _motion_shift(action, subphase, profile["amplitude"])
     vertical_shift = _motion_vertical_shift(action, subphase)
@@ -11797,7 +12558,8 @@ def get_detailed_art(game, width, max_height):
         return ["No active pet"]
 
     pet = game.active_pet
-    portrait = _portrait_for_species(pet, width, max_height)
+    available_inner_height = max(1, max_height - 2)
+    portrait = _portrait_for_species(pet, width, available_inner_height)
     if portrait:
         portrait = _animate_portrait(
             pet,
@@ -11812,7 +12574,6 @@ def get_detailed_art(game, width, max_height):
         getattr(game, "pet_reaction", ""),
         compact=True,
     )
-    available_inner_height = max(1, max_height - 2)
 
     if portrait and len(portrait) <= available_inner_height:
         art = portrait
@@ -11858,12 +12619,68 @@ def draw_bar(stdscr, y, x, val, max_val, width, cp):
     except curses.error:
         pass
 
-def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, is_prestige=False):
-    """Draw ten compact, color-coded store rows on every page.
 
-    Green means affordable, yellow means nearly affordable, red means locked by
-    price, and magenta marks a completed/MAX upgrade.  Row ten uses key 0 so a
-    normal keyboard can select all ten entries without a two-key input mode.
+SHOP_MARQUEE_SPEED = 3.0
+SHOP_MARQUEE_START_PAUSE = 2.0
+SHOP_MARQUEE_GAP = "      "
+
+
+def reset_shop_marquee(game):
+    """Restart shop text from the beginning whenever a page is opened/changed."""
+    game.shop_marquee_started = time.monotonic()
+    game.shop_marquee_paused = False
+    game.shop_marquee_frozen_elapsed = 0.0
+
+
+def toggle_shop_marquee(game):
+    """Pause/resume the moving descriptions without making them jump."""
+    now = time.monotonic()
+    if getattr(game, "shop_marquee_paused", False):
+        elapsed = max(0.0, float(getattr(game, "shop_marquee_frozen_elapsed", 0.0)))
+        game.shop_marquee_started = now - elapsed
+        game.shop_marquee_paused = False
+    else:
+        started = float(getattr(game, "shop_marquee_started", now))
+        game.shop_marquee_frozen_elapsed = max(0.0, now - started)
+        game.shop_marquee_paused = True
+
+
+def shop_marquee_elapsed(game):
+    """Return stable animation time, including support for the pause control."""
+    now = time.monotonic()
+    if not hasattr(game, "shop_marquee_started"):
+        reset_shop_marquee(game)
+    if getattr(game, "shop_marquee_paused", False):
+        return max(0.0, float(getattr(game, "shop_marquee_frozen_elapsed", 0.0)))
+    return max(0.0, now - float(getattr(game, "shop_marquee_started", now)))
+
+
+def shop_marquee_window(text, width, elapsed):
+    """Scroll a long field right-to-left, pausing at its beginning each cycle."""
+    width = max(0, int(width))
+    text = str(text).strip()
+    if width <= 0:
+        return ""
+    if len(text) <= width:
+        return text.ljust(width)
+
+    loop_text = text + SHOP_MARQUEE_GAP
+    cycle_seconds = SHOP_MARQUEE_START_PAUSE + (len(loop_text) / SHOP_MARQUEE_SPEED)
+    phase = max(0.0, float(elapsed)) % max(0.1, cycle_seconds)
+    if phase < SHOP_MARQUEE_START_PAUSE:
+        offset = 0
+    else:
+        offset = int((phase - SHOP_MARQUEE_START_PAUSE) * SHOP_MARQUEE_SPEED) % len(loop_text)
+    repeated = loop_text + loop_text
+    return repeated[offset:offset + width].ljust(width)
+
+def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, is_prestige=False):
+    """Draw shop rows with readable right-to-left descriptions.
+
+    The key, upgrade name, level, and price remain fixed whenever the terminal
+    is wide enough. Only the long explanation moves, so the player can compare
+    entries while every word eventually becomes visible. Space pauses/resumes
+    the marquee for comfortable reading.
     """
     h, w = stdscr.getmaxyx()
     names = list(upgrades_dict.keys())
@@ -11876,15 +12693,16 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
     page_names = names[page * page_size:(page + 1) * page_size]
 
     balance = game.prestige_points if is_prestige else game.coins
-    rows = []
+    row_data = []
     for index, name in enumerate(page_names):
         info = upgrades_dict[name]
         level = player_levels.get(name, 0)
-        maximum = info.get("max_level", SHOP_MAX_LEVEL)
-        is_max = level >= maximum
         if is_prestige:
-            cost = 0 if is_max else info["cost"] * (level + 1)
+            cost = info["cost"] * (level + 1)
+            is_max = False
         else:
+            maximum = info["max_level"]
+            is_max = level >= maximum
             cost = 0 if is_max else int(info["base_cost"] * (info["mult"] ** level))
 
         key_label = "0" if index == 9 else str(index + 1)
@@ -11893,58 +12711,89 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
             status = "MAX"
             attr = curses.color_pair(9) | curses.A_BOLD
         elif balance >= cost:
-            status = f"{fmt_num(cost)}"
+            status = fmt_num(cost)
             attr = curses.color_pair(1) | curses.A_BOLD
         elif balance >= cost * 0.65:
-            status = f"{fmt_num(cost)}"
+            status = fmt_num(cost)
             attr = curses.color_pair(10) | curses.A_BOLD
         else:
-            status = f"{fmt_num(cost)}"
+            status = fmt_num(cost)
             attr = curses.color_pair(6) | curses.A_BOLD
 
-        # Keep one physical terminal row per item so ten entries fit even on a
-        # standard 80x24 Termux window. The description remains visible after a
-        # separator and is clipped only at the actual modal boundary.
-        row_text = f"[ {key_label} ] {display_name}  Lv.{level}/{maximum}  Cost:{status}  | {info['desc']}"
-        rows.append((row_text, attr))
+        prefix = f"[ {key_label} ] {display_name}  Lv.{level}  Cost:{status}  | "
+        row_data.append((prefix, str(info["desc"]), attr))
 
+    paused = getattr(game, "shop_marquee_paused", False)
+    pause_label = "Resume text" if paused else "Pause text"
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
     header = [
         (f"-- {title} --", title_attr),
         (f"Page {page + 1}/{total_pages} | Balance: {fmt_num(balance)}", curses.color_pair(7) | curses.A_BOLD),
         ("GREEN affordable  YELLOW close  RED expensive  MAGENTA max", curses.color_pair(3)),
-        ("", curses.color_pair(7)),
+        ("Long descriptions move right-to-left. Press space to pause and read.", curses.color_pair(7)),
     ]
     footer = [
         ("", curses.color_pair(7)),
-        ("[ 1-9/0 ] Buy   [ n ] Next page   [ p ] Previous page   [ x ] Close", curses.color_pair(3) | curses.A_BOLD),
+        (f"[ 1-9/0 ] Buy  [ space ] {pause_label}  [ n ] Next  [ p ] Previous  [ x ] Close", curses.color_pair(3) | curses.A_BOLD),
     ]
-    lines = header + rows + footer
 
-    box_h = min(h - 2, len(lines) + 2)
-    max_width = max(len(line) for line, _attr in lines) if lines else 20
+    full_lines = header + [(prefix + desc, attr) for prefix, desc, attr in row_data] + footer
+    box_h = min(h - 2, len(full_lines) + 2)
+    max_width = max((len(line) for line, _attr in full_lines), default=20)
     box_w = min(w - 2, max(30, max_width + 4))
     start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
 
-    # Use the terminal's normal background instead of a solid white panel so
-    # rarity and affordability colors remain readable in dark Termux themes.
     for row in range(box_h):
-        try: stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(7))
-        except curses.error: pass
+        try:
+            stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(7))
+        except curses.error:
+            pass
     try:
-        border_attr = title_attr
-        stdscr.addstr(start_y, start_x, "+" + "=" * (box_w - 2) + "+", border_attr)
+        stdscr.addstr(start_y, start_x, "+" + "=" * (box_w - 2) + "+", title_attr)
         for row in range(1, box_h - 1):
-            stdscr.addstr(start_y + row, start_x, "|", border_attr)
-            stdscr.addstr(start_y + row, start_x + box_w - 1, "|", border_attr)
-        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "=" * (box_w - 2) + "+", border_attr)
+            stdscr.addstr(start_y + row, start_x, "|", title_attr)
+            stdscr.addstr(start_y + row, start_x + box_w - 1, "|", title_attr)
+        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "=" * (box_w - 2) + "+", title_attr)
     except curses.error:
         pass
 
     usable_width = max(0, box_w - 4)
-    for row, (line, attr) in enumerate(lines[:max(0, box_h - 2)]):
-        try: stdscr.addstr(start_y + 1 + row, start_x + 2, line[:usable_width], attr)
-        except curses.error: pass
+    max_content_rows = max(0, box_h - 2)
+    draw_row = 0
+    for line, attr in header:
+        if draw_row >= max_content_rows:
+            break
+        try:
+            stdscr.addstr(start_y + 1 + draw_row, start_x + 2, line[:usable_width].ljust(usable_width), attr)
+        except curses.error:
+            pass
+        draw_row += 1
+
+    elapsed = shop_marquee_elapsed(game)
+    for prefix, description, attr in row_data:
+        if draw_row >= max_content_rows:
+            break
+        # Preserve a useful description viewport. On exceptionally narrow
+        # terminals, scroll the complete row rather than permanently hiding it.
+        description_width = usable_width - len(prefix)
+        if description_width >= 12:
+            rendered = prefix + shop_marquee_window(description, description_width, elapsed)
+        else:
+            rendered = shop_marquee_window(prefix + description, usable_width, elapsed)
+        try:
+            stdscr.addstr(start_y + 1 + draw_row, start_x + 2, rendered[:usable_width].ljust(usable_width), attr)
+        except curses.error:
+            pass
+        draw_row += 1
+
+    for line, attr in footer:
+        if draw_row >= max_content_rows:
+            break
+        try:
+            stdscr.addstr(start_y + 1 + draw_row, start_x + 2, line[:usable_width].ljust(usable_width), attr)
+        except curses.error:
+            pass
+        draw_row += 1
 
 
 def draw_pet_select(stdscr, game):
@@ -12369,7 +13218,7 @@ MAIN_CONTROL_TOKENS = (
     "[ l ] Loot", "[ c ] Pets", "[ y ] Buy", "[ d ] Fight", "[ w ] LAN",
     "[ h ] Achievements", "[ r ] Adventure", "[ e ] Prestige", "[ g ] Prestige Shop",
     "[ v ] Boost", "[ n ] Rename", "[ o ] Color", "[ m ] SFX", "[ k ] Music",
-    "[ u ] Mute All", "[ 1 ] Previous Fact", "[ 2 ] Next Fact", "[ q ] Quit",
+    "[ u ] Mute All", "[ 1 ] Previous Fact", "[ 2 ] Next Fact", "[ i ] Full Fact", "[ z ] Full Portrait", "[ q ] Quit",
 )
 
 
@@ -12455,6 +13304,7 @@ def _status_tokens(game):
         f"Journey L{game.journey_level} {int(game.journey_points)}/{int(game.journey_points_needed())}",
         f"Map {game.treasure_fragments}/{TREASURE_MAP_FRAGMENT_TARGET}",
         f"Check {timer_text}",
+        f"Prestige +{game.prestige_points_for_current_level()}",
     ]
     if game.sound_manager.muted:
         tokens.append("AUDIO MUTED")
@@ -12496,9 +13346,160 @@ def _title_for_width(game, width):
     return "Pet Friends"[:usable].center(usable)
 
 
+
+def draw_full_portrait_screen(stdscr, game):
+    """Animated full-terminal portrait that uses every safe row and column."""
+    old_timeout = 250
+    try:
+        stdscr.timeout(120)
+        while True:
+            stdscr.erase()
+            h, w = stdscr.getmaxyx()
+            pet = game.active_pet
+            title = f" {pet.nickname} the {pet.species} | {STAGE_NAMES[pet.stage]} " if pet else " Pet Portrait "
+            _safe_addstr(stdscr, 0, max(0, (w - len(title)) // 2), title[:max(1, w - 1)], curses.A_REVERSE)
+            if pet:
+                art = get_detailed_art(game, w, max(3, h - 4))
+                start_y = max(1, (h - len(art)) // 2)
+                attr = curses.color_pair(pet.color) | curses.A_BOLD
+                for offset, line in enumerate(art):
+                    if start_y + offset >= h - 2:
+                        break
+                    _safe_addstr(stdscr, start_y + offset, max(0, (w - len(line)) // 2), line, attr)
+            footer = "[ x / z ] Return  [ 1 / 2 ] Change fact"
+            _safe_addstr(stdscr, h - 1, max(0, (w - len(footer)) // 2), footer[:max(1, w - 1)], curses.A_REVERSE)
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key in (ord('x'), ord('z'), 27):
+                game.sound_manager.play("close")
+                return
+            if key == ord('1'):
+                game.browse_fact(-1)
+            elif key == ord('2'):
+                game.browse_fact(1)
+            elif key != -1:
+                game.sound_manager.play("error")
+            game.anim_frame = (game.anim_frame + 1) % ANIMATION_CYCLE_FRAMES
+    finally:
+        stdscr.timeout(old_timeout)
+
+
+def draw_full_fact_screen(stdscr, game):
+    """Scrollable full-screen reader for the expanded educational cards."""
+    pet = game.active_pet
+    if pet is None or not pet.get_facts():
+        return
+    page = 0
+    old_timeout = 250
+    try:
+        stdscr.timeout(250)
+        while True:
+            stdscr.erase()
+            h, w = stdscr.getmaxyx()
+            facts = pet.get_facts()
+            card = facts[pet.fact_index % len(facts)]
+            title = f" Detailed Fact {pet.fact_index + 1}/{len(facts)} | {pet.species} "
+            _safe_addstr(stdscr, 0, max(0, (w - len(title)) // 2), title[:max(1, w - 1)], curses.A_REVERSE)
+            lines = textwrap.wrap(card, width=max(20, w - 6), break_long_words=False, break_on_hyphens=False)
+            page_size = max(1, h - 4)
+            pages = max(1, math.ceil(len(lines) / page_size))
+            page = max(0, min(page, pages - 1))
+            for row, line in enumerate(lines[page * page_size:(page + 1) * page_size], start=2):
+                _safe_addstr(stdscr, row, 3, line, curses.color_pair(pet.color))
+            footer = f"[ x / i ] Return  [ n / p ] Text page {page + 1}/{pages}  [ 1 / 2 ] Other fact"
+            _safe_addstr(stdscr, h - 1, max(0, (w - len(footer)) // 2), footer[:max(1, w - 1)], curses.A_REVERSE)
+            stdscr.refresh()
+            key = stdscr.getch()
+            if key in (ord('x'), ord('i'), 27):
+                game.sound_manager.play("close")
+                return
+            if key == ord('n'):
+                page = (page + 1) % pages
+            elif key == ord('p'):
+                page = (page - 1) % pages
+            elif key == ord('1'):
+                game.browse_fact(-1); page = 0
+            elif key == ord('2'):
+                game.browse_fact(1); page = 0
+            elif key != -1:
+                game.sound_manager.play("error")
+    finally:
+        stdscr.timeout(old_timeout)
+
+
+def _draw_wide_dashboard(stdscr, game):
+    """Side-by-side dashboard so an 80x24 terminal can show a real portrait."""
+    stdscr.erase()
+    h, w = stdscr.getmaxyx()
+    p = game.active_pet
+    title = _title_for_width(game, w)
+    _safe_addstr(stdscr, 0, 0, title, curses.A_REVERSE)
+
+    footer_tokens = (
+        "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[l] Loot", "[y] Buy", "[c] Pets",
+        "[d] Fight", "[w] LAN", "[r] Adventure", "[h] Awards", "[e] Prestige", "[g] P.Shop",
+        "[1/2] Facts", "[i] Full Fact", "[z] Full Portrait", "[n] Name", "[o] Color", "[v] Boost",
+        "[m] SFX", "[k] Music", "[u] Mute", "[q] Quit",
+    )
+    footer_lines = _pack_tokens_for_width(footer_tokens, w)
+    status = _pack_tokens_for_width(_status_tokens(game), w)
+    footer_lines = status + footer_lines
+    footer_top = max(5, h - len(footer_lines))
+    for offset, line in enumerate(footer_lines):
+        _safe_addstr(stdscr, footer_top + offset, 2, line, curses.A_DIM if offset < len(status) else curses.A_BOLD)
+
+    content_h = max(5, footer_top - 2)
+    left_w = max(34, min(w * 56 // 100, w - 30))
+    right_x = left_w + 1
+    right_w = max(20, w - right_x - 2)
+
+    art = get_detailed_art(game, left_w, content_h)
+    art_y = 1 + max(0, (content_h - len(art)) // 2)
+    attr = curses.color_pair(p.color if p else 7) | curses.A_BOLD
+    for offset, line in enumerate(art):
+        if art_y + offset >= footer_top:
+            break
+        _safe_addstr(stdscr, art_y + offset, max(0, (left_w - len(line)) // 2), line, attr)
+
+    if p:
+        row = 2
+        bar_w = max(8, min(16, right_w - 18))
+        for label, value, colour, speed in (
+            ("Hunger", p.hunger, 1, 1.0), ("Happiness", p.happiness, 2, 0.9),
+            ("Energy", p.energy, 3, 1.1), ("Cleanliness", p.cleanliness, 4, 0.8),
+        ):
+            _safe_addstr(stdscr, row, right_x, f"{label:<11}", curses.A_BOLD)
+            draw_animated_bar(stdscr, row, right_x + 11, value, 100, bar_w, colour, game.anim_frame * speed)
+            row += 1
+        power = int(p.battle_power() * game.battle_power_mult())
+        _safe_addstr(stdscr, row, right_x, f"Power {power} | Bond {p.bond_level} | Stage {p.stage + 1}/{len(STAGE_NAMES)}", curses.A_BOLD)
+        row += 2
+        facts = p.get_facts()
+        if facts and row < footer_top:
+            header = f"FACT {p.fact_index + 1}/{len(facts)}  [i] read all"
+            _safe_addstr(stdscr, row, right_x, header[:right_w], curses.A_REVERSE)
+            row += 1
+            preview_h = max(1, footer_top - row)
+            wrapped = textwrap.wrap(facts[p.fact_index % len(facts)], width=right_w, break_long_words=False, break_on_hyphens=False)
+            for line in wrapped[:preview_h]:
+                _safe_addstr(stdscr, row, right_x, line, curses.color_pair(7))
+                row += 1
+    stdscr.noutrefresh()
+    curses.doupdate()
+
+
 def draw_ui(stdscr, game):
     stdscr.erase()
     h, w = stdscr.getmaxyx()
+    overlay_active = any((
+        game.shop_open, game.prestige_shop_open, game.pet_select_open,
+        game.adopt_screen_open, game.loot_screen_open, game.fight_screen_open,
+        game.achievement_screen_open, game.adventure_screen_open,
+        game.lan_screen_open, game.input_mode, game.attention_required,
+    ))
+    if w >= 74 and h >= 22 and not overlay_active:
+        _draw_wide_dashboard(stdscr, game)
+        return
 
     # Status items and controls are wrapped independently.  This prevents the
     # right side of "Check", box counts, or key labels from disappearing.
@@ -12939,15 +13940,21 @@ def main(stdscr):
                     game.sound_manager.play("close")
                 elif key == ord('n'):
                     game.shop_page = (game.shop_page + 1) % total_pages
+                    reset_shop_marquee(game)
                     game.sound_manager.play("page")
                 elif key == ord('p'):
                     game.shop_page = (game.shop_page - 1) % total_pages
+                    reset_shop_marquee(game)
+                    game.sound_manager.play("page")
+                elif key == ord(' '):
+                    toggle_shop_marquee(game)
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
                     local = 9 if key == ord('0') else key - ord('1')
                     chosen = game.shop_page * page_size + local
                     if local < page_size and chosen < len(names):
                         game.buy_upgrade(names[chosen])
+                        reset_shop_marquee(game)
                     else:
                         game.sound_manager.play("error")
                 continue
@@ -12960,15 +13967,21 @@ def main(stdscr):
                     game.sound_manager.play("close")
                 elif key == ord('n'):
                     game.prestige_shop_page = (game.prestige_shop_page + 1) % total_pages
+                    reset_shop_marquee(game)
                     game.sound_manager.play("page")
                 elif key == ord('p'):
                     game.prestige_shop_page = (game.prestige_shop_page - 1) % total_pages
+                    reset_shop_marquee(game)
+                    game.sound_manager.play("page")
+                elif key == ord(' '):
+                    toggle_shop_marquee(game)
                     game.sound_manager.play("page")
                 elif (ord('1') <= key <= ord('9')) or key == ord('0'):
                     local = 9 if key == ord('0') else key - ord('1')
                     chosen = game.prestige_shop_page * page_size + local
                     if local < page_size and chosen < len(names):
                         game.buy_prestige_upgrade(names[chosen])
+                        reset_shop_marquee(game)
                     else:
                         game.sound_manager.play("error")
                 continue
@@ -13038,7 +14051,7 @@ def main(stdscr):
                 if game.can_prestige():
                     game.do_prestige()
                 else:
-                    game.add_message("Reach Keeper level 10 to prestige!",2.0)
+                    game.add_message("Reach Keeper level 10 to prestige. Every complete 10 levels grants 2 points.",2.5)
                     game.sound_manager.play("error")
             elif key == ord('g'):
                 game.open_prestige_shop()
@@ -13099,6 +14112,10 @@ def main(stdscr):
                 game.browse_fact(-1)
             elif key == ord('2'):
                 game.browse_fact(1)
+            elif key == ord('i'):
+                draw_full_fact_screen(stdscr, game)
+            elif key == ord('z'):
+                draw_full_portrait_screen(stdscr, game)
             elif key == ord('o'):
                 if game.active_pet:
                     game.active_pet.color = (game.active_pet.color % 7) + 1
