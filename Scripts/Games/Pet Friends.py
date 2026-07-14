@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 # ----------------------------- CONFIG -----------------------------
 SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
 SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
-SAVE_VERSION = 14
+SAVE_VERSION = 15
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 def _safe_int(value, default=0, minimum=None, maximum=None):
@@ -5596,6 +5596,214 @@ for _name, (_color, _shape, _facts) in _REAL_EXPANSION_SPECIES.items():
 for _name, (_color, _shape, _facts) in _MYTHICAL_EXPANSION_SPECIES.items():
     _add_expansion_species(_name, _color, _facts, _shape)
 
+
+# ----------------------------- COLLECTION EXPANSION 2026 -----------------------------
+# Additional distinct species. The normal fact-expansion pass below gives
+# every new entry a large educational deck while preserving compact source data.
+_COLLECTION_EXPANSION_SPECIES = {
+    'Donkey': (3, 'beast', [
+        'Donkeys are members of the horse family.',
+        'Their large ears help with hearing and heat release.',
+        'A donkey can remember routes and other animals for years.',
+        'Donkeys communicate with brays, posture, touch, and scent.',
+        'Their narrow hooves are adapted to dry and rocky ground.',
+        'Donkeys are social and usually benefit from suitable companionship.',
+        'They need gradual training because caution is not the same as stubbornness.',
+        'Domestic donkeys descend mainly from African wild asses.',
+    ]),
+    'Sheep': (7, 'beast', [
+        'Sheep are ruminants with a four-compartment stomach.',
+        'Many domestic breeds grow wool that requires regular shearing.',
+        'Sheep recognize familiar faces and flock members.',
+        'Their wide field of vision helps them notice predators.',
+        'A young sheep is called a lamb.',
+        'Flocking reduces individual risk and supports social learning.',
+        'Hooves need healthy ground and regular inspection.',
+        'Different breeds were selected for wool, milk, meat, or hardiness.',
+    ]),
+    'Goose': (6, 'bird', [
+        'Geese are waterfowl related to ducks and swans.',
+        'Many goose populations migrate in energy-saving V formations.',
+        'Pairs often maintain long-term social bonds.',
+        'Parents actively guard and guide their goslings.',
+        'Geese graze on grasses and also eat aquatic plants and seeds.',
+        'Their calls help a flock coordinate in flight and on the ground.',
+        'Webbed feet provide thrust while swimming.',
+        'Some geese thrive in cities while others depend on remote wetlands.',
+    ]),
+    'Turkey': (5, 'bird', [
+        'Wild turkeys are native to North America.',
+        'They can run quickly and fly short distances into trees.',
+        'Males use tail fans, feathers, and vocal displays during courtship.',
+        'Turkeys have excellent daytime vision.',
+        'A group of turkeys may be called a flock or rafter.',
+        'They eat seeds, nuts, insects, fruit, and vegetation.',
+        'Wild turkeys usually roost above the ground at night.',
+        'Domestic turkey breeds vary greatly in size and body shape.',
+    ]),
+    'Guinea Pig': (2, 'beast', [
+        'Guinea pigs are social rodents native to the Andes region.',
+        'Their teeth grow continuously and need fibrous food for wear.',
+        'They cannot make their own vitamin C and need it in their diet.',
+        'Guinea pigs communicate with whistles, purrs, chirps, and posture.',
+        'A happy guinea pig may perform small jumps called popcorning.',
+        'They need hiding places as well as open space for movement.',
+        'Their digestive system depends on constant access to suitable fibre.',
+        'Domestic guinea pigs are different from wild cavies.',
+    ]),
+    'Gerbil': (3, 'beast', [
+        'Gerbils are burrowing rodents adapted to dry habitats.',
+        'Their kidneys conserve water efficiently.',
+        'Long hind legs support quick jumps and upright scanning.',
+        'Gerbils use scent marking and foot drumming to communicate.',
+        'Most pet gerbils are Mongolian gerbils.',
+        'They need deep, safe bedding for tunnel building.',
+        'Gerbils are social and should be grouped only in compatible pairs or clans.',
+        'Their tails help with balance but must never be used as handles.',
+    ]),
+    'Goldfish': (3, 'water', [
+        'Goldfish are domesticated relatives of East Asian carp.',
+        'They can learn feeding routines and simple visual tasks.',
+        'Healthy goldfish need filtered, oxygenated water and substantial space.',
+        'Their body shape and fins vary widely among breeds.',
+        'Goldfish use their lateral-line system to sense water movement.',
+        'They do not naturally stay tiny in small containers.',
+        'Water chemistry strongly affects gill and immune health.',
+        'With proper care, some goldfish live for decades.',
+    ]),
+    'Betta Fish': (5, 'water', [
+        'Betta fish originate from shallow waters in Southeast Asia.',
+        'A labyrinth organ lets them breathe air at the surface.',
+        'Wild bettas usually have shorter fins than many domestic varieties.',
+        'Males may build bubble nests for eggs.',
+        'Bettas explore plants, shelters, and calm areas in a well-designed tank.',
+        'Warm, clean water is important for their metabolism and immunity.',
+        'Individual temperament varies and affects safe tank companionship.',
+        'Selective breeding produced many colours and fin shapes.',
+    ]),
+    'Cockatiel': (4, 'bird', [
+        'Cockatiels are small parrots native to Australia.',
+        'Their movable crest communicates alertness and mood.',
+        'They use flock calls to keep contact with companions.',
+        'Cockatiels can learn whistles, routines, and simple cues.',
+        'Dust from specialized feathers helps maintain the plumage.',
+        'They need safe chewing, climbing, flight, and foraging opportunities.',
+        'A balanced diet is more suitable than seed alone.',
+        'Wild cockatiels travel in flocks to find water and food.',
+    ]),
+    'Budgerigar': (3, 'bird', [
+        'Budgerigars are small parrots native to Australia.',
+        'Wild budgerigars are mainly green and yellow.',
+        'They form mobile flocks in response to rain and food.',
+        'Budgerigars can imitate speech and environmental sounds.',
+        'Their beak is adapted for seeds, plant material, and climbing.',
+        'Social interaction and daily mental stimulation support welfare.',
+        'Colour mutations became common through selective breeding.',
+        'A budgerigar is often called a budgie.',
+    ]),
+    'Macaw': (6, 'bird', [
+        'Macaws are large parrots from Central and South America.',
+        'Powerful beaks open hard seeds and nuts.',
+        'Their zygodactyl feet hold food and climb branches.',
+        'Macaws use loud calls to communicate across forests.',
+        'Many species form strong pair and family bonds.',
+        'They need extensive space, enrichment, and social care in captivity.',
+        'Habitat loss and illegal trade threaten several macaw species.',
+        'Facial feather patterns can help distinguish individuals.',
+    ]),
+    'Pigeon': (4, 'bird', [
+        'Domestic pigeons descend from the rock dove.',
+        'Pigeons navigate using several cues, including landmarks and magnetic information.',
+        'Both parents produce crop milk for young squabs.',
+        'Pigeons can learn visual categories and remember many locations.',
+        'Their head movement helps stabilize vision while walking.',
+        'They have lived alongside people for thousands of years.',
+        'Pigeon breeds were selected for flight, appearance, homing, and communication.',
+        'Urban pigeons remain highly social flocking birds.',
+    ]),
+    'Swan': (7, 'bird', [
+        'Swans are among the largest living waterfowl.',
+        'Their long necks help reach underwater vegetation.',
+        'Many swan pairs maintain long-term bonds.',
+        'Young swans are called cygnets.',
+        'Large webbed feet power swimming and assist takeoff.',
+        'Adults defend nesting areas with displays and strong wing beats.',
+        'Different swan species vary in migration and social behaviour.',
+        'Wetland quality determines access to food, shelter, and nesting sites.',
+    ]),
+    'Crane': (3, 'bird', [
+        'Cranes are tall birds with long legs, necks, and broad wings.',
+        'Pairs use coordinated calls and dances to reinforce bonds.',
+        'Many cranes migrate between breeding and wintering habitats.',
+        'They eat plants, seeds, insects, and small animals.',
+        'Cranes fly with the neck extended rather than folded.',
+        'Wetland drainage threatens several crane populations.',
+        'Juveniles learn migration routes from experienced birds.',
+        'Cranes hold important symbolic roles in many cultures.',
+    ]),
+    'Falcon': (6, 'bird', [
+        'Falcons are fast-flying birds of prey.',
+        'The peregrine falcon reaches exceptional speed during a hunting dive.',
+        'A notched beak helps falcons dispatch prey.',
+        'Long pointed wings support rapid aerial pursuit.',
+        'Falcons rely heavily on sharp distance vision.',
+        'Some species nest on cliffs while others use trees or buildings.',
+        'Falconry developed independently in several regions.',
+        'Conservation reduced the impact of persistent pesticides on peregrines.',
+    ]),
+    'Vulture': (5, 'bird', [
+        'Vultures are specialized scavenging birds.',
+        'By consuming carcasses, they help recycle nutrients and limit disease risks.',
+        'Broad wings allow many vultures to soar on rising warm air.',
+        'Different species locate food using vision, smell, or the activity of other birds.',
+        'A bare or lightly feathered head can be easier to keep clean while feeding.',
+        'Several vulture populations declined after poisoning and veterinary-drug exposure.',
+        'Strong stomach chemistry helps neutralize many pathogens.',
+        'Safe food supplies and reduced poisoning are central conservation measures.',
+    ]),
+    'Leopard': (6, 'beast', [
+        'Leopards are adaptable big cats found across parts of Africa and Asia.',
+        'Their rosette patterns provide camouflage in broken light.',
+        'Leopards are powerful climbers and may carry prey into trees.',
+        'They communicate with scent marks, calls, scrapes, and posture.',
+        'Diet varies with local prey and habitat.',
+        'Most adults live and hunt alone outside mating and parenting.',
+        'Habitat fragmentation can increase conflict with people.',
+        'The black panther form is a melanistic leopard in Asia and Africa.',
+    ]),
+    'Black Bear': (2, 'beast', [
+        'American black bears live in forests and varied habitats across North America.',
+        'Their colour can be black, brown, cinnamon, or occasionally pale.',
+        'They are strong climbers, especially when young.',
+        'Black bears are omnivores that eat plants, insects, and animal matter.',
+        'Seasonal food availability strongly changes their activity.',
+        'Mothers raise cubs and teach them where to find food and shelter.',
+        'Secure waste storage reduces dangerous encounters with people.',
+        'Winter denning lowers activity and energy use.',
+    ]),
+    'Brown Bear': (3, 'beast', [
+        'Brown bears occur in parts of North America, Europe, and Asia.',
+        'Grizzly bears are a North American form of brown bear.',
+        'A shoulder hump contains muscles used for digging.',
+        'Their diet can include roots, berries, insects, fish, and mammals.',
+        'Body size varies greatly with habitat and food supply.',
+        'Females raise cubs without help from adult males.',
+        'Brown bears use scent, posture, and vocal sounds to communicate.',
+        'Large connected habitats help populations move and remain genetically diverse.',
+    ]),
+    'Secretary Bird': (4, 'bird', [
+        'Secretary birds are long-legged birds of prey from sub-Saharan Africa.',
+        'They hunt mainly by walking through open grassland.',
+        'Powerful kicks help subdue insects, reptiles, and small mammals.',
+        'Long crest feathers create their distinctive silhouette.',
+        'Pairs build large stick nests in trees.',
+        'Broad wings allow strong flight despite their terrestrial hunting style.',
+        'Grassland change and disturbance can reduce suitable habitat.',
+        'Their scientific classification places them in a unique family.',
+    ]),
+}
+for _name, (_color, _shape, _facts) in _COLLECTION_EXPANSION_SPECIES.items():
+    _add_expansion_species(_name, _color, _facts, _shape)
 def _extend_species_facts():
     """Add accurate category facts and neutral species observations.
 
@@ -5604,6 +5812,10 @@ def _extend_species_facts():
     """
     category_packs = {'mammal': ['Mammal fact: hair or fur is a defining feature of the group.', 'Mammal fact: mothers produce milk for their young.', 'Mammal fact: the middle ear contains three small bones.', 'Mammal fact: most mammals regulate body temperature internally.', 'Mammal fact: breathing is powered partly by a diaphragm.', 'Mammal fact: smell is a major information channel for many species.', 'Mammal fact: play often helps young animals practise adult skills.', 'Mammal fact: whiskers can function as sensitive touch organs.', 'Mammal fact: social grooming can strengthen relationships.', "Mammal fact: teeth often reflect the animal's natural diet.", 'Mammal fact: body size strongly affects heat loss and energy use.', 'Mammal fact: young animals learn through observation and exploration.', 'Mammal fact: scent marking can advertise identity and territory.', 'Mammal fact: ear position often communicates attention or mood.', 'Mammal fact: many species use low-frequency sounds that people barely hear.', 'Mammal fact: seasonal coat changes can improve insulation or camouflage.', 'Mammal fact: foot structure reflects whether a species climbs, digs, swims, or runs.', 'Mammal fact: maternal care is usually essential during early development.', 'Mammal fact: sleep patterns vary from short naps to long daily rest periods.', 'Mammal fact: habitat fragmentation can isolate breeding populations.', 'Mammal fact: migration may follow food, water, temperature, or breeding needs.', 'Mammal fact: memory helps animals relocate food, shelter, and safe routes.', 'Mammal fact: predators influence prey behaviour even when no attack occurs.', 'Mammal fact: herbivores often rely on microbes to digest plant fibre.', 'Mammal fact: carnivores use different combinations of stealth, speed, and cooperation.', 'Mammal fact: omnivores can adjust diets when seasons change.', 'Mammal fact: paws, hooves, flippers, and hands evolved from the same basic limb plan.', 'Mammal fact: individual personalities can affect exploration and social behaviour.', 'Mammal fact: mothers can recognize young through scent, sound, or appearance.', 'Mammal fact: vocal calls can identify individuals or signal danger.', 'Mammal fact: body fat can store energy and provide insulation.', 'Mammal fact: many species conserve energy by reducing activity in difficult seasons.', 'Mammal fact: parasites and disease can influence population cycles.', 'Mammal fact: safe corridors help animals move between habitat patches.', 'Mammal fact: camera traps reveal behaviour without constant human presence.', 'Mammal fact: tracks, droppings, hair, and feeding signs reveal hidden activity.', 'Mammal fact: genetics can show how populations are related.', 'Mammal fact: social rank may influence access to food or mates.', 'Mammal fact: enrichment encourages natural behaviour in managed care.', 'Mammal fact: conservation succeeds best when habitat and local communities are protected together.'], 'bird': ['Bird fact: feathers are unique to birds.', 'Bird fact: feathers provide insulation, display, waterproofing, and flight surfaces.', 'Bird fact: hollow spaces in some bones reduce weight without making the skeleton weak.', 'Bird fact: air sacs keep air moving efficiently through the respiratory system.', "Bird fact: a bird's beak shape reflects how it gathers food.", 'Bird fact: many birds see ultraviolet wavelengths.', 'Bird fact: preening aligns feathers and spreads protective oils.', 'Bird fact: contour feathers create a smooth outer body shape.', 'Bird fact: down feathers trap insulating air.', 'Bird fact: moulting replaces worn feathers.', 'Bird fact: eggshell pores allow gas exchange.', 'Bird fact: incubation temperature and humidity affect embryo development.', 'Bird fact: songs can defend territory or attract mates.', 'Bird fact: calls can warn, coordinate, beg, or maintain contact.', 'Bird fact: flocking can improve predator detection.', 'Bird fact: migration routes can be learned or inherited.', "Bird fact: birds may navigate using landmarks, stars, the sun, smell, and Earth's magnetic field.", 'Bird fact: wing shape reflects soaring, hovering, sprinting, or manoeuvring needs.', 'Bird fact: tail feathers help steer and brake.', 'Bird fact: perching feet lock around branches with little muscular effort in many species.', 'Bird fact: raptors use sharp talons and hooked bills.', 'Bird fact: waterbirds often have webbed or lobed feet.', 'Bird fact: many chicks communicate before hatching.', 'Bird fact: parental care ranges from none to years of support.', 'Bird fact: cooperative breeders receive help from additional group members.', 'Bird fact: nest design responds to climate, predators, and available materials.', 'Bird fact: some birds cache thousands of food items.', 'Bird fact: spatial memory helps recover hidden food.', 'Bird fact: dust bathing can help maintain feathers.', 'Bird fact: sunning may help feather care and temperature control.', 'Bird fact: birds have a lightweight beak instead of heavy teeth.', 'Bird fact: crop structures can temporarily store food.', 'Bird fact: gizzards grind food using muscular action and sometimes swallowed grit.', 'Bird fact: urban birds often adjust song timing and frequency around noise.', 'Bird fact: artificial light can alter migration and breeding behaviour.', 'Bird fact: window collisions are a major human-caused hazard.', 'Bird fact: native plants provide insects, seeds, fruit, and nesting cover.', 'Bird fact: banding and tracking reveal migration routes.', 'Bird fact: bird populations are useful indicators of ecosystem change.', 'Bird fact: protecting stopover sites is as important as protecting breeding grounds.'], 'reptile': ['Reptile fact: scales reduce water loss and protect the skin.', 'Reptile fact: most species rely on external heat to regulate body temperature.', 'Reptile fact: basking raises body temperature for movement and digestion.', 'Reptile fact: shade, burrows, and water prevent overheating.', 'Reptile fact: shedding replaces worn outer skin.', 'Reptile fact: many reptiles use tongue and scent organs to sample chemicals.', 'Reptile fact: some species detect infrared radiation from warm prey.', 'Reptile fact: egg shells range from flexible and leathery to rigid.', 'Reptile fact: some species give birth to live young.', 'Reptile fact: incubation temperature can influence development and sex in some species.', 'Reptile fact: metabolism is generally lower than in similarly sized mammals or birds.', 'Reptile fact: low metabolism allows long periods between meals.', 'Reptile fact: tail loss can distract predators in several lizard groups.', 'Reptile fact: regenerated tails differ from the original structure.', 'Reptile fact: camouflage may involve colour, pattern, posture, and stillness.', 'Reptile fact: warning colours can advertise venom or an unpleasant defence.', 'Reptile fact: many reptiles communicate through posture and movement.', 'Reptile fact: scent marks can identify territory or reproductive condition.', 'Reptile fact: claws and toe pads reflect climbing, digging, or running lifestyles.', 'Reptile fact: aquatic reptiles must surface to breathe air.', 'Reptile fact: marine reptiles manage excess salt with specialized glands.', 'Reptile fact: teeth are often replaced repeatedly.', 'Reptile fact: jaw structure varies greatly with feeding strategy.', 'Reptile fact: constriction stops circulation rather than simply crushing prey.', 'Reptile fact: venom evolved independently in several reptile lineages.', 'Reptile fact: most reptiles avoid conflict when escape is possible.', 'Reptile fact: brumation is a cold-weather slowdown seen in many species.', 'Reptile fact: drought can trigger inactivity called aestivation.', 'Reptile fact: road surfaces attract basking animals and create collision risks.', 'Reptile fact: illegal collection threatens rare species.', 'Reptile fact: habitat structure determines access to heat, shelter, and food.', 'Reptile fact: small temperature changes can alter activity periods.', 'Reptile fact: skin patterns can identify individuals in research.', 'Reptile fact: radio transmitters reveal movement and shelter use.', 'Reptile fact: shed skin and environmental DNA can confirm presence.', 'Reptile fact: islands often produce unique reptile species.', 'Reptile fact: invasive predators are especially dangerous to island reptiles.', 'Reptile fact: long life and slow reproduction can delay recovery from population loss.', 'Reptile fact: responsible captive care requires correct heat, light, humidity, and diet.', 'Reptile fact: wild reptiles should be observed without blocking escape routes.'], 'amphibian': ['Amphibian fact: the name refers to life connected with both water and land.', 'Amphibian fact: permeable skin allows water and gases to pass through.', 'Amphibian fact: skin moisture is essential for many species.', 'Amphibian fact: eggs usually lack a hard protective shell.', 'Amphibian fact: many larvae breathe with gills.', 'Amphibian fact: metamorphosis reshapes the body for adult life.', 'Amphibian fact: some species skip a free-swimming larval stage.', 'Amphibian fact: adults may breathe through lungs, skin, or the mouth lining.', 'Amphibian fact: calls help individuals find mates of the same species.', 'Amphibian fact: vocal sacs amplify calls in many frogs.', 'Amphibian fact: temperature influences calling and development speed.', 'Amphibian fact: rain can trigger mass movement and breeding.', 'Amphibian fact: many species return to the same breeding pools.', 'Amphibian fact: temporary ponds can protect larvae from fish predators.', 'Amphibian fact: eggs and larvae are important food for many animals.', 'Amphibian fact: adults consume large numbers of invertebrates.', 'Amphibian fact: bright colours can warn of skin toxins.', 'Amphibian fact: camouflage helps species disappear against leaves, bark, or mud.', 'Amphibian fact: some species can change shade with light, temperature, or stress.', 'Amphibian fact: salamanders can regenerate structures better than most vertebrates.', 'Amphibian fact: regeneration ability varies by species and life stage.', 'Amphibian fact: some parents guard eggs or carry young.', 'Amphibian fact: a few species feed young with specialized skin or secretions.', 'Amphibian fact: dehydration can limit activity to humid periods.', 'Amphibian fact: freezing tolerance occurs in a small number of species.', 'Amphibian fact: aestivation helps survive hot or dry seasons.', 'Amphibian fact: wetland drainage removes breeding habitat.', 'Amphibian fact: roads can separate feeding and breeding areas.', 'Amphibian fact: chytrid fungi have caused major global declines.', 'Amphibian fact: pollution reaches them easily through permeable skin.', 'Amphibian fact: climate shifts can change breeding timing.', 'Amphibian fact: night surveys often use calls to identify species.', 'Amphibian fact: environmental DNA can detect species from water samples.', 'Amphibian fact: captive assurance colonies protect some critically endangered species.', 'Amphibian fact: disease control requires careful cleaning of field equipment.', 'Amphibian fact: garden ponds can help local species when they lack fish and chemicals.', 'Amphibian fact: handling should be minimized because skin is delicate.', 'Amphibian fact: clean hands free of lotion are safer when handling is unavoidable.', 'Amphibian fact: connected wetlands support movement and genetic diversity.', 'Amphibian fact: protecting both aquatic and terrestrial habitat is essential.'], 'aquatic': ['Aquatic fact: water supports body weight but creates drag.', 'Aquatic fact: streamlined shapes reduce resistance during movement.', 'Aquatic fact: fins, flippers, arms, and tails generate thrust or steering.', 'Aquatic fact: sound travels farther and faster in water than in air.', 'Aquatic fact: pressure increases with depth.', 'Aquatic fact: diving animals must manage oxygen carefully.', 'Aquatic fact: countershading can hide animals from above and below.', 'Aquatic fact: blubber stores energy and insulates many marine mammals.', 'Aquatic fact: gills extract dissolved oxygen from water.', 'Aquatic fact: air-breathing species must return to the surface.', 'Aquatic fact: salt balance is a constant physiological challenge.', 'Aquatic fact: some species drink seawater and remove excess salt.', 'Aquatic fact: others obtain most water from food and metabolism.', 'Aquatic fact: currents transport food, larvae, heat, and nutrients.', 'Aquatic fact: tides reshape daily feeding and resting opportunities.', 'Aquatic fact: bioluminescence is common in the deep ocean.', 'Aquatic fact: camouflage may involve transparency, silvering, colour change, or light production.', 'Aquatic fact: schooling can confuse predators and improve food detection.', 'Aquatic fact: echolocation creates an acoustic picture of surroundings.', 'Aquatic fact: lateral-line systems detect nearby water movement in many fishes.', 'Aquatic fact: electroreception detects weak electrical fields in some groups.', 'Aquatic fact: magnetic cues can support long-distance navigation.', 'Aquatic fact: coral reefs provide shelter, nursery areas, and food.', 'Aquatic fact: seagrass meadows store carbon and shelter young animals.', 'Aquatic fact: mangroves connect land and sea ecosystems.', 'Aquatic fact: kelp forests create three-dimensional habitat.', 'Aquatic fact: oxygen levels can change sharply with temperature and pollution.', 'Aquatic fact: warmer water generally holds less dissolved oxygen.', 'Aquatic fact: ocean acidification affects shell and skeleton formation.', 'Aquatic fact: plastic can entangle wildlife or be mistaken for food.', 'Aquatic fact: abandoned fishing gear can continue trapping animals.', 'Aquatic fact: underwater noise can interfere with communication.', 'Aquatic fact: bycatch affects species that were not the intended catch.', 'Aquatic fact: protected areas can safeguard feeding and breeding sites.', 'Aquatic fact: migration routes may cross many national borders.', 'Aquatic fact: tags reveal depth, temperature, speed, and location.', 'Aquatic fact: photo identification uses natural marks and patterns.', 'Aquatic fact: environmental DNA can reveal hidden species.', 'Aquatic fact: healthy predator populations can stabilize food webs.', 'Aquatic fact: conservation must connect rivers, coasts, and open ocean.'], 'arthropod': ['Arthropod fact: a hard external skeleton supports and protects the body.', 'Arthropod fact: growth requires shedding the old exoskeleton.', 'Arthropod fact: jointed limbs can specialize for walking, swimming, feeding, or sensing.', 'Arthropod fact: the body is organized into repeated segments.', 'Arthropod fact: compound eyes sample many small areas of the visual field.', 'Arthropod fact: simple eyes can detect light intensity and direction.', 'Arthropod fact: antennae detect chemicals, touch, humidity, and air movement.', 'Arthropod fact: tiny sensory hairs detect vibration.', 'Arthropod fact: many species communicate with pheromones.', 'Arthropod fact: colour can warn, camouflage, attract mates, or regulate temperature.', 'Arthropod fact: metamorphosis separates juvenile and adult lifestyles in many insects.', 'Arthropod fact: complete metamorphosis includes egg, larva, pupa, and adult.', 'Arthropod fact: incomplete metamorphosis lacks a pupal stage.', 'Arthropod fact: silk evolved for webs, shelters, egg cases, and dispersal.', 'Arthropod fact: venom subdues prey or deters predators in several groups.', 'Arthropod fact: mimicry can copy dangerous or unpalatable species.', 'Arthropod fact: pollination connects animal behaviour with plant reproduction.', 'Arthropod fact: decomposition recycles nutrients into soil.', 'Arthropod fact: predators help regulate other invertebrate populations.', 'Arthropod fact: parasites influence hosts and food webs.', 'Arthropod fact: social insects divide work among colony members.', 'Arthropod fact: colony behaviour emerges from many simple interactions.', 'Arthropod fact: trail pheromones create flexible transport networks.', 'Arthropod fact: vibration can carry messages through webs, plants, soil, or water.', 'Arthropod fact: wingbeats can produce communication sounds.', 'Arthropod fact: some species navigate with polarized light.', 'Arthropod fact: others use landmarks and odour maps.', 'Arthropod fact: diapause pauses development during difficult seasons.', 'Arthropod fact: temperature strongly affects growth and activity.', 'Arthropod fact: small body size makes water loss a constant challenge.', 'Arthropod fact: waxy surface layers reduce evaporation.', 'Arthropod fact: aquatic larvae connect freshwater and land food webs.', 'Arthropod fact: pesticide exposure can affect non-target species.', 'Arthropod fact: native flowers support diverse pollinators.', 'Arthropod fact: dead wood provides habitat for many specialized species.', 'Arthropod fact: artificial light changes nocturnal movement and feeding.', 'Arthropod fact: citizen-science photographs help map distributions.', 'Arthropod fact: macro photography reveals structures invisible to the unaided eye.', 'Arthropod fact: biodiversity is greatest when many microhabitats are available.', 'Arthropod fact: protecting insects supports birds, fish, mammals, and plants.'], 'domestic': ['Domestic-animal fact: domestication changes behaviour through generations of selection.', 'Domestic-animal fact: socialization shapes how animals respond to people and new situations.', 'Domestic-animal fact: predictable routines can reduce stress.', 'Domestic-animal fact: enrichment should encourage species-typical behaviour.', 'Domestic-animal fact: clean water must remain continuously available unless veterinary care says otherwise.', 'Domestic-animal fact: diet quality matters more than treats.', 'Domestic-animal fact: sudden diet changes can upset digestion.', 'Domestic-animal fact: body-condition scoring tracks healthy weight better than appearance alone.', 'Domestic-animal fact: nails, claws, hooves, or teeth may require regular checks.', 'Domestic-animal fact: pain often appears first as a change in normal behaviour.', 'Domestic-animal fact: hiding illness is common in prey species.', 'Domestic-animal fact: preventive veterinary care catches problems early.', 'Domestic-animal fact: safe housing balances shelter, ventilation, hygiene, and movement.', 'Domestic-animal fact: slippery floors can cause injury or insecurity.', 'Domestic-animal fact: resting areas should be dry and comfortable.', 'Domestic-animal fact: social species need appropriate companionship.', 'Domestic-animal fact: solitary species need secure personal space.', 'Domestic-animal fact: positive reinforcement builds reliable behaviour without fear.', 'Domestic-animal fact: punishment can suppress warning signals without solving the cause.', 'Domestic-animal fact: training works best in short, consistent sessions.', 'Domestic-animal fact: choice and control improve welfare.', 'Domestic-animal fact: transport is easier when animals are gradually accustomed to carriers or trailers.', 'Domestic-animal fact: identification improves the chance of recovering lost animals.', 'Domestic-animal fact: microchips require current contact details.', 'Domestic-animal fact: breeding decisions should prioritize health and temperament.', 'Domestic-animal fact: young animals learn bite, play, and social limits from suitable companions.', 'Domestic-animal fact: older animals may need warmer bedding and easier access to resources.', 'Domestic-animal fact: heat stress can develop quickly in enclosed spaces.', 'Domestic-animal fact: shade and airflow are essential in hot weather.', 'Domestic-animal fact: cold tolerance depends on coat, body condition, age, shelter, and wind.', 'Domestic-animal fact: boredom can lead to repetitive or destructive behaviour.', 'Domestic-animal fact: scent games and foraging tasks provide mental exercise.', 'Domestic-animal fact: exercise needs vary with species, age, and health.', 'Domestic-animal fact: safe handling protects both animal and caregiver.', 'Domestic-animal fact: children need supervision around animals.', 'Domestic-animal fact: hygiene reduces transmission of parasites and disease.', 'Domestic-animal fact: some human foods are toxic to particular species.', 'Domestic-animal fact: emergency plans should include animals.', 'Domestic-animal fact: welfare includes physical health and emotional state.', 'Domestic-animal fact: good care adapts as the individual ages.'], 'fantasy': ['Lore fact: fantasy creatures change across cultures and storytellers.', "Lore fact: a creature's powers often symbolize hopes, fears, or natural forces.", 'Lore fact: ancient stories were shared orally before being written.', 'Lore fact: modern games combine folklore with original worldbuilding.', 'Lore fact: consistent rules make imaginary creatures feel believable.', "Lore fact: habitat influences a fictional creature's design.", 'Lore fact: diet can explain powers, weaknesses, and migration.', 'Lore fact: social structure can make a species feel more complete.', 'Lore fact: legends often exaggerate real animals or natural events.', 'Lore fact: protective creatures commonly guard thresholds or treasures.', 'Lore fact: rebirth myths often use fire, dawn, or seasonal cycles.', 'Lore fact: flight is frequently linked with freedom, divinity, or danger.', 'Lore fact: horns may symbolize strength, purity, rank, or magic.', 'Lore fact: glowing features visually signal supernatural energy.', 'Lore fact: transformation stories explore identity and change.', 'Lore fact: ghosts often represent memory, unfinished business, or fear of death.', 'Lore fact: alien designs reflect ideas about evolution beyond Earth.', 'Lore fact: robot companions explore questions about intelligence and emotion.', "Lore fact: magical creatures often test a hero's values rather than strength.", 'Lore fact: names can hint at language, region, and history.', 'Lore fact: weaknesses prevent powerful creatures from removing all tension.', 'Lore fact: life cycles make fictional species feel biological.', 'Lore fact: migration can connect distant regions of a fantasy world.', 'Lore fact: rival species can reveal ecology and politics.', 'Lore fact: domestication changes how cultures travel, farm, or fight.', 'Lore fact: rare creatures often become symbols of status or prophecy.', 'Lore fact: common creatures can make a world feel lived in.', 'Lore fact: myths change when they cross borders and languages.', 'Lore fact: art can standardize a creature that was once described inconsistently.', 'Lore fact: silhouettes help players recognize species quickly.', 'Lore fact: sound design can communicate size, mood, and distance.', 'Lore fact: colour palettes can imply habitat or magical alignment.', 'Lore fact: believable anatomy helps even impossible creatures feel coherent.', 'Lore fact: fictional ecosystems still need energy, resources, and limits.', 'Lore fact: intelligent species need communication and culture.', "Lore fact: ancient ruins can imply a creature's history without exposition.", 'Lore fact: companion creatures strengthen emotional attachment in games.', 'Lore fact: evolution stages can represent growth, mastery, or transformation.', 'Lore fact: contradictory legends can make a setting feel authentic.', 'Lore fact: the bestiary is a storytelling tool as well as a catalogue.', 'Griffin', 'Pegasus', 'Hydra', 'Kraken', 'Cerberus', 'Kitsune', 'Sphinx', 'Chimera', 'Basilisk', 'Leviathan', 'Thunderbird', 'Kelpie', 'Qilin', 'Manticore', 'Minotaur', 'Wyvern', 'Roc', 'Fenrir', 'Naga', 'Golem', 'Djinn', 'Yeti', 'Moon Rabbit', 'Dryad', 'Selkie']}
     category_sets = {k: set(v) for k, v in {'bird': ['Chicken', 'Crow', 'Duck', 'Eagle', 'Owl', 'Parrot', 'Peacock', 'Penguin', 'Phoenix'], 'reptile': ['Chameleon', 'Dinosaur', 'Gecko', 'Snake', 'Turtle'], 'amphibian': ['Axolotl', 'Frog', 'Salamander'], 'aquatic': ['Dolphin', 'Jellyfish', 'Mantis Shrimp', 'Narwhal', 'Octopus', 'Orca', 'Penguin', 'Seahorse', 'Seal', 'Shark', 'Starfish'], 'arthropod': ['Ant', 'Bee', 'Butterfly', 'Mantis Shrimp', 'Spider'], 'domestic': ['Alpaca', 'Cat', 'Chicken', 'Cow', 'Dog', 'Duck', 'Ferret', 'Goat', 'Hamster', 'Horse', 'Llama', 'Parrot', 'Pig', 'Rabbit'], 'fantasy': ['Alien', 'Dragon', 'Fairy', 'Ghost', 'Phoenix', 'Robot', 'Unicorn'], 'mammal': ['Alpaca', 'Armadillo', 'Badger', 'Bat', 'Beaver', 'Bison', 'Camel', 'Capybara', 'Cat', 'Cheetah', 'Cow', 'Crow', 'Deer', 'Dog', 'Dolphin', 'Eagle', 'Elephant', 'Fennec Fox', 'Ferret', 'Fox', 'Gecko', 'Giraffe', 'Goat', 'Hamster', 'Hedgehog', 'Hippopotamus', 'Horse', 'Hyena', 'Jerboa', 'Kangaroo', 'Koala', 'Lemur', 'Lion', 'Llama', 'Meerkat', 'Monkey', 'Moose', 'Narwhal', 'Orca', 'Otter', 'Panda', 'Pangolin', 'Pig', 'Platypus', 'Polar Bear', 'Porcupine', 'Quokka', 'Rabbit', 'Raccoon', 'Red Panda', 'Seal', 'Skunk', 'Sloth', 'Snow Leopard', 'Squirrel', 'Tapir', 'Tiger', 'Wolf', 'Wombat', 'Zebra']}.items()}
+    category_sets.setdefault("mammal", set()).update({"Donkey", "Sheep", "Guinea Pig", "Gerbil", "Leopard", "Black Bear", "Brown Bear"})
+    category_sets.setdefault("domestic", set()).update({"Donkey", "Sheep", "Goose", "Turkey", "Guinea Pig", "Gerbil", "Goldfish", "Betta Fish", "Cockatiel", "Budgerigar", "Macaw", "Pigeon"})
+    category_sets.setdefault("bird", set()).update({"Goose", "Turkey", "Cockatiel", "Budgerigar", "Macaw", "Pigeon", "Swan", "Crane", "Falcon", "Vulture", "Secretary Bird"})
+    category_sets.setdefault("aquatic", set()).update({"Goldfish", "Betta Fish", "Goose", "Swan"})
     universal_templates = ['{name} fact: age, health, weather, and habitat can all change behaviour.', '{name} fact: young individuals learn through exploration and experience.', '{name} fact: access to food, shelter, and safe space shapes daily activity.', '{name} fact: body language can reveal alertness, fear, curiosity, or relaxation.', '{name} fact: senses are tuned to the problems the species solves in its habitat.', '{name} fact: movement style reflects anatomy, terrain, and energy use.', '{name} fact: rest is an active part of growth, recovery, and memory.', '{name} fact: seasonal changes can influence feeding, movement, and breeding.', '{name} fact: individuals can differ in confidence, curiosity, and sociability.', '{name} fact: communication may combine sound, scent, touch, colour, and posture.', '{name} fact: safe habitat includes feeding areas, shelter, and movement routes.', '{name} fact: predators, competitors, and food supply shape population behaviour.', '{name} fact: researchers combine field observation with non-invasive technology.', '{name} fact: photographs and natural markings can sometimes identify individuals.', '{name} fact: tracks and feeding signs can reveal activity when the animal stays hidden.', '{name} fact: conservation works best when local people benefit from healthy ecosystems.', '{name} fact: habitat quality matters as much as the total amount of habitat.', '{name} fact: connected habitat helps maintain movement and genetic diversity.', '{name} fact: human noise, light, roads, and waste can alter natural routines.', '{name} fact: climate influences water, food, shelter, and the timing of life cycles.', '{name} fact: disease risk depends on immunity, contact, stress, and environment.', '{name} fact: responsible observation avoids feeding, chasing, or blocking escape.', '{name} fact: enrichment in managed care should encourage natural choices and skills.', '{name} fact: a balanced ecosystem depends on interactions among many species.', '{name} fact: protecting breeding sites and nursery areas supports future generations.']
 
     for name, data in SPECIES.items():
@@ -5831,6 +6043,52 @@ GENERAL_MYTHOLOGY_CARDS = (
 )
 
 
+# Additional high-value learning cards keep every displayed fact deck at 80+.
+GENERAL_SCIENCE_CARDS += (
+    'DNA carries hereditary information, while environmental conditions influence how many traits develop.',
+    'Different versions of a gene are called alleles, and populations can contain many alleles for one gene.',
+    'Mutation creates new genetic variation, although most mutations are neutral or harmful rather than automatically useful.',
+    'Genetic drift changes allele frequencies by chance and usually has stronger effects in small populations.',
+    'Gene flow occurs when individuals or their genes move between populations and reproduce.',
+    'Decomposers return nutrients from dead material to soil, water, and food webs.',
+    'Primary productivity measures how quickly producers store energy in new organic material.',
+    'An ecological niche includes the resources, conditions, and interactions a species needs to persist.',
+    'Competition can occur within one species or between different species using the same limited resource.',
+    'Symbiosis includes long-term relationships such as mutualism, commensalism, and parasitism.',
+    'Physiological adaptations involve internal functions such as temperature control, digestion, or salt balance.',
+    'Acclimation is a reversible adjustment by an individual and is different from evolution across generations.',
+    'Homeostasis keeps internal conditions within workable ranges despite changes outside the body.',
+    "An animal's energy budget divides available energy among maintenance, growth, movement, and reproduction.",
+    'Disease ecology studies how hosts, pathogens, vectors, behaviour, and environment interact.',
+    'Environmental DNA can reveal that a species was present from genetic material left in water, soil, or air.',
+    'Citizen-science observations become more useful when dates, locations, photographs, and methods are recorded carefully.',
+    'Telemetry uses tags or transmitters to study movement, habitat use, survival, and migration.',
+    'Mark-recapture studies estimate population size by comparing marked individuals with later samples.',
+    'Peer review can identify weaknesses in research, but conclusions should still be evaluated as new evidence appears.',
+)
+GENERAL_MYTHOLOGY_CARDS += (
+    'Different versions of one narrative may reflect the priorities of different regions, performers, or audiences.',
+    "An epithet is a descriptive title that can identify a figure's role, location, power, or relationship.",
+    'Liminal beings appear at boundaries such as shorelines, crossroads, doorways, life stages, or the edge of society.',
+    'Chthonic imagery is associated with the earth or underworld, but its meaning varies by tradition.',
+    'Celestial creatures can be linked with stars, weather, divine authority, calendars, or navigation.',
+    'Apotropaic images are intended to turn away danger, misfortune, or harmful supernatural influence.',
+    'Trickster figures often expose social rules by crossing boundaries, reversing expectations, or exploiting language.',
+    'A psychopomp is a guide of souls, not necessarily a judge or ruler of the dead.',
+    'Monstrous forms can express political fear, moral conflict, unfamiliarity, or the limits of accepted order.',
+    'Mythological genealogies can vary because communities connected figures differently across time and place.',
+    'Ritual performance can preserve a story while also changing its wording, emphasis, music, costume, or setting.',
+    'Hand-copied manuscripts can introduce omissions, additions, spelling changes, and commentary from later periods.',
+    'Archaeological evidence can illuminate a culture but cannot by itself verify supernatural events.',
+    'Names may look different after transliteration because writing systems represent sounds in different ways.',
+    'Medieval bestiaries often mixed observation, inherited authority, moral symbolism, and imaginative material.',
+    'Heraldry uses stylized creatures under formal design rules that may differ from older mythological descriptions.',
+    'Constellation stories can differ even when cultures observe the same group of stars.',
+    'Local landmarks often become anchors for legends because they make stories part of a familiar landscape.',
+    "A collector's written record may preserve oral tradition while also changing dialect, structure, or context.",
+    'A responsible modern adaptation can be creative while clearly naming the traditions and sources that inspired it.',
+)
+
 def _clean_fact_prefix(text):
     """Remove old generic prefixes before assigning a clearer subject label."""
     prefixes = (
@@ -5914,7 +6172,7 @@ def _prepare_educational_facts():
                 seen.add(key)
                 cards.append(card)
 
-        minimum_cards = 60
+        minimum_cards = 80
         supplements = GENERAL_MYTHOLOGY_CARDS if fictional else GENERAL_SCIENCE_CARDS
         supplement_topic = "MYTHOLOGY" if fictional else "SCIENCE"
         for supplement in supplements:
@@ -6189,9 +6447,9 @@ FACT_RESEARCH_COOLDOWN = 2.5
 # three full minutes of layered behavior before the exact sequence repeats. Each
 # profile contains at least sixty actions, but the terminal still redraws at the
 # same four FPS so the extra variety does not reintroduce flicker.
-ANIMATION_CYCLE_FRAMES = 720
+ANIMATION_CYCLE_FRAMES = 960
 ANIMATION_FRAMES_PER_ACTION = 12
-ANIMATION_MIN_ACTIONS = 60
+ANIMATION_MIN_ACTIONS = 80
 PET_VOICE_MIN_SECONDS = 34.0
 PET_VOICE_MAX_SECONDS = 76.0
 
@@ -6574,14 +6832,67 @@ def _recv_lan_json(sock):
 
 
 def _pet_snapshot_power(data):
-    """Calculate a conservative battle score from a validated pet snapshot."""
+    """Calculate a validated battle score from a pet snapshot."""
     if not isinstance(data, dict):
         return 1.0
     stage = _safe_int(data.get("stage", 0), 0, 0, len(STAGE_NAMES) - 1)
     battle_level = _safe_int(data.get("battle_level", 1), 1, 1, 10000)
     bond_level = _safe_int(data.get("bond_level", 1), 1, 1, BOND_LEVEL_CAP)
-    return ((stage + 1) * 10.0 + battle_level * 5.0) * (1.0 + (bond_level - 1) * 0.005)
+    wellbeing_values = [
+        _safe_float(data.get(field, 100.0), 100.0, MIN_STAT_VALUE, 100.0)
+        for field in ("hunger", "happiness", "energy", "cleanliness")
+    ]
+    wellbeing = sum(wellbeing_values) / (400.0 if wellbeing_values else 400.0)
+    base = (stage + 1) * 10.0 + battle_level * 5.0
+    return max(1.0, base * (1.0 + (bond_level - 1) * 0.005) * (0.75 + wellbeing * 0.25))
 
+
+def _simulate_lan_battle(host_data, challenger_data, host_multiplier=1.0,
+                         challenger_multiplier=1.0, seed_text=""):
+    """Run one deterministic round-based LAN fight on the host device."""
+    host_power = _pet_snapshot_power(host_data) * _safe_float(host_multiplier, 1.0, 0.5, 10.0)
+    challenger_power = _pet_snapshot_power(challenger_data) * _safe_float(
+        challenger_multiplier, 1.0, 0.5, 10.0
+    )
+    seed = sum((index + 1) * ord(char) for index, char in enumerate(str(seed_text)))
+    seed += int(host_power * 100) * 17 + int(challenger_power * 100) * 31
+    rng = random.Random(seed)
+    host_hp = 100
+    challenger_hp = 100
+    log = []
+    host_base = max(7, min(31, int(9 + math.sqrt(host_power) * 1.75)))
+    challenger_base = max(7, min(31, int(9 + math.sqrt(challenger_power) * 1.75)))
+
+    for round_number in range(1, 16):
+        host_special = round_number % 4 == 0
+        host_damage = max(1, int(host_base * rng.uniform(0.84, 1.16) * (1.45 if host_special else 1.0)))
+        challenger_hp = max(0, challenger_hp - host_damage)
+        log.append(f"R{round_number}: host {'special' if host_special else 'attack'} {host_damage}")
+        if challenger_hp <= 0:
+            break
+
+        challenger_special = round_number % 4 == 2
+        challenger_damage = max(1, int(
+            challenger_base * rng.uniform(0.84, 1.16) * (1.45 if challenger_special else 1.0)
+        ))
+        host_hp = max(0, host_hp - challenger_damage)
+        log.append(f"R{round_number}: challenger {'special' if challenger_special else 'attack'} {challenger_damage}")
+        if host_hp <= 0:
+            break
+
+    if host_hp == challenger_hp:
+        host_won = host_power >= challenger_power
+    else:
+        host_won = host_hp > challenger_hp
+    return {
+        "host_won": bool(host_won),
+        "host_hp": int(host_hp),
+        "client_hp": int(challenger_hp),
+        "host_power": round(host_power, 1),
+        "client_power": round(challenger_power, 1),
+        "rounds": min(15, max(1, (len(log) + 1) // 2)),
+        "log": log[-6:],
+    }
 
 class LANManager:
     """Background LAN host, discovery client, and request transport.
@@ -6612,6 +6923,7 @@ class LANManager:
             "caretaker_level": self.game.caretaker_level,
             "active_pet": pet.to_dict() if pet else None,
             "trade_offer": offer.to_dict() if offer and len(self.game.pets) > 1 else None,
+            "owned_species": [pet.species for pet in self.game.pets],
             "port": LAN_TCP_PORT,
         }
 
@@ -6859,6 +7171,14 @@ class LANManager:
         if action == "trade" and len(self.game.pets) <= 1:
             self.game.lan_status = "You must keep at least one companion."
             return False
+        if action == "trade":
+            incoming = peer.get("trade_offer") or {}
+            incoming_species = str(incoming.get("species", "")) if isinstance(incoming, dict) else ""
+            replacement_index = self.game.lan_offer_index if offer_index is None else int(offer_index)
+            if incoming_species and self.game.owns_species(incoming_species, excluding_index=replacement_index):
+                self.game.lan_status = f"Trade blocked: {incoming_species} is already owned."
+                self.game.sound_manager.play("error")
+                return False
 
         self.game.lan_busy = True
         self.game.lan_status = f"Sending {action} request to {peer.get('player_name', 'player')}..."
@@ -6869,6 +7189,9 @@ class LANManager:
             "caretaker_level": self.game.caretaker_level,
             "pet": pet.to_dict(),
             "pet_count": len(self.game.pets),
+            "owned_species": [owned.species for owned in self.game.pets],
+            "battle_multiplier": self.game.battle_power_mult(),
+            "battle_nonce": uuid.uuid4().hex,
         }
         thread = threading.Thread(
             target=self._action_worker,
@@ -6927,6 +7250,77 @@ class Pet:
 
     def battle_power(self):
         return (self.stage + 1) * 10 + self.battle_level * 5
+
+    def evolution_progress(self):
+        """Return cumulative evolution seconds across every completed stage."""
+        completed = sum(STAGE_TIMES[:max(0, min(self.stage, len(STAGE_TIMES)))])
+        return max(0.0, float(completed) + max(0.0, float(self.age_in_stage)))
+
+    def set_evolution_progress(self, total):
+        """Restore cumulative evolution progress without dropping crossed stages."""
+        remaining = _safe_float(total, 0.0, 0.0, 10**15)
+        stage = 0
+        last_stage = len(STAGE_NAMES) - 1
+        while stage < last_stage:
+            threshold = max(0.0, float(STAGE_TIMES[stage]))
+            if threshold <= 0.0 or remaining < threshold:
+                break
+            remaining -= threshold
+            stage += 1
+        self.stage = stage
+        self.age_in_stage = remaining
+
+    def total_battle_progress(self):
+        """Return battle XP including the XP consumed by previous levels."""
+        level = max(1, int(self.battle_level))
+        return 25.0 * (level - 1) * level + max(0.0, float(self.battle_xp))
+
+    def set_total_battle_progress(self, total):
+        """Restore battle level and remainder from cumulative XP."""
+        total = _safe_float(total, 0.0, 0.0, 10**15)
+        level = int((1.0 + math.sqrt(max(1.0, 1.0 + 4.0 * total / 25.0))) / 2.0)
+        level = max(1, min(10000, level))
+        while level > 1 and 25.0 * (level - 1) * level > total:
+            level -= 1
+        while level < 10000 and 25.0 * level * (level + 1) <= total:
+            level += 1
+        self.battle_level = level
+        self.battle_xp = max(0.0, total - 25.0 * (level - 1) * level)
+
+    def total_bond_progress(self):
+        """Return bond XP including all completed bond levels."""
+        total = max(0.0, float(self.bond_xp))
+        for level in range(1, max(1, int(self.bond_level))):
+            total += 20.0 + level * 15.0
+        return total
+
+    def set_total_bond_progress(self, total):
+        """Restore bond level and remainder from cumulative XP."""
+        remaining = _safe_float(total, 0.0, 0.0, 10**12)
+        level = 1
+        while level < BOND_LEVEL_CAP:
+            needed = 20.0 + level * 15.0
+            if remaining < needed:
+                break
+            remaining -= needed
+            level += 1
+        self.bond_level = level
+        self.bond_xp = remaining
+
+    def merge_progress_from(self, other):
+        """Combine another pet of the same species without losing progression."""
+        if not isinstance(other, Pet) or other.species != self.species:
+            return False
+        self.set_evolution_progress(self.evolution_progress() + other.evolution_progress())
+        self.set_total_battle_progress(self.total_battle_progress() + other.total_battle_progress())
+        self.set_total_bond_progress(self.total_bond_progress() + other.total_bond_progress())
+        for attr in ("hunger", "happiness", "energy", "cleanliness"):
+            setattr(self, attr, max(float(getattr(self, attr, 0.0)), float(getattr(other, attr, 0.0))))
+        self.total_care_actions = min(10**9, int(self.total_care_actions) + int(other.total_care_actions))
+        if self.nickname == self.species and other.nickname and other.nickname != other.species:
+            self.nickname = other.nickname[:24]
+        self.fact_index = max(self.fact_index, other.fact_index) % max(1, len(self.get_facts()))
+        return True
 
     def get_facts(self):
         data = SPECIES[self.species]
@@ -7150,6 +7544,13 @@ class Game:
         self.fight_log = []
         self.fight_player_hp = 100
         self.fight_enemy_hp = 100
+        self.fight_player_guard = False
+        self.fight_enemy_guard = False
+        self.fight_special_charge = 1
+        self.fight_turn = 0
+        self.fight_is_friendly = False
+        self.last_trade_combined = False
+        self.duplicate_species_merged = 0
 
         self.load_game()
         if not self.pets:
@@ -7160,6 +7561,9 @@ class Game:
             self.coins = max(self.coins, 150.0)
         self.lan_offer_index = min(self.active_pet_index, max(0, len(self.pets) - 1))
         self.lan_manager = LANManager(self)
+        if self.duplicate_species_merged:
+            self.add_message(f"Combined {self.duplicate_species_merged} legacy duplicate pet(s) without losing progress.", 7.0)
+            self.save_game()
         self.refresh_quests(force=True)
         self.refresh_daily_contracts()
         self.check_achievements()
@@ -7168,6 +7572,59 @@ class Game:
     def active_pet(self):
         if 0 <= self.active_pet_index < len(self.pets):
             return self.pets[self.active_pet_index]
+        return None
+
+    def _merge_duplicate_species(self):
+        """Collapse legacy duplicate species and keep every cumulative progression value."""
+        if len(self.pets) < 2:
+            return 0
+        original = list(self.pets)
+        active_object = original[self.active_pet_index] if 0 <= self.active_pet_index < len(original) else None
+        species_order = []
+        groups = {}
+        for pet in original:
+            if pet.species not in groups:
+                groups[pet.species] = []
+                species_order.append(pet.species)
+            groups[pet.species].append(pet)
+
+        merged_pets = []
+        active_new_index = 0
+        merged_count = 0
+        for species in species_order:
+            group = groups[species]
+            primary = active_object if active_object in group else group[0]
+            for pet in group:
+                if pet is primary:
+                    continue
+                primary.merge_progress_from(pet)
+                merged_count += 1
+            if primary is active_object:
+                active_new_index = len(merged_pets)
+            merged_pets.append(primary)
+
+        self.pets = merged_pets
+        self.active_pet_index = active_new_index if merged_pets else 0
+        self.lan_offer_index = min(getattr(self, "lan_offer_index", 0), max(0, len(merged_pets) - 1))
+        return merged_count
+
+    def owns_species(self, species, excluding_index=None):
+        """Return True when a species is owned outside an optional replacement slot."""
+        for index, pet in enumerate(self.pets):
+            if excluding_index is not None and index == excluding_index:
+                continue
+            if pet.species == species:
+                return True
+        return False
+
+    def next_owned_rival_index(self):
+        """Return the next non-active pet for friendly sparring."""
+        if len(self.pets) < 2:
+            return None
+        for offset in range(1, len(self.pets) + 1):
+            index = (self.active_pet_index + offset) % len(self.pets)
+            if index != self.active_pet_index:
+                return index
         return None
 
     # ---------- save/load ----------
@@ -7282,6 +7739,7 @@ class Game:
             )
         else:
             self.active_pet_index = 0
+        self.duplicate_species_merged = self._merge_duplicate_species()
 
         self.coins = _safe_float(data.get("coins", 0.0), 0.0, 0.0, 1e300)
         self.prestige_points = _safe_int(data.get("prestige_points", 0), 0, 0, 10**9)
@@ -7651,7 +8109,7 @@ class Game:
             return False
         candidates = [pet for index, pet in enumerate(self.pets) if index != self.active_pet_index]
         if not candidates:
-            self.add_message("Adopt a second companion before starting expeditions.", 4.0)
+            self.add_message("Buy a second companion before starting expeditions.", 4.0)
             self.sound_manager.play("error")
             return False
         if self.caretaker_level < info["level"]:
@@ -7676,7 +8134,7 @@ class Game:
     def update_expedition_status(self):
         if self.expedition_ready() and not self.expedition_ready_announced:
             self.expedition_ready_announced = True
-            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Press r.", 6.0)
+            self.add_message(f"{self.expedition_pet_name}'s expedition is ready to claim! Use [ c ] Claim.", 6.0)
             self.sound_manager.play("expedition_ready")
 
     def claim_expedition(self):
@@ -7772,24 +8230,22 @@ class Game:
         return levels
 
     def adoption_cost(self, species):
-        """Calculate a rarity price with a moderate duplicate surcharge."""
+        """Calculate the one-time purchase price for a species."""
         tier = species_adoption_tier(species)
         base = ADOPTION_TIER_INFO[tier]["cost"]
-        duplicates = sum(1 for pet in self.pets if pet.species == species)
-        duplicate_multiplier = 1.0 + duplicates * 0.40
-        # Prestige increases income dramatically, so prices scale gently to
-        # prevent late-game adoptions from becoming meaningless.
         prestige_multiplier = 1.0 + self.prestige_points * 0.15
-        return max(1, int(base * duplicate_multiplier * prestige_multiplier))
+        return max(1, int(base * prestige_multiplier))
 
     def adoption_status(self, species):
-        """Return (allowed, short reason, cost, tier) for one shop entry."""
+        """Return (allowed, short reason, cost, tier) for one buy entry."""
         if species not in SPECIES:
             return False, "unknown species", 0, "common"
         tier = species_adoption_tier(species)
         cost = self.adoption_cost(species)
-        if len(self.pets) >= 120:
-            return False, "sanctuary full (120)", cost, tier
+        if self.owns_species(species):
+            return False, "owned", cost, tier
+        if len(self.pets) >= len(SPECIES):
+            return False, f"collection full ({len(SPECIES)})", cost, tier
         if species in SUMMON_ONLY_SPECIES:
             return False, "summon/trade only", cost, tier
         minimum_level = ADOPTION_TIER_INFO[tier]["level"]
@@ -7806,25 +8262,28 @@ class Game:
             return False, f"needs {fmt_num(cost)} coins", cost, tier
         return True, "available", cost, tier
 
-    def adopt_pet(self, species):
-        """Purchase one unlocked companion and persist the transaction."""
+    def buy_pet(self, species):
+        """Buy one unlocked species; a collection can contain only one of each."""
         allowed, reason, cost, tier = self.adoption_status(species)
         if not allowed:
-            self.add_message(f"Cannot adopt {species}: {reason}.", 4.0)
+            self.add_message(f"Cannot buy {species}: {reason}.", 4.0)
             self.sound_manager.play("error")
             return False
         self.coins -= cost
-        if not self.add_new_pet(species, source="adoption"):
+        if not self.add_new_pet(species, source="purchase"):
             self.coins += cost
             return False
-        self.grant_caretaker_xp(20 + ADOPTION_TIER_INFO[tier]["level"] * 3, "adoption")
-        self.add_message(f"Adopted {species} for {fmt_num(cost)} coins!", 5.0)
-        self.sound_manager.play("adopt")
+        self.grant_caretaker_xp(20 + ADOPTION_TIER_INFO[tier]["level"] * 3, "purchase")
+        self.add_message(f"Bought {species} for {fmt_num(cost)} coins!", 5.0)
+        self.sound_manager.play("purchase")
         self.check_achievements()
         self.save_game()
         return True
 
-    # ---------- achievement helper ----------
+    def adopt_pet(self, species):
+        """Backward-compatible alias retained for older integrations."""
+        return self.buy_pet(species)
+
     def unlock_achievement(self, achievement_id):
         """Unlock and reward one catalogue achievement exactly once."""
         if achievement_id in self.achievements:
@@ -7879,7 +8338,8 @@ class Game:
         self.sound_manager.play("open")
 
     def _replace_pet_for_trade(self, index, received_data):
-        """Atomically replace one offered pet with a validated received pet."""
+        """Replace a trade slot while enforcing one pet per species."""
+        self.last_trade_combined = False
         if len(self.pets) <= 1 or not (0 <= index < len(self.pets)):
             return None
         if not isinstance(received_data, dict):
@@ -7893,16 +8353,31 @@ class Game:
         received.battle_xp = min(received.battle_xp, 50.0 * received.battle_level)
         received.bond_level = min(received.bond_level, BOND_LEVEL_CAP)
         received.bond_xp = min(received.bond_xp, received.bond_xp_needed())
-        # Network pets are clamped before insertion; preserve only gameplay data,
-        # never arbitrary extra fields from the remote JSON object.
-        self.pets[index] = received
-        self.active_pet_index = min(self.active_pet_index, len(self.pets) - 1)
-        self.lan_offer_index = min(self.lan_offer_index, len(self.pets) - 1)
+
+        duplicate_index = next(
+            (i for i, pet in enumerate(self.pets) if i != index and pet.species == species),
+            None,
+        )
+        if duplicate_index is None:
+            self.pets[index] = received
+        else:
+            # This fallback keeps cross-version LAN trades safe. Updated clients
+            # reject such a trade before sending it; an older client may not.
+            self.pets[duplicate_index].merge_progress_from(received)
+            del self.pets[index]
+            self.last_trade_combined = True
+            if index < self.active_pet_index:
+                self.active_pet_index -= 1
+            elif index == self.active_pet_index:
+                self.active_pet_index = duplicate_index - (1 if index < duplicate_index else 0)
+        self.active_pet_index = min(max(0, self.active_pet_index), len(self.pets) - 1)
+        self.lan_offer_index = min(max(0, self.lan_offer_index), len(self.pets) - 1)
         self.update_quest("unique_species", len({pet.species for pet in self.pets}))
         return old_pet
 
-    def _apply_lan_battle_result(self, won, opponent_name):
+    def _apply_lan_battle_result(self, won, opponent_name, details=""):
         self.lan_battles += 1
+        detail_text = f" {details}" if details else ""
         if won:
             self.lan_wins += 1
             reward = int(500 * (1 + (self.active_pet.stage if self.active_pet else 0)) * self.coin_mult())
@@ -7910,27 +8385,28 @@ class Game:
             self.total_coins_earned += reward
             self.fight_wins += 1
             if self.active_pet:
-                self.active_pet.battle_xp += 35 * self.xp_mult()
+                self.grant_battle_xp(self.active_pet, 35 * self.xp_mult())
                 self.grant_bond_xp(self.active_pet, 15.0, "LAN victory")
             self.grant_caretaker_xp(45, "LAN victory")
             self.add_festival_meter(18.0, "LAN victory")
             if random.random() < 0.20:
                 self.grant_loot_box("rare", 1, "LAN victory")
-            self.lan_status = f"LAN victory over {opponent_name}! +{fmt_num(reward)} coins."
+            self.lan_status = f"LAN victory over {opponent_name}! +{fmt_num(reward)} coins.{detail_text}"
             self.sound_manager.play("victory")
         else:
             self.lan_losses += 1
             self.fight_losses += 1
             self.grant_caretaker_xp(12, "LAN battle")
             if self.active_pet:
+                self.grant_battle_xp(self.active_pet, 8 * self.xp_mult(), announce=False)
                 self.grant_bond_xp(self.active_pet, 4.0, "LAN effort")
-            self.lan_status = f"LAN defeat against {opponent_name}."
+            self.lan_status = f"LAN defeat against {opponent_name}.{detail_text}"
             self.sound_manager.play("defeat")
         self.check_achievements()
         self.save_game()
 
     def process_lan_queues(self):
-        """Handle host requests and client results on the main game thread."""
+        """Handle validated LAN requests/results on the main game thread."""
         while True:
             try:
                 envelope = self.lan_request_queue.get_nowait()
@@ -7949,18 +8425,26 @@ class Game:
                     if host_pet is None:
                         envelope["response"] = {"ok": False, "error": "host has no active companion"}
                     else:
-                        host_score = host_pet.battle_power() * self.battle_power_mult() * random.uniform(0.88, 1.12)
-                        remote_score = _pet_snapshot_power(remote_pet_data) * random.uniform(0.88, 1.12)
-                        host_won = host_score >= remote_score
-                        self._apply_lan_battle_result(host_won, remote_name)
+                        battle = _simulate_lan_battle(
+                            host_pet.to_dict(),
+                            remote_pet_data,
+                            self.battle_power_mult(),
+                            request.get("battle_multiplier", 1.0),
+                            f"{self.lan_manager.room_id}:{request.get('battle_nonce', '')}:{remote_name}",
+                        )
+                        host_won = battle["host_won"]
+                        details = (
+                            f"{battle['rounds']} rounds, HP {battle['host_hp']}-{battle['client_hp']}, "
+                            f"power {battle['host_power']}-{battle['client_power']}."
+                        )
+                        self._apply_lan_battle_result(host_won, remote_name, details)
                         envelope["response"] = {
                             "ok": True,
                             "action": "battle",
                             "result": "loss" if host_won else "win",
                             "host_name": self.player_name,
                             "host_pet": host_pet.to_dict(),
-                            "host_score": round(host_score, 1),
-                            "client_score": round(remote_score, 1),
+                            "battle": battle,
                         }
                 elif action == "trade":
                     if _safe_int(request.get("pet_count", 0), 0, 0, 10**6) <= 1:
@@ -7969,23 +8453,33 @@ class Game:
                         envelope["response"] = {"ok": False, "error": "host must keep one companion"}
                     else:
                         offer_index = max(0, min(self.lan_offer_index, len(self.pets) - 1))
-                        outgoing = self.pets[offer_index].to_dict()
-                        old = self._replace_pet_for_trade(offer_index, remote_pet_data)
-                        if old is None:
-                            envelope["response"] = {"ok": False, "error": "trade could not be completed"}
+                        outgoing_pet = self.pets[offer_index]
+                        remote_owned_raw = request.get("owned_species", [])
+                        remote_owned = {
+                            str(value) for value in remote_owned_raw if str(value) in SPECIES
+                        } if isinstance(remote_owned_raw, list) else set()
+                        if self.owns_species(remote_species, excluding_index=offer_index):
+                            envelope["response"] = {"ok": False, "error": "host already owns that species"}
+                        elif remote_owned and outgoing_pet.species in remote_owned and outgoing_pet.species != remote_species:
+                            envelope["response"] = {"ok": False, "error": "other player already owns the offered species"}
                         else:
-                            self.lan_trades += 1
-                            self.grant_caretaker_xp(35, "LAN trade")
-                            self.lan_status = f"Traded {old.species} for {remote_pet_data.get('species')} with {remote_name}."
-                            self.sound_manager.play("trade")
-                            self.check_achievements()
-                            self.save_game()
-                            envelope["response"] = {
-                                "ok": True,
-                                "action": "trade",
-                                "received_pet": outgoing,
-                                "host_name": self.player_name,
-                            }
+                            outgoing = outgoing_pet.to_dict()
+                            old = self._replace_pet_for_trade(offer_index, remote_pet_data)
+                            if old is None:
+                                envelope["response"] = {"ok": False, "error": "trade could not be completed"}
+                            else:
+                                self.lan_trades += 1
+                                self.grant_caretaker_xp(35, "LAN trade")
+                                self.lan_status = f"Traded {old.species} for {remote_species} with {remote_name}."
+                                self.sound_manager.play("trade")
+                                self.check_achievements()
+                                self.save_game()
+                                envelope["response"] = {
+                                    "ok": True,
+                                    "action": "trade",
+                                    "received_pet": outgoing,
+                                    "host_name": self.player_name,
+                                }
                 else:
                     envelope["response"] = {"ok": False, "error": "unsupported action"}
             except Exception as exc:
@@ -8004,15 +8498,18 @@ class Game:
                 if not isinstance(peer, dict):
                     self.lan_status = f"LAN error: {result.get('error', 'host not reachable')}"
                     continue
-                self.lan_peers = [existing for existing in self.lan_peers
-                                  if existing.get("room_id") != peer.get("room_id")]
+                self.lan_peers = [
+                    existing for existing in self.lan_peers
+                    if existing.get("room_id") != peer.get("room_id")
+                ]
                 self.lan_peers.insert(0, peer)
                 self.lan_selected_peer = 0
                 self.lan_status = f"Connected to {peer.get('player_name', 'LAN room')} at {peer.get('ip')}."
                 self.sound_manager.play("connect")
                 continue
             if result.get("kind") == "scan":
-                self.lan_peers = result.get("peers", [])[:20]
+                peers = result.get("peers", [])
+                self.lan_peers = peers[:20] if isinstance(peers, list) else []
                 self.lan_selected_peer = min(self.lan_selected_peer, max(0, len(self.lan_peers) - 1))
                 self.lan_status = (
                     f"Found {len(self.lan_peers)} LAN room(s)."
@@ -8025,29 +8522,46 @@ class Game:
             response = result.get("response", {})
             peer = result.get("peer", {})
             peer_name = str(peer.get("player_name", "LAN player"))[:24]
-            if not response.get("ok"):
-                self.lan_status = f"LAN error: {response.get('error', 'request failed')}"
+            if not isinstance(response, dict) or not response.get("ok"):
+                error = response.get("error", "request failed") if isinstance(response, dict) else "invalid response"
+                self.lan_status = f"LAN error: {error}"
                 self.sound_manager.play("error")
                 continue
             action = result.get("action")
             if action == "battle":
-                self._apply_lan_battle_result(response.get("result") == "win", peer_name)
+                outcome = response.get("result")
+                battle = response.get("battle", {})
+                if outcome not in ("win", "loss") or not isinstance(battle, dict):
+                    self.lan_status = "LAN error: invalid battle result."
+                    self.sound_manager.play("error")
+                    continue
+                details = (
+                    f"{_safe_int(battle.get('rounds', 1), 1, 1, 15)} rounds, "
+                    f"HP {_safe_int(battle.get('client_hp', 0), 0, 0, 100)}-"
+                    f"{_safe_int(battle.get('host_hp', 0), 0, 0, 100)}."
+                )
+                self._apply_lan_battle_result(outcome == "win", peer_name, details)
             elif action == "trade":
                 offer_index = result.get("offer_index")
                 received = response.get("received_pet")
                 old = self._replace_pet_for_trade(int(offer_index), received) if isinstance(offer_index, int) else None
                 if old is None:
                     self.lan_status = "Trade response arrived, but the offered slot changed or was invalid."
+                    self.sound_manager.play("error")
                 else:
                     self.lan_trades += 1
                     self.grant_caretaker_xp(35, "LAN trade")
-                    self.lan_status = f"Traded {old.species} for {received.get('species')} with {peer_name}."
+                    received_species = str(received.get("species", "companion")) if isinstance(received, dict) else "companion"
+                    if self.last_trade_combined:
+                        self.lan_status = (
+                            f"Traded {old.species}; received {received_species} progress was combined with the owned pet."
+                        )
+                    else:
+                        self.lan_status = f"Traded {old.species} for {received_species} with {peer_name}."
                     self.sound_manager.play("trade")
                     self.check_achievements()
                     self.save_game()
 
-
-    # ---------- modifiers ----------
     def global_mastery_level(self):
         return sum(level for name, level in self.global_upgrades.items() if name.startswith("mastery_"))
 
@@ -8580,7 +9094,7 @@ class Game:
         if self.auto_idle_seconds >= AUTO_INTERACTION_INTERVAL:
             self.auto_idle_seconds = AUTO_INTERACTION_INTERVAL
             self.attention_required = True
-            self.add_message("Auto progress paused: press r.", 8.0)
+            self.add_message("Auto progress paused: use [ r ] Continue.", 8.0)
             self.sound_manager.beep()
             self.save_game()
             return
@@ -8901,27 +9415,48 @@ class Game:
                 return reward
         return entries[-1][0]
 
+    def grant_battle_xp(self, pet, amount, announce=True):
+        """Grant battle XP to any owned pet and process every crossed level."""
+        if not isinstance(pet, Pet):
+            return 0.0
+        amount = max(0.0, float(amount))
+        if amount <= 0.0:
+            return 0.0
+        pet.battle_xp += amount
+        levels = 0
+        while pet.battle_level < 10000:
+            needed = 50.0 * pet.battle_level
+            if pet.battle_xp < needed:
+                break
+            pet.battle_xp -= needed
+            pet.battle_level += 1
+            levels += 1
+        if announce and levels:
+            self.add_message(f"{pet.nickname} reached Battle Lv {pet.battle_level}!", 3.0)
+            self.sound_manager.play("levelup")
+        return amount
+
     def _level_active_pet_from_xp(self):
-        if not self.active_pet:
-            return
-        xp_needed = 50 * self.active_pet.battle_level
-        while self.active_pet.battle_xp >= xp_needed:
-            self.active_pet.battle_xp -= xp_needed
-            self.active_pet.battle_level += 1
-            self.add_message(f"Battle Lv {self.active_pet.battle_level}!", 3.0)
-            xp_needed = 50 * self.active_pet.battle_level
+        if self.active_pet:
+            # Existing callers may have directly increased the remainder first.
+            self.grant_battle_xp(self.active_pet, 0.0)
+            while self.active_pet.battle_level < 10000:
+                needed = 50.0 * self.active_pet.battle_level
+                if self.active_pet.battle_xp < needed:
+                    break
+                self.active_pet.battle_xp -= needed
+                self.active_pet.battle_level += 1
+                self.add_message(f"Battle Lv {self.active_pet.battle_level}!", 3.0)
 
     def _grant_random_mythical_pet(self):
-        if len(self.pets) >= 50:
+        if len(self.pets) >= len(SPECIES):
             self.mythic_shards += MYTHIC_SUMMON_COST
             return f"Sanctuary full: converted pet to {MYTHIC_SUMMON_COST} shards"
         owned = {pet.species for pet in self.pets}
         candidates = [name for name in MYTHICAL_SPECIES if name not in owned]
         if not candidates:
-            candidates = list(MYTHICAL_SPECIES)
-        if not candidates:
-            self.mythic_shards += 5
-            return "No mythical data available: +5 shards"
+            self.mythic_shards += MYTHIC_SUMMON_COST
+            return f"All mythical species owned: refunded {MYTHIC_SUMMON_COST} shards"
         species = random.choice(candidates)
         self.add_new_pet(species, species)
         return f"Mythical companion: {species}"
@@ -8931,7 +9466,7 @@ class Game:
             self.add_message(f"Need {MYTHIC_SUMMON_COST} mythic shards.", 3.0)
             self.sound_manager.play("error")
             return False
-        if len(self.pets) >= 50:
+        if len(self.pets) >= len(SPECIES):
             self.add_message("Sanctuary is full; free a slot first.", 3.0)
             self.sound_manager.play("error")
             return False
@@ -9200,16 +9735,27 @@ class Game:
 
     # ---------- new pet / switch ----------
     def add_new_pet(self, species, nickname="", source="reward"):
-        """Add a validated companion without charging; adoption uses adopt_pet()."""
+        """Add one unique species, converting accidental duplicate rewards to XP."""
         if species not in SPECIES:
             self.add_message("Unknown companion species.", 2.0)
             return False
-        if len(self.pets) >= 120:
-            self.add_message("Maximum 120 companions reached!", 2.0)
+        existing = next((pet for pet in self.pets if pet.species == species), None)
+        if existing is not None:
+            if source in {"purchase", "adoption"}:
+                self.add_message(f"{species} is already owned.", 3.0)
+                self.sound_manager.play("error")
+                return False
+            self.grant_battle_xp(existing, 25.0, announce=False)
+            self.grant_bond_xp(existing, 10.0, "duplicate reward")
+            self.add_message(f"Duplicate {species} reward combined into the owned pet: +25 battle XP.", 4.0)
+            self.sound_manager.play("combo")
+            return True
+        if len(self.pets) >= len(SPECIES):
+            self.add_message(f"Maximum {len(SPECIES)} unique companions reached!", 2.0)
             return False
         new_pet = Pet(species, nickname if nickname else species)
         self.pets.append(new_pet)
-        if source != "adoption":
+        if source not in {"purchase", "adoption"}:
             self.add_message(f"Received a new {species}!", 3.0)
             self.sound_manager.play("adopt")
         self.update_quest("pet_count", len(self.pets))
@@ -9228,82 +9774,153 @@ class Game:
 
     # ---------- fight system ----------
     def start_fight(self, opponent_pet_index=None):
-        if self.active_pet is None: return
+        if self.active_pet is None:
+            return False
         pet1 = self.active_pet
+        self.fight_is_friendly = False
         if opponent_pet_index is not None and 0 <= opponent_pet_index < len(self.pets):
             pet2 = self.pets[opponent_pet_index]
-            if pet2 == pet1: self.add_message("Can't fight itself!",2.0); return
+            if pet2 is pet1:
+                self.add_message("A pet cannot fight itself!", 2.0)
+                self.sound_manager.play("error")
+                return False
+            self.fight_is_friendly = True
         else:
             species_name = random.choice(list(SPECIES.keys()))
-            pet2 = Pet(species_name, "Wild "+species_name)
-            pet2.stage = random.randint(0,len(STAGE_NAMES)-1)
-            pet2.battle_level = random.randint(1, max(1, pet1.battle_level+3))
+            pet2 = Pet(species_name, "Wild " + species_name)
+            pet2.stage = max(0, min(len(STAGE_NAMES) - 1, pet1.stage + random.choice((-1, 0, 0, 1))))
+            pet2.battle_level = random.randint(max(1, pet1.battle_level - 2), max(1, pet1.battle_level + 3))
+            pet2.bond_level = random.randint(1, max(1, min(BOND_LEVEL_CAP, pet1.bond_level + 2)))
         self.fight_opponent = pet2
-        self.fight_state = "preparing"
-        self.fight_log = []
-        self.fight_player_hp = 100; self.fight_enemy_hp = 100
-        player_power = pet1.battle_power() * self.battle_power_mult()
-        enemy_power = pet2.battle_power()
-        self.fight_player_dmg = max(5, int(player_power*0.8))
-        self.fight_enemy_dmg = max(5, int(enemy_power*0.8))
+        self.fight_state = "player_turn"
+        self.fight_log = [
+            f"{pet1.nickname} vs {pet2.nickname}!",
+            "Choose an action.",
+        ]
+        self.fight_player_hp = 100
+        self.fight_enemy_hp = 100
+        player_power = pet1.battle_power() * self.battle_power_mult() * (1.0 + (pet1.bond_level - 1) * 0.005)
+        enemy_power = pet2.battle_power() * (1.0 + (pet2.bond_level - 1) * 0.005)
+        self.fight_player_dmg = max(7, min(32, int(9 + math.sqrt(max(1.0, player_power)) * 1.8)))
+        self.fight_enemy_dmg = max(7, min(32, int(9 + math.sqrt(max(1.0, enemy_power)) * 1.8)))
+        self.fight_player_guard = False
+        self.fight_enemy_guard = False
+        self.fight_special_charge = 1
+        self.fight_turn = 0
+        self.trigger_pet_reaction("battle_ready", 1.0)
         self.sound_manager.play("battle_start")
+        return True
 
     def fight_tick(self, action=None):
-        if self.fight_state in ("idle","finished"): return
-        if self.fight_state == "preparing":
+        if self.fight_state != "player_turn" or self.active_pet is None or self.fight_opponent is None:
+            return False
+        if action not in ("attack", "special", "defend"):
+            return False
+
+        if action == "special" and self.fight_special_charge <= 0:
+            self.fight_log.append("Special is recharging.")
+            self.add_message("Special recharges every three turns.", 2.0)
+            self.sound_manager.play("error")
+            return False
+
+        self.fight_turn += 1
+        if action == "defend":
+            self.fight_player_guard = True
+            self.fight_log.append(f"{self.active_pet.nickname} takes a guarded stance.")
+            self.trigger_pet_reaction("battle_guard", 0.8)
+            self.sound_manager.play("defend")
+        else:
+            hit_chance = 0.93 if action == "attack" else 0.84
+            if action == "special":
+                self.fight_special_charge -= 1
+            if random.random() > hit_chance:
+                self.fight_log.append(f"{self.active_pet.nickname}'s {action} missed!")
+                self.sound_manager.play("error")
+            else:
+                multiplier = 1.0 if action == "attack" else 1.60
+                critical = random.random() < (0.12 if action == "attack" else 0.18)
+                if critical:
+                    multiplier *= 1.35
+                damage = max(1, int(self.fight_player_dmg * multiplier * random.uniform(0.86, 1.14)))
+                if self.fight_enemy_guard:
+                    damage = max(1, int(damage * 0.45))
+                    self.fight_enemy_guard = False
+                self.fight_enemy_hp = max(0, self.fight_enemy_hp - damage)
+                label = "special" if action == "special" else "attack"
+                critical_text = " CRITICAL" if critical else ""
+                self.fight_log.append(f"{self.active_pet.nickname} {label}: {damage}!{critical_text}")
+                self.trigger_pet_reaction("battle_attack", 0.7)
+                self.sound_manager.play("special" if action == "special" else "hit")
+
+        if self.fight_enemy_hp <= 0:
+            self.fight_state = "finished"
+            self.fight_log.append("Victory!")
+            self.trigger_pet_reaction("battle_win", 1.8)
+            self.resolve_fight_victory()
+            return True
+
+        # The opponent immediately completes its turn so the interface never
+        # becomes stuck in an unhandled enemy_turn state.
+        enemy_choice = "attack"
+        if self.fight_enemy_hp < 35 and random.random() < 0.24:
+            enemy_choice = "defend"
+        elif self.fight_turn % 4 == 2 and random.random() < 0.55:
+            enemy_choice = "special"
+
+        if enemy_choice == "defend":
+            self.fight_enemy_guard = True
+            self.fight_log.append(f"{self.fight_opponent.nickname} defends.")
+            self.sound_manager.play("defend")
+        else:
+            multiplier = 1.0 if enemy_choice == "attack" else 1.48
+            hit_chance = 0.91 if enemy_choice == "attack" else 0.80
+            if random.random() > hit_chance:
+                self.fight_log.append(f"{self.fight_opponent.nickname} missed!")
+            else:
+                damage = max(1, int(self.fight_enemy_dmg * multiplier * random.uniform(0.86, 1.14)))
+                if self.fight_player_guard:
+                    damage = max(1, int(damage * 0.42))
+                    self.fight_player_guard = False
+                self.fight_player_hp = max(0, self.fight_player_hp - damage)
+                self.fight_log.append(
+                    f"{self.fight_opponent.nickname} {enemy_choice}: {damage}!"
+                )
+                self.trigger_pet_reaction("battle_hit", 0.7)
+                self.sound_manager.play("special" if enemy_choice == "special" else "hit")
+
+        if self.fight_turn % 3 == 0:
+            self.fight_special_charge = 1
+            self.fight_log.append("Special recharged.")
+
+        if self.fight_player_hp <= 0:
+            self.fight_state = "finished"
+            self.fight_log.append("Defeat...")
+            self.trigger_pet_reaction("battle_loss", 1.6)
+            self.resolve_fight_defeat()
+        else:
             self.fight_state = "player_turn"
-            self.fight_log.append("Fight begins!"); return
-        if self.fight_state == "player_turn":
-            if action == "attack":
-                dmg = self.fight_player_dmg + random.randint(-3,3)
-                self.fight_enemy_hp -= dmg
-                self.fight_log.append(f"{self.active_pet.nickname} attacks for {dmg}!")
-                self.sound_manager.play("hit")
-                if self.fight_enemy_hp <= 0:
-                    self.fight_enemy_hp = 0; self.fight_state = "finished"
-                    self.fight_log.append("Victory!"); self.resolve_fight_victory(); return
-                self.fight_state = "enemy_turn"
-            elif action == "special":
-                dmg = int(self.fight_player_dmg*1.8) + random.randint(-2,5)
-                self.fight_enemy_hp -= dmg
-                self.fight_log.append(f"{self.active_pet.nickname} special! {dmg}!")
-                self.sound_manager.play("special")
-                if self.fight_enemy_hp <= 0:
-                    self.fight_enemy_hp = 0; self.fight_state = "finished"
-                    self.fight_log.append("Victory!"); self.resolve_fight_victory(); return
-                self.fight_state = "enemy_turn"
-            elif action == "defend":
-                self.fight_log.append(f"{self.active_pet.nickname} defends.")
-                self.sound_manager.play("defend")
-                self.fight_state = "enemy_turn"
-            else: return
-        if self.fight_state == "enemy_turn":
-            dmg = self.fight_enemy_dmg + random.randint(-3,3)
-            if action == "defend": dmg = max(1, dmg//2)
-            self.fight_player_hp -= dmg
-            opp_name = self.fight_opponent.nickname
-            self.fight_log.append(f"{opp_name} attacks for {dmg}!")
-            self.sound_manager.play("hit")
-            if self.fight_player_hp <= 0:
-                self.fight_player_hp = 0; self.fight_state = "finished"
-                self.fight_log.append("Defeat..."); self.resolve_fight_defeat()
-            else: self.fight_state = "player_turn"
+        return True
 
     def resolve_fight_victory(self):
+        if self.fight_is_friendly and isinstance(self.fight_opponent, Pet):
+            winner_xp = self.grant_battle_xp(self.active_pet, 12 * self.xp_mult())
+            rival_xp = self.grant_battle_xp(self.fight_opponent, 6 * self.xp_mult(), announce=False)
+            self.grant_bond_xp(self.active_pet, 5.0, "friendly spar")
+            self.add_message(
+                f"Friendly spar won! +{winner_xp:.0f} XP; rival +{rival_xp:.0f} XP.", 4.0
+            )
+            self.sound_manager.play("victory")
+            self.save_game()
+            return
         self.fight_wins += 1
         self.grant_caretaker_xp(25, "fight victory")
-        coins_gain = max(20, int(100 * (self.fight_opponent.stage+1) * self.early_economy_mult()))
-        self.coins += coins_gain; self.total_coins_earned += coins_gain
-        xp_gain = 20 * (1+self.fight_opponent.stage) * self.xp_mult()
-        self.active_pet.battle_xp += xp_gain
-        self.add_message(f"Win! +{coins_gain} coins, +{xp_gain:.0f} XP",4.0)
-        xp_needed = 50 * self.active_pet.battle_level
-        while self.active_pet.battle_xp >= xp_needed:
-            self.active_pet.battle_xp -= xp_needed
-            self.active_pet.battle_level += 1
-            self.add_message(f"Battle Lv {self.active_pet.battle_level}!",3.0)
-            xp_needed = 50 * self.active_pet.battle_level
-        self.update_quest("fight_win",1)
+        coins_gain = max(20, int(100 * (self.fight_opponent.stage + 1) * self.early_economy_mult()))
+        self.coins += coins_gain
+        self.total_coins_earned += coins_gain
+        xp_gain = 20 * (1 + self.fight_opponent.stage) * self.xp_mult()
+        self.grant_battle_xp(self.active_pet, xp_gain)
+        self.add_message(f"Win! +{coins_gain} coins, +{xp_gain:.0f} XP", 4.0)
+        self.update_quest("fight_win", 1)
         self.grant_journey_points(10, "arena victory")
         self.progress_daily_contract("fight_win", 1)
         self.maybe_find_treasure_fragment(0.16, "Arena victory")
@@ -9319,17 +9936,27 @@ class Game:
         self.save_game()
 
     def resolve_fight_defeat(self):
+        if self.fight_is_friendly and isinstance(self.fight_opponent, Pet):
+            active_xp = self.grant_battle_xp(self.active_pet, 6 * self.xp_mult(), announce=False)
+            rival_xp = self.grant_battle_xp(self.fight_opponent, 10 * self.xp_mult(), announce=False)
+            self.grant_bond_xp(self.active_pet, 3.0, "friendly spar")
+            self.add_message(
+                f"Friendly spar complete. +{active_xp:.0f} XP; rival +{rival_xp:.0f} XP.", 4.0
+            )
+            self.sound_manager.play("defeat")
+            self.save_game()
+            return
         self.fight_losses += 1
         self.grant_caretaker_xp(6, "fight effort")
-        self.add_message("Lost. Better luck next time!",3.0)
+        self.add_message("Lost. Better luck next time!", 3.0)
         if self.active_pet:
             self.grant_bond_xp(self.active_pet, 3.0, "battle effort")
+            self.grant_battle_xp(self.active_pet, 4 * self.xp_mult(), announce=False)
         self.add_festival_meter(3.0, "battle effort")
         self.sound_manager.play("defeat")
         self.check_achievements()
         self.save_game()
 
-    # ---------- achievements ----------
     def check_achievements(self):
         """Evaluate catalogue conditions and process chained rewards safely."""
         unlocked_any = False
@@ -10160,6 +10787,14 @@ SPECIES_ART_STYLE = {}
 for _style_name, _species_names in ART_STYLE_SPECIES.items():
     for _species_name in _species_names:
         SPECIES_ART_STYLE[_species_name] = _style_name
+SPECIES_ART_STYLE.update({
+    "Donkey": "horse", "Sheep": "bovine", "Goose": "bird", "Turkey": "bird",
+    "Guinea Pig": "small_mammal", "Gerbil": "small_mammal", "Goldfish": "fish",
+    "Betta Fish": "fish", "Cockatiel": "bird", "Budgerigar": "bird", "Macaw": "bird",
+    "Pigeon": "bird", "Swan": "bird", "Crane": "tall_bird", "Falcon": "bird",
+    "Vulture": "bird", "Leopard": "big_cat", "Black Bear": "bear",
+    "Brown Bear": "bear", "Secretary Bird": "tall_bird",
+})
 
 # ==================== DYNAMIC ASCII ART ====================
 def _trim_ascii(lines):
@@ -10490,12 +11125,25 @@ def _happy_eyes(canvas, style):
 def _motion_shift(action, subphase, amplitude):
     """Move the intact drawing inside fixed padding for real body movement."""
     wave = (0, 1, 1, 0, -1, -1, 0, 0)[subphase % 8]
-    travel = {"swim", "dart", "glide", "swoop", "prowl", "slither", "crawl", "scuttle", "stride", "trot", "march", "sprint", "chase", "circle", "wave_ride", "school", "takeoff", "land", "idle_step", "tiptoe", "peek_left", "peek_right"}
-    bounce = {"hop", "bound", "pounce", "bounce", "waddle", "dance", "spin", "hover", "float", "slide", "leap", "breach", "belly_slide", "celebrate", "play", "excited", "tiny_jump", "happy_spin"}
+    travel = {"swim", "dart", "glide", "swoop", "prowl", "slither", "crawl", "scuttle", "stride", "trot", "march", "sprint", "chase", "circle", "wave_ride", "school", "takeoff", "land", "idle_step", "tiptoe", "peek_left", "peek_right", "back_step", "quick_turn"}
+    bounce = {"hop", "bound", "pounce", "bounce", "waddle", "dance", "spin", "hover", "float", "slide", "leap", "breach", "belly_slide", "celebrate", "play", "excited", "tiny_jump", "happy_spin", "roll_over", "victory_pose"}
     if action in travel:
         return wave * amplitude
     if action in bounce:
         return wave
+    return 0
+
+
+def _motion_vertical_shift(action, subphase):
+    """Move the intact portrait up/down inside fixed padding."""
+    hop_wave = (0, 0, -1, -2, -1, 0, 0, 1, 0, 0, 0, 0)
+    soft_wave = (0, 0, -1, -1, 0, 0, 1, 0, 0, 0, 0, 0)
+    high_motion = {"hop", "bound", "pounce", "bounce", "takeoff", "land", "leap", "breach", "tiny_jump", "happy_spin", "victory_pose"}
+    soft_motion = {"walk", "trot", "waddle", "dance", "hover", "float", "swim", "glide", "swoop", "idle_step", "tiptoe", "roll_over", "crouch", "bow"}
+    if action in high_motion:
+        return hop_wave[subphase % len(hop_wave)]
+    if action in soft_motion:
+        return soft_wave[subphase % len(soft_wave)]
     return 0
 
 
@@ -10707,6 +11355,32 @@ def _apply_action(canvas, action, subphase, style):
     elif action == "slow_stretch":
         _place_motion_token(canvas, middle, "<<<", "left")
         _place_motion_token(canvas, middle, ">>>", "right")
+    elif action in {"bow", "crouch"}:
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, lower, "__" if peak else "_", "right")
+    elif action == "back_step":
+        _place_motion_token(canvas, bottom, "<.." if peak else "<.", "left")
+    elif action in {"lean_left", "lean_right"}:
+        _place_motion_token(canvas, middle, "<<<" if action == "lean_left" else ">>>", "left" if action == "lean_left" else "right")
+    elif action == "paw_wave":
+        _place_motion_token(canvas, middle, "\\o/" if peak else "o/", "right")
+    elif action == "roll_over":
+        _place_motion_token(canvas, upper, "(@)" if peak else "()", "right")
+        _place_motion_token(canvas, lower, "~~~", "left")
+    elif action == "shake_off":
+        _place_motion_token(canvas, upper, "~~~", "left")
+        _place_motion_token(canvas, lower, "~~~", "right")
+    elif action == "focus":
+        _replace_glyph(canvas, ("o", "@"), "*", 0, min(len(canvas), 5), 2)
+        _place_motion_token(canvas, face, "!", "right")
+    elif action == "victory_pose":
+        _happy_eyes(canvas, style)
+        _place_motion_token(canvas, upper, "^!^", "right")
+        _place_motion_token(canvas, bottom, "^^", "left")
+    elif action == "ground_sniff":
+        _place_motion_token(canvas, lower, "...", "right")
+    elif action == "quick_turn":
+        _place_motion_token(canvas, face, "<>" if even else "><", "right")
 
 
 def _apply_mood_animation(canvas, pet, phase, style):
@@ -10746,14 +11420,22 @@ def _animate_portrait(pet, base_lines, frame, reaction="", compact=False):
     # rewriting the animal's anatomy.
     base_width = max(len(line) for line in base_lines)
     side_padding = 3 if compact else 6
+    vertical_padding = 1 if compact else 2
     canvas_width = base_width + side_padding * 2
-    shift = _motion_shift(action, subphase, profile["amplitude"])
-    left_padding = max(0, side_padding + shift)
-    canvas = []
+    horizontal_shift = _motion_shift(action, subphase, profile["amplitude"])
+    vertical_shift = _motion_vertical_shift(action, subphase)
+    left_padding = max(0, side_padding + horizontal_shift)
+    top_padding = max(0, vertical_padding + vertical_shift)
+    canvas = [list(" " * canvas_width) for _ in range(top_padding)]
     for line in base_lines:
         raw = str(line).rstrip()
         right_padding = max(0, canvas_width - left_padding - len(raw))
         canvas.append(list(" " * left_padding + raw + " " * right_padding))
+    target_height = len(base_lines) + vertical_padding * 2
+    while len(canvas) < target_height:
+        canvas.append(list(" " * canvas_width))
+    if len(canvas) > target_height:
+        canvas = canvas[:target_height]
 
     # Two natural blink windows plus continuous breathing make the animal alive
     # even while its larger signature action is between poses.
@@ -10831,6 +11513,23 @@ def _animate_portrait(pet, base_lines, frame, reaction="", compact=False):
         _place_motion_token(canvas, lower, "^^", "left")
     elif reaction == "voice":
         _place_motion_token(canvas, face, ")))" if style not in {"fish", "whale", "shark"} else "oO", "right")
+    elif reaction == "battle_ready":
+        _place_motion_token(canvas, upper, "!!", "right")
+        _apply_action(canvas, "focus", 4, style)
+    elif reaction == "battle_attack":
+        _place_motion_token(canvas, middle, ">>>", "right")
+        _place_motion_token(canvas, lower, "!!", "left")
+    elif reaction == "battle_guard":
+        _place_motion_token(canvas, middle, "[##]", "right")
+        _blink_portrait(canvas, style, "_")
+    elif reaction == "battle_hit":
+        _place_motion_token(canvas, upper, "X!", "left")
+        _place_motion_token(canvas, lower, "~", "right")
+    elif reaction == "battle_win":
+        _apply_action(canvas, "victory_pose", 4, style)
+    elif reaction == "battle_loss":
+        _blink_portrait(canvas, style, "_")
+        _place_motion_token(canvas, upper, "...", "right")
     elif reaction:
         _place_motion_token(canvas, upper, "*", "right")
 
@@ -10954,7 +11653,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
         # Keep one physical terminal row per item so ten entries fit even on a
         # standard 80x24 Termux window. The description remains visible after a
         # separator and is clipped only at the actual modal boundary.
-        row_text = f"{key_label}. {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
+        row_text = f"[ {key_label} ] {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
         rows.append((row_text, attr))
 
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
@@ -10966,7 +11665,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
     ]
     footer = [
         ("", curses.color_pair(7)),
-        ("1 to 9 or 0 Buy   n Next page   p Previous page   x Close", curses.color_pair(3) | curses.A_BOLD),
+        ("[ 1-9/0 ] Buy   [ n ] Next page   [ p ] Previous page   [ x ] Close", curses.color_pair(3) | curses.A_BOLD),
     ]
     lines = header + rows + footer
 
@@ -11008,8 +11707,8 @@ def draw_pet_select(stdscr, game):
         absolute_index = start + local_index - 1
         mark = ">" if absolute_index == game.active_pet_index else " "
         key_label = "0" if local_index == 10 else str(local_index)
-        lines.append(f"{mark} {key_label}. {pet.nickname[:16]} ({pet.species}) - {STAGE_NAMES[pet.stage]}")
-    lines.extend(["", "1 to 9 or 0 Switch   n Next page   p Previous page   x Back"])
+        lines.append(f"{mark}[ {key_label} ] {pet.nickname[:16]} ({pet.species}) - {STAGE_NAMES[pet.stage]}")
+    lines.extend(["", "[ 1-9/0 ] Switch   [ n ] Next page   [ p ] Previous page   [ x ] Back"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
     start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -11030,7 +11729,7 @@ def draw_pet_select(stdscr, game):
 
 
 def draw_adopt_screen(stdscr, game):
-    """Draw priced, rarity-labelled, progression-gated adoption entries."""
+    """Draw the one-per-species companion shop."""
     h, w = stdscr.getmaxyx()
     species_list = list(SPECIES.keys())
     page_size = max(1, min(getattr(game, "adopt_page_size", 10), 10))
@@ -11038,26 +11737,22 @@ def draw_adopt_screen(stdscr, game):
     game.adopt_page = max(0, min(getattr(game, "adopt_page", 0), total_pages - 1))
     start = game.adopt_page * page_size
     page_species = species_list[start:start + page_size]
-
     lines = [
-        f"-- ADOPTION CENTER ({len(species_list)} SPECIES) --",
+        f"-- BUY COMPANIONS ({len(species_list)} SPECIES) --",
         f"Caretaker Lv.{game.caretaker_level} | Missions {game.missions_completed} | Coins {fmt_num(game.coins)}",
-        f"Page {game.adopt_page + 1}/{total_pages}",
+        f"Page {game.adopt_page + 1}/{total_pages} | One pet per exact species",
         "",
     ]
-    owned_counts = {}
-    for pet in game.pets:
-        owned_counts[pet.species] = owned_counts.get(pet.species, 0) + 1
+    owned_species = {pet.species for pet in game.pets}
     for number, name in enumerate(page_species, 1):
         allowed, reason, cost, tier = game.adoption_status(name)
-        marker = "READY" if allowed else "LOCK"
-        owned = f" x{owned_counts[name]}" if name in owned_counts else ""
         key_label = "0" if number == 10 else str(number)
-        lines.append(
-            f"{key_label}. {name}{owned} [{tier.upper()}] {fmt_num(cost)} - {marker}: {reason}"
-        )
-    lines.extend(["", "1 to 9 or 0 Adopt   n Next page   p Previous page   x Back"])
-
+        if name in owned_species:
+            lines.append(f"[ {key_label} ] {name} [{tier.upper()}] -- OWNED")
+        else:
+            marker = "READY" if allowed else "LOCKED"
+            lines.append(f"[ {key_label} ] {name} [{tier.upper()}] {fmt_num(cost)} - {marker}: {reason}")
+    lines.extend(["", "[ 1-9/0 ] Buy   [ n ] Next page   [ p ] Previous page   [ x ] Back"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
     y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -11082,9 +11777,9 @@ def draw_loot_screen(stdscr, game):
     free_remaining = game.free_link_crate_seconds_remaining()
     if free_remaining > 0:
         free_minutes, free_seconds = divmod(free_remaining, 60)
-        free_crate_line = f"v Free link crate in {free_minutes}:{free_seconds:02d}"
+        free_crate_line = f"[ v ] Free link crate in {free_minutes}:{free_seconds:02d}"
     else:
-        free_crate_line = "v Visit a random guide for a free crate"
+        free_crate_line = "[ v ] Visit a random guide for a free crate"
 
     lines = [
         ("-- LOOT VAULT --", curses.color_pair(9) | curses.A_BOLD),
@@ -11102,8 +11797,8 @@ def draw_loot_screen(stdscr, game):
         pity_limit = LOOT_PITY_LIMITS[kind]
         pity_rarity = LOOT_REWARD_RARITIES[LOOT_PITY_MIN_RARITY[kind]]["label"]
         lines.append((
-            f"{number} OPEN {info['title']}  owned:{game.loot_boxes.get(kind, 0)}   "
-            f"{number + 3} BUY {fmt_num(game.loot_box_cost(kind))}",
+            f"[ {number} ] OPEN {info['title']}  owned:{game.loot_boxes.get(kind, 0)}   "
+            f"[ {number + 3} ] BUY {fmt_num(game.loot_box_cost(kind))}",
             container_attr,
         ))
 
@@ -11118,8 +11813,8 @@ def draw_loot_screen(stdscr, game):
 
     lines.extend([
         ("", curses.color_pair(7)),
-        (f"s Summon a random mythical pet for {MYTHIC_SUMMON_COST} shards", curses.color_pair(11) | curses.A_BOLD),
-        ("1 to 3 Open   4 to 6 Buy   x Close", curses.color_pair(3) | curses.A_BOLD),
+        (f"[ s ] Summon a random mythical pet for {MYTHIC_SUMMON_COST} shards", curses.color_pair(11) | curses.A_BOLD),
+        ("[ 1-3 ] Open   [ 4-6 ] Buy   [ x ] Close", curses.color_pair(3) | curses.A_BOLD),
     ])
     if game.loot_history:
         lines.extend([("", curses.color_pair(7)), ("Recent rewards:", curses.color_pair(10) | curses.A_BOLD)])
@@ -11189,7 +11884,7 @@ def draw_adventure_screen(stdscr, game):
     if game.expedition_kind:
         info = EXPEDITION_TYPES[game.expedition_kind]
         remaining = game.expedition_seconds_remaining()
-        state = "READY - press c" if remaining <= 0 else f"returns in {remaining // 60}:{remaining % 60:02d}"
+        state = "READY - [ c ] Claim" if remaining <= 0 else f"returns in {remaining // 60}:{remaining % 60:02d}"
         lines.append((
             f"{game.expedition_pet_name} ({game.expedition_pet_species}) | {info['title']} | {state}",
             curses.color_pair(1 if remaining <= 0 else 2) | curses.A_BOLD,
@@ -11199,12 +11894,12 @@ def draw_adventure_screen(stdscr, game):
             info = EXPEDITION_TYPES[kind]
             minutes = info["duration"] // 60
             lines.append((
-                f"{number}. {info['title']} {minutes}m | Keeper Lv.{info['level']} | spare Bond Lv.{info['bond']}",
+                f"[ {number} ] {info['title']} {minutes}m | Keeper Lv.{info['level']} | spare Bond Lv.{info['bond']}",
                 curses.color_pair(8 + min(number - 1, 2)) | curses.A_BOLD,
             ))
     lines.extend([
         ("", curses.color_pair(7)),
-        ("1 to 3 Start expedition   c Claim finished expedition   x Back", curses.A_BOLD),
+        ("[ 1-3 ] Start expedition   [ c ] Claim finished expedition   [ x ] Back", curses.A_BOLD),
         ("Journey rewards: every 5 levels Common, 10 Rare, 25 Mythic.", curses.A_DIM),
         ("Treasure rewards: every 3rd map Rare, every 10th map Mythic.", curses.A_DIM),
     ])
@@ -11248,8 +11943,8 @@ def draw_attention_screen(stdscr, game):
         "Every 10th check: +1 Mythic Vault",
         "+Bond XP and +18 Sanctuary Spark every check",
         "",
-        "Press r to continue",
-        "Press q to save and quit",
+        "[ r ] Continue",
+        "[ q ] Save and quit",
     ]
     box_h = min(max(3, h - 2), len(lines) + 2)
     box_w = min(max(12, w - 2), max(len(line) for line in lines) + 4)
@@ -11272,36 +11967,46 @@ def draw_attention_screen(stdscr, game):
 
 
 def draw_fight_screen(stdscr, game):
-
     h, w = stdscr.getmaxyx()
-    lines = ["-- FIGHT --", ""]
-    if game.fight_state == "player_turn": lines.append("Your turn: a Attack   s Special   d Defend")
-    elif game.fight_state == "finished": lines.append("Fight finished. Press x")
-    lines.append(f"Your HP: {game.fight_player_hp}/100")
-    lines.append(f"Enemy HP: {game.fight_enemy_hp}/100")
+    opponent = game.fight_opponent
+    opponent_text = (
+        f"{opponent.nickname} ({opponent.species}) Battle Lv.{opponent.battle_level}"
+        if opponent else "No opponent"
+    )
+    mode = "FRIENDLY SPAR" if getattr(game, "fight_is_friendly", False) else "WILD ARENA"
+    lines = [f"-- PET FIGHT: {mode} --", opponent_text, ""]
+    if game.fight_state == "player_turn":
+        special = "READY" if game.fight_special_charge else "RECHARGING"
+        lines.append(f"[ a ] Attack   [ s ] Special ({special})   [ d ] Defend")
+    elif game.fight_state == "finished":
+        lines.append("[ r ] New wild fight   [ o ] Spar with owned pet   [ x ] Back")
+    lines.append(f"Your HP:  {game.fight_player_hp:3d}/100")
+    lines.append(f"Enemy HP: {game.fight_enemy_hp:3d}/100")
     lines.append("")
-    for log in game.fight_log[-4:]: lines.append(log)
-    box_h, box_w = len(lines)+2, max(len(l) for l in lines)+4
-    start_y, start_x = max(0,(h-box_h)//2), max(0,(w-box_w)//2)
-    for i in range(box_h):
+    lines.extend(game.fight_log[-6:])
+    if game.fight_state != "finished":
+        lines.extend(["", "[ r ] Restart wild   [ o ] Owned rival   [ x ] Back"])
+    box_h = min(h - 2, len(lines) + 2)
+    box_w = min(w - 2, max(len(line) for line in lines) + 4)
+    start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+    for row in range(box_h):
         try:
-            stdscr.addstr(start_y + i, start_x, " " * box_w, curses.color_pair(4))
+            stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(4))
         except curses.error:
             pass
     try:
-        stdscr.addstr(start_y, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
-        for i in range(1,box_h-1):
-            stdscr.addstr(start_y+i, start_x, "|", curses.color_pair(4))
-            stdscr.addstr(start_y+i, start_x+box_w-1, "|", curses.color_pair(4))
-        stdscr.addstr(start_y+box_h-1, start_x, "+"+"-"*(box_w-2)+"+", curses.color_pair(4)|curses.A_BOLD)
+        stdscr.addstr(start_y, start_x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
+        for row in range(1, box_h - 1):
+            stdscr.addstr(start_y + row, start_x, "|", curses.color_pair(4))
+            stdscr.addstr(start_y + row, start_x + box_w - 1, "|", curses.color_pair(4))
+        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "-" * (box_w - 2) + "+", curses.color_pair(4) | curses.A_BOLD)
     except curses.error:
         pass
-    for i, line in enumerate(lines):
+    for row, line in enumerate(lines[:max(0, box_h - 2)]):
         try:
-            stdscr.addstr(start_y + 1 + i, start_x + 2, line, curses.A_BOLD)
+            stdscr.addstr(start_y + 1 + row, start_x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
         except curses.error:
             pass
-
 
 def draw_achievement_screen(stdscr, game):
     """Draw ten compact achievement rows per page."""
@@ -11321,7 +12026,7 @@ def draw_achievement_screen(stdscr, game):
         lines.append(
             f"{mark} {title} | {description} | {fmt_num(coins)}c/{xp}xp"
         )
-    lines.extend(["", "n Next page   p Previous page   x Back"])
+    lines.extend(["", "[ n ] Next page   [ p ] Previous page   [ x ] Back"])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
     y, x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
@@ -11347,7 +12052,7 @@ def draw_achievement_screen(stdscr, game):
 
 
 def draw_lan_screen(stdscr, game):
-    """Draw host, discovery, battle, and trade controls for same-network play."""
+    """Draw host, discovery, battle, and unique-species trade controls."""
     h, w = stdscr.getmaxyx()
     manager = game.lan_manager
     offer = game.get_lan_offer_pet()
@@ -11356,29 +12061,29 @@ def draw_lan_screen(stdscr, game):
     host_state = f"ON at {manager.local_ip}:{LAN_TCP_PORT}" if manager.hosting else "OFF"
     offer_text = f"{offer.nickname} ({offer.species})" if offer else "none"
     lines = [
-        "-- LOCAL NETWORK ARENA & EXCHANGE --",
-        f"{game.player_name} Lv.{game.caretaker_level} | Host {host_state} | "
-        f"Record {game.lan_wins}W/{game.lan_losses}L | Trades {game.lan_trades}",
-        f"Offer: {offer_text} | Same Wi-Fi/hotspot only",
+        "-- LOCAL NETWORK PET ARENA --",
+        f"{game.player_name} Lv.{game.caretaker_level} | Host {host_state} | Record {game.lan_wins}W/{game.lan_losses}L",
+        f"Trade offer: {offer_text} | Trades {game.lan_trades} | Same Wi-Fi/hotspot only",
         f"Status: {game.lan_status}",
         "Rooms:",
     ]
     if not game.lan_peers:
-        lines.append("  (none - press r to scan)")
+        lines.append("  (none - use [ r ] Scan or [ i ] Enter IP)")
     else:
         for index, peer in enumerate(game.lan_peers[:10], 1):
             pet_data = peer.get("active_pet") or {}
             trade_data = peer.get("trade_offer") or {}
             mark = ">" if index - 1 == game.lan_selected_peer else " "
+            key_label = "0" if index == 10 else str(index)
             lines.append(
-                f"{mark}{0 if index == 10 else index}. {str(peer.get('player_name', 'Player'))[:14]} "
-                f"Lv.{peer.get('caretaker_level', '?')} | "
-                f"{pet_data.get('species', '?')} | offer:{trade_data.get('species', 'none')}"
+                f"{mark}[ {key_label} ] {str(peer.get('player_name', 'Player'))[:14]} "
+                f"Lv.{peer.get('caretaker_level', '?')} | {pet_data.get('species', '?')} | "
+                f"offer:{trade_data.get('species', 'none')}"
             )
     lines.extend([
         "",
-        "h Host on or off   r Scan   i Enter host IP   1 to 9 or 0 Select",
-        "b Battle   t Trade offers   o Next offer   u Rename   x Back",
+        "[ h ] Host on/off   [ r ] Scan   [ i ] Enter IP   [ 1-9/0 ] Select",
+        "[ b ] Battle   [ t ] Trade   [ o ] Next offer   [ u ] Rename   [ x ] Back",
     ])
     box_h = min(h - 2, len(lines) + 2)
     box_w = min(w - 2, max(len(line) for line in lines) + 4)
@@ -11398,7 +12103,6 @@ def draw_lan_screen(stdscr, game):
         try: stdscr.addstr(y + 1 + row, x + 2, line[:max(0, box_w - 4)], curses.A_BOLD)
         except curses.error: pass
 
-
 def draw_input_prompt(stdscr, game):
     h, w = stdscr.getmaxyx()
     line = f"{game.input_prompt}: {game.input_buffer}_"
@@ -11409,10 +12113,11 @@ def draw_input_prompt(stdscr, game):
         pass
 
 MAIN_CONTROL_TOKENS = (
-    "f Feed", "p Pet", "b Bath", "t Train", "s Shop", "l Loot",
-    "c Pets", "a Adopt", "d Fight", "w LAN", "h Achievements",
-    "r Adventure", "e Prestige", "g Prestige Shop", "v Boost", "n Rename", "o Color", "m SFX",
-    "k Music", "u Mute All", "1 Previous Fact", "2 Next Fact", "q Quit",
+    "[ f ] Feed", "[ p ] Pet", "[ b ] Bath", "[ t ] Train", "[ s ] Shop",
+    "[ l ] Loot", "[ c ] Pets", "[ y ] Buy", "[ d ] Fight", "[ w ] LAN",
+    "[ h ] Achievements", "[ r ] Adventure", "[ e ] Prestige", "[ g ] Prestige Shop",
+    "[ v ] Boost", "[ n ] Rename", "[ o ] Color", "[ m ] SFX", "[ k ] Music",
+    "[ u ] Mute All", "[ 1 ] Previous Fact", "[ 2 ] Next Fact", "[ q ] Quit",
 )
 
 
@@ -11955,7 +12660,16 @@ def main(stdscr):
                     game.fight_screen_open = False
                     game.fight_state = "idle"
                     game.sound_manager.play("close")
-                elif game.fight_state in ("player_turn","preparing"):
+                elif key == ord('r'):
+                    game.start_fight()
+                elif key == ord('o'):
+                    rival_index = game.next_owned_rival_index()
+                    if rival_index is None:
+                        game.add_message("You need a second pet for friendly sparring.", 3.0)
+                        game.sound_manager.play("error")
+                    else:
+                        game.start_fight(rival_index)
+                elif game.fight_state == "player_turn":
                     if key == ord('a'): game.fight_tick("attack")
                     elif key == ord('s'): game.fight_tick("special")
                     elif key == ord('d'): game.fight_tick("defend")
@@ -12047,7 +12761,7 @@ def main(stdscr):
                     start = game.adopt_page * max(1, min(game.adopt_page_size, 10))
                     chosen = start + idx
                     if 0 <= chosen < len(names) and idx < min(game.adopt_page_size, 10) and chosen < start + max(1, min(game.adopt_page_size, 10)):
-                        if game.adopt_pet(names[chosen]):
+                        if game.buy_pet(names[chosen]):
                             game.adopt_screen_open = False
                     else:
                         game.sound_manager.play("error")
@@ -12093,7 +12807,7 @@ def main(stdscr):
             elif key == ord('w'): game.open_lan_screen()
             elif key == ord('h'): game.open_achievement_screen()
             elif key == ord('r'): game.open_adventure_screen()
-            elif key == ord('a'): game.open_adopt_screen()
+            elif key in (ord('y'), ord('a')): game.open_adopt_screen()
             elif key == ord('v'): game.request_boost()
             elif key == ord('m'):
                 was_enabled = game.sound_manager.on
@@ -12123,7 +12837,7 @@ def main(stdscr):
                 if not muted:
                     game.sound_manager.play("confirm", force=True)
                 game.add_message(
-                    "All audio MUTED for this session. It resets next launch; press u to restore now."
+                    "All audio MUTED for this session. It resets next launch; use [ u ] to restore now."
                     if muted else
                     "Audio restored using your previous SFX/music settings.",
                     2.5,
