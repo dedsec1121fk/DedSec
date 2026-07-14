@@ -10,13 +10,13 @@ local-network battles/trades, achievements, quests, upgrades, and care checks.
 Accessible controls revision: menu actions use lowercase letters or numbers; x closes menus, n/p change pages, r resumes care checks, and 1/2 browse facts.
 """
 
-import curses, time, json, os, random, math, socket, sys, threading, queue, uuid, textwrap, subprocess, shutil, wave, struct, atexit, signal
+import curses, time, json, os, random, math, socket, sys, threading, queue, uuid, textwrap, subprocess, shutil, wave, struct, atexit, signal, re
 from datetime import datetime, timedelta
 
 # ----------------------------- CONFIG -----------------------------
 SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
 SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
-SAVE_VERSION = 15
+SAVE_VERSION = 16
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 def _safe_int(value, default=0, minimum=None, maximum=None):
@@ -6135,6 +6135,53 @@ def _educational_topic(text, fictional=False):
     return "BIOLOGY"
 
 
+def _detail_fact_card(card, fictional=False):
+    """Turn a short fact into a fuller field-guide card without inventing data."""
+    text = str(card).strip()
+    match = re.match(r"^\[([^\]]+)\]\s*(.*)$", text)
+    topic = match.group(1).upper() if match else ("MYTHOLOGY" if fictional else "SCIENCE")
+    fact = match.group(2).strip() if match else text
+    contexts = {
+        "ANATOMY": (
+            "Field note: anatomy is best understood as an adaptation shaped by movement, feeding, protection, and the surrounding habitat.",
+            "Field note: body structures usually work together, so this feature should be considered with the animal's senses, diet, and locomotion.",
+        ),
+        "BEHAVIOR": (
+            "Field note: behaviour can change with age, season, social setting, available food, and perceived danger.",
+            "Field note: observations describe common patterns rather than a rule followed identically by every individual.",
+        ),
+        "ECOLOGY": (
+            "Field note: ecological traits connect the animal to food webs, nutrient cycles, habitat structure, and the survival of other species.",
+            "Field note: changes to habitat quality can alter this relationship even when the species itself remains present.",
+        ),
+        "CONSERVATION": (
+            "Field note: conservation status depends on population trend, geographic range, habitat pressure, exploitation, disease, and climate risk.",
+            "Field note: effective protection normally combines habitat management, law enforcement, research, and cooperation with local communities.",
+        ),
+        "PHYSIOLOGY": (
+            "Field note: physiology explains how the body regulates energy, temperature, oxygen, water, and recovery under real environmental demands.",
+            "Field note: these processes vary with body size, health, activity, temperature, and access to food or water.",
+        ),
+        "EVOLUTION": (
+            "Field note: evolutionary explanations concern inherited traits across populations and many generations, not purposeful changes by one animal.",
+            "Field note: related species may share this trait through common ancestry or evolve similar solutions independently.",
+        ),
+        "MYTHOLOGY": (
+            "Cultural note: this describes a traditional story or symbolic interpretation, not a verified zoological claim.",
+            "Cultural note: versions can differ between regions, languages, historical periods, and individual storytellers.",
+        ),
+        "SCIENCE": (
+            "Research note: reliable interpretation compares multiple observations and distinguishes measured evidence from anecdotes.",
+            "Research note: exact values can vary by species, population, age, environment, and study method.",
+        ),
+    }
+    options = contexts.get(topic, contexts["SCIENCE"])
+    index = sum(ord(ch) for ch in fact) % len(options)
+    if len(fact) >= 210:
+        return f"[{topic}] {fact}"
+    return f"[{topic}] {fact} {options[index]}"
+
+
 def _prepare_educational_facts():
     """Build the displayed learning-card list for every real and fictional pet."""
     all_species_names = {name.casefold() for name in SPECIES}
@@ -6186,25 +6233,26 @@ def _prepare_educational_facts():
 
         # A creature with many good source entries keeps all of them.  A future
         # minimal entry still receives a substantial, honest educational set.
-        data["educational_facts"] = cards or [
+        base_cards = cards or [
             f"[SCIENCE] Reliable information about {name} should distinguish verified evidence from guesses and anecdotes."
         ]
+        data["educational_facts"] = [_detail_fact_card(card, fictional) for card in base_cards]
 
 
 _prepare_educational_facts()
 
 
 # ----------------------------- ADOPTION PROGRESSION -----------------------------
-# Adoption is intentionally priced by rarity.  Duplicate adoptions become more
+# Adoption is intentionally priced by rarity.  Rarity and species rank make purchases more
 # expensive, while mission/achievement locks make high-value species long-term
 # goals instead of a flat list that can be exhausted immediately.
 ADOPTION_TIER_INFO = {
-    "common": {"cost": 300, "level": 1},
-    "uncommon": {"cost": 1200, "level": 3},
-    "rare": {"cost": 5500, "level": 7},
-    "epic": {"cost": 22000, "level": 12},
-    "legendary": {"cost": 90000, "level": 20},
-    "mythical": {"cost": 300000, "level": 30},
+    "common": {"cost": 750, "level": 1},
+    "uncommon": {"cost": 7500, "level": 4},
+    "rare": {"cost": 75000, "level": 8},
+    "epic": {"cost": 750000, "level": 14},
+    "legendary": {"cost": 7500000, "level": 22},
+    "mythical": {"cost": 75000000, "level": 32},
 }
 
 UNCOMMON_SPECIES = {
@@ -6594,55 +6642,47 @@ LOOT_PITY_MIN_RARITY = {
 }
 MYTHIC_SUMMON_COST = 10
 
-# ----------------------------- UPGRADES (300+) -----------------------------
+# ----------------------------- UPGRADES (UNIQUE, MEANINGFUL ITEMS) -----------------------------
+# Every shop entry is unique.  Each item can be developed to level 333 and has
+# a real, bounded gameplay effect.  Version-15 generic ``mastery_###`` levels
+# are migrated into hidden legacy power so established saves lose no benefit.
+SHOP_MAX_LEVEL = 333
 GLOBAL_UPGRADES = {
-    "auto_feeder": {"base_cost": 35, "mult": 1.32, "desc": "Adds passive hunger recovery.", "max_level": 25},
-    "toy_box": {"base_cost": 45, "mult": 1.34, "desc": "Adds passive happiness recovery.", "max_level": 25},
-    "energy_booster": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive energy recovery.", "max_level": 25},
-    "auto_bath": {"base_cost": 55, "mult": 1.35, "desc": "Adds passive cleanliness recovery.", "max_level": 25},
-    "coin_magnet": {"base_cost": 75, "mult": 1.38, "desc": "Adds passive coin income.", "max_level": 50},
-    "lucky_charm": {"base_cost": 120, "mult": 1.42, "desc": "Raises the random-event chance.", "max_level": 5},
-    "power_food": {"base_cost": 140, "mult": 1.40, "desc": "Raises battle power by 5% per level.", "max_level": 30},
-    "better_food": {"base_cost": 90, "mult": 1.36, "desc": "Slows hunger decay.", "max_level": 5},
-    "soothing_music": {"base_cost": 90, "mult": 1.36, "desc": "Slows happiness decay.", "max_level": 8},
-    "cozy_bed": {"base_cost": 100, "mult": 1.37, "desc": "Slows energy decay.", "max_level": 8},
-    "grooming_station": {"base_cost": 100, "mult": 1.37, "desc": "Slows cleanliness decay.", "max_level": 8},
-    "evolution_catalyst": {"base_cost": 180, "mult": 1.45, "desc": "Speeds evolution progress.", "max_level": 25},
-    "auto_petter": {"base_cost": 160, "mult": 1.42, "desc": "Extra automatic happiness care.", "max_level": 20},
-    "training_auto": {"base_cost": 170, "mult": 1.42, "desc": "Extra automatic energy care.", "max_level": 20},
-    "veterinary_kit": {"base_cost": 240, "mult": 1.48, "desc": "Raises the automatic-care pulse.", "max_level": 20},
+    "auto_feeder": {"base_cost": 60, "mult": 1.040, "desc": "Steadily restores hunger for every companion.", "max_level": SHOP_MAX_LEVEL},
+    "toy_box": {"base_cost": 75, "mult": 1.040, "desc": "Steadily restores happiness through enrichment.", "max_level": SHOP_MAX_LEVEL},
+    "energy_booster": {"base_cost": 85, "mult": 1.041, "desc": "Steadily restores energy and improves training recovery.", "max_level": SHOP_MAX_LEVEL},
+    "auto_bath": {"base_cost": 85, "mult": 1.041, "desc": "Steadily restores cleanliness for every companion.", "max_level": SHOP_MAX_LEVEL},
+    "coin_magnet": {"base_cost": 120, "mult": 1.043, "desc": "Raises all earned coins and passive coin income.", "max_level": SHOP_MAX_LEVEL},
+    "lucky_charm": {"base_cost": 180, "mult": 1.044, "desc": "Raises event frequency without exceeding a safe cap.", "max_level": SHOP_MAX_LEVEL},
+    "power_food": {"base_cost": 210, "mult": 1.044, "desc": "Raises battle power and attack consistency.", "max_level": SHOP_MAX_LEVEL},
+    "better_food": {"base_cost": 145, "mult": 1.042, "desc": "Slows hunger loss, especially at advanced stages.", "max_level": SHOP_MAX_LEVEL},
+    "soothing_music": {"base_cost": 150, "mult": 1.042, "desc": "Slows happiness loss as companions evolve.", "max_level": SHOP_MAX_LEVEL},
+    "cozy_bed": {"base_cost": 155, "mult": 1.042, "desc": "Slows energy loss and improves rest efficiency.", "max_level": SHOP_MAX_LEVEL},
+    "grooming_station": {"base_cost": 155, "mult": 1.042, "desc": "Slows cleanliness loss and strengthens bathing.", "max_level": SHOP_MAX_LEVEL},
+    "evolution_catalyst": {"base_cost": 260, "mult": 1.046, "desc": "Accelerates evolution progress with diminishing returns.", "max_level": SHOP_MAX_LEVEL},
+    "auto_petter": {"base_cost": 220, "mult": 1.044, "desc": "Adds passive happiness and strengthens petting.", "max_level": SHOP_MAX_LEVEL},
+    "training_auto": {"base_cost": 230, "mult": 1.044, "desc": "Adds passive energy and improves battle XP gains.", "max_level": SHOP_MAX_LEVEL},
+    "veterinary_kit": {"base_cost": 300, "mult": 1.047, "desc": "Strengthens automatic care pulses below the safety threshold.", "max_level": SHOP_MAX_LEVEL},
+    "nutrition_science": {"base_cost": 280, "mult": 1.046, "desc": "Makes feeding stronger and improves hunger resilience.", "max_level": SHOP_MAX_LEVEL},
+    "enrichment_program": {"base_cost": 290, "mult": 1.046, "desc": "Makes happiness care stronger and increases bond gains.", "max_level": SHOP_MAX_LEVEL},
+    "endurance_training": {"base_cost": 310, "mult": 1.047, "desc": "Makes training stronger and improves combat endurance.", "max_level": SHOP_MAX_LEVEL},
+    "hygiene_protocol": {"base_cost": 300, "mult": 1.046, "desc": "Makes bathing stronger and improves cleanliness resilience.", "max_level": SHOP_MAX_LEVEL},
+    "sanctuary_mastery": {"base_cost": 500, "mult": 1.050, "desc": "Improves coins, evolution, care strength, and automatic systems.", "max_level": SHOP_MAX_LEVEL},
 }
-_GENERIC_UPGRADE_DESCRIPTIONS = [
-    "Slightly improves all coin income and evolution speed.",
-    "Adds a small permanent caretaker-efficiency bonus.",
-    "Builds collection mastery across every owned pet.",
-    "Adds a tiny universal idle-progress bonus.",
-]
-for i in range(1, 321 - len(GLOBAL_UPGRADES)):
-    GLOBAL_UPGRADES[f"mastery_{i:03d}"] = {
-        "base_cost": 250 + i * 18,
-        "mult": 1.18 + (i % 5) * 0.01,
-        "desc": _GENERIC_UPGRADE_DESCRIPTIONS[(i - 1) % len(_GENERIC_UPGRADE_DESCRIPTIONS)],
-        "max_level": 20,
-    }
 
 PRESTIGE_UPGRADES = {
-    "cosmic_feeder": {"cost": 1, "desc": "Strong permanent hunger recovery."},
-    "eternal_joy": {"cost": 1, "desc": "Permanently slows happiness decay."},
-    "deeper_sleep": {"cost": 1, "desc": "Permanently slows energy decay."},
-    "clean_freak": {"cost": 1, "desc": "Permanently slows cleanliness decay."},
-    "time_extender": {"cost": 2, "desc": "Playtime gradually adds coin income."},
-    "soul_mult": {"cost": 2, "desc": "Adds a large permanent coin multiplier."},
-    "time_warper": {"cost": 2, "desc": "Adds permanent evolution speed."},
-    "battle_boost": {"cost": 2, "desc": "Adds permanent battle XP gains."},
-    "event_spawner": {"cost": 3, "desc": "Creates an extra random event each minute."},
-    "caretaker_aura": {"cost": 3, "desc": "Strengthens every automatic-care pulse."},
+    "cosmic_feeder": {"cost": 1, "desc": "Permanent hunger recovery and feeding efficiency.", "max_level": SHOP_MAX_LEVEL},
+    "eternal_joy": {"cost": 1, "desc": "Permanently slows happiness loss.", "max_level": SHOP_MAX_LEVEL},
+    "deeper_sleep": {"cost": 1, "desc": "Permanently slows energy loss.", "max_level": SHOP_MAX_LEVEL},
+    "clean_freak": {"cost": 1, "desc": "Permanently slows cleanliness loss.", "max_level": SHOP_MAX_LEVEL},
+    "time_extender": {"cost": 2, "desc": "Playtime gradually raises all coin income.", "max_level": SHOP_MAX_LEVEL},
+    "soul_mult": {"cost": 2, "desc": "Adds a permanent coin multiplier.", "max_level": SHOP_MAX_LEVEL},
+    "time_warper": {"cost": 2, "desc": "Adds permanent evolution speed.", "max_level": SHOP_MAX_LEVEL},
+    "battle_boost": {"cost": 2, "desc": "Adds permanent battle XP and power.", "max_level": SHOP_MAX_LEVEL},
+    "event_spawner": {"cost": 3, "desc": "Shortens the interval between bonus events.", "max_level": SHOP_MAX_LEVEL},
+    "caretaker_aura": {"cost": 3, "desc": "Strengthens every automatic-care pulse.", "max_level": SHOP_MAX_LEVEL},
+    "legacy_core": {"cost": 4, "desc": "A single universal legacy item replacing repeated entries.", "max_level": SHOP_MAX_LEVEL},
 }
-for i in range(1, 31 - len(PRESTIGE_UPGRADES)):
-    PRESTIGE_UPGRADES[f"legacy_{i:02d}"] = {
-        "cost": 2 + i // 4,
-        "desc": "Adds a small universal legacy multiplier.",
-    }
 
 # ----------------------------- QUESTS -----------------------------
 QUESTS = [
@@ -7488,6 +7528,8 @@ class Game:
 
         self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
         self.prestige_upgrades = {k:0 for k in PRESTIGE_UPGRADES}
+        self.legacy_upgrade_power = 0
+        self.legacy_prestige_power = 0
 
         self.messages = []
         self.achievements = set()
@@ -7649,6 +7691,8 @@ class Game:
             "lan_trades": self.lan_trades,
             "global_upgrades": self.global_upgrades,
             "prestige_upgrades": self.prestige_upgrades,
+            "legacy_upgrade_power": self.legacy_upgrade_power,
+            "legacy_prestige_power": self.legacy_prestige_power,
             "achievements": list(self.achievements),
             "last_daily_claim": self.last_daily_claim.isoformat() if self.last_daily_claim else None,
             "quests": [q["type"] for q in self.active_quests],
@@ -7765,16 +7809,32 @@ class Game:
             saved_global = {}
         for name, info in GLOBAL_UPGRADES.items():
             self.global_upgrades[name] = _safe_int(
-                saved_global.get(name, 0), 0, 0, _safe_int(info.get("max_level", 0), 0, 0)
+                saved_global.get(name, 0), 0, 0, _safe_int(info.get("max_level", SHOP_MAX_LEVEL), SHOP_MAX_LEVEL, 0)
             )
+        old_mastery_total = sum(
+            _safe_int(value, 0, 0, 10**6)
+            for name, value in saved_global.items()
+            if isinstance(name, str) and name.startswith("mastery_")
+        )
+        self.legacy_upgrade_power = _safe_int(
+            data.get("legacy_upgrade_power", old_mastery_total), old_mastery_total, 0, 10**9
+        )
 
         saved_prestige = data.get("prestige_upgrades", {})
         if not isinstance(saved_prestige, dict):
             saved_prestige = {}
-        for name in PRESTIGE_UPGRADES:
+        for name, info in PRESTIGE_UPGRADES.items():
             self.prestige_upgrades[name] = _safe_int(
-                saved_prestige.get(name, 0), 0, 0, 10**6
+                saved_prestige.get(name, 0), 0, 0, _safe_int(info.get("max_level", SHOP_MAX_LEVEL), SHOP_MAX_LEVEL, 0)
             )
+        old_legacy_total = sum(
+            _safe_int(value, 0, 0, 10**6)
+            for name, value in saved_prestige.items()
+            if isinstance(name, str) and name.startswith("legacy_") and name != "legacy_core"
+        )
+        self.legacy_prestige_power = _safe_int(
+            data.get("legacy_prestige_power", old_legacy_total), old_legacy_total, 0, 10**9
+        )
 
         saved_achievements = data.get("achievements", [])
         if isinstance(saved_achievements, (list, tuple, set)):
@@ -8230,12 +8290,16 @@ class Game:
         return levels
 
     def adoption_cost(self, species):
-        """Calculate the one-time purchase price for a species."""
+        """Calculate a rarity-led one-time purchase price for a species."""
         tier = species_adoption_tier(species)
         base = ADOPTION_TIER_INFO[tier]["cost"]
-        prestige_multiplier = 1.0 + self.prestige_points * 0.15
-        return max(1, int(base * prestige_multiplier))
-
+        members = sorted(name for name in SPECIES if species_adoption_tier(name) == tier)
+        try:
+            rank = members.index(species)
+        except ValueError:
+            rank = 0
+        rank_multiplier = 1.0 if len(members) <= 1 else 1.0 + 0.65 * rank / (len(members) - 1)
+        return max(1, int(round(base * rank_multiplier)))
     def adoption_status(self, species):
         """Return (allowed, short reason, cost, tier) for one buy entry."""
         if species not in SPECIES:
@@ -8562,28 +8626,63 @@ class Game:
                     self.check_achievements()
                     self.save_game()
 
+    def _curve(self, name, pace=55.0, prestige=False):
+        """Return a bounded 0..1 effectiveness curve for a level-333 item."""
+        levels = self.prestige_upgrades if prestige else self.global_upgrades
+        level = max(0.0, float(levels.get(name, 0)))
+        return 1.0 - math.exp(-level / max(1.0, float(pace)))
+
     def global_mastery_level(self):
-        return sum(level for name, level in self.global_upgrades.items() if name.startswith("mastery_"))
+        return self.global_upgrades.get("sanctuary_mastery", 0)
 
     def legacy_mastery_level(self):
-        return sum(level for name, level in self.prestige_upgrades.items() if name.startswith("legacy_"))
+        return self.prestige_upgrades.get("legacy_core", 0)
 
     def hunger_decay_mult(self):
-        return max(0.20, 1.0 - self.global_upgrades.get("better_food",0)*0.10 - self.prestige_points*PRESTIGE_DECAY_REDUCTION - self.global_mastery_level()*0.0005)
+        reduction = 0.63 * self._curve("better_food", 70.0)
+        reduction += 0.12 * self._curve("nutrition_science", 85.0)
+        reduction += 0.10 * self._curve("cosmic_feeder", 60.0, True)
+        reduction += min(0.10, self.prestige_points * 0.006)
+        reduction += min(0.08, self.legacy_upgrade_power * 0.0005)
+        return max(0.22, 1.0 - reduction)
 
     def happiness_decay_mult(self):
-        return max(0.20, 1.0 - self.global_upgrades.get("soothing_music",0)*0.08 - self.prestige_upgrades.get("eternal_joy",0)*0.08 - self.global_mastery_level()*0.0004)
+        reduction = 0.64 * self._curve("soothing_music", 70.0)
+        reduction += 0.12 * self._curve("enrichment_program", 85.0)
+        reduction += 0.12 * self._curve("eternal_joy", 60.0, True)
+        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
+        return max(0.20, 1.0 - reduction)
 
     def energy_decay_mult(self):
-        return max(0.20, 1.0 - self.global_upgrades.get("cozy_bed",0)*0.08 - self.prestige_upgrades.get("deeper_sleep",0)*0.10 - self.global_mastery_level()*0.0004)
+        reduction = 0.62 * self._curve("cozy_bed", 70.0)
+        reduction += 0.13 * self._curve("endurance_training", 85.0)
+        reduction += 0.12 * self._curve("deeper_sleep", 60.0, True)
+        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
+        return max(0.22, 1.0 - reduction)
 
     def cleanliness_decay_mult(self):
-        return max(0.20, 1.0 - self.global_upgrades.get("grooming_station",0)*0.08 - self.prestige_upgrades.get("clean_freak",0)*0.10 - self.global_mastery_level()*0.0004)
+        reduction = 0.63 * self._curve("grooming_station", 70.0)
+        reduction += 0.12 * self._curve("hygiene_protocol", 85.0)
+        reduction += 0.12 * self._curve("clean_freak", 60.0, True)
+        reduction += min(0.08, self.legacy_upgrade_power * 0.0004)
+        return max(0.21, 1.0 - reduction)
+
+    def evolution_care_pressure(self, pet, stat):
+        """Advanced forms demand more care; happiness scales most strongly."""
+        stage = max(0, min(len(STAGE_NAMES) - 1, int(getattr(pet, "stage", 0))))
+        linear, quadratic = {
+            "hunger": (0.050, 0.0010),
+            "happiness": (0.070, 0.0015),
+            "energy": (0.055, 0.0012),
+            "cleanliness": (0.045, 0.0010),
+        }.get(stat, (0.050, 0.0010))
+        return 1.0 + linear * stage + quadratic * stage * stage
 
     def playtime_coin_bonus(self):
         lvl = self.prestige_upgrades.get("time_extender",0)
         if lvl == 0: return 0.0
-        return min(0.5, (self.playtime/3600.0) * 0.005 * lvl)
+        return min(2.0, (self.playtime/3600.0) * 0.0025 * lvl)
+
 
     def collection_bonus_mult(self):
         """Reward species variety, with extra value for mythical discoveries."""
@@ -8625,7 +8724,14 @@ class Game:
         return 0.25 + 0.75 * min(1.0, weighted_progress)
 
     def coin_mult(self):
-        mult = 1.0 + self.prestige_points*PRESTIGE_COIN_BONUS + self.prestige_upgrades.get("soul_mult",0)*0.5 + self.playtime_coin_bonus() + self.global_mastery_level()*0.002 + self.legacy_mastery_level()*0.02
+        mastery = self._curve("sanctuary_mastery", 90.0)
+        magnet = self._curve("coin_magnet", 75.0)
+        legacy = self.legacy_upgrade_power * 0.002 + self.legacy_prestige_power * 0.02
+        mult = 1.0 + self.prestige_points * PRESTIGE_COIN_BONUS
+        mult += self.prestige_upgrades.get("soul_mult", 0) * 0.12
+        mult += self.playtime_coin_bonus() + legacy
+        legacy_core = self._curve("legacy_core", 85.0, True)
+        mult *= 1.0 + magnet * 2.75 + mastery * 1.25 + legacy_core * 1.50
         mult *= self.early_economy_mult()
         mult *= self.collection_bonus_mult() * self.bond_bonus_mult()
         if self.boost_active and datetime.now() < self.boost_expire_time: mult *= 2
@@ -8633,22 +8739,69 @@ class Game:
         return mult
 
     def progress_mult(self):
-        mul = 1.0 + self.global_upgrades.get("evolution_catalyst",0)*0.15 + self.prestige_upgrades.get("time_warper",0)*0.25 + self.global_mastery_level()*0.001 + self.legacy_mastery_level()*0.01
-        # Collection and bond affect evolution more gently than coin income.
+        catalyst = self._curve("evolution_catalyst", 80.0)
+        mastery = self._curve("sanctuary_mastery", 95.0)
+        legacy = self.legacy_upgrade_power * 0.001 + self.legacy_prestige_power * 0.01
+        legacy_core = self._curve("legacy_core", 85.0, True)
+        mul = 1.0 + catalyst * 4.0 + mastery * 1.0 + legacy_core * 0.80 + legacy
+        mul += self.prestige_upgrades.get("time_warper", 0) * 0.08
         mul *= 1.0 + (self.collection_bonus_mult() - 1.0) * 0.60
         mul *= 1.0 + (self.bond_bonus_mult() - 1.0) * 0.75
         if self.boost_active and datetime.now() < self.boost_expire_time: mul *= 2
         if self.festival_active(): mul *= FESTIVAL_PROGRESS_MULTIPLIER
         return mul
 
-    def passive_hunger_gain(self): return self.global_upgrades.get("auto_feeder",0) + self.prestige_upgrades.get("cosmic_feeder",0)*2
-    def passive_happiness_gain(self): return self.global_upgrades.get("toy_box",0)*0.5 + self.global_upgrades.get("auto_petter",0)*0.3
-    def passive_energy_gain(self): return self.global_upgrades.get("energy_booster",0)*0.3 + self.global_upgrades.get("training_auto",0)*0.2
-    def passive_cleanliness_gain(self): return self.global_upgrades.get("auto_bath",0)*0.3
-    def passive_coin_gain(self): return self.global_upgrades.get("coin_magnet",0)*0.2
-    def event_chance(self): return min(0.9, EVENT_CHANCE + self.global_upgrades.get("lucky_charm",0)*0.1)
-    def battle_power_mult(self): return 1.0 + self.global_upgrades.get("power_food",0)*0.05
-    def xp_mult(self): return 1.0 + self.prestige_upgrades.get("battle_boost",0)*0.3
+    def passive_hunger_gain(self):
+        return 0.22 * self._curve("auto_feeder", 52.0) + 0.10 * self._curve("cosmic_feeder", 50.0, True)
+
+    def passive_happiness_gain(self):
+        return 0.15 * self._curve("toy_box", 52.0) + 0.10 * self._curve("auto_petter", 58.0)
+
+    def passive_energy_gain(self):
+        return 0.14 * self._curve("energy_booster", 52.0) + 0.09 * self._curve("training_auto", 58.0)
+
+    def passive_cleanliness_gain(self):
+        return 0.20 * self._curve("auto_bath", 52.0)
+
+    def passive_coin_gain(self):
+        return 2.0 + 28.0 * self._curve("coin_magnet", 70.0)
+
+    def event_chance(self):
+        return min(0.92, EVENT_CHANCE + 0.38 * self._curve("lucky_charm", 65.0))
+
+    def battle_power_mult(self):
+        return 1.0 + 2.50 * self._curve("power_food", 75.0) + 1.20 * self._curve("endurance_training", 90.0) + 0.80 * self._curve("legacy_core", 90.0, True) + self.prestige_upgrades.get("battle_boost", 0) * 0.04
+
+    def xp_mult(self):
+        return 1.0 + 2.0 * self._curve("training_auto", 75.0) + 1.5 * self._curve("battle_boost", 65.0, True)
+
+    def manual_care_amount(self, action):
+        mastery = self._curve("sanctuary_mastery", 100.0)
+        if action == "feed":
+            return 24.0 + 24.0 * self._curve("nutrition_science", 70.0) + 5.0 * mastery
+        if action == "pet":
+            return 20.0 + 25.0 * self._curve("enrichment_program", 70.0) + 8.0 * self._curve("auto_petter", 85.0) + 5.0 * mastery
+        if action == "bathe":
+            return 24.0 + 25.0 * self._curve("hygiene_protocol", 70.0) + 7.0 * self._curve("grooming_station", 85.0) + 5.0 * mastery
+        if action == "train":
+            return 18.0 + 24.0 * self._curve("endurance_training", 70.0) + 8.0 * self._curve("energy_booster", 85.0) + 5.0 * mastery
+        return 20.0
+
+    def auto_care_pulse_bonus(self):
+        """Combined bounded strength added to every automatic-care pulse."""
+        return (
+            5.0 * self._curve("veterinary_kit", 70.0)
+            + 2.5 * self._curve("sanctuary_mastery", 95.0)
+            + 5.0 * self._curve("caretaker_aura", 60.0, True)
+            + 1.5 * self._curve("legacy_core", 90.0, True)
+        )
+
+    def event_spawn_interval(self):
+        """Seconds between prestige bonus events; zero levels disable the system."""
+        if self.prestige_upgrades.get("event_spawner", 0) <= 0:
+            return math.inf
+        return max(8.0, 60.0 / (1.0 + 2.5 * self._curve("event_spawner", 70.0, True)))
+
 
     # ---------- ten-minute active-auto check ----------
     def register_user_interaction(self):
@@ -9059,12 +9212,13 @@ class Game:
 
     def _tick_pet_stats(self, pet, dt, active=True):
         decay_scale = 1.0 if active else 0.35
-        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * decay_scale
-        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * decay_scale
-        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * decay_scale
-        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * decay_scale
+        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * self.evolution_care_pressure(pet, "hunger") * decay_scale
+        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * self.evolution_care_pressure(pet, "happiness") * decay_scale
+        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * self.evolution_care_pressure(pet, "energy") * decay_scale
+        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * self.evolution_care_pressure(pet, "cleanliness") * decay_scale
 
-        # Purchased passive care applies to every pet, with full strength on the active pet.
+        # Automatic care remains useful but cannot completely erase the challenge
+        # of a highly evolved companion.
         passive_scale = 1.0 if active else 0.5
         pet.hunger += self.passive_hunger_gain() * dt * passive_scale
         pet.happiness += self.passive_happiness_gain() * dt * passive_scale
@@ -9073,17 +9227,14 @@ class Game:
 
         for attr in ("hunger", "happiness", "energy", "cleanliness"):
             setattr(pet, attr, max(MIN_STAT_VALUE, min(100.0, getattr(pet, attr))))
-
     def _run_auto_care_pulse(self):
-        base_bonus = self.global_upgrades.get("veterinary_kit", 0) * 0.20
-        prestige_bonus = self.prestige_upgrades.get("caretaker_aura", 0) * 0.75
+        pulse_bonus = self.auto_care_pulse_bonus()
         for pet in self.pets:
             for attr in ("hunger", "happiness", "energy", "cleanliness"):
                 value = getattr(pet, attr)
                 if value < AUTO_CARE_THRESHOLD:
-                    pulse = random.uniform(AUTO_CARE_MIN_PULSE, AUTO_CARE_MAX_PULSE) + base_bonus + prestige_bonus
+                    pulse = random.uniform(AUTO_CARE_MIN_PULSE, AUTO_CARE_MAX_PULSE) + pulse_bonus
                     setattr(pet, attr, min(AUTO_CARE_TARGET, value + pulse))
-
     def tick(self, dt):
         # A pending care check freezes stats, coins, evolution, and events while
         # keeping the terminal responsive and the overlay visible.
@@ -9144,7 +9295,8 @@ class Game:
 
         # Coins and evolution are based on the currently displayed companion.
         stage_mul = COIN_STAGE_MULT[pet.stage] if pet.stage < len(COIN_STAGE_MULT) else COIN_STAGE_MULT[-1]
-        mood = (pet.happiness / 100.0) * (pet.energy / 100.0) * (pet.cleanliness / 100.0)
+        care_product = (pet.hunger / 100.0) * (pet.happiness / 100.0) * (pet.energy / 100.0) * (pet.cleanliness / 100.0)
+        mood = max(0.02, care_product ** 0.75)
         coin_gain = COIN_BASE * stage_mul * mood * self.coin_mult() * dt
         coin_gain += self.passive_coin_gain() * self.coin_mult() * dt
         self.coins += coin_gain
@@ -9155,7 +9307,7 @@ class Game:
             self.coin_quest_buffer -= whole_coins
             self.update_quest("coins", whole_coins)
 
-        mood_factor = 0.45 + 0.55 * (pet.hunger / 100.0) * (pet.happiness / 100.0)
+        mood_factor = 0.25 + 0.75 * math.sqrt(max(0.0, care_product))
         pet.age_in_stage += dt * mood_factor * self.progress_mult()
         if pet.stage < len(STAGE_NAMES) - 1 and STAGE_TIMES[pet.stage] > 0 and pet.age_in_stage >= STAGE_TIMES[pet.stage]:
             self.evolve_pet(pet)
@@ -9165,10 +9317,11 @@ class Game:
             self.event_timer = random.uniform(EVENT_MIN, EVENT_MAX)
             if random.random() < self.event_chance():
                 self.random_event()
-        if self.prestige_upgrades.get("event_spawner", 0) > 0:
+        event_interval = self.event_spawn_interval()
+        if math.isfinite(event_interval):
             self.extra_event_timer += dt
-            if self.extra_event_timer >= 60.0:
-                self.extra_event_timer %= 60.0
+            if self.extra_event_timer >= event_interval:
+                self.extra_event_timer %= event_interval
                 self.random_event()
 
         self.messages = [(text, ttl - dt) for text, ttl in self.messages if ttl - dt > 0]
@@ -9244,43 +9397,38 @@ class Game:
     # ---------- user actions ----------
     def feed(self):
         if self.active_pet:
-            self.active_pet.hunger = min(100.0, self.active_pet.hunger+30)
-            self.add_message(f"Fed {self.active_pet.nickname}! Hunger +30",2.0)
-            self.spawn_particle_swarm("@",4)
-            self.trigger_pet_reaction("feed")
-            self.sound_manager.play("feed")
-            self.update_quest("feed",1)
-            self.register_care_action("feed")
+            amount = self.manual_care_amount("feed")
+            self.active_pet.hunger = min(100.0, self.active_pet.hunger + amount)
+            self.add_message(f"Fed {self.active_pet.nickname}! Hunger +{amount:.0f}",2.0)
+            self.spawn_particle_swarm("@",4); self.trigger_pet_reaction("feed"); self.sound_manager.play("feed")
+            self.update_quest("feed",1); self.register_care_action("feed")
 
     def pet_action(self):
         if self.active_pet:
-            self.active_pet.happiness = min(100.0, self.active_pet.happiness+25)
-            self.add_message(f"Petted {self.active_pet.nickname}! Happiness +25",2.0)
-            self.spawn_particle_swarm("+",8)
-            self.trigger_pet_reaction("pet")
-            self.sound_manager.play("pet")
-            self.update_quest("pet",1)
-            self.register_care_action("pet")
+            amount = self.manual_care_amount("pet")
+            self.active_pet.happiness = min(100.0, self.active_pet.happiness + amount)
+            self.add_message(f"Petted {self.active_pet.nickname}! Happiness +{amount:.0f}",2.0)
+            self.spawn_particle_swarm("+",8); self.trigger_pet_reaction("pet"); self.sound_manager.play("pet")
+            self.update_quest("pet",1); self.register_care_action("pet")
+            self.grant_bond_xp(self.active_pet, 1.0 + 3.0 * self._curve("enrichment_program", 80.0), "enrichment")
 
     def bathe(self):
         if self.active_pet:
-            self.active_pet.cleanliness = min(100.0, self.active_pet.cleanliness+30)
-            self.add_message(f"Bathed {self.active_pet.nickname}! Cleanliness +30",2.0)
-            self.spawn_particle_swarm("~",5)
-            self.trigger_pet_reaction("bath", 1.8)
-            self.sound_manager.play("bath")
-            self.update_quest("bathe",1)
-            self.register_care_action("bathe")
+            amount = self.manual_care_amount("bathe")
+            self.active_pet.cleanliness = min(100.0, self.active_pet.cleanliness + amount)
+            self.add_message(f"Bathed {self.active_pet.nickname}! Cleanliness +{amount:.0f}",2.0)
+            self.spawn_particle_swarm("~",5); self.trigger_pet_reaction("bath", 1.8); self.sound_manager.play("bath")
+            self.update_quest("bathe",1); self.register_care_action("bathe")
 
     def train(self):
         if self.active_pet:
-            self.active_pet.energy = min(100.0, self.active_pet.energy+20)
-            self.add_message(f"Trained {self.active_pet.nickname}! Energy +20",2.0)
-            self.spawn_particle_swarm("!",4)
-            self.trigger_pet_reaction("train", 1.6)
-            self.sound_manager.play("train")
-            self.update_quest("train",1)
-            self.register_care_action("train")
+            amount = self.manual_care_amount("train")
+            self.active_pet.energy = min(100.0, self.active_pet.energy + amount)
+            self.add_message(f"Trained {self.active_pet.nickname}! Energy +{amount:.0f}",2.0)
+            self.spawn_particle_swarm("!",4); self.trigger_pet_reaction("train", 1.6); self.sound_manager.play("train")
+            self.update_quest("train",1); self.register_care_action("train")
+            self.grant_battle_xp(self.active_pet, 1.0 + 4.0 * self._curve("endurance_training", 80.0), announce=False)
+
 
     # ---------- daily reward ----------
     def try_daily_reward(self):
@@ -9704,34 +9852,40 @@ class Game:
     def buy_prestige_upgrade(self, name):
         info = PRESTIGE_UPGRADES[name]
         lvl = self.prestige_upgrades[name]
-        cost = info["cost"] * (lvl+1)
+        maximum = info.get("max_level", SHOP_MAX_LEVEL)
+        if lvl >= maximum:
+            self.add_message("Max level reached!",2.0); self.sound_manager.play("error"); return
+        cost = info["cost"] * (lvl + 1)
         if self.prestige_points >= cost:
-            self.prestige_points -= cost
-            self.prestige_upgrades[name] += 1
-            self.add_message(f"Prestige upgrade {name.replace('_',' ').title()} Lv.{lvl+1}",4.0)
-            self.spawn_particle_swarm("*",6)
-            self.sound_manager.play("purchase")
+            self.prestige_points -= cost; self.prestige_upgrades[name] += 1
+            self.add_message(f"Prestige upgrade {name.replace('_',' ').title()} Lv.{lvl+1}/{maximum}",4.0)
+            self.spawn_particle_swarm("*",6); self.sound_manager.play("purchase")
         else:
-            self.add_message("Not enough prestige points!",2.0)
-            self.sound_manager.play("error")
+            self.add_message("Not enough prestige points!",2.0); self.sound_manager.play("error")
+
 
     def can_prestige(self):
-        return self.active_pet is not None and self.active_pet.stage >= len(STAGE_NAMES)-1
+        return self.caretaker_level >= 10 and self.active_pet is not None
 
     def do_prestige(self):
         if not self.can_prestige(): return
-        self.prestige_points += 1
+        old_level = self.caretaker_level
+        highest_stage = max((p.stage for p in self.pets), default=0)
+        earned = max(1, 1 + (old_level - 10) // 5 + highest_stage // 10)
+        self.prestige_points += earned
         for p in self.pets:
-            p.stage = 0; p.age_in_stage = 0.0; p.hunger = 100.0; p.happiness = 100.0
-            p.energy = 100.0; p.cleanliness = 100.0; p.battle_xp = 0.0; p.battle_level = 1
+            p.stage = 0; p.age_in_stage = 0.0
+            p.hunger = p.happiness = p.energy = p.cleanliness = 100.0
+            p.battle_xp = 0.0; p.battle_level = 1
         self.coins = 0.0
+        self.caretaker_level = 1; self.caretaker_xp = 0.0
         self.global_upgrades = {k:0 for k in GLOBAL_UPGRADES}
+        self.legacy_upgrade_power = 0
         self.messages.clear()
-        self.add_message(f"Transcended! Prestige {self.prestige_points}",5.0)
-        self.spawn_particle_swarm("*",20)
-        self.sound_manager.play("prestige")
-        self.check_achievements()
-        self.save_game()
+        self.add_message(f"Transcended from Keeper Lv.{old_level}! +{earned} prestige point(s).",5.0)
+        self.spawn_particle_swarm("*",20); self.sound_manager.play("prestige")
+        self.check_achievements(); self.save_game()
+
 
     # ---------- new pet / switch ----------
     def add_new_pet(self, species, nickname="", source="reward"):
@@ -10812,13 +10966,112 @@ def _compact_species_art(pet, frame):
     return _trim_ascii(pet.get_base_art(frame))
 
 
-def _portrait_for_species(pet):
-    """Return a hand-authored anatomy-aware portrait for the active species."""
-    style = SPECIES_ART_STYLE.get(pet.species)
-    if style in ASCII_PORTRAITS:
-        return list(ASCII_PORTRAITS[style])
-    return []
+# Species-specific visual details are layered over the anatomy-aware family
+# portrait only when the terminal has enough room.  Small terminals retain the
+# compact original icon, while larger screens gain markings, appendages, water,
+# aura, and stage detail without stretching punctuation into blocky shapes.
+_STRIPED_ASCII_SPECIES = {"Tiger", "Zebra", "Okapi", "Tasmanian Devil", "Thylacine"}
+_SPOTTED_ASCII_SPECIES = {"Cheetah", "Leopard", "Jaguar", "Giraffe", "Hyena", "Dalmatian", "Snow Leopard"}
+_MANED_ASCII_SPECIES = {"Lion", "Sea Lion", "Manticore", "Chimera"}
+_ANTLERED_ASCII_SPECIES = {"Deer", "Moose", "Reindeer", "Elk", "Jackalope", "Wolpertinger"}
+_HORNED_ASCII_SPECIES = {"Goat", "Bison", "Yak", "Rhinoceros", "Unicorn", "Qilin", "Minotaur", "Triceratops"}
+_TUSKED_ASCII_SPECIES = {"Elephant", "Walrus", "Boar", "Warthog", "Mammoth"}
+_SHELLED_ASCII_SPECIES = {"Turtle", "Tortoise", "Armadillo", "Pangolin"}
+_WINGED_ASCII_SPECIES = {"Dragon", "Wyvern", "Griffin", "Pegasus", "Phoenix", "Thunderbird", "Roc", "Hippogriff", "Peryton", "Garuda", "Anzu", "Ziz"}
+_AQUATIC_ASCII_STYLES = {"marine_mammal", "fish", "whale", "shark", "octopus", "turtle", "seahorse", "jellyfish"}
+_GLOWING_ASCII_SPECIES = set(MYTHICAL_SPECIES) | {"Axolotl", "Mantis Shrimp", "Firefly"}
 
+
+def _mark_ascii_interior(rows, glyph, every=5):
+    for y, row in enumerate(rows):
+        first = next((i for i, ch in enumerate(row) if ch != " "), None)
+        last = next((i for i in range(len(row) - 1, -1, -1) if row[i] != " "), None)
+        if first is None or last is None or last - first < 7:
+            continue
+        for x in range(first + 2 + (y % 2), last - 1, max(3, every)):
+            if row[x] == " ":
+                row[x] = glyph
+
+
+def _decorate_species_portrait(lines, pet, ultra=False):
+    if not lines:
+        return []
+    species = pet.species
+    style = SPECIES_ART_STYLE.get(species, "")
+    pad = 6 if ultra else 4
+    width = max(len(line) for line in lines) + pad * 2
+    rows = [list(" " * width) for _ in range(2 if ultra else 1)]
+    for line in lines:
+        raw = str(line).rstrip()
+        left = max(0, (width - len(raw)) // 2)
+        rows.append(list(" " * left + raw + " " * (width - left - len(raw))))
+
+    if species in _STRIPED_ASCII_SPECIES:
+        _mark_ascii_interior(rows, "/", 5)
+    elif species in _SPOTTED_ASCII_SPECIES:
+        _mark_ascii_interior(rows, ".", 6)
+
+    top, bottom, left, right = _subject_bounds(rows)
+    centre = (left + right) // 2
+    if species in _ANTLERED_ASCII_SPECIES and ultra:
+        antler = r"\|/       \|/"
+        x = max(0, centre - len(antler) // 2)
+        for i, ch in enumerate(antler[:width - x]): rows[0][x + i] = ch
+    elif species in _HORNED_ASCII_SPECIES:
+        horn = "/\\" if species not in {"Rhinoceros", "Unicorn"} else "  /\\"
+        x = max(0, centre - len(horn) // 2)
+        for i, ch in enumerate(horn[:width - x]): rows[0][x + i] = ch
+
+    if species in _MANED_ASCII_SPECIES:
+        for y in range(max(top + 1, 1), min(bottom, top + 5) + 1):
+            if left > 1: rows[y][left - 1] = "{" if y % 2 else "<"
+            if right + 1 < width: rows[y][right + 1] = "}" if y % 2 else ">"
+    if species in _TUSKED_ASCII_SPECIES:
+        y = min(bottom, top + 3)
+        token = r"\__/"
+        x = max(0, centre - len(token) // 2)
+        for i, ch in enumerate(token[:width - x]):
+            if rows[y][x + i] == " ": rows[y][x + i] = ch
+    if species in _SHELLED_ASCII_SPECIES and ultra:
+        y = min(bottom, max(top, (top + bottom) // 2))
+        for x in range(max(1, left - 2), min(width - 1, right + 3)):
+            if rows[y][x] == " ": rows[y][x] = "="
+    if species in _WINGED_ASCII_SPECIES and ultra:
+        y = min(bottom, top + 3)
+        _place_motion_token(rows, y, "<<<", "left")
+        _place_motion_token(rows, y, ">>>", "right")
+    if style in _AQUATIC_ASCII_STYLES:
+        wave = "~ ~~~ ~~~~ ~~~ ~"
+        rows.append(list(wave.center(width)))
+    if species in _GLOWING_ASCII_SPECIES and ultra:
+        _place_motion_token(rows, max(0, top), "*", "left")
+        _place_motion_token(rows, max(0, top), "*", "right")
+        _place_motion_token(rows, min(len(rows) - 1, bottom), ".", "left")
+        _place_motion_token(rows, min(len(rows) - 1, bottom), ".", "right")
+
+    # Evolution adds visible aura rather than merely changing a label.
+    aura = min(4, max(0, int(getattr(pet, "stage", 0)) // 7))
+    for ring in range(aura):
+        y = min(len(rows) - 1, max(0, top + ring))
+        token = "*" if ring % 2 == 0 else "+"
+        if ring < width: rows[y][ring] = token
+        if width - 1 - ring >= 0: rows[y][width - 1 - ring] = token
+
+    if ultra:
+        label = f"{species.upper()}  |  {STAGE_NAMES[pet.stage].upper()}"
+        rows.insert(0, list(label.center(width)[:width]))
+    return ["".join(row).rstrip() for row in rows]
+
+
+def _portrait_for_species(pet, width=0, max_height=0):
+    """Return the richest portrait that safely fits the current terminal."""
+    style = SPECIES_ART_STYLE.get(pet.species)
+    if style not in ASCII_PORTRAITS:
+        return []
+    base = list(ASCII_PORTRAITS[style])
+    ultra = width >= 96 and max_height >= len(base) + 8
+    detailed = width >= 68 and max_height >= len(base) + 4
+    return _decorate_species_portrait(base, pet, ultra=ultra) if detailed else base
 
 # Animation profiles are deterministic and anatomy-aware. Every registered
 # creature receives a long sequence of idle actions, blinks, breathing, mood
@@ -11544,7 +11797,7 @@ def get_detailed_art(game, width, max_height):
         return ["No active pet"]
 
     pet = game.active_pet
-    portrait = _portrait_for_species(pet)
+    portrait = _portrait_for_species(pet, width, max_height)
     if portrait:
         portrait = _animate_portrait(
             pet,
@@ -11627,12 +11880,11 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
     for index, name in enumerate(page_names):
         info = upgrades_dict[name]
         level = player_levels.get(name, 0)
+        maximum = info.get("max_level", SHOP_MAX_LEVEL)
+        is_max = level >= maximum
         if is_prestige:
-            cost = info["cost"] * (level + 1)
-            is_max = False
+            cost = 0 if is_max else info["cost"] * (level + 1)
         else:
-            maximum = info["max_level"]
-            is_max = level >= maximum
             cost = 0 if is_max else int(info["base_cost"] * (info["mult"] ** level))
 
         key_label = "0" if index == 9 else str(index + 1)
@@ -11653,7 +11905,7 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
         # Keep one physical terminal row per item so ten entries fit even on a
         # standard 80x24 Termux window. The description remains visible after a
         # separator and is clipped only at the actual modal boundary.
-        row_text = f"[ {key_label} ] {display_name}  Lv.{level}  Cost:{status}  | {info['desc']}"
+        row_text = f"[ {key_label} ] {display_name}  Lv.{level}/{maximum}  Cost:{status}  | {info['desc']}"
         rows.append((row_text, attr))
 
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
@@ -12786,7 +13038,7 @@ def main(stdscr):
                 if game.can_prestige():
                     game.do_prestige()
                 else:
-                    game.add_message("Reach transcendent stage to prestige!",2.0)
+                    game.add_message("Reach Keeper level 10 to prestige!",2.0)
                     game.sound_manager.play("error")
             elif key == ord('g'):
                 game.open_prestige_shop()
