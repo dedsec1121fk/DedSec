@@ -5,7 +5,7 @@ Run:  python3 "Pet Friends.py"
 Save: ~/Pet Friends/petfriends_save.json
 
 An idle companion game with 160+ real, legendary, and mythical pets,
-educational learning cards and clearly labelled mythology per pet, paid adoptions, mission locks,
+educational learning cards and clearly labelled mythology per pet, paid purchases, mission locks,
 local-network battles/trades, achievements, quests, upgrades, and care checks.
 Accessible controls revision: menu actions use lowercase letters or numbers; x closes menus, n/p change pages, r resumes care checks, and 1/2 browse facts.
 """
@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 # ----------------------------- CONFIG -----------------------------
 SAVE_DIR = os.path.join(os.path.expanduser("~"), "Pet Friends")
 SAVE_FILE = os.path.join(SAVE_DIR, "petfriends_save.json")
-SAVE_VERSION = 20
+SAVE_VERSION = 21
 os.makedirs(SAVE_DIR, exist_ok=True)
 
 def _safe_int(value, default=0, minimum=None, maximum=None):
@@ -6254,8 +6254,8 @@ def _fact_body_only(card):
     return match.group(2).strip() if match else text
 
 
-def _enrich_fact_card(species, card, index=0, related_card=""):
-    """Turn one short entry into a detailed, species-linked learning card."""
+def _enrich_fact_card(species, card, index=0, related_cards=()):
+    """Turn a source entry into a detailed, connected learning card."""
     text = " ".join(str(card).strip().split())
     match = re.match(r"^\[([^\]]+)\]\s*(.*)$", text)
     topic = match.group(1).strip().upper() if match else "BIOLOGY"
@@ -6263,10 +6263,20 @@ def _enrich_fact_card(species, card, index=0, related_card=""):
     fictional = species in FICTIONAL_SPECIES
     if fictional and topic not in {"MYTHOLOGY", "LORE STUDIES"}:
         topic = "MYTHOLOGY"
-    related = _fact_body_only(related_card)
+    if isinstance(related_cards, str):
+        related_cards = (related_cards,)
+    related = []
+    for value in related_cards:
+        detail = _fact_body_only(value)
+        if detail and detail.casefold() != body.casefold() and detail.casefold() not in {item.casefold() for item in related}:
+            related.append(detail)
+        if len(related) >= 2:
+            break
     related_sentence = ""
-    if related and related.casefold() != body.casefold():
-        related_sentence = f" Related detail: {related}"
+    if related:
+        related_sentence = f" Supporting details: {related[0]}"
+        if len(related) > 1:
+            related_sentence += f" A second connected observation is that {related[1][0].lower() + related[1][1:] if related[1] else related[1]}"
     contexts = _FACT_CONTEXTS.get(topic, _FACT_CONTEXTS["BIOLOGY"])
     selector = (sum(ord(ch) for ch in species) + index * 7 + len(body)) % len(contexts)
     context = contexts[selector]
@@ -6274,8 +6284,8 @@ def _enrich_fact_card(species, card, index=0, related_card=""):
 
 
 # ----------------------------- ADOPTION PROGRESSION -----------------------------
-# Adoption is intentionally priced by rarity.  Duplicate adoptions become more
-# expensive, while mission/achievement locks make high-value species long-term
+# Companion purchases are intentionally priced by rarity. Duplicate species are
+# blocked, while mission/achievement locks make high-value species long-term
 # goals instead of a flat list that can be exhausted immediately.
 ADOPTION_TIER_INFO = {
     "common": {"cost": 300, "level": 1},
@@ -7501,7 +7511,10 @@ class Pet:
                 self.species,
                 card,
                 index,
-                source[(index + 1) % len(source)] if source else "",
+                (
+                    source[(index + 1) % len(source)],
+                    source[(index + 2) % len(source)],
+                ) if source else (),
             )
             for index, card in enumerate(source)
         )
@@ -7576,7 +7589,7 @@ class Game:
         self.auto_care_timer = 0.0
         self.coin_quest_buffer = 0.0
 
-        # Caretaker progression gates difficult adoptions independently from an
+        # Caretaker progression gates difficult purchases independently from an
         # individual pet's battle or bond level.
         self.caretaker_level = 1
         self.caretaker_xp = 0.0
@@ -7701,9 +7714,6 @@ class Game:
         self.adopt_page_size = 10
         self.pet_select_page = 0
         self.pet_select_page_size = 10
-        self.shop_page = 0
-        self.prestige_shop_page = 0
-        self.shop_page_size = len(GLOBAL_UPGRADES)
         self.fight_screen_open = False
         self.loot_screen_open = False
         self.achievement_screen_open = False
@@ -8434,11 +8444,14 @@ class Game:
         return levels
 
     def adoption_cost(self, species):
-        """Calculate the one-time purchase price for a species."""
+        """Calculate a stable rarity-led price without punishing prestige progress."""
         tier = species_adoption_tier(species)
         base = ADOPTION_TIER_INFO[tier]["cost"]
-        prestige_multiplier = 1.0 + self.prestige_points * 0.15
-        return max(1, int(base * prestige_multiplier))
+        # A small deterministic within-tier spread gives individual species a
+        # distinct price while preserving wide gaps between rarity bands.
+        signature = sum((index + 1) * ord(char) for index, char in enumerate(str(species)))
+        species_factor = 1.0 + (signature % 26) / 100.0
+        return max(1, int(round(base * species_factor)))
 
     def adoption_status(self, species):
         """Return (allowed, short reason, cost, tier) for one buy entry."""
@@ -8800,7 +8813,9 @@ class Game:
             return 0
         level_factor = (1.0 + current / 8.0) ** 1.60
         milestone_factor = 1.0 + (current // 25) * 0.12
-        return max(info["base_cost"], int(math.ceil(info["base_cost"] * level_factor * milestone_factor)))
+        calculated = int(math.ceil(info["base_cost"] * level_factor * milestone_factor))
+        # Integer rounding must never make two adjacent levels cost the same.
+        return max(info["base_cost"] + current, calculated)
 
     def upgrade_effect_text(self, name, level):
         """Exact compact preview used by the one-screen shop."""
@@ -8866,6 +8881,24 @@ class Game:
         prestige = self._upgrade_curve(self.prestige_upgrades.get("clean_freak", 0))
         old = min(0.15, self.global_mastery_level() * 0.00007)
         return max(0.20, 1.0 - min(0.72, 0.028 * curve) - min(0.65, 0.025 * prestige) - old)
+
+    @staticmethod
+    def care_stage_difficulty(pet):
+        """Return stat-specific decay multipliers for the pet's evolution stage.
+
+        Stage zero keeps the original pacing.  Each later evolution raises care
+        pressure, with happiness increasing fastest as requested.  The curve is
+        deliberately gradual so level-333 upgrades remain useful rather than
+        becoming mandatory immediately.
+        """
+        stage = max(0, min(len(STAGE_NAMES) - 1, int(getattr(pet, "stage", 0))))
+        squared = stage * stage
+        return {
+            "hunger": 1.0 + stage * 0.060 + squared * 0.0040,
+            "happiness": 1.0 + stage * 0.090 + squared * 0.0060,
+            "energy": 1.0 + stage * 0.045 + squared * 0.0030,
+            "cleanliness": 1.0 + stage * 0.055 + squared * 0.0035,
+        }
 
     def playtime_coin_bonus(self):
         curve = self._upgrade_curve(self.prestige_upgrades.get("time_extender", 0))
@@ -9363,10 +9396,11 @@ class Game:
 
     def _tick_pet_stats(self, pet, dt, active=True):
         decay_scale = 1.0 if active else 0.35
-        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * decay_scale
-        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * decay_scale
-        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * decay_scale
-        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * decay_scale
+        difficulty = self.care_stage_difficulty(pet)
+        pet.hunger -= BASE_HUNGER_DECAY * dt * self.hunger_decay_mult() * difficulty["hunger"] * decay_scale
+        pet.happiness -= BASE_HAPPINESS_DECAY * dt * self.happiness_decay_mult() * difficulty["happiness"] * decay_scale
+        pet.energy -= BASE_ENERGY_DECAY * dt * self.energy_decay_mult() * difficulty["energy"] * decay_scale
+        pet.cleanliness -= BASE_CLEANLINESS_DECAY * dt * self.cleanliness_decay_mult() * difficulty["cleanliness"] * decay_scale
 
         # Purchased passive care applies to every pet, with full strength on the active pet.
         passive_scale = 1.0 if active else 0.5
@@ -9577,14 +9611,29 @@ class Game:
             self.register_care_action("bathe")
 
     def train(self):
-        if self.active_pet:
-            self.active_pet.energy = min(100.0, self.active_pet.energy+20)
-            self.add_message(f"Trained {self.active_pet.nickname}! Energy +20",2.0)
-            self.spawn_particle_swarm("!",4)
-            self.trigger_pet_reaction("train", 1.6)
-            self.sound_manager.play("train")
-            self.update_quest("train",1)
-            self.register_care_action("train")
+        if not self.active_pet:
+            return
+        pet = self.active_pet
+        if pet.energy < 12.0 or pet.hunger < 10.0:
+            self.add_message(f"{pet.nickname} needs food and rest before training.", 3.0)
+            self.sound_manager.play("error")
+            return
+        energy_cost = 8.0 + pet.stage * 0.6
+        hunger_cost = 3.0 + pet.stage * 0.25
+        pet.energy = max(MIN_STAT_VALUE, pet.energy - energy_cost)
+        pet.hunger = max(MIN_STAT_VALUE, pet.hunger - hunger_cost)
+        pet.happiness = min(100.0, pet.happiness + 4.0)
+        xp_gain = (6.0 + pet.stage * 2.0) * self.xp_mult()
+        self.grant_battle_xp(pet, xp_gain, announce=False)
+        self.add_message(
+            f"Training: +{xp_gain:.0f} battle XP, -{energy_cost:.0f} energy, -{hunger_cost:.0f} hunger.",
+            3.5,
+        )
+        self.spawn_particle_swarm("!",4)
+        self.trigger_pet_reaction("train", 1.6)
+        self.sound_manager.play("train")
+        self.update_quest("train",1)
+        self.register_care_action("train")
 
     # ---------- daily reward ----------
     def try_daily_reward(self):
@@ -9961,14 +10010,12 @@ class Game:
     def open_shop(self):
         self.shop_open = True; self.prestige_shop_open = False; self.pet_select_open = False
         self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
-        self.shop_page = 0
         reset_shop_marquee(self)
         self.sound_manager.play("open")
 
     def open_prestige_shop(self):
         self.prestige_shop_open = True; self.shop_open = False; self.pet_select_open = False
         self.adopt_screen_open = False; self.fight_screen_open = False; self.loot_screen_open = False; self.achievement_screen_open = False; self.lan_screen_open = False; self.input_mode = False
-        self.prestige_shop_page = 0
         reset_shop_marquee(self)
         self.sound_manager.play("open")
 
@@ -10068,6 +10115,7 @@ class Game:
         self.sound_manager.play("prestige")
         self.check_achievements()
         self.save_game()
+        return gained
 
     # ---------- new pet / switch ----------
     def add_new_pet(self, species, nickname="", source="reward"):
@@ -11886,7 +11934,7 @@ ASCII_PORTRAITS_HD.update({
                      /___________|___________\
                           /   /\   \
                          /___/  \___\
-                    * * *   FLAME   * * *
+                    ^/\^/\^/\^/\^/\^
     """),
     "fairy": _portrait(r"""
                  .---------.                 .---------.
@@ -12428,34 +12476,23 @@ SPECIES_EXACT_ART_STYLE.update({
     "Black Bear": "bear", "Brown Bear": "bear",
 })
 
-# Specific species may share a body plan but still need a recognizable visual
-# signature.  These lightweight overlays add coat pattern, horns, tusks,
-# antlers, crests, fins, wings, or magical energy without corrupting anatomy.
-def _species_portrait_traits(species):
-    name = str(species).casefold()
-    traits = []
-    if any(word in name for word in ("tiger", "zebra", "striped", "okapi")):
-        traits.append("////  ////  ////  ////")
-    if any(word in name for word in ("leopard", "cheetah", "jaguar", "giraffe", "dalmatian")):
-        traits.append(". o . o . o . o .")
-    if "lion" in name or "manticore" in name or "nian" in name:
-        traits.append("{~~~~~~~  ~~~~~~~}")
-    if any(word in name for word in ("deer", "moose", "jackalope", "peryton")):
-        traits.append(r"\V/\V/  \V/\V/")
-    if any(word in name for word in ("rhino", "unicorn", "narwhal", "qilin")):
-        traits.append("/\\  /\\")
-    if any(word in name for word in ("elephant", "walrus", "mammoth")):
-        traits.append(")   (    )   (")
-    if any(word in name for word in ("peacock", "phoenix", "thunderbird")):
-        traits.append("<*><*><*><*><*>")
-    if any(word in name for word in ("dragon", "wyvern", "griffin", "pegasus", "alicorn", "fairy")):
-        traits.append("<<\\        />>")
-    if any(word in name for word in ("fish", "shark", "whale", "dolphin", "orca", "beluga", "seal", "seahorse", "jellyfish", "octopus", "kraken", "leviathan", "serpent")):
-        traits.append("~~~  ~~~~~  ~~~  ~~~~~")
-    if any(word in name for word in ("ghost", "banshee", "djinn", "spirit", "kitsune", "carbuncle", "alien", "golem", "robot")):
-        traits.append("* . * . * . * . *")
-    return traits
-
+# Correct body-plan choices for species that were previously routed through a
+# visually misleading generic silhouette.  Species-specific traits are applied
+# below, so related animals can share anatomy without becoming identical.
+SPECIES_EXACT_ART_STYLE.update({
+    "Lemur": "monkey", "Aye-Aye": "monkey", "Meerkat": "otter",
+    "Wombat": "heavy_mammal", "Carbuncle": "rabbit",
+    "Snow Leopard": "big_cat", "Bobcat": "big_cat", "Caracal": "big_cat",
+    "Jaguar": "big_cat", "Lynx": "big_cat", "Leopard": "big_cat",
+    "Pegasus": "unicorn", "Sphinx": "lion", "Lamassu": "bovine",
+    "Capybara": "heavy_mammal", "Toucan": "parrot", "Quokka": "small_mammal",
+    "Minotaur": "humanoid", "Qilin": "unicorn", "Red Panda": "fox",
+    "Badger": "small_mammal", "Skunk": "small_mammal",
+    "Basilisk": "lizard", "Baku": "heavy_mammal", "Cockatrice": "chicken",
+    "Salamander": "lizard", "Komodo Dragon": "lizard", "Pigeon": "bird",
+    "Vulture": "bird", "Beluga": "whale", "Golem": "humanoid",
+    "Alicorn": "unicorn", "Okapi": "horse",
+})
 
 ART_STYLE_SPECIES = {
     "dog": {"Dog"},
@@ -12554,22 +12591,923 @@ def _compact_species_art(pet, frame):
     return _trim_ascii(pet.get_base_art(frame))
 
 
+SPECIES_DETAIL_TAGS = {
+    "Hamster": {"cheeks", "tiny_tail"},
+    "Quokka": {"round_ears"},
+    "Jerboa": {"long_ears", "long_hind_legs", "long_tail"},
+    "Badger": {"face_stripes", "claws"},
+    "Chinchilla": {"huge_ears", "fluffy_tail"},
+    "Tasmanian Devil": {"white_chest"},
+    "Gerbil": {"small_ears", "long_tail"},
+    "Thunderbird": {"lightning"},
+    "Roc": {"huge_talons", "broad_wings"},
+    "Anzu": {"tall_crest", "feather_tail"},
+    "Garuda": {"crown", "huge_talons"},
+    "Ziz": {"celestial_crown"},
+    "Yeti": {"shaggy", "huge_feet"},
+    "Dryad": {"branches", "leaf_texture"},
+    "Dullahan": {"headless"},
+    "Oni": {"oni_horns"},
+    "Tengu": {"long_nose"},
+    "Otter": {"water_tail", "aquatic"},
+    "Ferret": {"long_tail"},
+    "Meerkat": {"upright", "dark_eyes"},
+    "Mongoose": {"pointed_snout", "long_tail"},
+    "Salamander": {"spots", "external_gills"},
+    "Gecko": {"toe_pads", "spots", "wide_eyes"},
+    "Basilisk": {"crown", "fork_tongue", "scales"},
+    "Komodo Dragon": {"fork_tongue", "scales"},
+    "Alpaca": {"wool", "fluffy_head"},
+    "Camel": {"single_hump"},
+    "Llama": {"long_ears", "long_neck"},
+    "Bobcat": {"ear_tufts", "bobtail"},
+    "Caracal": {"long_ear_tufts", "slim"},
+    "Lynx": {"ear_tufts", "bobtail"},
+    "Capybara": {"blunt_nose", "stocky"},
+    "Wombat": {"square_body", "tiny_tail"},
+    "Baku": {"short_trunk", "runes"},
+    "Emu": {"shaggy", "long_legs"},
+    "Ostrich": {"long_neck", "long_legs"},
+    "Crane": {"long_beak", "long_legs", "slim"},
+    "Fenrir": {"chains", "runes"},
+    "Amarok": {"icy_fur", "runes"},
+    "Black Shuck": {"glowing_eyes", "dark_aura"},
+    "Budgerigar": {"cheek_spots", "barred_wings"},
+    "Macaw": {"long_beak", "feather_tail"},
+    "Snow Leopard": {"spots", "fluffy_tail", "wool"},
+    "Jaguar": {"rosettes"},
+    "Leopard": {"spots", "long_tail", "slim"},
+    "Beluga": {"melon_head", "aquatic"},
+    "Blue Whale": {"spout", "aquatic"},
+    "Bison": {"shaggy"},
+    "Yak": {"long_hair", "horns"},
+    "Black Bear": {"chest_mark"},
+    "Brown Bear": {"shaggy"},
+    "Deer": {"small_antlers", "white_tail"},
+    "Moose": {"broad_antlers", "long_muzzle"},
+    "Dragon": {"back_spikes"},
+    "Wyvern": {"wyvern_wings", "barbed_tail"},
+    "Ghost": {"wisps", "hollow_eyes"},
+    "Banshee": {"long_hair", "scream"},
+    "Golem": {"block_texture", "runes"},
+    "Djinn": {"smoke_tail", "runes"},
+    "Goose": {"short_beak", "upright"},
+    "Swan": {"curved_neck", "feather_tail"},
+    "Griffin": {"eagle_beak", "lion_tail", "wings"},
+    "Hippogriff": {"eagle_beak", "horse_tail", "wings"},
+    "Hedgehog": {"short_spines", "tiny_tail"},
+    "Porcupine": {"long_quills", "long_tail"},
+    "Kelpie": {"seaweed", "aquatic"},
+    "Hydra": {"scales"},
+    "Chimera": {"snake_tail"},
+    "Hyena": {"spots", "sloped_back"},
+    "African Wild Dog": {"patches", "huge_ears", "white_tail"},
+    "Aye-Aye": {"huge_ears", "wide_eyes", "long_fingers", "fluffy_tail"},
+    "Naga": {"cobra_hood", "runes"},
+    "Sea Serpent": {"fins", "aquatic", "scales"},
+    "Kraken": {"huge_tentacles", "runes", "aquatic"},
+    "Alicorn": {"horns", "wings", "celestial_crown"},
+    "Simurgh": {"crown", "feather_tail", "wings"},
+    "Vulture": {"bald_head", "hooked_beak"},
+    "Moon Rabbit": {"crescent", "long_ears"},
+    "Selkie": {"aquatic", "wisps"},
+    "Qilin": {"small_antlers", "runes"},
+    "Coyote": {"long_tail"},
+}
+
+
+def _species_feature_tags(species):
+    """Return anatomical and coat traits used to customize a body plan."""
+    name = str(species)
+    lower = name.casefold()
+    tags = set(SPECIES_DETAIL_TAGS.get(name, ()))
+    groups = {
+        "stripes": {"Tiger", "Zebra", "Okapi", "Skunk", "Nian"},
+        "spots": {"Cheetah", "Leopard", "Jaguar", "Snow Leopard", "Giraffe", "Hyena", "African Wild Dog"},
+        "scales": {"Dragon", "Wyvern", "Crocodile", "Komodo Dragon", "Basilisk", "Naga", "Sea Serpent", "Pangolin", "Leviathan"},
+        "wings": {"Pegasus", "Alicorn", "Griffin", "Hippogriff", "Sphinx", "Lamassu", "Manticore", "Peryton", "Wolpertinger", "Fairy", "Thunderbird", "Phoenix", "Simurgh", "Roc", "Garuda", "Anzu", "Ziz"},
+        "antlers": {"Deer", "Moose", "Jackalope", "Peryton"},
+        "horns": {"Goat", "Sheep", "Bison", "Yak", "Minotaur", "Unicorn", "Alicorn", "Qilin", "Rhinoceros", "Narwhal", "Manticore"},
+        "mane": {"Lion", "Manticore", "Nian", "Horse", "Zebra", "Donkey", "Bison", "Yak"},
+        "long_ears": {"Fennec Fox", "Rabbit", "Moon Rabbit", "Jackalope", "Wolpertinger", "Donkey"},
+        "multi_tail": {"Kitsune"},
+        "ring_tail": {"Lemur", "Raccoon", "Red Panda"},
+        "flat_tail": {"Beaver", "Platypus"},
+        "spines": {"Hedgehog", "Porcupine"},
+        "tusks": {"Elephant", "Mammoth", "Walrus", "Hippopotamus"},
+        "long_beak": {"Toucan", "Pelican", "Secretary Bird"},
+        "crest": {"Peacock", "Cockatiel", "Cassowary", "Cockatrice", "Phoenix"},
+        "gills": {"Axolotl"},
+        "shell": {"Turtle", "Armadillo"},
+        "flames": {"Phoenix"},
+        "gem": {"Carbuncle"},
+        "runes": {"Golem", "Robot", "Alien", "Djinn", "Ghost", "Banshee", "Fenrir", "Amarok", "Black Shuck"},
+        "patches": {"Cow", "Guinea Pig", "African Wild Dog", "Tapir"},
+    }
+    for tag, members in groups.items():
+        if name in members:
+            tags.add(tag)
+    if any(word in lower for word in ("fish", "whale", "dolphin", "orca", "beluga", "seal", "shark", "seahorse", "jellyfish", "octopus", "kraken", "manatee")):
+        tags.add("aquatic")
+    return tags
+
+
+def _customize_species_portrait(lines, species, style=""):
+    """Integrate species traits into the silhouette instead of loose labels."""
+    rows = [str(line).rstrip() for line in lines]
+    if not rows:
+        return rows
+    tags = _species_feature_tags(species)
+    built_in = {
+        "lion": {"mane"}, "tiger": {"stripes"}, "zebra": {"stripes", "mane"},
+        "cheetah": {"spots"}, "giraffe": {"spots"}, "panda": {"patches"},
+        "cow": {"patches", "horns"}, "horse": {"mane"}, "camel": {"mane", "single_hump"},
+        "rabbit": {"long_ears"}, "jackalope": {"long_ears", "antlers"},
+        "deer": {"antlers"}, "moose": {"antlers"}, "goat": {"horns"},
+        "sheep": {"horns"}, "bovine": {"horns"}, "bison": {"horns", "mane"},
+        "yak": {"horns", "mane"}, "elephant": {"tusks"}, "mammoth": {"tusks"},
+        "walrus": {"tusks"}, "rhino": {"horns"}, "unicorn": {"horns", "mane"},
+        "narwhal": {"horns"}, "peacock": {"crest"}, "phoenix": {"crest", "wings", "flames"},
+        "axolotl": {"gills"}, "turtle": {"shell"}, "armadillo": {"shell"},
+        "hedgehog": {"spines"}, "porcupine": {"spines"}, "pangolin": {"scales"},
+        "crocodile": {"scales"}, "lizard": {"scales"}, "butterfly": {"wings"},
+        "eagle": {"wings"}, "griffin": {"wings", "eagle_beak"}, "hippogriff": {"wings", "eagle_beak"},
+        "pegasus": {"wings", "mane"}, "alicorn": {"wings", "horns", "mane"},
+        "dragon": {"scales"}, "wyvern": {"scales", "wings"},
+        "octopus": {"huge_tentacles"}, "kraken": {"huge_tentacles"},
+    }.get(str(style), set())
+    tags.difference_update(built_in)
+    width = max(len(row) for row in rows)
+    canvas = [list(row.ljust(width)) for row in rows]
+    occupied = [index for index, row in enumerate(canvas) if any(ch != " " for ch in row)]
+    if not occupied:
+        return rows
+    top, bottom = occupied[0], occupied[-1]
+    face = min(bottom, top + max(1, (bottom - top) // 4))
+    middle = min(bottom, max(top, (top + bottom) // 2))
+    lower = max(top, bottom - 1)
+
+    def normalize_width():
+        nonlocal width, canvas
+        width = max((len(row) for row in canvas), default=width)
+        for idx, row in enumerate(canvas):
+            if len(row) < width:
+                canvas[idx] = row + [" "] * (width - len(row))
+
+    def extend(row_index, left="", right=""):
+        nonlocal canvas, width
+        if not (0 <= row_index < len(canvas)):
+            return
+        raw = "".join(canvas[row_index]).rstrip()
+        canvas[row_index] = list(left + raw + right)
+        normalize_width()
+
+    def add_above(token):
+        nonlocal canvas, width, top, bottom, face, middle, lower
+        width = max(width, len(token))
+        canvas.insert(top, list(token.center(width)))
+        top += 1; bottom += 1; face += 1; middle += 1; lower += 1
+        normalize_width()
+
+    def add_below(token):
+        nonlocal canvas, width, bottom, lower
+        width = max(width, len(token))
+        canvas.insert(bottom + 1, list(token.center(width)))
+        bottom += 1; lower = max(top, bottom - 1)
+        normalize_width()
+
+    def mark_inside(pattern, row_hint=None):
+        candidates = []
+        row_range = range(top, bottom + 1) if row_hint is None else range(max(top, row_hint - 1), min(bottom, row_hint + 1) + 1)
+        for idx in row_range:
+            row = canvas[idx]
+            filled = [i for i, ch in enumerate(row) if ch != " "]
+            if len(filled) < 2:
+                continue
+            left, right = filled[0], filled[-1]
+            interior = [i for i in range(left + 1, right) if row[i] == " "]
+            candidates.append((len(interior), idx, interior))
+        if not candidates:
+            return
+        _score, idx, interior = max(candidates)
+        if not interior:
+            return
+        step = max(1, len(interior) // 8)
+        chars = (pattern * 20)
+        for offset, pos in enumerate(interior[::step]):
+            char = chars[offset % len(chars)]
+            if char != " ":
+                canvas[idx][pos] = char
+
+    def replace_eyes(char):
+        replacements = 0
+        for idx in range(top, min(bottom + 1, middle + 1)):
+            for pos, value in enumerate(canvas[idx]):
+                if value in {"o", "O"}:
+                    canvas[idx][pos] = char
+                    replacements += 1
+                    if replacements >= 2:
+                        return
+
+    # Head, ears, horns, crowns, and mythical multi-head anatomy.
+    if "three_heads" in tags:
+        add_above("  /\\(o)/\\   /\\(o)/\\   /\\(o)/\\  ")
+    elif "mixed_heads" in tags:
+        add_above(r"  /\o/\      /\^/\      /\o/\  ")
+    elif "broad_antlers" in tags:
+        add_above(r"\_/\_/\_       _/\_/\_/")
+    elif "small_antlers" in tags:
+        add_above(r"\V/             \V/")
+    elif "celestial_crown" in tags:
+        add_above("       *\\^/^/*       ")
+    elif "crown" in tags:
+        add_above("        \\|/        ")
+    elif "branches" in tags:
+        add_above(r"\Y/\Y/         \Y/\Y/")
+    elif "oni_horns" in tags:
+        add_above("/\\             /\\")
+    elif "long_ear_tufts" in tags:
+        add_above("/^^^^\\       /^^^^\\")
+    elif "ear_tufts" in tags:
+        add_above(" /^\\           /^\\ ")
+    elif "huge_ears" in tags:
+        add_above("/\\\\           ////\\")
+    elif "round_ears" in tags:
+        add_above("(  )           (  )")
+    elif "small_ears" in tags:
+        add_above(" /\\             /\\ ")
+    elif "antlers" in tags:
+        add_above(r"\V/\V/         \V/\V/")
+    elif "horns" in tags:
+        add_above("/\\             /\\")
+    elif "long_ears" in tags:
+        add_above("/\\             /\\")
+    elif "tall_crest" in tags:
+        add_above("      ^^^|^^^      ")
+    elif "crest" in tags or "fluffy_head" in tags:
+        add_above("      ^^^  ^^^      ")
+    elif "melon_head" in tags:
+        add_above("       _______       ")
+    elif "bald_head" in tags:
+        add_above("        .---.        ")
+    elif "crescent" in tags:
+        add_above("        (  C  )        ")
+    elif "spout" in tags:
+        add_above("          ^ ^          ")
+        add_above("           |           ")
+
+    # Silhouette extensions.
+    if "broad_wings" in tags:
+        extend(middle, "<<<\\\\ ", " ////>>>")
+        if middle + 1 <= bottom: extend(middle + 1, " <<\\ ", " //>> ")
+    elif "wings" in tags:
+        extend(middle, "<<\\ ", " />>")
+    if "lightning" in tags:
+        extend(top, "_/\\_/ ", " _/\\_/")
+    if "mane" in tags or "cheek_ruff" in tags:
+        extend(face, "/// ", " \\\\")
+    if "cheeks" in tags:
+        extend(face, "( ", " )")
+    if "tusks" in tags:
+        extend(face + 1, " \\_ ", " _/ ")
+    if "long_nose" in tags:
+        extend(face, "", "------>")
+    elif "pointed_snout" in tags:
+        extend(face, "", "--->")
+    elif "long_muzzle" in tags:
+        extend(face, "", "====")
+    elif "short_trunk" in tags:
+        extend(face, "", "~~\\__")
+    elif "blunt_nose" in tags:
+        extend(face, "", "==")
+    if "long_beak" in tags or "hooked_beak" in tags:
+        extend(face, "", "====>")
+    elif "short_beak" in tags:
+        extend(face, "", ">")
+    if "fork_tongue" in tags:
+        extend(face + 1, "", "--<")
+    if "cobra_hood" in tags:
+        extend(face, "(( ", " ))")
+    if "external_gills" in tags:
+        extend(face, "<||| ", " |||>")
+    if "fins" in tags:
+        extend(middle, "<\\ ", " />")
+    if "stocky" in tags or "square_body" in tags or "broad_body" in tags:
+        extend(middle, "[ ", " ]")
+    if "long_body" in tags:
+        extend(middle, "", "========")
+    if "shoulder_hump" in tags:
+        extend(max(top, face - 1), "  ___/\\___ ", "")
+    if "back_spikes" in tags:
+        extend(max(top, middle - 1), "^^^^ ", " ^^^^")
+    if "chains" in tags:
+        extend(middle, "-o-o- ", " -o-o-")
+    if "cloak" in tags:
+        extend(middle, "/| ", " |\\")
+    if "seaweed" in tags:
+        extend(lower, "~~~ ", " ~~~")
+    if "dark_aura" in tags:
+        extend(middle, "# ", " #")
+
+    if "headless" in tags:
+        for row_index in range(top, min(bottom + 1, face + 3)):
+            canvas[row_index] = [" "] * width
+        canvas[min(bottom, face + 2)] = list("        ||        ".center(width))
+
+    # Tails and feet.
+    if "multi_tail" in tags:
+        extend(lower, "", r"  ~~~\~~~\~~~")
+    elif "feather_tail" in tags:
+        extend(lower, "", "  <<<<<<")
+    elif "fluffy_tail" in tags:
+        extend(lower, "", "  ~~~~~@")
+    elif "ring_tail" in tags:
+        extend(lower, "", "  @)@)@)")
+    elif "flat_tail" in tags or "water_tail" in tags:
+        extend(lower, "", "  [====]")
+    elif "barbed_tail" in tags:
+        extend(lower, "", "  ~~~~<>")
+    elif "snake_tail" in tags:
+        extend(lower, "", "  ~~~S~~~")
+    elif "lion_tail" in tags:
+        extend(lower, "", "  ------{#}")
+    elif "horse_tail" in tags:
+        extend(lower, "", "  //////")
+    elif "white_tail" in tags:
+        extend(lower, "", "  ----(*)")
+    elif "bobtail" in tags or "tiny_tail" in tags:
+        extend(lower, "", "  ,")
+    elif "long_tail" in tags:
+        extend(lower, "", "  --------~")
+    elif "smoke_tail" in tags:
+        extend(lower, "", "  ~~~(((@")
+    if "long_quills" in tags:
+        extend(middle, "//////// ", " \\\\\\\\")
+    elif "short_spines" in tags or "spines" in tags:
+        extend(middle, "^^^^ ", " ^^^^")
+    if "long_hind_legs" in tags or "long_legs" in tags:
+        add_below("      //            \\\\      ")
+        add_below("     //              \\\\     ")
+    if "huge_feet" in tags:
+        add_below("   /______\\      /______\\   ")
+    if "huge_talons" in tags or "claws" in tags:
+        add_below("      /V\\          /V\\      ")
+    if "toe_pads" in tags:
+        add_below("     (ooo)          (ooo)     ")
+    if "long_fingers" in tags:
+        extend(lower, "\\\\\\ ", " /////")
+    if "huge_tentacles" in tags:
+        add_below("  \\~~/  \\~~/  \\~~/  \\~~/  ")
+
+    # Surface patterns and facial expression.
+    if "barred_wings" in tags:
+        mark_inside("/|/", middle)
+    elif "rosettes" in tags:
+        mark_inside("(o)", middle)
+    elif "face_stripes" in tags:
+        mark_inside("/|/", face)
+    elif "stripes" in tags:
+        mark_inside("/|/", middle)
+    elif "cheek_spots" in tags:
+        mark_inside("o.o", face)
+    elif "spots" in tags:
+        mark_inside("o.o", middle)
+    elif "scales" in tags:
+        mark_inside("<>", middle)
+    elif "patches" in tags:
+        mark_inside("#.", middle)
+    elif "wool" in tags or "shaggy" in tags or "long_hair" in tags:
+        mark_inside("~~~", middle)
+    elif "leaf_texture" in tags:
+        mark_inside("Yv", middle)
+    elif "block_texture" in tags:
+        mark_inside("[]", middle)
+    elif "icy_fur" in tags:
+        mark_inside("*^", middle)
+    elif "chest_mark" in tags or "white_chest" in tags:
+        mark_inside("V", middle)
+    elif "runes" in tags:
+        mark_inside("*+", middle)
+    elif "gem" in tags:
+        mark_inside("<*>", middle)
+    if "glowing_eyes" in tags:
+        replace_eyes("@")
+    elif "hollow_eyes" in tags:
+        replace_eyes("O")
+    elif "wide_eyes" in tags or "dark_eyes" in tags:
+        replace_eyes("0")
+    if "sharp_teeth" in tags or "scream" in tags:
+        mark_inside("VVV", face + 1)
+    if "smile" in tags:
+        mark_inside("\\_/", face + 1)
+    if "flames" in tags:
+        extend(top, "^^ ", " ^^")
+    if "wisps" in tags:
+        extend(lower, "~ ", " ~")
+    if "aquatic" in tags:
+        extend(bottom, "~ ", " ~")
+    return ["".join(row).rstrip() for row in canvas]
+
+
+
+# Hand-drawn species portraits take priority over shared anatomical body plans.
+# Shared templates remain available for related species and small terminals, but
+# these portraits preserve the defining silhouette of species that previously
+# looked too generic or were distorted by procedural overlays.
+SPECIES_PORTRAITS_HD = {
+    "Hamster": _portrait(r"""
+               __        __
+           _.-'  `------'  `-._
+        .-'    .-''''''-.     `-.
+      .'      /  o    o  \       `.
+     /       |      ^      |        \
+    |     (  |   .----.    |  )      |
+    |      \  \ (______)  /  /       |
+     \      `-._`------'_.-'         /
+      `-._      `------'         _.-'
+          `---.__/|  |\__.----'
+             _/  |__|  \_
+          .-'    /  \    `-.
+         /______/    \______\
+            (__)    (__)
+    """),
+    "Quokka": _portrait(r"""
+                 /\        /\
+                /  \______/  \
+           _.-'              `-._
+        .-'      o        o      `-.
+       /              ^             \
+      |             .---.            |
+      |            / \_/ \           |
+       \           \_____/          /
+        `-._                     _.-'
+            `---._________.---'
+              __/  |   |  \__
+          ___/     |   |     \___
+         /        /     \        \
+        /________/       \________\----~
+            /_/             \_\
+    """),
+    "Jerboa": _portrait(r"""
+                /\              /\
+               /  \____________/  \
+          _.-'      o      o       `-._
+        .'                ^             `.
+       /             .--------.           \
+      |             /  ____    \           |
+       \            \_/    \___/          /
+        `-.___                     ____.-'
+              `----._______.-----'
+                  __/     \__
+                 /           \
+                /             \
+               /               \__________~
+          ____/                 \
+         /____\                 /____\
+    """),
+    "Chinchilla": _portrait(r"""
+             .--.                .--.
+           .'    `.____________.'    `.
+          /         o        o         \
+         |               ^             |
+         |          .----------.        |
+          \        /   ______   \      /
+           `-.___  \__/      \__/ __.-'
+                 `----.____.----'
+                 ___/  |  \___
+             _.-'      |      `-._
+           .'          |          `.
+          /____________|____________\~~~~~~~@
+             /_/                 \_\
+    """),
+    "Tasmanian Devil": _portrait(r"""
+              /\                    /\
+          _.-'  `------------------'  `-._
+       .-'       o                o       `-.
+      /                 /\                 \
+     |          _______/  \_______          |
+     |         /   V V V  V V V   \         |
+      \        \____   /\   ____/          /
+       `-._          \____/            _.-'
+           `---.__________________.---'
+              /|   /|      |\   |\
+         ____/ |__/ |      | \__| \____
+        /_______/   |______|   \_______\
+           /_/                  \_\
+    """),
+    "Guinea Pig": _portrait(r"""
+             __..----------------..__
+         _.-'       _        _       `-._
+       .'          / \  o o / \          `.
+      /            \_/  ^  \_/            \
+     |              .--------.              |
+     |             /  ______  \             |
+      \            \_/      \_/            /
+       `-.___                    _____.---'
+             `------.____.------'
+             ___/   /    \   \___
+          __/______/      \______\__
+         /____________________________\
+    """),
+    "Gerbil": _portrait(r"""
+                /\          /\
+           _.-'  `----------'  `-._
+        .-'       o        o       `-.
+       /                ^             \
+      |             .------.           |
+       \           / ______ \         /
+        `-.___     \_/    \_/   __.-'
+              `----.______.----'
+                 __/ |  | \__
+             ___/    |  |    \___
+            /_______/    \_______\----------------~
+               /_/          \_\
+    """),
+    "Badger": _portrait(r"""
+            __..--------------------..__
+       _.-'   ////              \\\\   `-._
+     .'      ////   o        o   \\\\      `.
+    /       ////        /\        \\\\       \
+   |       ////    ____/  \____    \\\\       |
+   |          _.-'   ______   `-._           |
+    \       .'      /      \      `.        /
+     `-.___/________\______/________\___.-'
+          /   /      |  |      \   \
+      ___/___/       |  |       \___\___
+     /______________/    \______________\
+    """),
+    "Skunk": _portrait(r"""
+             __..------------------..__
+        _.-'      //////  \\\\\\      `-._
+      .'         //////    \\\\\\         `.
+     /      o       /\      o          _______\
+    |            __/  \__             /       |
+    |          .'  ____  `.          /        |
+     \         \__/    \__/         /        /
+      `-.___                  ____.-'   ___.-'
+            `------.____.----'      _.-'
+              ___/ |    | \_____.--'
+           __/_____|____|_____\__        ~~~~~@
+    """),
+    "Ferret": _portrait(r"""
+              __..-------------------------------..__
+         _.-'       o                         o       `-._
+       .'                    /\                         `.
+      /             ________/  \________                 \
+     |          _.-'                    `-._              |
+      \       .'        .----------.        `.           /
+       `-.___/_________/____________\_________\______.--'
+             /      /                  \      \
+        ____/______/                    \______\____
+       /____________________________________________\----~
+    """),
+    "Beaver": _portrait(r"""
+               __..----------------..__
+          _.-'      o          o       `-._
+        .'                ^                `.
+       /             .----------.            \
+      |             /  |______|  \            |
+      |             \__|______|__/            |
+       \          ____/      \____           /
+        `-.___.--'                `--.____.-'
+            /   /              \   \
+        ___/___/                \___\___   [========]
+       /_______________________________\
+    """),
+    "Meerkat": _portrait(r"""
+                 /\          /\
+                /  \________/  \
+               /   o        o   \
+              |         ^        |
+              |      .------.     |
+               \     \______/    /
+                `-.___    ___.-'
+                    /|    |\
+                   / |    | \
+                  /  |    |  \
+             ____/   |    |   \____
+            /________|____|_________\------~
+                 /_/        \_\
+    """),
+    "Mongoose": _portrait(r"""
+              __..--------------------------..__
+         _.-'    /\      o          o      /\   `-._
+       .'       /  \          ^     /  \       `.
+      /          \_/    .--------.   \_/         \
+     |                   \______/                  |
+      \       _________              ________     /
+       `-.___/         `------------'        \_.-'
+           /   /                        \   \
+       ___/___/                          \___\___------~
+      /__________________________________________\
+    """),
+    "Thunderbird": _portrait(r"""
+       _/\/\_          ________________          _/\/\_
+    __/      \________/       /\       \________/      \__
+   /    _/\/\_\      /   o   /  \   o   \      /_/\/\_    \
+  /____/      \_____/_______/____\_______\_____/      \____\
+       \                ____/ /\ \____                /
+        `-.___      ___/   / /  \ \   \___      __.-'
+              `----'      /_/    \_\      `----'
+                    _____/  |    |  \_____
+                   /________|____|________\
+                      /V\            /V\
+               _/\/\_/                  \_/\/\_
+    """),
+    "Roc": _portrait(r"""
+          _______________________      _______________________
+     ____/                       \____/                       \____
+    /          ___________        /\        ___________          \
+   /__________/    o      \______/  \______/      o    \__________\
+              \______________   ____   ______________/
+                     \        \_/    \_/        /
+                      `-.___      /\      ___.-'
+                            `----/  \----'
+                              __|  |__
+                         ____/  |  |  \____
+                        /_______|__|_______\
+                           /V\        /V\
+    """),
+    "Garuda": _portrait(r"""
+             ____                 ____
+        ____/    \_______________/    \____
+       /        /\      o o      /\        \
+      /________/  \       ^     /  \________\
+              |    \   .---.   /    |
+              |     \_/_____\_/     |
+               \       /|\         /
+          ______\_____/ | \_______/______
+         /      /       |       \        \
+        /______/________|________\________\
+               /   /    |    \   \
+              /___/     |     \___\
+                 /V\         /V\
+    """),
+    "Anzu": _portrait(r"""
+          ________________                ________________
+     ____/                \____      ____/                \____
+    /       /\  /\            \____/            /\  /\       \
+   /_______/  \/  \_____   o      /\      o   _/  \/  \_______\
+                    \     \______/  \______/     /
+                     `-.___   .------.   ___.-'
+                           \_/  ____  \_/
+                       _____\__/    \__/_____
+                  ____/       /|  |\       \____
+                 /___________/ |__| \___________\----<>
+                       /_/              \_\
+    """),
+    "Ziz": _portrait(r"""
+      ____________________________________________________________
+  ___/                                                            \___
+ /        ____________________        ____________________            \
+/________/        o           \______/           o        \___________\
+         \_________________      /\      __________________/
+                           \____/  \____/
+                              / /\ \
+                        _____/ /  \ \_____
+                    ___/______/____\______\___
+                   /__________________________\
+                      /V\                /V\
+    """),
+    "Dullahan": _portrait(r"""
+             __________________
+            /       ____       \
+           |       / o  \       |
+           |       \____/       |                     
+            \__________________/
+                   __||__
+              ____/  ||  \____
+             /       ||       \
+            /________||________\
+               /     ||     \
+              /______||______\
+                  / /  \ \
+                 /_/    \_\
+    """),
+    "Oni": _portrait(r"""
+              /\              /\
+          ___/  \____________/  \___
+        .'        O        O        `.
+       /              /\              \
+      |        .-----/  \-----.        |
+      |       /   V  V  V  V   \       |      ______
+       \      \____      ____/         /     / ____ \\
+        `-.___     \____/      ____.-'     | |____| |
+              `----/|  |\-----'             \______/ 
+             _____/ |  | \_____               ||
+            /_______|__|_______\==============||
+               /_/        \_\
+    """),
+    "Tengu": _portrait(r"""
+             ____                   ____
+        ____/    \_________________/    \____
+       /       /\       o   o       /\       \
+      /_______/  \         ^       /  \_______\
+                 |      ___|================>
+                 |     /___\       |
+                  \               /
+              _____`-.___ ___.-'_____
+             /        /| |\        \
+            /________/ | | \________\
+                /_/    | |    \_\
+                      /   \
+    """),
+    "Minotaur": _portrait(r"""
+           /\                          /\
+      ____/  \________________________/  \____
+     /          o                  o          \
+    |                 /\                       |
+    |          ______/  \______               |
+     \        /   V        V   \             /
+      `-.___  \______  ________/      ____.-'
+            `--------\/------------'
+                 ____/|  |\____
+            ____/     |  |     \____
+           /__________|__|__________\
+               /_/            \_\
+    """),
+    "Golem": _portrait(r"""
+              ______________________
+             /  []   []   []   []  \
+            |      O        O       |
+            |          ____          |
+            |     ____|____|____     |
+             \___/______________\___/
+                |  []   []   []  |
+           _____|________________|_____
+          /     |  []   []   []  |     \
+         /______|________________|______\
+              /___/          \___\
+             /____\          /____\
+    """),
+    "Djinn": _portrait(r"""
+                    .-~~~~~~~~-.
+                 .-'   @    @   `-.
+                /          ^       \
+               |       .------.     |
+                \      \______/    /
+                 `-.___      ___.-'
+                      /|    |\
+                 ____/ |    | \____
+                /      |    |      \
+                \______|____|______/
+                      _/    \_
+                   .-'        `-.
+                ~~~              ~~~
+                   `~~._______.~~'
+    """),
+    "Yeti": _portrait(r"""
+             /^^^^^^^^^^^^^^^^^^^^\
+            /   o              o   \
+           |          /\            |
+           |      .--/  \--.         |
+            \    /  ______  \       /
+             `-._\_/      \_/___.-'
+          ///////|          |\\\\\\\
+        ///////  |          |  \\\\\\
+       /_________|__________|_________\
+           /     /          \     \
+          /_____/            \_____\
+    """),
+    "Dryad": _portrait(r"""
+             \Y/\Y/\Y/      \Y/\Y/\Y/
+              \  |  /________\  |  /
+               \ | /  o    o  \ | /
+                \|      ^      |/
+                 |   .------.   |
+                  \  \______/  /
+             ______`-.__  __.-'______
+            /      /   |  |   \      \
+           /______/____|__|____\______\
+                 /     |  |     \
+                /______|__|______\
+                   /_/      \_\
+    """),
+    "Wyvern": _portrait(r"""
+        __/\____________________________/\__
+    ___/    \          /\              /    \___
+   /     ____\________/  \____________/____     \
+  /_____/       o              o            \_____\
+        \                ^                  /
+         `-.___      .--------.       __.-'
+          ____ `----/  ______  \-----' ____
+     ____/    \_____\_/      \_/_____/    \____
+    /          \       /\  /\       /          \
+   /____________\_____/  \/  \_____/____________\----<>
+                      /_/  \_\
+    """),
+    "Qilin": _portrait(r"""
+               \V/                  \V/
+                 \        /\        /
+                  \______/  \______/
+             _.-'    o          o    `-._
+           .'              ^            `.
+          /          .-----------.         \
+         |      <>  /  <>  <>  <> \  <>    |
+          \         \_____________/       /
+           `-.___                    __.-'
+                 `----._______.-----'
+                 ____/  /  \  \____
+            ____/      /    \      \____
+           /__________/      \__________\~~~~<>
+               /_/              \_\
+    """),
+    "Alicorn": _portrait(r"""
+          ________________        /\        ________________
+     ____/                \____   /  \   ____/                \____
+    /                         \__/____\__/                         \
+   /___________       __________/ o  o \__________       __________\
+               \_____/            ^             \_____/
+                    |        .----------.        |
+                     \       \__________/       /
+                      `-.___            ___.-'
+                         __/|          |\__
+                    ____/   |          |   \____
+                   /________|__________|________\~~~~~~
+                       /_/                \_\
+    """),
+    "Chimera": _portrait(r"""
+            /\____/\          /\____/\
+           /  o  o  \        /  o  o  \
+          |     ^     |      |     ^     |
+           \  .---.  /        \  .---.  /
+            `-.___.-'__________`-.___.-'
+                 /      /\      \
+            ____/______/  \______\____
+           /        /\     /\        \\
+          /____________________________\~~~~S~~~<
+             /  /                \  \
+            /__/                  \__\
+    """),
+    "Manticore": _portrait(r"""
+       ____/\__________________________/\____
+   ___/      \       .-~~~~~~-.       /      \___
+  /      /\   \_____/  o  o   \_____/   /\      \
+ /______/  \_______/      ^      \_______/  \______\
+                   |   .------.   |
+                    \  \______/  /
+              _______`-.___.-'_______
+             /      /   /|\   \      \
+            /______/___/ | \___\______\------<>
+                /_/      |      \_\
+    """),
+    "Sphinx": _portrait(r"""
+        __________________                __________________
+    ___/                  \______________/                  \___
+   /       /\               .--------.               /\       \
+  /_______/  \_____________/  o    o  \_____________/  \_______\
+                           |     ^      |
+                           |   .----.    |
+                            \  \____/   /
+                      _______`-.___.-'_______
+                 ____/       /  |  \       \____
+                /___________/   |   \___________\
+                    /_/          |          \_\
+    """),
+    "Phoenix": _portrait(r"""
+                   ^     ^     ^
+              ^^^^/ \^^^/ \^^^/ \^^^^
+          ____    \  \  |  /  /    ____
+     ____/    \____\  \ | /  /____/    \____
+    /              \   \|/   /              \
+   /________________\__(o)__/________________\
+                     / /V\ \
+                ____/ / | \ \____
+               /     /  |  \     \
+              /_____/___|___\_____\
+                  /_/   |   \_\
+              ^^^^      |      ^^^^
+           ^^^^/\^^^/\^^^/\^^^^
+    """),
+}
+
+
 def _portrait_for_species(pet, width=999, max_height=999):
-    """Choose the richest complete portrait that fits without clipping."""
+    """Choose the richest complete, customized portrait that actually fits."""
     style = SPECIES_EXACT_ART_STYLE.get(pet.species, SPECIES_ART_STYLE.get(pet.species))
     candidates = []
+    if pet.species in SPECIES_PORTRAITS_HD:
+        candidates.append(list(SPECIES_PORTRAITS_HD[pet.species]))
     if style in ASCII_PORTRAITS_HD:
-        candidates.append(list(ASCII_PORTRAITS_HD[style]))
+        hd = list(ASCII_PORTRAITS_HD[style])
+        candidates.append(_customize_species_portrait(hd, pet.species, style))
+        candidates.append(hd)
     if style in ASCII_PORTRAITS:
-        candidates.append(list(ASCII_PORTRAITS[style]))
+        normal = list(ASCII_PORTRAITS[style])
+        candidates.append(_customize_species_portrait(normal, pet.species, style))
+        candidates.append(normal)
+    candidates.append(_compact_species_art(pet, 0))
+
     usable_width = max(8, int(width) - 10)
     usable_height = max(3, int(max_height))
     for candidate in candidates:
-        detailed = list(candidate)
-        if len(detailed) <= usable_height and max((len(line) for line in detailed), default=0) <= usable_width:
+        detailed = _trim_ascii(candidate)
+        if not detailed:
+            continue
+        candidate_width = max((len(line) for line in detailed), default=0)
+        if len(detailed) <= usable_height and candidate_width <= usable_width:
             return detailed
-    return candidates[-1] if candidates else []
-
+    return []
 
 # Animation profiles are deterministic and anatomy-aware. Every registered
 # creature receives a long sequence of idle actions, blinks, breathing, mood
@@ -13424,7 +14362,7 @@ def shop_marquee_window(text, width, elapsed):
     return repeated[offset:offset + width].ljust(width)
 
 def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, is_prestige=False):
-    """Draw the complete unique shop on one screen; no generated pages exist."""
+    """Draw every unique upgrade at once, including on a 20-row terminal."""
     h, w = stdscr.getmaxyx()
     names = list(upgrades_dict.keys())
     balance = game.prestige_points if is_prestige else game.coins
@@ -13435,13 +14373,16 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
         maximum = info.get("max_level", 333)
         is_max = level >= maximum
         key_label = SHOP_KEYS[index]
-        locked = (not is_prestige and game.caretaker_level < info.get("unlock", 1))
-        cost = 0 if is_max else (game.prestige_upgrade_cost(name, level) if is_prestige else game.global_upgrade_cost(name, level))
+        locked = not is_prestige and game.caretaker_level < info.get("unlock", 1)
+        cost = 0 if is_max else (
+            game.prestige_upgrade_cost(name, level)
+            if is_prestige else game.global_upgrade_cost(name, level)
+        )
         if is_max:
             status = "MAX"
             attr = curses.color_pair(9) | curses.A_BOLD
         elif locked:
-            status = f"LOCK Lv.{info['unlock']}"
+            status = f"LOCK L{info['unlock']}"
             attr = curses.color_pair(6) | curses.A_BOLD
         elif balance >= cost:
             status = fmt_num(cost)
@@ -13454,57 +14395,91 @@ def draw_shop(stdscr, game, title, upgrades_dict, player_levels, buy_callback, i
             attr = curses.color_pair(6) | curses.A_BOLD
         display_name = name.replace("_", " ").title()
         current = game.prestige_effect_text(name, level) if is_prestige else game.upgrade_effect_text(name, level)
-        next_effect = current if is_max else (game.prestige_effect_text(name, level + 1) if is_prestige else game.upgrade_effect_text(name, level + 1))
-        prefix = f"[ {key_label} ] {display_name} Lv.{level}/{maximum} Cost:{status} | "
+        next_effect = current if is_max else (
+            game.prestige_effect_text(name, level + 1)
+            if is_prestige else game.upgrade_effect_text(name, level + 1)
+        )
+        prefix = f"[ {key_label} ] {display_name} L{level}/{maximum} {status} | "
         description = f"{current} -> {next_effect}. {info['desc']}"
         row_data.append((prefix, description, attr))
 
     paused = getattr(game, "shop_marquee_paused", False)
-    pause_label = "Resume text" if paused else "Pause text"
+    pause_label = "Resume" if paused else "Pause"
     title_attr = curses.color_pair(9 if is_prestige else 3) | curses.A_BOLD
-    header = [
-        (f"-- {title}: {len(names)} UNIQUE ITEMS --", title_attr),
-        (f"Balance: {fmt_num(balance)} | No duplicates, no pages", curses.color_pair(7) | curses.A_BOLD),
-        ("Descriptions move right-to-left; price and effect remain visible.", curses.color_pair(7)),
-    ]
     key_range = "1-9/0/a-e" if len(names) > 10 else "1-9/0"
-    footer = [("", curses.color_pair(7)), (f"[ {key_range} ] Buy  [ space ] {pause_label}  [ x ] Close", curses.color_pair(3) | curses.A_BOLD)]
-    full_lines = header + [(prefix + desc, attr) for prefix, desc, attr in row_data] + footer
-    box_h = min(h - 2, len(full_lines) + 2)
-    max_width = max((len(line) for line, _attr in full_lines), default=20)
-    box_w = min(w - 2, max(36, max_width + 4))
-    start_y, start_x = max(0, (h - box_h) // 2), max(0, (w - box_w) // 2)
+
+    # Two header lines + item rows + one footer + two borders.  At 20 rows the
+    # 15-item normal shop therefore fits exactly without pages or hidden items.
+    single_column_rows = len(row_data)
+    required_height = single_column_rows + 5
+    columns = 1
+    if h < required_height and len(row_data) > 1:
+        possible_rows = max(1, h - 5)
+        needed_columns = math.ceil(len(row_data) / possible_rows)
+        if w >= needed_columns * 28:
+            columns = needed_columns
+    rows_per_column = math.ceil(len(row_data) / columns)
+    box_h = min(h, rows_per_column + 5)
+    box_w = max(20, min(w, max(40, w if columns > 1 else w - 2)))
+    start_y = max(0, (h - box_h) // 2)
+    start_x = max(0, (w - box_w) // 2)
+
     for row in range(box_h):
-        try: stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(7))
-        except curses.error: pass
+        try:
+            stdscr.addstr(start_y + row, start_x, " " * box_w, curses.color_pair(7))
+        except curses.error:
+            pass
     try:
-        stdscr.addstr(start_y, start_x, "+" + "=" * (box_w - 2) + "+", title_attr)
+        stdscr.addstr(start_y, start_x, "+" + "=" * max(0, box_w - 2) + "+", title_attr)
         for row in range(1, box_h - 1):
             stdscr.addstr(start_y + row, start_x, "|", title_attr)
             stdscr.addstr(start_y + row, start_x + box_w - 1, "|", title_attr)
-        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "=" * (box_w - 2) + "+", title_attr)
-    except curses.error: pass
+        stdscr.addstr(start_y + box_h - 1, start_x, "+" + "=" * max(0, box_w - 2) + "+", title_attr)
+    except curses.error:
+        pass
+
     usable_width = max(0, box_w - 4)
-    max_content_rows = max(0, box_h - 2)
-    draw_row = 0
-    for line, attr in header:
-        if draw_row >= max_content_rows: break
-        try: stdscr.addstr(start_y + 1 + draw_row, start_x + 2, line[:usable_width].ljust(usable_width), attr)
-        except curses.error: pass
-        draw_row += 1
+    header_title = f"{title}: {len(names)} UNIQUE ITEMS"
+    header_balance = f"Balance {fmt_num(balance)} | no duplicates, no pages | moving text {pause_label.lower()}d"
+    for offset, (line, attr) in enumerate(((header_title, title_attr), (header_balance, curses.A_BOLD))):
+        try:
+            stdscr.addstr(start_y + 1 + offset, start_x + 2, line[:usable_width].ljust(usable_width), attr)
+        except curses.error:
+            pass
+
     elapsed = shop_marquee_elapsed(game)
-    for prefix, description, attr in row_data:
-        if draw_row >= max_content_rows: break
-        description_width = usable_width - len(prefix)
-        rendered = prefix + shop_marquee_window(description, description_width, elapsed) if description_width >= 12 else shop_marquee_window(prefix + description, usable_width, elapsed)
-        try: stdscr.addstr(start_y + 1 + draw_row, start_x + 2, rendered[:usable_width].ljust(usable_width), attr)
-        except curses.error: pass
-        draw_row += 1
-    for line, attr in footer:
-        if draw_row >= max_content_rows: break
-        try: stdscr.addstr(start_y + 1 + draw_row, start_x + 2, line[:usable_width].ljust(usable_width), attr)
-        except curses.error: pass
-        draw_row += 1
+    grid_top = start_y + 3
+    cell_width = max(1, usable_width // columns)
+    for index, (prefix, description, attr) in enumerate(row_data):
+        column = index // rows_per_column
+        row = index % rows_per_column
+        x = start_x + 2 + column * cell_width
+        width = cell_width - (2 if column < columns - 1 else 0)
+        compact_prefix = prefix
+        if len(compact_prefix) > max(10, width - 12):
+            # Keep key, level, and price visible; only the long name is shortened.
+            key_part, _, rest = compact_prefix.partition("] ")
+            tail = rest.split(" | ", 1)[0]
+            words = tail.split()
+            if len(words) > 3:
+                words = words[:2] + words[-1:]
+            compact_prefix = key_part + "] " + " ".join(words) + " | "
+        description_width = width - len(compact_prefix)
+        rendered = (
+            compact_prefix + shop_marquee_window(description, description_width, elapsed)
+            if description_width >= 8 else
+            shop_marquee_window(compact_prefix + description, width, elapsed)
+        )
+        try:
+            stdscr.addstr(grid_top + row, x, rendered[:width].ljust(width), attr)
+        except curses.error:
+            pass
+
+    footer = f"[ {key_range} ] Buy   [ space ] {pause_label} text   [ x ] Close"
+    try:
+        stdscr.addstr(start_y + box_h - 2, start_x + 2, footer[:usable_width].ljust(usable_width), title_attr)
+    except curses.error:
+        pass
 
 def draw_pet_select(stdscr, game):
     h, w = stdscr.getmaxyx()
@@ -14146,10 +15121,10 @@ def _draw_wide_dashboard(stdscr, game):
     _safe_addstr(stdscr, 0, 0, title, curses.A_REVERSE)
 
     footer_tokens = (
-        "[f] Feed", "[p] Pet", "[b] Bath", "[t] Train", "[s] Shop", "[l] Loot", "[y] Buy", "[c] Pets",
-        "[d] Fight", "[w] LAN", "[r] Adventure", "[h] Awards", "[e] Prestige", "[g] P.Shop",
-        "[1/2] Facts", "[i] Full Fact", "[z] Full Portrait", "[n] Name", "[o] Color", "[v] Boost",
-        "[m] SFX", "[k] Music", "[u] Mute", "[q] Quit",
+        "[ f ] Feed", "[ p ] Pet", "[ b ] Bath", "[ t ] Train", "[ s ] Shop", "[ l ] Loot", "[ y ] Buy", "[ c ] Pets",
+        "[ d ] Fight", "[ w ] LAN", "[ r ] Adventure", "[ h ] Awards", "[ e ] Prestige", "[ g ] P.Shop",
+        "[ 1 / 2 ] Facts", "[ i ] Full Fact", "[ z ] Full Portrait", "[ n ] Name", "[ o ] Color", "[ v ] Boost",
+        "[ m ] SFX", "[ k ] Music", "[ u ] Mute", "[ q ] Quit",
     )
     footer_lines = _pack_tokens_for_width(footer_tokens, w)
     status = _pack_tokens_for_width(_status_tokens(game), w)
@@ -14186,7 +15161,7 @@ def _draw_wide_dashboard(stdscr, game):
         row += 2
         facts = p.get_facts()
         if facts and row < footer_top:
-            header = f"FACT {p.fact_index + 1}/{len(facts)}  [i] read all"
+            header = f"FACT {p.fact_index + 1}/{len(facts)}  [ i ] read all"
             _safe_addstr(stdscr, row, right_x, header[:right_w], curses.A_REVERSE)
             row += 1
             preview_h = max(1, footer_top - row)
