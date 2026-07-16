@@ -35,7 +35,7 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qs
 from collections import deque, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SETTINGS_BUILD_ID = "2026-07-17-ded-guy-universal-direct-script-launch-r44"
+SETTINGS_BUILD_ID = "2026-07-17-ded-guy-post-update-command-r45"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -1154,7 +1154,6 @@ def update_dedsec(repo_url=REPO_URL_SOURCE_1, repo_api_url=REPO_API_URL_SOURCE_1
             update_changed = True
             dedsec_size = get_dedsec_size(existing_dedsec_path)
             print(f"[+] {_('Cloned new DedSec repository. DedSec Project Size')}: {dedsec_size}")
-        print(f"[+] {_('Update process completed successfully')}!")
     except Exception as exc:
         update_error = exc
         raise
@@ -1180,6 +1179,15 @@ def update_dedsec(repo_url=REPO_URL_SOURCE_1, repo_api_url=REPO_API_URL_SOURCE_1
                 # The project update succeeded, so database-refresh failure is
                 # reported without pretending the project update itself failed.
                 pass
+
+    # Keep the final success notice at the actual end of the complete update
+    # workflow, after the repository and Ded-Guy knowledge refresh have both
+    # finished. If a validated Settings candidate exists, immediately show the
+    # exact installation command instead of waiting for the next Termux launch.
+    print(f"[+] {_('Update process completed successfully')}!")
+    install_notice = dedguy_post_update_install_notice()
+    if install_notice:
+        print(install_notice)
     return existing_dedsec_path
 
 
@@ -19915,8 +19923,8 @@ def pipboy_refresh_knowledge_after_update(trigger="update", force_project_rebuil
                 ))
             if summary.get("settings_update_created"):
                 progress(pipboy_text(
-                    "A validated ~/Settings-Updated.py was created. The replacement command will be shown on the next launch.",
-                    "Δημιουργήθηκε ελεγμένο ~/Settings-Updated.py. Η εντολή αντικατάστασης θα εμφανιστεί στην επόμενη εκκίνηση.",
+                    "A validated ~/Settings-Updated.py was created. Its copy-and-paste installation command will be shown when this update finishes.",
+                    "Δημιουργήθηκε ελεγμένο ~/Settings-Updated.py. Η εντολή εγκατάστασης για αντιγραφή και επικόλληση θα εμφανιστεί όταν ολοκληρωθεί αυτή η ενημέρωση.",
                 ))
             if summary["errors"]:
                 progress(pipboy_text(
@@ -20247,6 +20255,22 @@ def dedguy_replacement_command():
         "rm -rf ~/DedSec/Scripts/__pycache__ && "
         "python3 -m py_compile ~/DedSec/Scripts/Settings.py && "
         "python3 ~/DedSec/Scripts/Settings.py --activate-ded-guy"
+    )
+
+
+def dedguy_post_update_install_notice():
+    """Return the immediate copy/paste command shown after a successful update."""
+    valid, _reason = dedguy_validate_candidate_file()
+    if not valid:
+        return ""
+    command = dedguy_replacement_command()
+    return pipboy_text(
+        "\n[+] A validated Settings update is ready at ~/Settings-Updated.py.\n"
+        "Copy and paste this exact command into Termux to install it now:\n\n"
+        + command,
+        "\n[+] Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py.\n"
+        "Αντιγράψτε και επικολλήστε ακριβώς αυτή την εντολή στο Termux για να την εγκαταστήσετε τώρα:\n\n"
+        + command,
     )
 
 
