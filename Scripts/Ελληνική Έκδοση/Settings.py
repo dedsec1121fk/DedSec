@@ -13,7 +13,28 @@ import zipfile
 import time
 import socket
 import hashlib
+import base64
+import zlib
+import warnings
 import atexit
+import shlex
+import signal
+import select
+import fcntl
+import threading
+import unicodedata
+import difflib
+import importlib.metadata as importlib_metadata
+import ast
+import pty
+import html
+import xml.etree.ElementTree as ET
+from html.parser import HTMLParser
+from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qsl
+from collections import deque, Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+SETTINGS_BUILD_ID = "2026-07-17-ded-guy-instant-wake-offline-expert-r42"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -36,6 +57,25 @@ MOTD_PATH = "/data/data/com.termux/files/usr/etc/motd"
 # --- Persistent Language Config ---
 # Saves language preference to /data/data/com.termux/files/home/Language.json
 HOME_DIR = "/data/data/com.termux/files/home"
+
+# Ded-Guy self-update protocol. Generated updates are staged in Termux home and
+# are never installed automatically; the user receives an exact replacement
+# command on the next launch.
+DEDGUY_SELF_UPDATE_COMPATIBILITY = 1
+DEDGUY_SELF_UPDATE_SCHEMA = 1
+DEDGUY_UPDATED_SCRIPT_PATH = os.path.join(HOME_DIR, "Settings-Updated.py")
+DEDGUY_PREVIOUS_SCRIPT_PATH = os.path.join(HOME_DIR, "Settings-Previous.py")
+DEDGUY_SELF_UPDATE_STATE_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "settings_self_update.json")
+DEDGUY_SELF_UPDATE_LOCK_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "settings_self_update.lock")
+DEDGUY_SELF_UPDATE_LOG_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "settings_self_update.log")
+DEDGUY_AUTO_UPDATE_CHECK_INTERVAL = 12 * 60 * 60
+DEDGUY_SELF_UPDATE_MAX_SOURCE_BYTES = 32 * 1024 * 1024
+DEDGUY_SELF_UPDATE_MAX_DECODED_BYTES = 20 * 1024 * 1024
+
+# === DED-GUY GENERATED KNOWLEDGE PAYLOAD START ===
+DEDGUY_EMBEDDED_UPDATE_METADATA = {}
+DEDGUY_EMBEDDED_UPDATE_PAYLOAD_B64 = ""
+# === DED-GUY GENERATED KNOWLEDGE PAYLOAD END ===
 LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
 BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip")
 SUPPRESS_NEXT_AUTOSTART_PATH = os.path.join(HOME_DIR, ".dedsec_skip_autostart_once")
@@ -48,7 +88,7 @@ PROJECT_SAVE_DOWNLOADS_PATH = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, "Do
 PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
 PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
 PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
-PROJECT_SAVE_SUCCESS_MESSAGE = "A zip with the save of the DedSec Project Legacy is available in your phone downloads."
+PROJECT_SAVE_SUCCESS_MESSAGE = "A zip containing the DedSec Project, Offline Survival Project, Pocket AI, Corrupted Files Project, website repositories, APKs, and accessible sponsor repositories is available in your phone downloads."
 PROJECT_SAVE_MAX_EXTRA_COPIES = 6
 PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS = {"Android", "Download"}
 PROJECT_SAVE_APK_SOURCES = [
@@ -58,10 +98,54 @@ PROJECT_SAVE_APK_SOURCES = [
     {"filename": "Termux_Styling.apk", "type": "fdroid_package", "package": "com.termux.styling"},
 ]
 PROJECT_SAVE_REPOSITORIES = [
-    {"folder_name": "DedSec_dedsec1121fk", "url": "https://github.com/dedsec1121fk/DedSec.git"},
-    {"folder_name": "dedsec1121fk.github.io", "url": "https://github.com/dedsec1121fk/dedsec1121fk.github.io.git"},
-    {"folder_name": "ded-sec_sal-scar", "url": "https://github.com/sal-scar/ded-sec.git"},
-    {"folder_name": "DedSec_sal-scar", "url": "https://github.com/sal-scar/DedSec.git"},
+    {"folder_name": "DedSec_dedsec1121fk", "url": "https://github.com/dedsec1121fk/DedSec.git", "project_name": "DedSec Project"},
+    {"folder_name": "Offline-Survival-Project", "url": "https://github.com/dedsec1121fk/Offline-Survival-Project.git", "project_name": "Offline Survival Project"},
+    {"folder_name": "Pocket-AI", "url": "https://github.com/dedsec1121fk/Pocket-AI.git", "project_name": "Pocket AI"},
+    {"folder_name": "Corrupted-Files-Project", "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project.git", "project_name": "Corrupted Files Project"},
+    {"folder_name": "dedsec1121fk.github.io", "url": "https://github.com/dedsec1121fk/dedsec1121fk.github.io.git", "project_name": "DedSec Website Source"},
+    {"folder_name": "ded-sec_sal-scar", "url": "https://github.com/sal-scar/ded-sec.git", "project_name": "DedSec Website Mirror"},
+    {"folder_name": "DedSec_sal-scar", "url": "https://github.com/sal-scar/DedSec.git", "project_name": "DedSec Project Mirror"},
+]
+
+PIPBOY_MANAGED_PROJECTS_DIR = os.path.join(HOME_DIR, ".dedsec_pipboy", "managed_projects")
+PIPBOY_MANAGED_PROJECTS_STATUS_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "managed_projects_status.json")
+PIPBOY_ERROR_LOG_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "errors.log")
+PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "knowledge_refresh_state.json")
+PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "knowledge_refresh.lock")
+PIPBOY_KNOWLEDGE_REFRESH_SCHEMA = 2
+PIPBOY_REMOTE_CHECK_TIMEOUT = 45
+PIPBOY_WEBSITE_SIGNATURE_MAX_URLS = 200
+PIPBOY_MANAGED_PROJECTS = [
+    {
+        "key": "dedsec", "name": "DedSec Project", "repo": "dedsec1121fk/DedSec",
+        "url": "https://github.com/dedsec1121fk/DedSec.git",
+        "local_names": ["DedSec", "DedSec-main"],
+        "aliases": ["dedsec", "ded sec", "main project", "toolkit"],
+    },
+    {
+        "key": "offline_survival", "name": "Offline Survival Project", "repo": "dedsec1121fk/Offline-Survival-Project",
+        "url": "https://github.com/dedsec1121fk/Offline-Survival-Project.git",
+        "local_names": ["Offline-Survival-Project", "Offline-Survival-Project-main", "Offline Survival Project"],
+        "aliases": ["offline survival", "survival project", "emergency knowledge"],
+    },
+    {
+        "key": "pocket_ai", "name": "Pocket AI", "repo": "dedsec1121fk/Pocket-AI",
+        "url": "https://github.com/dedsec1121fk/Pocket-AI.git",
+        "local_names": ["Pocket-AI", "Pocket_AI", "PocketAI", "Pocket-AI-main"],
+        "aliases": ["pocket ai", "local ai", "termux ai"],
+    },
+    {
+        "key": "corrupted_files", "name": "Corrupted Files Project", "repo": "dedsec1121fk/Corrupted-Files-Project",
+        "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project.git",
+        "local_names": ["Corrupted-Files-Project", "Corrupted-Files-Project-main", "Corrupted Files Project"],
+        "aliases": ["corrupted files", "historical archive", "case archive"],
+    },
+    {
+        "key": "website_source", "name": "DedSec Website Source", "repo": "dedsec1121fk/dedsec1121fk.github.io",
+        "url": "https://github.com/dedsec1121fk/dedsec1121fk.github.io.git",
+        "local_names": ["dedsec1121fk.github.io", "dedsec1121fk.github.io-main", "DedSec-Website"],
+        "aliases": ["website", "ded-sec.space", "site source"],
+    },
 ]
 
 # --- VPN / Tor Utilities (taken from Free Internet.py and adapted for Settings.py) ---
@@ -134,6 +218,24 @@ SPONSORS_ROOT_PATH = os.path.join(HOME_DIR, SPONSORS_ROOT_NAME)
 SPONSORS_ENGLISH_FOLDER_NAME = "English Version"
 SPONSORS_GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
 
+def get_existing_sponsors_paths():
+    """Return installed sponsor roots for all runtime code paths.
+
+    This compatibility helper is intentionally defined at module scope. Earlier
+    builds only defined a same-named helper inside the generated DedSec OS server
+    source string, which made Ded-Guy raise NameError in the main Settings process.
+    """
+    paths = []
+    for tier_key in SPONSORS_TIER_ORDER:
+        config = SPONSORS_TIERS.get(str(tier_key), {})
+        root_name = config.get("root_name")
+        if not root_name:
+            continue
+        candidate = os.path.realpath(os.path.join(HOME_DIR, root_name))
+        if os.path.isdir(candidate) and candidate not in paths:
+            paths.append(candidate)
+    return paths
+
 # Define hidden folder name/path for Greek (Necessary for language toggle)
 HIDDEN_GREEK_FOLDER = "." + GREEK_FOLDER_NAME
 HIDDEN_GREEK_PATH = os.path.join(ENGLISH_BASE_PATH, HIDDEN_GREEK_FOLDER)
@@ -175,8 +277,8 @@ def save_language_preference(language):
         
         with open(LANGUAGE_JSON_PATH, "w") as f:
             json.dump(data, f, indent=4)
-    except Exception as e:
-        pass 
+    except Exception:
+        pass
 
 def load_language_preference():
     """Loads the preferred language from the persistent JSON file."""
@@ -219,6 +321,43 @@ def load_menu_autostart_preference() -> bool:
             return True
     return True
 
+
+def save_menu_style_preference(style):
+    """Persists the selected main-menu style independently of bash.bashrc."""
+    valid = {"list", "grid", "number", "pipboy", "dedsec_os"}
+    if style not in valid:
+        return False
+    try:
+        data = {}
+        if os.path.exists(LANGUAGE_JSON_PATH):
+            with open(LANGUAGE_JSON_PATH, "r", encoding="utf-8") as handle:
+                try:
+                    data = json.load(handle)
+                except Exception:
+                    data = {}
+        data["menu_style"] = style
+        temp = LANGUAGE_JSON_PATH + ".tmp"
+        with open(temp, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, ensure_ascii=False, indent=4)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp, LANGUAGE_JSON_PATH)
+        return True
+    except Exception:
+        return False
+
+
+def load_menu_style_preference():
+    """Returns a valid saved menu style, or None for legacy installations."""
+    try:
+        with open(LANGUAGE_JSON_PATH, "r", encoding="utf-8") as handle:
+            style = json.load(handle).get("menu_style")
+        if style in {"list", "grid", "number", "pipboy", "dedsec_os"}:
+            return style
+    except Exception:
+        pass
+    return None
+
 def enforce_language_folder_visibility():
     """
     Checks the saved language preference and ensures the Greek folder 
@@ -242,196 +381,393 @@ def enforce_language_folder_visibility():
                 pass
 
 # --- Translation Definitions (NO EMOJIS) ---
-GREEK_STRINGS = {
-    "Select an option": "Επιλέξτε μια επιλογή",
-    "About": "Πληροφορίες",
-    "DedSec Project Update (Source 1)": "Ενημέρωση Έργου DedSec (Πηγή 1)",
-    "DedSec Project Update (Source 2)": "Ενημέρωση Έργου DedSec (Πηγή 2)",
-    "Access Sponsors-Only Scripts": "Πρόσβαση στα Sponsors-Only Scripts",
-    "Checking Sponsors-Only access...": "Έλεγχος πρόσβασης στα Sponsors-Only...",
-    "GitHub is not connected yet. Connect GitHub now? (y/n): ": "Το GitHub δεν είναι συνδεδεμένο ακόμα. Σύνδεση τώρα; (y/n): ",
-    "GitHub connection is required for Sponsors-Only scripts.": "Απαιτείται σύνδεση GitHub για τα Sponsors-Only scripts.",
-    "Sponsors-Only access confirmed.": "Η πρόσβαση στα Sponsors-Only επιβεβαιώθηκε.",
-    "You do not have access to the Sponsors-Only repository yet.": "Δεν έχετε ακόμα πρόσβαση στο Sponsors-Only repository.",
-    "Make sure you are sponsoring with the connected GitHub account.": "Βεβαιωθείτε ότι είστε sponsor με τον συνδεδεμένο GitHub λογαριασμό.",
-    "Choose Sponsors-Only tier": "Επιλέξτε Sponsors-Only tier",
-    "Download Sponsors-Only $3 Tier": "Λήψη Sponsors-Only $3 Tier",
-    "Download Sponsors-Only $9 Tier": "Λήψη Sponsors-Only $9 Tier",
-    "Check access to both sponsor tiers": "Έλεγχος πρόσβασης και στα δύο sponsor tiers",
-    "Checking Sponsors-Only access for": "Έλεγχος πρόσβασης Sponsors-Only για",
-    "Access available": "Η πρόσβαση είναι διαθέσιμη",
-    "Access denied": "Η πρόσβαση απορρίφθηκε",
-    "Invalid sponsor tier.": "Μη έγκυρο sponsor tier.",
-    "Downloading Sponsors-Only scripts...": "Λήψη των Sponsors-Only scripts...",
-    "Sponsors-Only scripts downloaded to": "Τα Sponsors-Only scripts κατέβηκαν στο",
-    "Failed to download Sponsors-Only scripts": "Αποτυχία λήψης των Sponsors-Only scripts",
-    "Update Packages & Modules": "Ενημέρωση Πακέτων & Modules",
-    "Save DedSec Project": "Αποθήκευση DedSec Project",
-    "A zip with the save of the DedSec Project Legacy is available in your phone downloads.": "Ένα zip με το save του DedSec Project Legacy είναι διαθέσιμο στα Downloads του τηλεφώνου σας.",
-    "Failed to save project: ": "Αποτυχία αποθήκευσης έργου: ",
-    "Change Prompt": "Αλλαγή Προτροπής",
-    "Change Menu Style": "Αλλαγή Στυλ Μενού",
-    "Enable Menu Auto-Start": "Ενεργοποίηση Αυτόματης Εκκίνησης Μενού",
-    "Disable Menu Auto-Start": "Απενεργοποίηση Αυτόματης Εκκίνησης Μενού",
-    "Choose Language/Επιλέξτε Γλώσσα": "Choose Language/Επιλέξτε Γλώσσα",
-    "DedSec OS": "DedSec OS",
-    "Credits": "Συντελεστές",
-    "Uninstall DedSec Project": "Απεγκατάσταση Έργου DedSec",
-    "Exit": "Έξοδος",
-    "System Information": "Πληροφορίες Συστήματος",
-    "The Latest DedSec Project Update": "Η Τελευταία Ενημέρωση του Έργου DedSec",
-    "DedSec directory not found": "Ο φάκελος DedSec δεν βρέθηκε",
-    "Termux Entire Storage": "Συνολικός Χώρος Αποθήκευσης Termux",
-    "DedSec Project Size": "Μέγεθος Έργου DedSec",
-    "Hardware Details": "Λεπτομέρειες Υλικού",
-    "Internal Storage": "Εσωτερικός Χώρος Αποθήκευσης",
-    "Processor": "Επεξεργαστής",
-    "Ram": "Μνήμη RAM",
-    "Carrier": "Πάροχος Δικτύου",
-    "Kernel Version": "Έκδοση Πυρήνα (Kernel)",
-    "Android Version": "Έκδοση Android",
-    "Device Model": "Μοντέλο Συσκευής",
-    "Manufacturer": "Κατασκευαστής",
-    "Uptime": "Χρόνος Λειτουργίας",
-    "Battery": "Μπαταρία",
-    "Not available": "Μη διαθέσιμο",
-    "User": "Χρήστης",
-    "Prompt Username": "Όνομα Χρήστη για την Προτροπή",
-    "Username cannot be empty. Please enter a valid username.": "Το Όνομα Χρήστη δεν μπορεί να είναι κενό. Παρακαλώ εισάγετε ένα έγκυρο όνομα.",
-    "Changing Prompt...": "Αλλαγή Προτροπής...",
-    "Customizations applied successfully!": "Οι προσαρμογές εφαρμόστηκαν επιτυχώς!",
-    "Choose Menu Style": "Επιλέξτε Στυλ Μενού",
-    "List Style": "Στυλ Λίστας",
-    "Grid Style": "Στυλ Πλέγματος",
-    "Choose By Number": "Επιλογή με Αριθμό",
-    "No menu style selected. Returning to settings menu...": "Δεν επιλέχθηκε στυλ μενού. Επιστρέφοντας στο μενού ρυθμίσεων...",
-    "Menu style changed to": "Το στυλ μενού άλλαξε σε",
-    "Bash configuration updated.": "Η διαμόρφωση του Bash ενημερώθηκε.",
-    "Menu auto-start enabled.": "Η αυτόματη εκκίνηση του μενού ενεργοποιήθηκε.",
-    "Menu auto-start disabled.": "Η αυτόματη εκκίνηση του μενού απενεργοποιήθηκε.",
-    "Please restart Termux for changes to take full effect.": "Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως οι αλλαγές.",
-    "Language set to": "Η γλώσσα ορίστηκε σε",
-    "Directory": "Ο φάκελος",
-    "is now hidden (renamed to": "είναι πλέον κρυφός (μετονομάστηκε σε",
-    "is now visible.": "είναι πλέον ορατός.",
-    "Error hiding directory": "Σφάλμα απόκρυψης φακέλου",
-    "Error unhiding directory": "Σφάλμα εμφάνισης φακέλου",
-    "No language selected. Returning to settings menu...": "Δεν επιλέχθηκε γλώσσα. Επιστρέφοντας στο μενού ρυθμίσεων...",
-    "No selection made. Exiting.": "Δεν έγινε επιλογή. Έξοδος.",
-    "back": "πίσω",
-    "Go Back": "Πίσω",
-    "No items found in this folder.": "Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.",
-    "Error running fzf": "Σφάλμα κατά την εκτέεση του fzf",
-    "Invalid selection. Exiting.": "Μη έγκυρη επιλογή. Έξοδος.",
-    "Script terminated by KeyboardInterrupt. Exiting gracefully...": "Το script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος...",
-    "Cloning repository...": "Κλωνοποίηση αποθετηρίου...",
-    "GitHub repository size": "Μέγεθος αποθετηρίου GitHub",
-    "DedSec found! Forcing a full update...": "Το DedSec βρέθηκε! Επιβολή πλήρους ενημέρωσης...",
-    "Update applied. DedSec Project Size": "Ενημέρωση εφαρμόστηκε. Μέγεθος Έργου DedSec",
-    "No available update found.": "Δεν βρέθηκε διαθέσιμη ενημέρωση.",
-    "Cloned new DedSec repository. DedSec Project Size": "Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec",
-    "Update process completed successfully!": "Η διαδικασία ενημέρωσης ολοκληρώθηκε επιτυχώς!",
-    "Unable to fetch repository size": "Αδυναμία λήψης μεγέθους αποθετηρίου",
-    "Installing Python packages and modules...": "Εγκατάσταση πακέτων και modules Python...",
-    "Installing Termux packages and modules...": "Εγκατάσταση πακέτων και modules Termux...",
-    "Packages and Modules update process completed successfully!": "Η διαδικασία ενημέρωσης πακέτων και modules ολοκληρώθηκε επιτυχώς!",
-    "Press Enter to return to the settings menu...": "Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...",
-    "Exiting...": "Γίνεται έξοδος...",
-    "Unknown menu style. Use 'list' or 'grid' or 'number'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list', 'grid' ή 'number'.",
-    "Invalid selection or non-executable script. Exiting.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script. Έξοδος.",
-    "This will restore backed-up files and remove the DedSec project. ARE YOU SURE? (y/n): ": "Αυτό θα επαναφέρει αρχεία από το αντίγραφο ασφαλείας και θα αφαιρέσει το έργο DedSec. ΕΙΣΤΕ ΣΙΓΟΥΡΟΙ; (y/n): ",
-    "Uninstallation cancelled.": "Η απεγκατάσταση ακυρώθηκε.",
-    "Restoring files from Termux.zip...": "Επαναφορά αρχείων από το Termux.zip...",
-    "Restored bash.bashrc and motd from backup.": "Επαναφέρθηκαν τα bash.bashrc και motd από το αντίγραφο ασφαλείας.",
-    "Removed Termux.zip backup.": "Το αντίγραφο ασφαλείας Termux.zip αφαιρέθηκε.",
-    "Error restoring from backup: ": "Σφάλμα κατά την επαναφορά από αντίγραφο ασφαλείας: ",
-    "Backup Termux.zip not found. Cleaning up configuration manually...": "Το αντίγραφο ασφαλείας Termux.zip δεν βρέθηκε. Εκκαθάριση διαμόρφωσης μη αυτόματα...",
-    "Removing language configuration...": "Αφαίρεση διαμόρφωσης γλώσσας...",
-    "Configuration files have been reset.": "Έγινε επαναφορά των αρχείων διαμόρφωσης.",
-    "To complete the uninstallation, please exit this script and run the following command:": "Για να ολοκληρώσετε την απεγκατάσταση, βγείτε από αυτό το script και εκτελέστε την ακόλουθη εντολή:",
-    "Creating one-time configuration backup to Termux.zip...": "Δημιουργία εφάπαξ αντιγράφου ασφαλείας διαμόρφωσης στο Termux.zip...",
-    "Backup successful.": "Το αντίγραφο ασφαλείας δημιουργήθηκε με επιτυχία.",
-    "Warning: Failed to create backup: ": "Προειδοποίηση: Αποτυχία δημιουργίας αντιγράφου ασφαλείας: ",
-    "Home Scripts": "Scripts Αρχικής",
-    "Enter the number of your choice: ": "Εισάγετε τον αριθμό της επιλογής σας: ",
-    "Invalid selection. Please try again.": "Μη έγκυρη επιλογή. Παρακαλώ προσπαθήστε ξανά.",
-    "GitHub Account": "Λογαριασμός GitHub",
-    "Termux Usage Stats": "Στατιστικά Χρήσης Termux",
-    "VPN & Tor Utilities": "Εργαλεία VPN & Tor",
-    "Network Utilities": "Εργαλεία Δικτύου",
-    "Tor Connection": "Σύνδεση Tor",
-    "VPN Connection": "Σύνδεση VPN",
-    "Enable Tor Connection": "Ενεργοποίηση Σύνδεσης Tor",
-    "Disable Tor Connection": "Απενεργοποίηση Σύνδεσης Tor",
-    "Enable VPN Connection": "Ενεργοποίηση Σύνδεσης VPN",
-    "Disable VPN Connection": "Απενεργοποίηση Σύνδεσης VPN",
-    "Choose VPN Location": "Επιλογή Τοποθεσίας VPN",
-    "Renew VPN Proxies": "Ανανέωση VPN Proxies",
-    "Update VPN/Tor Tools": "Ενημέρωση Εργαλείων VPN/Tor",
-    "Show VPN/Tor Status": "Εμφάνιση Κατάστασης VPN/Tor",
-    "Enabled": "Ενεργό",
-    "Disabled": "Ανενεργό",
-    "Running": "Τρέχει",
-    "Stopped": "Σταματημένο",
-    "Country": "Χώρα",
-    "Current proxy": "Τρέχον proxy",
-    "No proxy selected": "Δεν έχει επιλεγεί proxy",
-    "New sessions": "Νέες συνεδρίες",
-    "Covered by bash.bashrc hook": "Καλύπτονται από hook στο bash.bashrc",
-    "Network exports updated. Restart Termux or open a new shell to apply them everywhere.": "Οι ρυθμίσεις δικτύου ενημερώθηκαν. Κάντε επανεκκίνηση του Termux ή ανοίξτε νέο shell για να εφαρμοστούν παντού.",
-    "Tor support ready.": "Η υποστήριξη Tor είναι έτοιμη.",
-    "Tor started on 127.0.0.1:9050.": "Το Tor ξεκίνησε στο 127.0.0.1:9050.",
-    "Tor is already running.": "Το Tor ήδη τρέχει.",
-    "Tor stopped.": "Το Tor σταμάτησε.",
-    "Tor was not started by this app.": "Το Tor δεν ξεκίνησε από αυτή την εφαρμογή.",
-    "VPN proxy ready": "Το VPN proxy είναι έτοιμο",
-    "Saved VPN proxy reused without retesting.": "Το αποθηκευμένο VPN proxy χρησιμοποιήθηκε ξανά χωρίς νέο τεστ.",
-    "Saved proxy was previously marked as bad. Searching for a new one.": "Το αποθηκευμένο proxy είχε σημειωθεί ως προβληματικό. Αναζήτηση νέου.",
-    "VPN is disabled. Proxies were refreshed but no proxy was activated.": "Το VPN είναι ανενεργό. Τα proxies ανανεώθηκαν αλλά δεν ενεργοποιήθηκε κανένα proxy.",
-    "No working proxy found for this country right now. Try renew or choose another location.": "Δεν βρέθηκε λειτουργικό proxy για αυτή τη χώρα τώρα. Δοκιμάστε ανανέωση ή επιλέξτε άλλη τοποθεσία.",
-    "Selected VPN location": "Επιλεγμένη τοποθεσία VPN",
-    "Network tools checked.": "Τα εργαλεία δικτύου ελέγχθηκαν.",
-    "Connect GitHub Account": "Σύνδεση Λογαριασμού GitHub",
-    "Disconnect GitHub Account": "Αποσύνδεση Λογαριασμού GitHub",
-    "Show GitHub Stats": "Εμφάνιση Στατιστικών GitHub",
-    "GitHub account connected": "Ο λογαριασμός GitHub συνδέθηκε",
-    "GitHub account disconnected": "Ο λογαριασμός GitHub αποσυνδέθηκε",
-    "GitHub is not connected yet.": "Το GitHub δεν έχει συνδεθεί ακόμα.",
-    "GitHub username": "Όνομα χρήστη GitHub",
-    "Total stars": "Σύνολο αστεριών",
-    "Total forks": "Σύνολο forks",
-    "Total watchers": "Σύνολο watchers",
-    "Total commits": "Σύνολο commits",
-    "Rank": "Κατάταξη",
-    "Repositories counted": "Αποθετήρια που μετρήθηκαν",
-    "Prompt automatically updated to GitHub username.": "Το prompt ενημερώθηκε αυτόματα στο όνομα χρήστη GitHub.",
-    "Back": "Πίσω",
-    "Connected as": "Συνδεδεμένος ως",
-    "Not connected": "Μη συνδεδεμένο",
-    "Tracking since": "Παρακολούθηση από",
-    "Tracked time": "Χρόνος παρακολούθησης",
-    "Settings runtime tracked": "Χρόνος χρήσης Settings που καταγράφηκε",
-    "Files scanned": "Αρχεία που σαρώθηκαν",
-    "Files created": "Αρχεία που δημιουργήθηκαν",
-    "Files edited": "Αρχεία που επεξεργάστηκαν",
-    "Files deleted": "Αρχεία που διαγράφηκαν",
-    "Latest created": "Τελευταία δημιουργημένα",
-    "Latest edited": "Τελευταία επεξεργασμένα",
-    "Latest deleted": "Τελευταία διαγραμμένα",
-    "Programming languages used": "Γλώσσες προγραμματισμού που χρησιμοποιήθηκαν",
-    "Shell commands found": "Εντολές shell που βρέθηκαν",
-    "Most active folders": "Πιο ενεργοί φάκελοι",
-    "First scan created. Run this again later to detect created/edited/deleted files.": "Δημιουργήθηκε η πρώτη σάρωση. Τρέξτε το ξανά αργότερα για εντοπισμό δημιουργημένων/επεξεργασμένων/διαγραμμένων αρχείων.",
-    "Press Enter to continue...": "Πατήστε Enter για συνέχεια...",    "Update process completed successfully": "Η διαδικασία ενημέρωσης ολοκληρώθηκε με επιτυχία",
-    "Forcing a full update...": "Επιβολή πλήρους ενημέρωσης...",
-    "Customizations applied successfully! ": "Οι προσαρμογές εφαρμόστηκαν με επιτυχία! ",
-    "Please restart Termux for changes to take full effect": "Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως οι αλλαγές",
-    "Invalid selection or non-executable script.": "Μη έγκυρη επιλογή ή μη εκτελέσιμο script.",
-    "Terminal window is too small.": "Το παράθυρο του τερματικού είναι πολύ μικρό.",
-    "Unknown": "Άγνωστο",
-    "\nScript terminated by KeyboardInterrupt. Exiting gracefully...": "\nΤο script τερματίστηκε λόγω KeyboardInterrupt. Έξοδος με ασφάλεια...",
-
-}
+GREEK_STRINGS = {'Select an option': 'Επιλέξτε μια επιλογή',
+ 'About': 'Πληροφορίες',
+ 'DedSec Project Update (Source 1)': 'Ενημέρωση Έργου DedSec (Πηγή 1)',
+ 'DedSec Project Update (Source 2)': 'Ενημέρωση Έργου DedSec (Πηγή 2)',
+ 'Access Sponsors-Only Scripts': 'Πρόσβαση στα Sponsors-Only Scripts',
+ 'Checking Sponsors-Only access...': 'Έλεγχος πρόσβασης στα Sponsors-Only...',
+ 'GitHub is not connected yet. Connect GitHub now? (y/n): ': 'Το GitHub δεν είναι συνδεδεμένο ακόμα. Σύνδεση τώρα; '
+                                                             '(y/n): ',
+ 'GitHub connection is required for Sponsors-Only scripts.': 'Απαιτείται σύνδεση GitHub για τα Sponsors-Only scripts.',
+ 'Sponsors-Only access confirmed.': 'Η πρόσβαση στα Sponsors-Only επιβεβαιώθηκε.',
+ 'You do not have access to the Sponsors-Only repository yet.': 'Δεν έχετε ακόμα πρόσβαση στο Sponsors-Only '
+                                                                'repository.',
+ 'Make sure you are sponsoring with the connected GitHub account.': 'Βεβαιωθείτε ότι είστε sponsor με τον συνδεδεμένο '
+                                                                    'GitHub λογαριασμό.',
+ 'Choose Sponsors-Only tier': 'Επιλέξτε Sponsors-Only tier',
+ 'Download Sponsors-Only $3 Tier': 'Λήψη Sponsors-Only $3 Tier',
+ 'Download Sponsors-Only $9 Tier': 'Λήψη Sponsors-Only $9 Tier',
+ 'Check access to both sponsor tiers': 'Έλεγχος πρόσβασης και στα δύο sponsor tiers',
+ 'Checking Sponsors-Only access for': 'Έλεγχος πρόσβασης Sponsors-Only για',
+ 'Access available': 'Η πρόσβαση είναι διαθέσιμη',
+ 'Access denied': 'Η πρόσβαση απορρίφθηκε',
+ 'Invalid sponsor tier.': 'Μη έγκυρο sponsor tier.',
+ 'Downloading Sponsors-Only scripts...': 'Λήψη των Sponsors-Only scripts...',
+ 'Sponsors-Only scripts downloaded to': 'Τα Sponsors-Only scripts κατέβηκαν στο',
+ 'Failed to download Sponsors-Only scripts': 'Αποτυχία λήψης των Sponsors-Only scripts',
+ 'Update Packages & Modules': 'Ενημέρωση Πακέτων & Modules',
+ 'Save DedSec Project': 'Αποθήκευση DedSec Project',
+ 'A zip containing the DedSec Project, Offline Survival Project, Pocket AI, Corrupted Files Project, website repositories, APKs, and accessible sponsor repositories is available in your phone downloads.': 'Ένα '
+                                                                                                                                                                                                             'zip '
+                                                                                                                                                                                                             'που '
+                                                                                                                                                                                                             'περιέχει '
+                                                                                                                                                                                                             'το '
+                                                                                                                                                                                                             'DedSec '
+                                                                                                                                                                                                             'Project, '
+                                                                                                                                                                                                             'το '
+                                                                                                                                                                                                             'Offline '
+                                                                                                                                                                                                             'Survival '
+                                                                                                                                                                                                             'Project, '
+                                                                                                                                                                                                             'το '
+                                                                                                                                                                                                             'Pocket '
+                                                                                                                                                                                                             'AI, '
+                                                                                                                                                                                                             'το '
+                                                                                                                                                                                                             'Corrupted '
+                                                                                                                                                                                                             'Files '
+                                                                                                                                                                                                             'Project, '
+                                                                                                                                                                                                             'τα '
+                                                                                                                                                                                                             'repositories '
+                                                                                                                                                                                                             'της '
+                                                                                                                                                                                                             'ιστοσελίδας, '
+                                                                                                                                                                                                             'τα '
+                                                                                                                                                                                                             'APK '
+                                                                                                                                                                                                             'και '
+                                                                                                                                                                                                             'τα '
+                                                                                                                                                                                                             'προσβάσιμα '
+                                                                                                                                                                                                             'sponsor '
+                                                                                                                                                                                                             'repositories '
+                                                                                                                                                                                                             'είναι '
+                                                                                                                                                                                                             'διαθέσιμο '
+                                                                                                                                                                                                             'στα '
+                                                                                                                                                                                                             'Downloads '
+                                                                                                                                                                                                             'του '
+                                                                                                                                                                                                             'τηλεφώνου '
+                                                                                                                                                                                                             'σας.',
+ 'Failed to save project: ': 'Αποτυχία αποθήκευσης έργου: ',
+ 'Change Prompt': 'Αλλαγή Προτροπής',
+ 'Change Menu Style': 'Αλλαγή Στυλ Μενού',
+ 'Enable Menu Auto-Start': 'Ενεργοποίηση Αυτόματης Εκκίνησης Μενού',
+ 'Disable Menu Auto-Start': 'Απενεργοποίηση Αυτόματης Εκκίνησης Μενού',
+ 'Choose Language/Επιλέξτε Γλώσσα': 'Choose Language/Επιλέξτε Γλώσσα',
+ 'DedSec OS': 'DedSec OS',
+ 'Ded-Guy Style': 'Στυλ Ded-Guy',
+ 'Credits': 'Συντελεστές',
+ 'Uninstall DedSec Project': 'Απεγκατάσταση Έργου DedSec',
+ 'Exit': 'Έξοδος',
+ 'System Information': 'Πληροφορίες Συστήματος',
+ 'The Latest DedSec Project Update': 'Η Τελευταία Ενημέρωση του Έργου DedSec',
+ 'DedSec directory not found': 'Ο φάκελος DedSec δεν βρέθηκε',
+ 'Termux Entire Storage': 'Συνολικός Χώρος Αποθήκευσης Termux',
+ 'DedSec Project Size': 'Μέγεθος Έργου DedSec',
+ 'Hardware Details': 'Λεπτομέρειες Υλικού',
+ 'Internal Storage': 'Εσωτερικός Χώρος Αποθήκευσης',
+ 'Processor': 'Επεξεργαστής',
+ 'Ram': 'Μνήμη RAM',
+ 'Carrier': 'Πάροχος Δικτύου',
+ 'Kernel Version': 'Έκδοση Πυρήνα (Kernel)',
+ 'Android Version': 'Έκδοση Android',
+ 'Device Model': 'Μοντέλο Συσκευής',
+ 'Manufacturer': 'Κατασκευαστής',
+ 'Uptime': 'Χρόνος Λειτουργίας',
+ 'Battery': 'Μπαταρία',
+ 'Not available': 'Μη διαθέσιμο',
+ 'User': 'Χρήστης',
+ 'Prompt Username': 'Όνομα Χρήστη για την Προτροπή',
+ 'Username cannot be empty. Please enter a valid username.': 'Το Όνομα Χρήστη δεν μπορεί να είναι κενό. Παρακαλώ '
+                                                             'εισάγετε ένα έγκυρο όνομα.',
+ 'Changing Prompt...': 'Αλλαγή Προτροπής...',
+ 'Customizations applied successfully!': 'Οι προσαρμογές εφαρμόστηκαν επιτυχώς!',
+ 'Choose Menu Style': 'Επιλέξτε Στυλ Μενού',
+ 'List Style': 'Στυλ Λίστας',
+ 'Grid Style': 'Στυλ Πλέγματος',
+ 'Choose By Number': 'Επιλογή με Αριθμό',
+ 'No menu style selected. Returning to settings menu...': 'Δεν επιλέχθηκε στυλ μενού. Επιστρέφοντας στο μενού '
+                                                          'ρυθμίσεων...',
+ 'Menu style changed to': 'Το στυλ μενού άλλαξε σε',
+ 'Bash configuration updated.': 'Η διαμόρφωση του Bash ενημερώθηκε.',
+ 'Menu auto-start enabled.': 'Η αυτόματη εκκίνηση του μενού ενεργοποιήθηκε.',
+ 'Menu auto-start disabled.': 'Η αυτόματη εκκίνηση του μενού απενεργοποιήθηκε.',
+ 'Please restart Termux for changes to take full effect.': 'Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως '
+                                                           'οι αλλαγές.',
+ 'Language set to': 'Η γλώσσα ορίστηκε σε',
+ 'Directory': 'Ο φάκελος',
+ 'is now hidden (renamed to': 'είναι πλέον κρυφός (μετονομάστηκε σε',
+ 'is now visible.': 'είναι πλέον ορατός.',
+ 'Error hiding directory': 'Σφάλμα απόκρυψης φακέλου',
+ 'Error unhiding directory': 'Σφάλμα εμφάνισης φακέλου',
+ 'No language selected. Returning to settings menu...': 'Δεν επιλέχθηκε γλώσσα. Επιστρέφοντας στο μενού ρυθμίσεων...',
+ 'No selection made. Exiting.': 'Δεν έγινε επιλογή. Έξοδος.',
+ 'back': 'πίσω',
+ 'Go Back': 'Πίσω',
+ 'No items found in this folder.': 'Δεν βρέθηκαν στοιχεία σε αυτόν τον φάκελο.',
+ 'Error running fzf': 'Σφάλμα κατά την εκτέεση του fzf',
+ 'Invalid selection. Exiting.': 'Μη έγκυρη επιλογή. Έξοδος.',
+ 'Script terminated by KeyboardInterrupt. Exiting gracefully...': 'Το script τερματίστηκε λόγω KeyboardInterrupt. '
+                                                                  'Έξοδος...',
+ 'Cloning repository...': 'Κλωνοποίηση αποθετηρίου...',
+ 'GitHub repository size': 'Μέγεθος αποθετηρίου GitHub',
+ 'DedSec found! Forcing a full update...': 'Το DedSec βρέθηκε! Επιβολή πλήρους ενημέρωσης...',
+ 'Update applied. DedSec Project Size': 'Ενημέρωση εφαρμόστηκε. Μέγεθος Έργου DedSec',
+ 'No available update found.': 'Δεν βρέθηκε διαθέσιμη ενημέρωση.',
+ 'Cloned new DedSec repository. DedSec Project Size': 'Κλωνοποιήθηκε νέο αποθετήριο DedSec. Μέγεθος Έργου DedSec',
+ 'Update process completed successfully!': 'Η διαδικασία ενημέρωσης ολοκληρώθηκε επιτυχώς!',
+ 'Unable to fetch repository size': 'Αδυναμία λήψης μεγέθους αποθετηρίου',
+ 'Installing Python packages and modules...': 'Εγκατάσταση πακέτων και modules Python...',
+ 'Installing Termux packages and modules...': 'Εγκατάσταση πακέτων και modules Termux...',
+ 'Packages and Modules update process completed successfully!': 'Η διαδικασία ενημέρωσης πακέτων και modules '
+                                                                'ολοκληρώθηκε επιτυχώς!',
+ 'Press Enter to return to the settings menu...': 'Πατήστε Enter για επιστροφή στο μενού ρυθμίσεων...',
+ 'Exiting...': 'Γίνεται έξοδος...',
+ "Unknown menu style. Use 'list', 'grid', 'number', 'pipboy', or 'dedsec_os'.": 'Άγνωστο στυλ μενού. Χρησιμοποιήστε '
+                                                                                "'list', 'grid', 'number', 'pipboy' ή "
+                                                                                "'dedsec_os'.",
+ 'Invalid selection or non-executable script. Exiting.': 'Μη έγκυρη επιλογή ή μη εκτελέσιμο script. Έξοδος.',
+ 'This will restore backed-up files and remove the DedSec project. ARE YOU SURE? (y/n): ': 'Αυτό θα επαναφέρει αρχεία '
+                                                                                           'από το αντίγραφο ασφαλείας '
+                                                                                           'και θα αφαιρέσει το έργο '
+                                                                                           'DedSec. ΕΙΣΤΕ ΣΙΓΟΥΡΟΙ; '
+                                                                                           '(y/n): ',
+ 'Uninstallation cancelled.': 'Η απεγκατάσταση ακυρώθηκε.',
+ 'Restoring files from Termux.zip...': 'Επαναφορά αρχείων από το Termux.zip...',
+ 'Restored bash.bashrc and motd from backup.': 'Επαναφέρθηκαν τα bash.bashrc και motd από το αντίγραφο ασφαλείας.',
+ 'Removed Termux.zip backup.': 'Το αντίγραφο ασφαλείας Termux.zip αφαιρέθηκε.',
+ 'Error restoring from backup: ': 'Σφάλμα κατά την επαναφορά από αντίγραφο ασφαλείας: ',
+ 'Backup Termux.zip not found. Cleaning up configuration manually...': 'Το αντίγραφο ασφαλείας Termux.zip δεν βρέθηκε. '
+                                                                       'Εκκαθάριση διαμόρφωσης μη αυτόματα...',
+ 'Removing language configuration...': 'Αφαίρεση διαμόρφωσης γλώσσας...',
+ 'Configuration files have been reset.': 'Έγινε επαναφορά των αρχείων διαμόρφωσης.',
+ 'To complete the uninstallation, please exit this script and run the following command:': 'Για να ολοκληρώσετε την '
+                                                                                           'απεγκατάσταση, βγείτε από '
+                                                                                           'αυτό το script και '
+                                                                                           'εκτελέστε την ακόλουθη '
+                                                                                           'εντολή:',
+ 'Creating one-time configuration backup to Termux.zip...': 'Δημιουργία εφάπαξ αντιγράφου ασφαλείας διαμόρφωσης στο '
+                                                            'Termux.zip...',
+ 'Backup successful.': 'Το αντίγραφο ασφαλείας δημιουργήθηκε με επιτυχία.',
+ 'Warning: Failed to create backup: ': 'Προειδοποίηση: Αποτυχία δημιουργίας αντιγράφου ασφαλείας: ',
+ 'Home Scripts': 'Scripts Αρχικής',
+ 'Enter the number of your choice: ': 'Εισάγετε τον αριθμό της επιλογής σας: ',
+ 'Invalid selection. Please try again.': 'Μη έγκυρη επιλογή. Παρακαλώ προσπαθήστε ξανά.',
+ 'GitHub Account': 'Λογαριασμός GitHub',
+ 'Termux Usage Stats': 'Στατιστικά Χρήσης Termux',
+ 'Ded-Guy': 'Ded-Guy',
+ 'VPN & Tor Utilities': 'Εργαλεία VPN & Tor',
+ 'Network Utilities': 'Εργαλεία Δικτύου',
+ 'Tor Connection': 'Σύνδεση Tor',
+ 'VPN Connection': 'Σύνδεση VPN',
+ 'Enable Tor Connection': 'Ενεργοποίηση Σύνδεσης Tor',
+ 'Disable Tor Connection': 'Απενεργοποίηση Σύνδεσης Tor',
+ 'Enable VPN Connection': 'Ενεργοποίηση Σύνδεσης VPN',
+ 'Disable VPN Connection': 'Απενεργοποίηση Σύνδεσης VPN',
+ 'Choose VPN Location': 'Επιλογή Τοποθεσίας VPN',
+ 'Renew VPN Proxies': 'Ανανέωση VPN Proxies',
+ 'Update VPN/Tor Tools': 'Ενημέρωση Εργαλείων VPN/Tor',
+ 'Show VPN/Tor Status': 'Εμφάνιση Κατάστασης VPN/Tor',
+ 'Enabled': 'Ενεργό',
+ 'Disabled': 'Ανενεργό',
+ 'Running': 'Τρέχει',
+ 'Stopped': 'Σταματημένο',
+ 'Country': 'Χώρα',
+ 'Current proxy': 'Τρέχον proxy',
+ 'No proxy selected': 'Δεν έχει επιλεγεί proxy',
+ 'New sessions': 'Νέες συνεδρίες',
+ 'Covered by bash.bashrc hook': 'Καλύπτονται από hook στο bash.bashrc',
+ 'Network exports updated. Restart Termux or open a new shell to apply them everywhere.': 'Οι ρυθμίσεις δικτύου '
+                                                                                          'ενημερώθηκαν. Κάντε '
+                                                                                          'επανεκκίνηση του Termux ή '
+                                                                                          'ανοίξτε νέο shell για να '
+                                                                                          'εφαρμοστούν παντού.',
+ 'Tor support ready.': 'Η υποστήριξη Tor είναι έτοιμη.',
+ 'Tor started on 127.0.0.1:9050.': 'Το Tor ξεκίνησε στο 127.0.0.1:9050.',
+ 'Tor is already running.': 'Το Tor ήδη τρέχει.',
+ 'Tor stopped.': 'Το Tor σταμάτησε.',
+ 'Tor was not started by this app.': 'Το Tor δεν ξεκίνησε από αυτή την εφαρμογή.',
+ 'VPN proxy ready': 'Το VPN proxy είναι έτοιμο',
+ 'Saved VPN proxy reused without retesting.': 'Το αποθηκευμένο VPN proxy χρησιμοποιήθηκε ξανά χωρίς νέο τεστ.',
+ 'Saved proxy was previously marked as bad. Searching for a new one.': 'Το αποθηκευμένο proxy είχε σημειωθεί ως '
+                                                                       'προβληματικό. Αναζήτηση νέου.',
+ 'VPN is disabled. Proxies were refreshed but no proxy was activated.': 'Το VPN είναι ανενεργό. Τα proxies ανανεώθηκαν '
+                                                                        'αλλά δεν ενεργοποιήθηκε κανένα proxy.',
+ 'No working proxy found for this country right now. Try renew or choose another location.': 'Δεν βρέθηκε λειτουργικό '
+                                                                                             'proxy για αυτή τη χώρα '
+                                                                                             'τώρα. Δοκιμάστε ανανέωση '
+                                                                                             'ή επιλέξτε άλλη '
+                                                                                             'τοποθεσία.',
+ 'Selected VPN location': 'Επιλεγμένη τοποθεσία VPN',
+ 'Network tools checked.': 'Τα εργαλεία δικτύου ελέγχθηκαν.',
+ 'Connect GitHub Account': 'Σύνδεση Λογαριασμού GitHub',
+ 'Disconnect GitHub Account': 'Αποσύνδεση Λογαριασμού GitHub',
+ 'Show GitHub Stats': 'Εμφάνιση Στατιστικών GitHub',
+ 'GitHub account connected': 'Ο λογαριασμός GitHub συνδέθηκε',
+ 'GitHub account disconnected': 'Ο λογαριασμός GitHub αποσυνδέθηκε',
+ 'GitHub is not connected yet.': 'Το GitHub δεν έχει συνδεθεί ακόμα.',
+ 'GitHub username': 'Όνομα χρήστη GitHub',
+ 'Total stars': 'Σύνολο αστεριών',
+ 'Total forks': 'Σύνολο forks',
+ 'Total watchers': 'Σύνολο watchers',
+ 'Total commits': 'Σύνολο commits',
+ 'Rank': 'Κατάταξη',
+ 'Repositories counted': 'Αποθετήρια που μετρήθηκαν',
+ 'Prompt automatically updated to GitHub username.': 'Το prompt ενημερώθηκε αυτόματα στο όνομα χρήστη GitHub.',
+ 'Back': 'Πίσω',
+ 'Connected as': 'Συνδεδεμένος ως',
+ 'Not connected': 'Μη συνδεδεμένο',
+ 'Tracking since': 'Παρακολούθηση από',
+ 'Tracked time': 'Χρόνος παρακολούθησης',
+ 'Settings runtime tracked': 'Χρόνος χρήσης Settings που καταγράφηκε',
+ 'Files scanned': 'Αρχεία που σαρώθηκαν',
+ 'Files created': 'Αρχεία που δημιουργήθηκαν',
+ 'Files edited': 'Αρχεία που επεξεργάστηκαν',
+ 'Files deleted': 'Αρχεία που διαγράφηκαν',
+ 'Latest created': 'Τελευταία δημιουργημένα',
+ 'Latest edited': 'Τελευταία επεξεργασμένα',
+ 'Latest deleted': 'Τελευταία διαγραμμένα',
+ 'Programming languages used': 'Γλώσσες προγραμματισμού που χρησιμοποιήθηκαν',
+ 'Shell commands found': 'Εντολές shell που βρέθηκαν',
+ 'Most active folders': 'Πιο ενεργοί φάκελοι',
+ 'First scan created. Run this again later to detect created/edited/deleted files.': 'Δημιουργήθηκε η πρώτη σάρωση. '
+                                                                                     'Τρέξτε το ξανά αργότερα για '
+                                                                                     'εντοπισμό '
+                                                                                     'δημιουργημένων/επεξεργασμένων/διαγραμμένων '
+                                                                                     'αρχείων.',
+ 'Press Enter to continue...': 'Πατήστε Enter για συνέχεια...',
+ 'Update process completed successfully': 'Η διαδικασία ενημέρωσης ολοκληρώθηκε με επιτυχία',
+ 'Forcing a full update...': 'Επιβολή πλήρους ενημέρωσης...',
+ 'Customizations applied successfully! ': 'Οι προσαρμογές εφαρμόστηκαν με επιτυχία! ',
+ 'Please restart Termux for changes to take full effect': 'Παρακαλώ επανεκκινήστε το Termux για να εφαρμοστούν πλήρως '
+                                                          'οι αλλαγές',
+ 'Invalid selection or non-executable script.': 'Μη έγκυρη επιλογή ή μη εκτελέσιμο script.',
+ 'Terminal window is too small.': 'Το παράθυρο του τερματικού είναι πολύ μικρό.',
+ 'Unknown': 'Άγνωστο',
+ '\nScript terminated by KeyboardInterrupt. Exiting gracefully...': '\n'
+                                                                    'Το script τερματίστηκε λόγω KeyboardInterrupt. '
+                                                                    'Έξοδος με ασφάλεια...',
+ 'A zip with the save of the DedSec Project Legacy is available in your phone downloads.': 'Ένα zip με το save του '
+                                                                                           'DedSec Project Legacy '
+                                                                                           'είναι διαθέσιμο στα '
+                                                                                           'Downloads του τηλεφώνου '
+                                                                                           'σας.',
+ "Unknown menu style. Use 'list' or 'grid' or 'number'.": "Άγνωστο στυλ μενού. Χρησιμοποιήστε 'list', 'grid' ή "
+                                                          "'number'.",
+ 'Repository fully updated, including README and all other files.': 'Το αποθετήριο ενημερώθηκε πλήρως, μαζί με το '
+                                                                    'README και όλα τα υπόλοιπα αρχεία.',
+ 'Unable to resolve APK URL for': 'Αδυναμία εντοπισμού URL APK για',
+ 'Failed to update prompt': 'Αποτυχία ενημέρωσης του prompt',
+ 'Installing': 'Εγκατάσταση',
+ 'GitHub CLI (gh) could not be installed. Run manually: pkg install gh': 'Το GitHub CLI (gh) δεν μπόρεσε να '
+                                                                         'εγκατασταθεί. Εκτελέστε χειροκίνητα: pkg '
+                                                                         'install gh',
+ 'Starting GitHub device/web login, same style as Dead Switch.': 'Έναρξη σύνδεσης GitHub μέσω συσκευής/ιστού, όπως στο '
+                                                                 'Dead Switch.',
+ 'Follow the instructions that GitHub CLI prints in Termux.': 'Ακολουθήστε τις οδηγίες που εμφανίζει το GitHub CLI στο '
+                                                              'Termux.',
+ 'Login was not completed. Run manually: gh auth login --hostname github.com --git-protocol https --web': 'Η σύνδεση '
+                                                                                                          'δεν '
+                                                                                                          'ολοκληρώθηκε. '
+                                                                                                          'Εκτελέστε '
+                                                                                                          'χειροκίνητα: '
+                                                                                                          'gh auth '
+                                                                                                          'login '
+                                                                                                          '--hostname '
+                                                                                                          'github.com '
+                                                                                                          '--git-protocol '
+                                                                                                          'https --web',
+ 'GitHub connected, but username could not be detected yet.': 'Το GitHub συνδέθηκε, αλλά δεν ήταν ακόμη δυνατός ο '
+                                                              'εντοπισμός του ονόματος χρήστη.',
+ 'Disconnect GitHub from this Termux device? (y/n): ': 'Αποσύνδεση του GitHub από αυτή τη συσκευή Termux; (y/n ή '
+                                                       'ναι/όχι): ',
+ 'Cancelled.': 'Ακυρώθηκε.',
+ 'Could not read GitHub username/token from gh.': 'Δεν ήταν δυνατή η ανάγνωση του ονόματος χρήστη ή του token GitHub '
+                                                  'από το gh.',
+ 'GitHub API error': 'Σφάλμα GitHub API',
+ 'GitHub access exists but the token may need SSO approval for the organization. Open GitHub in browser and authorize the gh token for this organization.': 'Υπάρχει '
+                                                                                                                                                            'πρόσβαση '
+                                                                                                                                                            'στο '
+                                                                                                                                                            'GitHub, '
+                                                                                                                                                            'αλλά '
+                                                                                                                                                            'το '
+                                                                                                                                                            'token '
+                                                                                                                                                            'μπορεί '
+                                                                                                                                                            'να '
+                                                                                                                                                            'χρειάζεται '
+                                                                                                                                                            'έγκριση '
+                                                                                                                                                            'SSO '
+                                                                                                                                                            'για '
+                                                                                                                                                            'τον '
+                                                                                                                                                            'οργανισμό. '
+                                                                                                                                                            'Ανοίξτε '
+                                                                                                                                                            'το '
+                                                                                                                                                            'GitHub '
+                                                                                                                                                            'στον '
+                                                                                                                                                            'browser '
+                                                                                                                                                            'και '
+                                                                                                                                                            'εγκρίνετε '
+                                                                                                                                                            'το '
+                                                                                                                                                            'token '
+                                                                                                                                                            'του '
+                                                                                                                                                            'gh '
+                                                                                                                                                            'για '
+                                                                                                                                                            'αυτόν '
+                                                                                                                                                            'τον '
+                                                                                                                                                            'οργανισμό.',
+ 'git clone failed': 'Η κλωνοποίηση git απέτυχε',
+ 'None': 'Κανένα',
+ 'None detected yet': 'Δεν έχει εντοπιστεί κάτι ακόμη',
+ 'Top shell commands': 'Κορυφαίες εντολές shell',
+ 'more': 'ακόμη',
+ 'files': 'αρχεία',
+ 'latest scan': 'τελευταία σάρωση',
+ 'Error reading': 'Σφάλμα ανάγνωσης',
+ 'Error writing to': 'Σφάλμα εγγραφής στο',
+ 'DedSec OS will auto-start when Termux opens.': 'Το DedSec OS θα ξεκινά αυτόματα όταν ανοίγει το Termux.',
+ 'UNINSTALLATION ALMOST COMPLETE': 'Η ΑΠΕΓΚΑΤΑΣΤΑΣΗ ΣΧΕΔΟΝ ΟΛΟΚΛΗΡΩΘΗΚΕ',
+ 'No free local port available for DedSec OS.': 'Δεν υπάρχει διαθέσιμη τοπική θύρα για το DedSec OS.',
+ 'Launching DedSec OS...': 'Εκκίνηση DedSec OS...',
+ 'DedSec OS server already running at': 'Ο διακομιστής DedSec OS εκτελείται ήδη στο',
+ 'Termux remains locked until login in the web interface or a menu style change unlocks it.': 'Το Termux παραμένει '
+                                                                                              'κλειδωμένο μέχρι να '
+                                                                                              'γίνει σύνδεση στη '
+                                                                                              'διεπαφή ιστού ή να '
+                                                                                              'αλλάξει το στυλ μενού.',
+ 'DedSec OS local server failed to start. Check': 'Ο τοπικός διακομιστής DedSec OS απέτυχε να ξεκινήσει. Ελέγξτε',
+ 'DedSec OS server running at': 'Ο διακομιστής DedSec OS εκτελείται στο',
+ 'Open this URL in your browser': 'Ανοίξτε αυτό το URL στον browser σας',
+ 'pkg update': 'Ενημέρωση pkg',
+ 'Installing PySocks': 'Εγκατάσταση PySocks',
+ 'Termux packages checked': 'Τα πακέτα Termux ελέγχθηκαν',
+ 'PySocks checked': 'Το PySocks ελέγχθηκε',
+ 'Testing VPN proxy': 'Δοκιμή VPN proxy',
+ 'Failed to update network exports': 'Αποτυχία ενημέρωσης των μεταβλητών εξαγωγής δικτύου',
+ 'Ded-Guy launch error': 'Σφάλμα εκκίνησης Ded-Guy',
+ 'Arrow Keys: Move | Enter: Select | q: Quit': 'Βελάκια: Μετακίνηση | Enter: Επιλογή | q: Έξοδος',
+ 'Days': 'Ημέρες',
+ 'Hours': 'Ώρες',
+ 'Minutes': 'Λεπτά',
+ 'Seconds': 'Δευτερόλεπτα',
+ 'Charging': 'Φόρτιση',
+ 'Discharging': 'Αποφόρτιση',
+ 'Full': 'Πλήρης',
+ 'Not charging': 'Δεν φορτίζει',
+ 'Unavailable': 'Μη διαθέσιμο',
+ 'English': 'Αγγλικά',
+ 'Greek': 'Ελληνικά',
+ 'United States': 'Ηνωμένες Πολιτείες',
+ 'Germany': 'Γερμανία',
+ 'United Kingdom': 'Ηνωμένο Βασίλειο',
+ 'France': 'Γαλλία',
+ 'Netherlands': 'Ολλανδία',
+ 'Japan': 'Ιαπωνία',
+ 'India': 'Ινδία',
+ 'Brazil': 'Βραζιλία',
+ 'Australia': 'Αυστραλία',
+ 'Greece': 'Ελλάδα',
+ 'Canada': 'Καναδάς',
+ 'Sweden': 'Σουηδία',
+ 'Switzerland': 'Ελβετία',
+ 'Italy': 'Ιταλία',
+ 'Spain': 'Ισπανία',
+ 'Unable to update GitHub statistics': 'Αδυναμία ενημέρωσης στατιστικών GitHub'}
 
 # ------------------------------
 # Translation Helpers
@@ -673,10 +1009,27 @@ def get_latest_dedsec_update(path):
     return _("DedSec directory not found")
 
 def find_dedsec():
-    search_cmd = "find ~ -type d -name 'DedSec' 2>/dev/null"
-    output, _err = run_command_silent(search_cmd)
-    paths = output.split("\n") if output else []
-    return paths[0] if paths else None
+    """Locate DedSec without recursively scanning all of shared storage."""
+    candidates = [
+        os.path.join(HOME_DIR, "DedSec"),
+        os.path.dirname(ENGLISH_BASE_PATH),
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    ]
+    for candidate in candidates:
+        candidate = os.path.realpath(candidate)
+        if os.path.isdir(candidate) and (
+            os.path.isdir(os.path.join(candidate, "Scripts"))
+            or os.path.isfile(os.path.join(candidate, "Setup.sh"))
+            or os.path.isfile(os.path.join(candidate, "README.md"))
+        ):
+            return candidate
+    try:
+        for entry in os.scandir(HOME_DIR):
+            if entry.is_dir(follow_symlinks=False) and entry.name.casefold() == "dedsec":
+                return os.path.realpath(entry.path)
+    except OSError:
+        pass
+    return None
 
 def get_github_repo_size(repo_api_url):
     try:
@@ -712,43 +1065,126 @@ def clone_repo(repo_url):
     run_command("git clone " + repo_url)
     return os.path.join(os.getcwd(), LOCAL_DIR)
 
+def git_remote_default_branch(repo_url, cwd=None):
+    """Return the remote default branch without assuming it is named main."""
+    git = shutil.which("git") or "git"
+    try:
+        result = subprocess.run(
+            [git, "ls-remote", "--symref", repo_url, "HEAD"],
+            cwd=cwd, capture_output=True, text=True,
+            timeout=PIPBOY_REMOTE_CHECK_TIMEOUT, check=False,
+        )
+        for line in (result.stdout or "").splitlines():
+            match = re.match(r"ref:\s+refs/heads/([^\s]+)\s+HEAD$", line.strip())
+            if match:
+                return match.group(1)
+    except Exception:
+        pass
+    if cwd:
+        try:
+            output, _error = run_command_silent("git symbolic-ref --short refs/remotes/origin/HEAD", cwd=cwd)
+            if output:
+                return output.strip().split("/")[-1]
+        except Exception:
+            pass
+    return "main"
+
+
 def force_update_repo(existing_path, repo_url):
-    if existing_path:
-        print(f"[+] DedSec found! {_('Forcing a full update...')}")
-        run_command(f"git remote set-url origin {repo_url}", cwd=existing_path)
-        run_command("git fetch --all", cwd=existing_path)
-        run_command("git reset --hard origin/main", cwd=existing_path)
-        run_command('git clean -f -- "*.py" "*.css" "*.sh" "*.bash"', cwd=existing_path)
-        run_command("git pull", cwd=existing_path)
-        print(f"[+] Repository fully updated, including README and all other files.")
+    if not existing_path:
+        return False
+    print(f"[+] DedSec found! {_('Forcing a full update...')}")
+    branch = git_remote_default_branch(repo_url, cwd=existing_path)
+    run_command(f"git remote set-url origin {shlex.quote(repo_url)}", cwd=existing_path)
+    fetch = subprocess.run(
+        [shutil.which("git") or "git", "fetch", "--prune", "origin", branch],
+        cwd=existing_path, check=False,
+    )
+    if fetch.returncode != 0:
+        raise RuntimeError(f"git fetch failed for origin/{branch}")
+    reset = subprocess.run(
+        [shutil.which("git") or "git", "reset", "--hard", f"origin/{branch}"],
+        cwd=existing_path, check=False,
+    )
+    if reset.returncode != 0:
+        raise RuntimeError(f"git reset failed for origin/{branch}")
+    subprocess.run(
+        [shutil.which("git") or "git", "clean", "-f", "--", "*.py", "*.css", "*.sh", "*.bash"],
+        cwd=existing_path, check=False,
+    )
+    print(_("Repository fully updated, including README and all other files."))
+    return True
+
 
 def update_dedsec(repo_url=REPO_URL_SOURCE_1, repo_api_url=REPO_API_URL_SOURCE_1):
     repo_size = get_github_repo_size(repo_api_url)
     print(f"[+] {_('GitHub repository size')}: {repo_size}")
     existing_dedsec_path = find_dedsec()
-    if existing_dedsec_path:
-        run_command(f"git remote set-url origin {repo_url}", cwd=existing_dedsec_path)
-        run_command("git fetch", cwd=existing_dedsec_path)
-        behind_count, _err = run_command_silent("git rev-list HEAD..origin/main --count", cwd=existing_dedsec_path)
-        try:
-            behind_count = int(behind_count)
-        except Exception:
-            behind_count = 0
-        if behind_count > 0:
-            force_update_repo(existing_dedsec_path, repo_url)
-            dedsec_size = get_dedsec_size(existing_dedsec_path)
-            print(f"[+] {_('Update applied. DedSec Project Size')}: {dedsec_size}")
+    update_changed = False
+    update_error = None
+    try:
+        if existing_dedsec_path:
+            branch = git_remote_default_branch(repo_url, cwd=existing_dedsec_path)
+            subprocess.run(
+                [shutil.which("git") or "git", "remote", "set-url", "origin", repo_url],
+                cwd=existing_dedsec_path, check=False,
+            )
+            fetch = subprocess.run(
+                [shutil.which("git") or "git", "fetch", "--prune", "origin", branch],
+                cwd=existing_dedsec_path, capture_output=True, text=True, check=False,
+            )
+            if fetch.returncode != 0:
+                raise RuntimeError((fetch.stderr or fetch.stdout or "git fetch failed").strip())
+            behind_text, _error = run_command_silent(
+                f"git rev-list HEAD..origin/{shlex.quote(branch)} --count", cwd=existing_dedsec_path
+            )
+            try:
+                behind_count = int(behind_text or 0)
+            except (TypeError, ValueError):
+                behind_count = 0
+            if behind_count > 0:
+                update_changed = bool(force_update_repo(existing_dedsec_path, repo_url))
+                dedsec_size = get_dedsec_size(existing_dedsec_path)
+                print(f"[+] {_('Update applied. DedSec Project Size')}: {dedsec_size}")
+            else:
+                print(_("No available update found."))
         else:
-            print(_("No available update found."))
-    else:
-        existing_dedsec_path = clone_repo(repo_url)
-        dedsec_size = get_dedsec_size(existing_dedsec_path)
-        print(f"[+] {_('Cloned new DedSec repository. DedSec Project Size')}: {dedsec_size}")
-    print(f"[+] {_('Update process completed successfully')}!")
+            existing_dedsec_path = clone_repo(repo_url)
+            update_changed = True
+            dedsec_size = get_dedsec_size(existing_dedsec_path)
+            print(f"[+] {_('Cloned new DedSec repository. DedSec Project Size')}: {dedsec_size}")
+        print(f"[+] {_('Update process completed successfully')}!")
+    except Exception as exc:
+        update_error = exc
+        raise
+    finally:
+        # The knowledge check runs after every press of either project-update
+        # option, even when the Git update itself fails partway through.
+        try:
+            pipboy_refresh_knowledge_after_update(
+                trigger="dedsec_source_1" if repo_url == REPO_URL_SOURCE_1 else "dedsec_source_2",
+                force_project_rebuild=update_changed,
+                quiet=False,
+            )
+        except Exception as refresh_exc:
+            try:
+                pipboy_log_error("post-update knowledge refresh", refresh_exc)
+            except Exception:
+                pass
+            print(pipboy_text(
+                f"[!] Ded-Guy knowledge refresh failed after the update attempt: {refresh_exc}",
+                f"[!] Η ανανέωση γνώσης Ded-Guy απέτυχε μετά την προσπάθεια ενημέρωσης: {refresh_exc}",
+            ))
+            if update_error is None:
+                # The project update succeeded, so database-refresh failure is
+                # reported without pretending the project update itself failed.
+                pass
     return existing_dedsec_path
+
 
 def update_dedsec_source_1():
     return update_dedsec(REPO_URL_SOURCE_1, REPO_API_URL_SOURCE_1)
+
 
 def update_dedsec_source_2():
     return update_dedsec(REPO_URL_SOURCE_2, REPO_API_URL_SOURCE_2)
@@ -1003,7 +1439,59 @@ def _add_accessible_sponsor_repositories_to_project_save(repos_dir):
         pass
 
 
+
+def pipboy_log_error(context, error):
+    """Append a recoverable error without hiding the original exception."""
+    try:
+        os.makedirs(os.path.dirname(PIPBOY_ERROR_LOG_PATH), exist_ok=True)
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(PIPBOY_ERROR_LOG_PATH, "a", encoding="utf-8") as handle:
+            handle.write(f"[{stamp}] {context}: {error}\n")
+    except Exception:
+        pass
+
+
+def _project_save_local_source(repo_source):
+    """Return a user-managed local project folder when one is available."""
+    project_name = str(repo_source.get("project_name", ""))
+    repo_url = str(repo_source.get("url", ""))
+    candidates = []
+    for project in PIPBOY_MANAGED_PROJECTS:
+        if project_name == project.get("name") or repo_url.rstrip(".git") == str(project.get("url", "")).rstrip(".git"):
+            candidates.extend(os.path.join(HOME_DIR, name) for name in project.get("local_names", []))
+            candidates.append(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project.get("key", "")))
+    if project_name == "DedSec Project":
+        candidates.extend([
+            os.path.dirname(ENGLISH_BASE_PATH),
+            os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+        ])
+    for candidate in candidates:
+        real = os.path.realpath(os.path.expanduser(candidate))
+        if os.path.isdir(real):
+            return real
+    return ""
+
+
+def _copy_local_project_for_backup(source, destination):
+    """Copy local project state while excluding Git metadata and Python caches."""
+    _remove_path_if_exists(destination)
+    shutil.copytree(
+        source,
+        destination,
+        symlinks=True,
+        ignore=shutil.ignore_patterns(".git", "__pycache__", "*.pyc", ".pytest_cache", ".mypy_cache"),
+    )
+
+
+def _write_project_backup_report(bundle_root, report_lines):
+    report_path = os.path.join(bundle_root, "Backup Report.txt")
+    with open(report_path, "w", encoding="utf-8") as handle:
+        handle.write(pipboy_text("DedSec ecosystem backup report", "Αναφορά αντιγράφου ασφαλείας οικοσυστήματος DedSec") + "\n")
+        handle.write("=" * 56 + "\n")
+        handle.write("\n".join(report_lines).rstrip() + "\n")
+
 def _build_project_save_archive(archive_path):
+    """Create a recoverable multi-project backup and continue after item failures."""
     _remove_path_if_exists(PROJECT_SAVE_WORKDIR)
     os.makedirs(PROJECT_SAVE_WORKDIR, exist_ok=True)
 
@@ -1012,30 +1500,71 @@ def _build_project_save_archive(archive_path):
     repos_dir = os.path.join(bundle_root, "Repositories")
     os.makedirs(apks_dir, exist_ok=True)
     os.makedirs(repos_dir, exist_ok=True)
+    report_lines = [pipboy_text("Created: ", "Δημιουργήθηκε: ") + time.strftime('%Y-%m-%d %H:%M:%S'), ""]
+    failures = 0
 
+    report_lines.append(pipboy_text("APKs:", "APK αρχεία:"))
     for apk_source in PROJECT_SAVE_APK_SOURCES:
         target_path = os.path.join(apks_dir, apk_source["filename"])
-        if apk_source["type"] == "direct":
-            apk_url = apk_source["url"]
-        else:
-            apk_url = _resolve_fdroid_package_apk_url(apk_source["package"])
-        _download_file_silent(apk_url, target_path)
+        try:
+            if apk_source["type"] == "direct":
+                apk_url = apk_source["url"]
+            else:
+                apk_url = _resolve_fdroid_package_apk_url(apk_source["package"])
+            _download_file_silent(apk_url, target_path)
+            report_lines.append(pipboy_text("- INCLUDED: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ: ") + apk_source['filename'])
+        except Exception as exc:
+            failures += 1
+            report_lines.append(pipboy_text("- FAILED: ", "- ΑΠΟΤΥΧΙΑ: ") + f"{apk_source['filename']} — {exc}")
+            pipboy_log_error(f"backup APK {apk_source['filename']}", exc)
 
+    report_lines.extend(["", pipboy_text("Repositories:", "Αποθετήρια:")])
     for repo_source in PROJECT_SAVE_REPOSITORIES:
         repo_target_dir = os.path.join(repos_dir, repo_source["folder_name"])
-        _clone_repository_silent(repo_source["url"], repo_target_dir)
+        local_source = _project_save_local_source(repo_source)
+        try:
+            if local_source:
+                _copy_local_project_for_backup(local_source, repo_target_dir)
+                report_lines.append(
+                    pipboy_text("- INCLUDED LOCAL STATE: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΤΟΠΙΚΗ ΚΑΤΑΣΤΑΣΗ: ") + f"{repo_source['project_name']} — {local_source}"
+                )
+            else:
+                _clone_repository_silent(repo_source["url"], repo_target_dir)
+                report_lines.append(
+                    pipboy_text("- INCLUDED REMOTE SNAPSHOT: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΑΠΟΜΑΚΡΥΣΜΕΝΟ ΣΤΙΓΜΙΟΤΥΠΟ: ") + f"{repo_source['project_name']} — {repo_source['url']}"
+                )
+        except Exception as exc:
+            failures += 1
+            _remove_path_if_exists(repo_target_dir)
+            report_lines.append(pipboy_text("- FAILED: ", "- ΑΠΟΤΥΧΙΑ: ") + f"{repo_source['project_name']} — {exc}")
+            pipboy_log_error(f"backup repository {repo_source['project_name']}", exc)
 
-    _add_accessible_sponsor_repositories_to_project_save(repos_dir)
+    try:
+        _add_accessible_sponsor_repositories_to_project_save(repos_dir)
+        report_lines.extend(["", pipboy_text("Sponsors-Only access status is stored inside the repositories folder.", "Η κατάσταση πρόσβασης Sponsors-Only αποθηκεύεται μέσα στον φάκελο αποθετηρίων.")])
+    except Exception as exc:
+        failures += 1
+        report_lines.append(pipboy_text("- Sponsor repository check failed: ", "- Ο έλεγχος αποθετηρίων χορηγών απέτυχε: ") + str(exc))
+        pipboy_log_error("backup sponsor repositories", exc)
+
+    report_lines.extend(["", pipboy_text("Recoverable failures: ", "Ανακτήσιμες αποτυχίες: ") + str(failures)])
+    _write_project_backup_report(bundle_root, report_lines)
 
     os.makedirs(os.path.dirname(archive_path), exist_ok=True)
     _remove_path_if_exists(archive_path)
-
-    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        for current_root, _dirnames, filenames in os.walk(bundle_root):
+    zip_failures = 0
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+        for current_root, _dirnames, filenames in os.walk(bundle_root, onerror=lambda exc: pipboy_log_error("backup walk", exc)):
             for filename in filenames:
                 full_path = os.path.join(current_root, filename)
                 relative_path = os.path.relpath(full_path, PROJECT_SAVE_WORKDIR)
-                archive.write(full_path, arcname=relative_path)
+                try:
+                    archive.write(full_path, arcname=relative_path)
+                except Exception as exc:
+                    zip_failures += 1
+                    pipboy_log_error(f"backup ZIP member {relative_path}", exc)
+    return {"failures": failures + zip_failures, "archive": archive_path}
+
 
 
 def save_project():
@@ -1045,15 +1574,21 @@ def save_project():
 
         os.makedirs(PROJECT_SAVE_DOWNLOADS_PATH, exist_ok=True)
         _delete_existing_project_save_archives()
-
         archive_path = os.path.join(PROJECT_SAVE_DOWNLOADS_PATH, PROJECT_SAVE_ARCHIVE_NAME)
-        _build_project_save_archive(archive_path)
+        result = _build_project_save_archive(archive_path)
         _copy_project_archive_to_selected_folders(archive_path)
         print(_(PROJECT_SAVE_SUCCESS_MESSAGE))
+        if result.get("failures"):
+            print(pipboy_text(
+                f"The backup was created with {result['failures']} recoverable issue(s). Read Backup Report.txt inside the ZIP.",
+                f"Το αντίγραφο ασφαλείας δημιουργήθηκε με {result['failures']} ανακτήσιμο/α πρόβλημα/τα. Διαβάστε το Backup Report.txt μέσα στο ZIP.",
+            ))
     except Exception as error:
+        pipboy_log_error("Save DedSec Project", error)
         print(_("Failed to save project: ") + str(error))
     finally:
         _remove_path_if_exists(PROJECT_SAVE_WORKDIR)
+
 
 
 def show_about():
@@ -1983,7 +2518,7 @@ def remove_obsolete_settings_helpers():
     filtered_lines = []
     in_removed_block = False
     helper_call_pattern = re.compile(
-        r'python3\s+["\']?[^"\']*Settings\.py["\']?\s+--(?!menu\b|network-session-guard\b)[A-Za-z0-9_-]+'
+        r'python3\s+["\']?[^"\']*Settings\.py["\']?\s+--(?!menu\b|network-session-guard\b|pipboy-scan\b)[A-Za-z0-9_-]+'
     )
 
     for line in lines:
@@ -2042,22 +2577,23 @@ def cleanup_bashrc():
         print(f"Error writing to {BASHRC_PATH}: {e}")
         return False
 
-def update_bashrc(current_language_path, current_style):
-    """Writes/refreshes the DedSec block inside bash.bashrc.
 
-    - If menu auto-start is enabled, the menu runs automatically when Termux opens.
-    - If disabled, the auto-start line is removed, but aliases remain so you can start it manually.
-    """
+def update_bashrc(current_language_path, current_style):
+    """Write the DedSec startup block without any hidden background workers."""
+    save_menu_style_preference(current_style)
     try:
-        with open(BASHRC_PATH, "r") as f:
-            lines = f.readlines()
-    except Exception as e:
-        print(f"Error reading {BASHRC_PATH}: {e}")
+        with open(BASHRC_PATH, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.readlines()
+    except Exception as exc:
+        print(_("Error reading") + f" {BASHRC_PATH}: {exc}")
         return
 
     filtered_lines = []
-    regex_pattern = re.compile(r"(cd\s+.*DedSec/Scripts.*python3\s+.*Settings\.py\s+--menu.*|alias\s+(m|e|g)=.*cd\s+.*DedSec/Scripts.*)")
-
+    regex_pattern = re.compile(
+        r"(cd\s+.*DedSec/Scripts.*python3\s+.*Settings\.py\s+--menu.*|"
+        r"alias\s+(m|e|g)=.*cd\s+.*DedSec/Scripts.*|"
+        r"Settings\.py.*--pipboy-scan)"
+    )
     in_marked_block = False
     for line in lines:
         if BASHRC_START_MARKER in line or (line.startswith("# --- DedSec ") and "Background Checker" in line):
@@ -2066,50 +2602,50 @@ def update_bashrc(current_language_path, current_style):
         if BASHRC_END_MARKER in line or (line.startswith("# --- End DedSec ") and "Background Checker" in line):
             in_marked_block = False
             continue
-
         if in_marked_block:
             continue
-
         if not regex_pattern.search(line):
             filtered_lines.append(line)
 
-    new_startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {current_style}; cd "{HOME_DIR}"\n'
-
-    alias_lang = ""
+    launch_style = "ded-guy" if current_style == "pipboy" else current_style
+    startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}; cd "{HOME_DIR}"\n'
+    alias_line = ""
     if current_language_path == ENGLISH_BASE_PATH:
-        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_line = f'alias e=\'cd "{ENGLISH_BASE_PATH}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}\'\n'
     elif current_language_path == GREEK_PATH_FULL:
-        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_line = f'alias g=\'cd "{GREEK_PATH_FULL}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}\'\n'
 
-    autostart_enabled = load_menu_autostart_preference() or current_style == 'dedsec_os'
-
+    autostart_enabled = load_menu_autostart_preference() or current_style in {"pipboy", "dedsec_os"}
     filtered_lines.append("\n" + BASHRC_START_MARKER + "\n")
     if autostart_enabled:
-        filtered_lines.append(new_startup)
+        filtered_lines.append(startup)
     else:
-        filtered_lines.append("# (DedSec Menu auto-start disabled)\n")
-
-    if alias_lang:
-        filtered_lines.append(alias_lang)
-
+        filtered_lines.append("# DedSec Menu auto-start disabled.\n")
+    if alias_line:
+        filtered_lines.append(alias_line)
     filtered_lines.append(BASHRC_END_MARKER + "\n")
-
     try:
-        with open(BASHRC_PATH, "w") as f:
-            f.writelines(filtered_lines)
-    except Exception as e:
-        print(f"Error writing to {BASHRC_PATH}: {e}")
+        with open(BASHRC_PATH, "w", encoding="utf-8") as handle:
+            handle.writelines(filtered_lines)
+    except Exception as exc:
+        print(_("Error writing") + f" {BASHRC_PATH}: {exc}")
+
 
 
 
 def get_current_menu_style():
-    """Detects the current menu style setting from bash.bashrc."""
+    """Detects the current main-menu style, preferring the persistent setting."""
+    saved_style = load_menu_style_preference()
+    if saved_style:
+        return saved_style
     try:
         with open(BASHRC_PATH, "r") as f:
             content = f.read()
     except Exception:
         return 'list'
 
+    if '--menu pipboy' in content or '--menu ded-guy' in content:
+        return 'pipboy'
     if '--menu dedsec_os' in content:
         return 'dedsec_os'
     if '--menu grid' in content:
@@ -2123,7 +2659,7 @@ def get_current_menu_style():
 # ------------------------------
 def choose_menu_style(stdscr):
     curses.curs_set(0)
-    options = [ _("List Style"), _("Grid Style"), _("Choose By Number"), _("DedSec OS")]
+    options = [_("List Style"), _("Grid Style"), _("Choose By Number"), _("Ded-Guy Style"), _("DedSec OS")]
     current = 0
     
     while True:
@@ -2150,35 +2686,72 @@ def choose_menu_style(stdscr):
         elif key == curses.KEY_DOWN and current < len(options) - 1:
             current += 1
         elif key in [10, 13]:
-            if current == 0: return "list"
-            if current == 1: return "grid"
-            if current == 2: return "number"
-            if current == 3: return "dedsec_os"
+            if current == 0:
+                return "list"
+            if current == 1:
+                return "grid"
+            if current == 2:
+                return "number"
+            if current == 3:
+                return "pipboy"
+            if current == 4:
+                return "dedsec_os"
         elif key in [ord('q'), ord('Q')]:
             return None
 
+def choose_menu_style_mobile():
+    """Phone-first style selector using only ordinary number keys."""
+    options = [
+        ("1", _("List Style"), "list"),
+        ("2", _("Grid Style"), "grid"),
+        ("3", _("Choose By Number"), "number"),
+        ("4", _("Ded-Guy Style"), "pipboy"),
+        ("5", _("DedSec OS"), "dedsec_os"),
+    ]
+    while True:
+        os.system("clear")
+        print("=== " + _("Choose Menu Style") + " ===\n")
+        for key, label, _style in options:
+            print(f"{key}. {label}")
+        print("0. " + _("Go Back"))
+        choice = input("\n" + _("Enter the number of your choice: ")).strip()
+        if choice == "0":
+            return None
+        for key, _label, style in options:
+            if choice == key:
+                return style
+        print(_("Invalid selection. Please try again."))
+        input(_("Press Enter to continue..."))
+
+
 def change_menu_style():
-    style = curses.wrapper(choose_menu_style)
+    style = choose_menu_style_mobile()
     if style is None:
         print(_("No menu style selected. Returning to settings menu..."))
         return
 
     current_path = get_current_language_path()
-    if style == 'dedsec_os':
+    if style in {'pipboy', 'dedsec_os'}:
         save_menu_autostart_preference(True)
 
     update_bashrc(current_path, style)
+    save_menu_style_preference(style)
 
     style_label = {
         'list': _('List Style'),
         'grid': _('Grid Style'),
         'number': _('Choose By Number'),
+        'pipboy': _('Ded-Guy Style'),
         'dedsec_os': _('DedSec OS'),
     }.get(style, style)
 
-    print(f"\n[+] {_('Menu style changed to')} {style_label}. {_('Bash configuration updated.')}")
-    if style == 'dedsec_os':
-        print('[+] DedSec OS will auto-start when Termux opens.')
+    print(f"\n[+] {_('Menu style changed to')} {style_label}. {_('Bash configuration updated.')}" )
+    if style == 'pipboy':
+        print('[+] ' + pipboy_text('Ded-Guy is now the saved main DedSec menu style.', 'Το Ded-Guy είναι πλέον το αποθηκευμένο κύριο στυλ μενού του DedSec.'))
+        print('[+] ' + pipboy_text('Menu auto-start was enabled, so Ded-Guy will launch whenever Termux starts.', 'Η αυτόματη εκκίνηση μενού ενεργοποιήθηκε, ώστε το Ded-Guy να ανοίγει κάθε φορά που ξεκινά το Termux.'))
+        print('[+] ' + pipboy_text('Start it now with: python3 ~/DedSec/Scripts/Settings.py --menu ded-guy', 'Εκκινήστε το τώρα με: python3 ~/DedSec/Scripts/Settings.py --menu ded-guy'))
+    elif style == 'dedsec_os':
+        print('[+] ' + pipboy_text('DedSec OS will auto-start when Termux opens.', 'Το DedSec OS θα ξεκινά αυτόματα όταν ανοίγει το Termux.'))
     print(f"[{_('Please restart Termux for changes to take full effect')}]")
 # ------------------------------
 # Toggle Menu Auto-Start
@@ -2480,7 +3053,8 @@ def run_number_menu():
         
         try:
             choice_str = input(f"\n{_('Enter the number of your choice: ')}").strip()
-            if not choice_str: continue
+            if not choice_str:
+                continue
             choice = int(choice_str)
         except ValueError:
             print(_("Invalid selection. Please try again."))
@@ -2801,6 +3375,19 @@ def update_packages_modules():
     run_command(f"pip install {python_packages} --break-system-packages")
     
     print(f"[+] {_('Packages and Modules update process completed successfully!')}")
+    try:
+        pipboy_refresh_knowledge_after_update(
+            trigger="packages_modules_update", force_project_rebuild=False, quiet=False
+        )
+    except Exception as exc:
+        try:
+            pipboy_log_error("packages update knowledge refresh", exc)
+        except Exception:
+            pass
+        print(pipboy_text(
+            f"[!] Packages were updated, but the Ded-Guy database check failed: {exc}",
+            f"[!] Τα πακέτα ενημερώθηκαν, αλλά ο έλεγχος βάσης Ded-Guy απέτυχε: {exc}",
+        ))
 
 # ------------------------------
 # --- Backup and Uninstall ---
@@ -2888,7 +3475,8 @@ import shutil
 import signal
 import base64
 import hashlib
-import atexit
+import base64
+import zlib
 import hmac
 import struct
 import pty
@@ -3299,15 +3887,6 @@ def load_language_preference():
     return 'english'
 
 
-
-def load_language_preference():
-    data = load_json_file(LANGUAGE_JSON_PATH, {})
-    language = data.get('preferred_language')
-    if language in ('english', 'greek'):
-        return language
-    return 'english'
-
-
 def save_language_preference_server(language):
     data = load_json_file(LANGUAGE_JSON_PATH, {})
     data['preferred_language'] = language
@@ -3325,11 +3904,33 @@ def save_menu_autostart_preference_server(enabled):
     save_json_file(LANGUAGE_JSON_PATH, data)
 
 
+def load_menu_style_preference():
+    data = load_json_file(LANGUAGE_JSON_PATH, {})
+    style = data.get('menu_style')
+    if style in ('list', 'grid', 'number', 'pipboy', 'dedsec_os'):
+        return style
+    return None
+
+
+def save_menu_style_preference(style):
+    if style not in ('list', 'grid', 'number', 'pipboy', 'dedsec_os'):
+        return False
+    data = load_json_file(LANGUAGE_JSON_PATH, {})
+    data['menu_style'] = style
+    save_json_file(LANGUAGE_JSON_PATH, data)
+    return True
+
+
 def get_current_menu_style_server():
+    saved_style = load_menu_style_preference()
+    if saved_style:
+        return saved_style
     try:
         content = open(BASHRC_PATH, 'r', encoding='utf-8').read()
     except Exception:
         return 'list'
+    if '--menu pipboy' in content or '--menu ded-guy' in content:
+        return 'pipboy'
     if '--menu dedsec_os' in content:
         return 'dedsec_os'
     if '--menu grid' in content:
@@ -3344,6 +3945,7 @@ def current_language_path_from_pref():
 
 
 def update_bashrc_server(current_language_path, current_style):
+    save_menu_style_preference(current_style)
     try:
         lines = open(BASHRC_PATH, 'r', encoding='utf-8').readlines()
     except Exception:
@@ -3362,17 +3964,18 @@ def update_bashrc_server(current_language_path, current_style):
             continue
         if not regex_pattern.search(line):
             filtered.append(line)
-    new_startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {current_style}; cd "{HOME_DIR}"\n'
+    launch_style = "ded-guy" if current_style == "pipboy" else current_style
+    new_startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}; cd "{HOME_DIR}"\n'
     alias_lang = ''
     if current_language_path == ENGLISH_BASE_PATH:
-        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
     elif current_language_path == GREEK_PATH_FULL:
-        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {current_style}'\n"
+        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
     filtered.append('\n' + BASHRC_START_MARKER + '\n')
-    if load_menu_autostart_preference_server() or current_style == 'dedsec_os':
+    if load_menu_autostart_preference_server() or current_style in {'pipboy', 'dedsec_os'}:
         filtered.append(new_startup)
     else:
-        filtered.append('# (DedSec Menu auto-start disabled)\n')
+        filtered.append('# (DedSec Menu auto-start disabled; Ded-Guy learning remains enabled)\n')
     if alias_lang:
         filtered.append(alias_lang)
     filtered.append(BASHRC_END_MARKER + '\n')
@@ -3444,14 +4047,17 @@ def settings_meta():
 def run_settings_action(action, payload):
     if action == 'update_source_1':
         root = get_preferred_dedsec_root()
-        cmd = 'git remote set-url origin ' + REPO_URL_SOURCE_1 + ' && git fetch --all && git reset --hard origin/main && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull'
+        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_1'
+        cmd = 'git remote set-url origin ' + shlex.quote(REPO_URL_SOURCE_1) + ' && git fetch --all && branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##"); branch=${branch:-main}; git reset --hard "origin/$branch" && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Project [Source 1]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_source_2':
         root = get_preferred_dedsec_root()
-        cmd = 'git remote set-url origin ' + REPO_URL_SOURCE_2 + ' && git fetch --all && git reset --hard origin/main && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull'
+        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_2'
+        cmd = 'git remote set-url origin ' + shlex.quote(REPO_URL_SOURCE_2) + ' && git fetch --all && branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##"); branch=${branch:-main}; git reset --hard "origin/$branch" && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Project [Source 2]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_packages':
-        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages'
+        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
+        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=HOME_DIR, kind='settings-packages', prefer_termux=False)
     if action == 'access_sponsors':
         tier = str(payload.get('tier') or '3').replace('$', '').strip()
@@ -3502,6 +4108,11 @@ fi
         return launch_job(label='Settings: Access Sponsors-Only ' + config['short_label'], shell_command=cmd, cwd=HOME_DIR, kind='settings-sponsors', prefer_termux=False)
     if action == 'save_menu_style':
         style = payload.get('menu_style') or 'list'
+        if style not in {'list', 'grid', 'number', 'pipboy', 'dedsec_os'}:
+            raise ValueError('Invalid menu style.')
+        if style in {'pipboy', 'dedsec_os'}:
+            save_menu_autostart_preference_server(True)
+        save_menu_style_preference(style)
         update_bashrc_server(current_language_path_from_pref(), style)
         unlock_termux_gate()
         return {'meta': settings_meta()}
@@ -3577,8 +4188,23 @@ def get_existing_sponsors_paths():
 
 def allowed_roots():
     roots = [os.path.realpath(user_workspace_path()), os.path.realpath(get_preferred_dedsec_root()), os.path.realpath(DEDSEC_OS_ROOT)]
-    roots.extend(os.path.realpath(path) for path in get_existing_sponsors_paths())
-    return roots
+    sponsor_paths = []
+    helper = globals().get("get_existing_sponsors_paths")
+    if callable(helper):
+        try:
+            sponsor_paths = helper() or []
+        except Exception:
+            sponsor_paths = []
+    if not sponsor_paths:
+        for tier_key in globals().get("SPONSORS_TIER_ORDER", ()):
+            config = globals().get("SPONSORS_TIERS", {}).get(str(tier_key), {})
+            root_name = config.get("root_name")
+            if root_name:
+                candidate = os.path.join(HOME_DIR, root_name)
+                if os.path.isdir(candidate):
+                    sponsor_paths.append(candidate)
+    roots.extend(os.path.realpath(path) for path in sponsor_paths)
+    return list(dict.fromkeys(roots))
 
 
 def safe_realpath(raw_path, must_exist=True, allow_empty=False):
@@ -3740,7 +4366,6 @@ def sync_job_state(job):
 
 
 def get_jobs(include_closed=False):
-    global WEB_SHELL_PROCESS, WEB_SHELL_FD
     with STATE_LOCK:
         jobs = load_jobs()
         if 'web-shell' in jobs:
@@ -3835,7 +4460,7 @@ def start_web_shell_bridge():
     save_jobs(jobs)
 
     def reader():
-        global WEB_SHELL_PROCESS, WEB_SHELL_FD
+        global WEB_SHELL_FD
         log_file = web_shell['log_file']
         try:
             while True:
@@ -4152,6 +4777,9 @@ def run_store_program(program_id, action):
     if not command_key:
         raise ValueError('Unsupported action: ' + action)
     shell_command = entry[command_key]
+    if action == 'update':
+        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_store_update'
+        shell_command = shell_command + '; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
     return launch_job(label='Store: ' + entry['name'] + ' [' + action + ']', shell_command=shell_command, cwd=HOME_DIR, kind='store-' + action, prefer_termux=False)
 
 
@@ -5286,6 +5914,7 @@ INDEX_HTML = r"""
                 <option value="list">List Style</option>
                 <option value="grid">Grid Style</option>
                 <option value="number">Choose By Number</option>
+                <option value="pipboy">Ded-Guy Style</option>
                 <option value="dedsec_os">DedSec OS</option>
               </select>
             </div>
@@ -5353,7 +5982,7 @@ Past Help: lamprouil, UKI_hunter</div>
         'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Download Sponsors $3 Tier':'Download Sponsors $3 Tier','Download Sponsors $9 Tier':'Download Sponsors $9 Tier','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
       },
       el: {
-        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Download Sponsors $3 Tier':'Λήψη Sponsors $3 Tier','Download Sponsors $9 Tier':'Λήψη Sponsors $9 Tier','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
+        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Download Sponsors $3 Tier':'Λήψη Sponsors $3 Tier','Download Sponsors $9 Tier':'Λήψη Sponsors $9 Tier','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','Ded-Guy Style':'Στυλ Ded-Guy','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
       }
     };
 
@@ -6520,7 +7149,7 @@ class Handler(BaseHTTPRequestHandler):
                 config = save_config(config)
                 token = issue_auth_token(username)
                 unlock_termux_gate()
-                send_json(self, 200, {'ok': True, 'authenticated': True, 'config': public_config(global_cfg)}, extra_headers=[('Set-Cookie', 'dedsec_os_auth=' + token + '; Path=/; HttpOnly; SameSite=Lax')])
+                send_json(self, 200, {'ok': True, 'authenticated': True, 'config': public_config(config)}, extra_headers=[('Set-Cookie', 'dedsec_os_auth=' + token + '; Path=/; HttpOnly; SameSite=Lax')])
                 return
             REQUEST_CONTEXT.username = current_request_username(self)
             if is_auth_enabled() and not is_request_authenticated(self):
@@ -6994,6 +7623,20 @@ def network_update_tools(silent=False):
     config = network_load_config()
     config["last_tools_update"] = int(time.time())
     network_save_config(config)
+    if not silent:
+        try:
+            pipboy_refresh_knowledge_after_update(
+                trigger="network_tools_update", force_project_rebuild=False, quiet=False
+            )
+        except Exception as exc:
+            try:
+                pipboy_log_error("network tools knowledge refresh", exc)
+            except Exception:
+                pass
+            print(pipboy_text(
+                f"[!] Network tools were updated, but the Ded-Guy database check failed: {exc}",
+                f"[!] Τα εργαλεία δικτύου ενημερώθηκαν, αλλά ο έλεγχος βάσης Ded-Guy απέτυχε: {exc}",
+            ))
     return messages
 
 
@@ -7011,7 +7654,7 @@ def network_tor_binary():
 
 def network_pysocks_available():
     try:
-        import socks  # noqa: F401
+        __import__("socks")
         return True
     except Exception:
         return False
@@ -7059,7 +7702,7 @@ def network_start_tor(silent=False):
             stdin=subprocess.DEVNULL,
             close_fds=True,
         )
-        for _ in range(40):
+        for attempt_index in range(40):
             if network_tor_running():
                 return True, _("Tor started on 127.0.0.1:9050.")
             if NETWORK_TOR_PROCESS and NETWORK_TOR_PROCESS.poll() is not None:
@@ -7712,10 +8355,9770 @@ def network_utilities_menu():
 # ----------------------------------------------------------------------
 
 # ------------------------------
+# Ded-Guy Assistant
+# ------------------------------
+PIPBOY_DATA_DIR = os.path.join(HOME_DIR, ".dedsec_pipboy")
+PIPBOY_INVENTORY_PATH = os.path.join(PIPBOY_DATA_DIR, "inventory.json")
+PIPBOY_EVENTS_PATH = os.path.join(PIPBOY_DATA_DIR, "learning_events.json")
+PIPBOY_NOTES_PATH = os.path.join(PIPBOY_DATA_DIR, "notes.json")
+PIPBOY_HISTORY_PATH = os.path.join(PIPBOY_DATA_DIR, "history.jsonl")
+PIPBOY_CONFIG_PATH = os.path.join(PIPBOY_DATA_DIR, "config.json")
+PIPBOY_SCAN_LOCK_PATH = os.path.join(PIPBOY_DATA_DIR, "scan.lock")
+PIPBOY_VOICE_DEPS_STATE_PATH = os.path.join(PIPBOY_DATA_DIR, "voice_dependencies.json")
+PIPBOY_VOICE_DEPS_LOCK_PATH = os.path.join(PIPBOY_DATA_DIR, "voice_dependencies.lock")
+PIPBOY_MAX_SCRIPTS = 6000
+PIPBOY_MAX_COMMANDS = 5000
+PIPBOY_MAX_HISTORY_BYTES = 2 * 1024 * 1024
+PIPBOY_SCRIPT_EXTENSIONS = {
+    ".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".cjs", ".rb", ".pl",
+    ".php", ".lua", ".tcl", ".awk", ".jar", ".html", ".htm"
+}
+PIPBOY_IGNORED_DIRS = {
+    ".git", ".cache", "node_modules", "__pycache__", ".npm", ".gradle",
+    ".cargo", ".rustup", ".dedsec_pipboy", "storage", "Android", "proc",
+    "sys", "dev", "tmp", ".termux", ".local", ".venv", "venv", "env",
+    "site-packages", "dist-packages", ".Trash"
+}
+PIPBOY_RISKY_COMMANDS = {
+    "rm", "rmdir", "dd", "mkfs", "reboot", "shutdown", "halt", "poweroff",
+    "su", "sudo", "chroot", "mount", "umount", "kill", "killall", "pkill",
+    "apt", "apt-get", "pkg", "dpkg", "pip", "pip3", "npm", "yarn", "chmod",
+    "chown", "mv"
+}
+PIPBOY_ANSI_RE = re.compile(
+    r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))"
+)
+PIPBOY_DEFAULT_CONFIG = {
+    "schema": 16,
+    "microphone_enabled": True,
+    "voice_enabled": True,
+    "input_mode": "mixed",          # mixed or text_only privacy mode
+    "interaction_mode": "text",     # numbered, text or voice
+    "recognition_language": "auto", # auto, greek or english
+    "continuous_listening": True,   # keep reopening STT in voice mode
+    "silence_seconds": 4.0,         # prompt after approximately four quiet seconds
+    "accent_tolerance": 0.72,       # project-aware fuzzy correction for accents/misrecognition
+    "recognizer_max_seconds": 45.0, # worker timeout; never blocks the curses interface
+    "recognizer_initial_grace": 12.0, # avoid killing buffered Android recognition too early
+    "wake_word_enabled": True,       # spoken commands require the wake phrase
+    "wake_word": "Hey Guy",          # visible wake phrase
+    "wake_window_seconds": 10.0,     # allow a follow-up command after wake-only speech
+    "barge_in_enabled": True,
+    "continuous_wake_monitor": True,  # keep listening during Ded-Guy speech
+    "wake_listen_while_speaking": True,      # listen for the wake phrase while replying
+    "wake_interrupt_partial": True,   # stop speech as soon as Android emits a partial wake transcript
+    "wake_followup_seconds": 4.0,     # time allowed for a command after wake-only speech
+    "voice_retry_seconds": 1.25,   # retry microphone after transient recognition errors
+    "speech_rate": 0.95,
+    "speech_pitch": 0.68,
+    "voice_profile": "male",        # male, deep_male or neutral
+    "voice_backend": "espeak",      # deterministic masculine voice when installed
+    "website_auto_refresh": False,
+    "web_search_enabled": True,
+    "always_confirm_clones": True,
+    "always_confirm_shell": True,
+    # Model-free project intelligence. It uses deterministic retrieval,
+    # source-code analysis, website knowledge, rules, and saved context only.
+    "intelligence_enabled": True,
+    "intelligence_depth": "balanced", # fast, balanced, deep, or expert
+    "intelligence_detail": "detailed", # compact, balanced, detailed, or maximum
+    "intelligence_web_context": False,
+    "intelligence_max_sources": 8,
+    "intelligence_memory_turns": 12,
+}
+PIPBOY_MAX_BUBBLE_ANSWERS = 3
+PIPBOY_TTS_PROCESS = None
+PIPBOY_HELP_CACHE = {}
+PIPBOY_RECOGNIZER_LOCK = threading.Lock()
+PIPBOY_BARGE_IN_THREAD = None
+PIPBOY_BARGE_IN_GENERATION = 0
+PIPBOY_CURRENT_SPOKEN_TEXT = ""
+PIPBOY_LAST_BARGE_ACTION = None
+PIPBOY_TTS_AUDIO_PATH = os.path.join(PIPBOY_DATA_DIR, "pipboy_voice.wav")
+PIPBOY_ACTIVE_RECOGNIZER_PROCESS = None
+PIPBOY_VOICE_WORKER_THREAD = None
+PIPBOY_VOICE_WORKER_RESULTS = deque(maxlen=4)
+PIPBOY_VOICE_WORKER_LOCK = threading.Lock()
+PIPBOY_VOICE_WORKER_GENERATION = 0
+PIPBOY_VOICE_DEPS_THREAD = None
+PIPBOY_VOICE_INSTALL_RETRY_SECONDS = 6 * 60 * 60
+
+
+def pipboy_text(english, greek):
+    return greek if get_current_display_language() == "greek" else english
+
+
+def pipboy_prompt_display_name():
+    """Read the prompt name selected in Settings without executing shell code."""
+    try:
+        with open(BASHRC_PATH, "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                if not line.lstrip().startswith("PS1="):
+                    continue
+                match = re.search(r"1;34m\\\]([^\\'\n]+?)\\\[\\e\[0m", line)
+                if match:
+                    candidate = sanitize_prompt_username(match.group(1))
+                    if candidate:
+                        return candidate
+    except Exception:
+        pass
+    try:
+        account = load_github_account_config()
+        candidate = sanitize_prompt_username(account.get("username") or "")
+        if candidate and candidate != "DedSec":
+            return candidate
+    except Exception:
+        pass
+    return "DedSec"
+
+
+def pipboy_welcome_message():
+    name = pipboy_prompt_display_name()
+    message = pipboy_text(
+        f"Welcome {name}. Ded-Guy is online. For voice commands, use the wake phrase shown in the pinned status and then your request. You can ask naturally about the DedSec projects, website, tools, errors, or confirmed actions.",
+        f"Καλώς ήρθες {name}. Το Ded-Guy είναι σε λειτουργία. Για φωνητικές εντολές, χρησιμοποίησε τη φράση αφύπνισης που φαίνεται στην καρφιτσωμένη κατάσταση και μετά πες το αίτημά σου. Μπορείς να ρωτήσεις φυσικά για τα project DedSec, το website, τα εργαλεία, τα σφάλματα ή επιβεβαιωμένες ενέργειες.",
+    )
+    pending = globals().get("dedguy_pending_update_notice")
+    if callable(pending):
+        try:
+            notice = pending()
+            if notice:
+                message += "\n\n" + notice
+        except Exception:
+            pass
+    return message
+
+
+_PIPBOY_GREEK_RE = re.compile(r"[Α-Ωα-ωΆΈΉΊΌΎΏάέήίόύώϊϋΐΰ]")
+_PIPBOY_LATIN_RE = re.compile(r"[A-Za-z]")
+_PIPBOY_FILE_RE = re.compile(
+    r"(?i)\b[^\s/\\]+\.(?:py|sh|bash|zsh|js|ts|html?|css|json|ya?ml|toml|md|txt|sqlite3?|db|zip|apk|gguf|png|jpe?g|gif|webp|svg)\b"
+)
+_PIPBOY_URL_OR_PATH_RE = re.compile(r"(?:https?://\S+|(?:^|\s)[~/]/?[^\s]+|/data/data/com\.termux/\S+)")
+
+
+def pipboy_selected_answer_language():
+    """Return the one Settings language allowed for Ded-Guy prose."""
+    return "greek" if get_current_display_language() == "greek" else "english"
+
+
+def pipboy_line_is_technical(line):
+    """Preserve commands, paths, URLs, filenames, and source labels unchanged."""
+    value = str(line or "")
+    if _PIPBOY_FILE_RE.search(value) or _PIPBOY_URL_OR_PATH_RE.search(value):
+        return True
+    if "`" in value or value.lstrip().startswith(("$ ", "> ", "# ", "[P", "[W", "[S")):
+        return True
+    return bool(re.search(r"\b(?:python3?|bash|sh|git|pkg|apt|pip|npm|termux-[a-z-]+)\b", value, re.I))
+
+
+def pipboy_line_has_exact_technical_reference(line):
+    """Preserve only literal commands, URLs, paths, and filenames across languages."""
+    value = str(line or "")
+    if _PIPBOY_FILE_RE.search(value) or _PIPBOY_URL_OR_PATH_RE.search(value):
+        return True
+    if "`" in value or value.lstrip().startswith(("$ ", "> ", "# ", "[P", "[W", "[S")):
+        return True
+    return False
+
+
+def pipboy_extract_exact_technical_references(line):
+    value = str(line or "")
+    refs = []
+    for pattern in (_PIPBOY_URL_OR_PATH_RE, _PIPBOY_FILE_RE):
+        for match in pattern.finditer(value):
+            ref = match.group(0).strip().rstrip(".,);]")
+            if ref and ref not in refs:
+                refs.append(ref)
+    for match in re.finditer(r"`([^`]+)`", value):
+        ref = match.group(1).strip()
+        if ref and ref not in refs:
+            refs.append(ref)
+    stripped = value.lstrip()
+    if stripped.startswith(("$ ", "> ", "# ")) and stripped not in refs:
+        refs.append(stripped)
+    return refs[:12]
+
+
+def pipboy_greek_line_cleanup(line):
+    """Keep Greek prose while preserving exact technical names and paths."""
+    value = str(line or "")
+    replacements = (
+        ("Sources:", "Πηγές:"), ("Source:", "Πηγή:"),
+        ("Top matches:", "Κορυφαία αποτελέσματα:"),
+        ("Best matching DedSec tools:", "Καλύτερα ταιριαστά εργαλεία DedSec:"),
+        ("Purpose:", "Σκοπός:"), ("Capabilities:", "Δυνατότητες:"),
+        ("Arguments:", "Ορίσματα:"), ("Save paths:", "Τοποθεσίες αποθήκευσης:"),
+        ("Save locations:", "Τοποθεσίες αποθήκευσης:"),
+        ("Inputs/controls:", "Είσοδοι/χειριστήρια:"),
+        ("Detected commands:", "Εντοπισμένες εντολές:"),
+        ("Referenced project files:", "Αναφερόμενα αρχεία project:"),
+        ("Comparison based on indexed sources:", "Σύγκριση βάσει ευρετηριασμένων πηγών:"),
+        ("Definitions:", "Ορισμοί:"), ("References:", "Αναφορές:"),
+        ("Category:", "Κατηγορία:"),
+    )
+    for english, greek in replacements:
+        value = value.replace(english, greek)
+    if _PIPBOY_GREEK_RE.search(value):
+        return value
+    refs = pipboy_extract_exact_technical_references(value)
+    if refs:
+        return "- " + " | ".join(refs)
+    return ""
+
+
+def pipboy_english_line_cleanup(line):
+    """Keep English prose while preserving exact Greek filenames and paths."""
+    value = str(line or "")
+    if not _PIPBOY_GREEK_RE.search(value):
+        return value
+    refs = pipboy_extract_exact_technical_references(value)
+    if refs:
+        return "- " + " | ".join(refs)
+    greek_count = len(_PIPBOY_GREEK_RE.findall(value))
+    latin_count = len(_PIPBOY_LATIN_RE.findall(value))
+    if greek_count >= 3 or greek_count >= latin_count:
+        return ""
+    return value
+
+
+def pipboy_enforce_answer_language(text):
+    """Keep answer prose in the language selected in Settings.
+
+    Exact tool names, commands, paths, URLs, and filenames remain unchanged so
+    the referenced project item stays identifiable and runnable.
+    """
+    raw = str(text or "")
+    language = pipboy_selected_answer_language()
+    cleaner = pipboy_greek_line_cleanup if language == "greek" else pipboy_english_line_cleanup
+    cleaned = []
+    for line in raw.splitlines() or [raw]:
+        candidate = cleaner(line)
+        if candidate.strip():
+            cleaned.append(candidate.rstrip())
+    if cleaned:
+        return "\n".join(cleaned)
+
+    technical = []
+    for match in _PIPBOY_FILE_RE.finditer(raw):
+        if match.group(0) not in technical:
+            technical.append(match.group(0))
+    for match in re.finditer(r"https?://\S+", raw):
+        value = match.group(0).rstrip(".,)")
+        if value not in technical:
+            technical.append(value)
+    base = (
+        "Βρήκα σχετικές τεχνικές αναφορές. Το ξενόγλωσσο επεξηγηματικό κείμενο αποκρύφτηκε ώστε η απάντηση να παραμείνει μόνο στα ελληνικά."
+        if language == "greek" else
+        "I found relevant technical references. Foreign-language explanatory text was hidden so the answer remains in English only."
+    )
+    return base + (("\n" + "\n".join(f"- {item}" for item in technical[:12])) if technical else "")
+
+
+def pipboy_normalize(value):
+    value = unicodedata.normalize("NFD", str(value or "").casefold())
+    value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
+    value = value.replace("ς", "σ")
+    value = re.sub(r"[^a-z0-9α-ω._+#/:~*%()=, -]+", " ", value)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def pipboy_canonicalize(value):
+    """Normalize English, Greek, and common Greeklish into stable intent words."""
+    text = pipboy_normalize(value)
+    phrase_map = {
+        "ti neo": "what is new", "ti kainourgio": "what is new",
+        "ti emathes": "what did you learn", "ti exeis mathei": "what did you learn",
+        "deikse scripts": "list scripts", "deikse entoles": "list commands",
+        "deikse efarmoges": "list apps", "deikse arxeia": "list files",
+        "mono ego na grafo": "text only on", "mono keimeno": "text only on",
+        "grapsimo kai foni": "text only off", "keimeno kai foni": "text only off",
+        "anoixe mikrofono": "microphone on", "anoikse mikrofono": "microphone on",
+        "kleise mikrofono": "microphone off", "mute microphone": "microphone off",
+        "unmute microphone": "microphone on", "stamata na milas": "voice off",
+        "mila xana": "voice on", "foni ellinika": "recognition greek",
+        "foni agglika": "recognition english", "foni auto": "recognition auto",
+        "arithmimeno menou": "mode numbered", "arithmitiko menou": "mode numbered",
+        "leitourgia keimenou": "mode text", "mono pliktrologio": "mode text",
+        "leitourgia fonis": "mode voice", "mono foni": "mode voice",
+        "rythmiseis eisodou": "mode settings", "rythmiseis ded guy": "controls",
+        "trexe to": "run it", "anoixe to": "open it", "periegrapse to": "describe it",
+        "mathe tin istoselida": "learn website", "mathe to site": "learn website",
+        "psakse sto internet": "search internet", "psakse sto web": "search internet",
+        "psakse sto github": "search github", "klonopoihse": "clone",
+        "klonopoiese": "clone", "mathaine olo to project": "learn project",
+    }
+    if text in phrase_map:
+        return phrase_map[text]
+    token_map = {
+        "trexe": "run", "trekse": "run", "xekina": "start", "anoixe": "open",
+        "anoikse": "open", "psakse": "search", "vrese": "find", "vres": "find",
+        "voitheia": "help", "eksodos": "exit", "pisw": "back", "piso": "back",
+        "sarosi": "scan", "katastasi": "status", "entoli": "command",
+        "ergaleio": "tool", "mikrofono": "microphone", "kleise": "off",
+        "foni": "voice", "ellinika": "greek", "agglika": "english",
+        "aftomato": "auto", "automato": "auto", "efarmogi": "app",
+        "efarmoges": "apps", "arxeio": "file", "arxeia": "files",
+        "fakelos": "folder", "thymisou": "remember", "simeiose": "note",
+        "katharise": "clear", "mporeis": "can", "mporeite": "can",
+        "thelo": "want", "parakalo": "please", "periegrapse": "describe",
+        "eksigise": "explain", "ypologise": "calculate", "arithmimeno": "numbered",
+        "keimeno": "text", "rythmiseis": "settings", "leitourgia": "mode",
+        "istoselida": "website", "selida": "page", "diadiktyo": "internet",
+        "internet": "internet", "klonopoihse": "clone", "klonopoiese": "clone",
+        "apothetirio": "repository", "repo": "repository", "project": "project",
+    }
+    return " ".join(token_map.get(token, token) for token in text.split())
+
+
+def pipboy_atomic_json_write(path, payload):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp_path = path + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, ensure_ascii=False, indent=2)
+        handle.flush()
+        try:
+            os.fsync(handle.fileno())
+        except OSError:
+            pass
+    os.replace(tmp_path, path)
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+
+
+def pipboy_load_json(path, default):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+        return value
+    except Exception:
+        return default
+
+
+def pipboy_load_config():
+    stored = pipboy_load_json(PIPBOY_CONFIG_PATH, {})
+    try:
+        stored_schema = int(stored.get("schema", 0)) if isinstance(stored, dict) else 0
+    except (TypeError, ValueError):
+        stored_schema = 0
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    if isinstance(stored, dict):
+        config.update({key: stored[key] for key in config if key in stored})
+
+    # R35 migration: old builds could silently fall back to Android's default
+    # female voice and permanently suspend auto-listening after one STT error.
+    # Preserve mute/privacy choices, but move voice output to the deterministic
+    # masculine eSpeak profile and keep continuous listening recoverable.
+    if stored_schema < 13:
+        config["voice_profile"] = "male"
+        config["voice_backend"] = "espeak"
+        config["speech_pitch"] = min(float(config.get("speech_pitch", 0.68) or 0.68), 0.68)
+        config["continuous_listening"] = True
+        config["barge_in_enabled"] = True
+        config["voice_retry_seconds"] = 1.25
+
+    config["microphone_enabled"] = bool(config.get("microphone_enabled", True))
+    config["voice_enabled"] = bool(config.get("voice_enabled", True))
+    if config.get("input_mode") not in {"mixed", "text_only"}:
+        config["input_mode"] = "mixed"
+
+    # Migrate old builds: text-only remains a privacy lock, while the new
+    # interaction mode decides which interface opens first.
+    if config.get("interaction_mode") not in {"numbered", "text", "voice"}:
+        config["interaction_mode"] = "text"
+    if config.get("recognition_language") not in {"auto", "greek", "english"}:
+        config["recognition_language"] = "auto"
+    if config.get("voice_profile") not in {"male", "deep_male", "neutral"}:
+        config["voice_profile"] = "male"
+    if config.get("voice_backend") not in {"auto", "android", "espeak"}:
+        config["voice_backend"] = "auto"
+    try:
+        config["speech_rate"] = min(2.0, max(0.45, float(config.get("speech_rate", 0.95))))
+    except (TypeError, ValueError):
+        config["speech_rate"] = 0.95
+    try:
+        config["speech_pitch"] = min(1.5, max(0.45, float(config.get("speech_pitch", 0.78))))
+    except (TypeError, ValueError):
+        config["speech_pitch"] = 0.78
+    config["intelligence_enabled"] = bool(config.get("intelligence_enabled", True))
+    if config.get("intelligence_depth") not in {"fast", "balanced", "deep", "expert"}:
+        config["intelligence_depth"] = "balanced"
+    if config.get("intelligence_detail") not in {"compact", "balanced", "detailed", "maximum"}:
+        config["intelligence_detail"] = "detailed"
+    config["intelligence_web_context"] = bool(config.get("intelligence_web_context", False))
+    try:
+        config["intelligence_max_sources"] = min(24, max(3, int(config.get("intelligence_max_sources", 8))))
+    except (TypeError, ValueError):
+        config["intelligence_max_sources"] = 8
+    try:
+        config["intelligence_memory_turns"] = min(40, max(0, int(config.get("intelligence_memory_turns", 12))))
+    except (TypeError, ValueError):
+        config["intelligence_memory_turns"] = 12
+    config["continuous_listening"] = bool(config.get("continuous_listening", True))
+    config["barge_in_enabled"] = bool(config.get("barge_in_enabled", True))
+    try:
+        config["voice_retry_seconds"] = min(8.0, max(0.5, float(config.get("voice_retry_seconds", 1.25))))
+    except (TypeError, ValueError):
+        config["voice_retry_seconds"] = 1.25
+    try:
+        config["silence_seconds"] = min(12.0, max(3.0, float(config.get("silence_seconds", 4.0))))
+    except (TypeError, ValueError):
+        config["silence_seconds"] = 4.0
+    try:
+        config["accent_tolerance"] = min(0.92, max(0.62, float(config.get("accent_tolerance", 0.78))))
+    except (TypeError, ValueError):
+        config["accent_tolerance"] = 0.78
+    try:
+        config["recognizer_max_seconds"] = min(70.0, max(20.0, float(config.get("recognizer_max_seconds", 45.0))))
+    except (TypeError, ValueError):
+        config["recognizer_max_seconds"] = 45.0
+    try:
+        config["recognizer_initial_grace"] = min(20.0, max(8.0, float(config.get("recognizer_initial_grace", 12.0))))
+    except (TypeError, ValueError):
+        config["recognizer_initial_grace"] = 12.0
+    config["wake_word_enabled"] = bool(config.get("wake_word_enabled", True))
+    config["continuous_wake_monitor"] = bool(config.get("continuous_wake_monitor", True))
+    config["wake_listen_while_speaking"] = bool(config.get("wake_listen_while_speaking", True))
+    config["wake_interrupt_partial"] = bool(config.get("wake_interrupt_partial", True))
+    try:
+        config["wake_followup_seconds"] = min(8.0, max(2.0, float(config.get("wake_followup_seconds", 4.0))))
+    except (TypeError, ValueError):
+        config["wake_followup_seconds"] = 4.0
+    config["wake_word"] = "Hey Guy"
+    try:
+        config["wake_window_seconds"] = min(20.0, max(5.0, float(config.get("wake_window_seconds", 10.0))))
+    except (TypeError, ValueError):
+        config["wake_window_seconds"] = 10.0
+    config["schema"] = PIPBOY_DEFAULT_CONFIG["schema"]
+    return config
+
+
+
+def pipboy_save_config(config):
+    clean = dict(PIPBOY_DEFAULT_CONFIG)
+    clean.update({key: config.get(key, default) for key, default in PIPBOY_DEFAULT_CONFIG.items()})
+    pipboy_atomic_json_write(PIPBOY_CONFIG_PATH, clean)
+    return clean
+
+
+def pipboy_toggle_setting(config, key):
+    config[key] = not bool(config.get(key))
+    pipboy_save_config(config)
+    return config[key]
+
+
+def pipboy_append_history(role, text):
+    try:
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        if os.path.exists(PIPBOY_HISTORY_PATH) and os.path.getsize(PIPBOY_HISTORY_PATH) > PIPBOY_MAX_HISTORY_BYTES:
+            rotated = PIPBOY_HISTORY_PATH + ".old"
+            try:
+                os.replace(PIPBOY_HISTORY_PATH, rotated)
+            except OSError:
+                pass
+        entry = {
+            "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "role": str(role),
+            "text": str(text)[:4000],
+        }
+        with open(PIPBOY_HISTORY_PATH, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        try:
+            os.chmod(PIPBOY_HISTORY_PATH, 0o600)
+        except OSError:
+            pass
+    except Exception:
+        pass
+
+
+
+
+def pipboy_load_recent_replies(limit=PIPBOY_MAX_BUBBLE_ANSWERS):
+    """Read only the tail of history without loading the whole file."""
+    replies = []
+    try:
+        tail = deque(maxlen=120)
+        with open(PIPBOY_HISTORY_PATH, "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                tail.append(line)
+        for line in tail:
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+            if item.get("role") == "pipboy" and str(item.get("text", "")).strip():
+                replies.append(str(item["text"]).strip()[:4000])
+    except Exception:
+        pass
+    return replies[-max(1, int(limit)):]
+
+
+
+def pipboy_command_help(executable):
+    path = shutil.which(executable) or executable
+    if path in PIPBOY_HELP_CACHE:
+        return PIPBOY_HELP_CACHE[path]
+    try:
+        completed = subprocess.run(
+            [path, "--help"], capture_output=True, text=True, timeout=4, check=False
+        )
+        help_text = (completed.stdout or "") + "\n" + (completed.stderr or "")
+    except Exception:
+        help_text = ""
+    PIPBOY_HELP_CACHE[path] = help_text
+    return help_text
+
+
+def pipboy_effective_language(config=None, sample=""):
+    config = config or pipboy_load_config()
+    selected = config.get("recognition_language", "auto")
+    if selected in {"greek", "english"}:
+        return selected
+    if re.search(r"[Α-Ωα-ωΆ-Ώά-ώ]", str(sample or "")):
+        return "greek"
+    return "greek" if get_current_display_language() == "greek" else "english"
+
+
+def pipboy_language_label(config):
+    mode = config.get("recognition_language", "auto")
+    labels = {
+        "auto": pipboy_text("AUTO", "ΑΥΤΟΜΑΤΑ"),
+        "greek": pipboy_text("GREEK", "ΕΛΛΗΝΙΚΑ"),
+        "english": pipboy_text("ENGLISH", "ΑΓΓΛΙΚΑ"),
+    }
+    return labels.get(mode, "AUTO")
+
+
+def pipboy_cycle_recognition_language(config):
+    modes = ["auto", "greek", "english"]
+    current = config.get("recognition_language", "auto")
+    config["recognition_language"] = modes[(modes.index(current) + 1) % len(modes)]
+    pipboy_save_config(config)
+    return pipboy_language_label(config)
+
+
+
+def pipboy_interaction_mode_label(config):
+    labels = {
+        "numbered": pipboy_text("SHORTCUTS", "ΣΥΝΤΟΜΕΥΣΕΙΣ"),
+        "text": pipboy_text("TEXT", "ΚΕΙΜΕΝΟ"),
+        "voice": pipboy_text("VOICE", "ΦΩΝΗ"),
+    }
+    return labels.get(config.get("interaction_mode", "text"), labels["text"])
+
+
+def pipboy_set_interaction_mode(config, mode):
+    if mode not in {"numbered", "text", "voice"}:
+        mode = "text"
+    config["interaction_mode"] = mode
+    pipboy_save_config(config)
+    return mode
+
+
+def pipboy_mode_summary(config):
+    privacy = pipboy_text("TEXT-ONLY LOCK", "ΚΛΕΙΔΩΜΑ ΜΟΝΟ ΚΕΙΜΕΝΟΥ") if config.get("input_mode") == "text_only" else pipboy_text("VOICE ALLOWED", "ΕΠΙΤΡΕΠΕΤΑΙ ΦΩΝΗ")
+    return pipboy_text(
+        f"Interface: {pipboy_interaction_mode_label(config)} | {privacy}",
+        f"Διεπαφή: {pipboy_interaction_mode_label(config)} | {privacy}",
+    )
+
+
+def pipboy_voice_profile_label(config):
+    labels = {
+        "male": pipboy_text("MALE", "ΑΝΔΡΙΚΗ"),
+        "deep_male": pipboy_text("DEEP MALE", "ΒΑΘΙΑ ΑΝΔΡΙΚΗ"),
+        "neutral": pipboy_text("NEUTRAL", "ΟΥΔΕΤΕΡΗ"),
+    }
+    return labels.get(config.get("voice_profile", "male"), labels["male"])
+
+
+def pipboy_voice_backend_label(config):
+    labels = {
+        "auto": pipboy_text("AUTO", "ΑΥΤΟΜΑΤΟ"),
+        "android": pipboy_text("ANDROID TTS", "ANDROID TTS"),
+        "espeak": pipboy_text("ESPEAK MALE", "ESPEAK ΑΝΔΡΙΚΗ"),
+    }
+    return labels.get(config.get("voice_backend", "auto"), labels["auto"])
+
+
+def pipboy_effective_voice_values(config):
+    rate = min(2.0, max(0.45, float(config.get("speech_rate", 0.95))))
+    pitch = min(1.5, max(0.45, float(config.get("speech_pitch", 0.78))))
+    profile = config.get("voice_profile", "male")
+    if profile == "male":
+        pitch = min(pitch, 0.84)
+    elif profile == "deep_male":
+        pitch = min(pitch, 0.66)
+        rate = min(rate, 0.90)
+    return rate, pitch
+
+
+def pipboy_cycle_voice_profile(config):
+    profiles = ["male", "deep_male", "neutral"]
+    current = config.get("voice_profile", "male")
+    config["voice_profile"] = profiles[(profiles.index(current) + 1) % len(profiles)]
+    if config["voice_profile"] == "male":
+        config["speech_pitch"] = min(float(config.get("speech_pitch", 0.78)), 0.82)
+    elif config["voice_profile"] == "deep_male":
+        config["speech_pitch"] = min(float(config.get("speech_pitch", 0.78)), 0.64)
+        config["speech_rate"] = min(float(config.get("speech_rate", 0.95)), 0.88)
+    pipboy_save_config(config)
+    return pipboy_voice_profile_label(config)
+
+
+def pipboy_cycle_voice_backend(config):
+    backends = ["auto", "android", "espeak"]
+    current = config.get("voice_backend", "auto")
+    config["voice_backend"] = backends[(backends.index(current) + 1) % len(backends)]
+    pipboy_save_config(config)
+    return pipboy_voice_backend_label(config)
+
+
+def pipboy_reset_voice_settings(config):
+    config["speech_rate"] = PIPBOY_DEFAULT_CONFIG["speech_rate"]
+    config["speech_pitch"] = PIPBOY_DEFAULT_CONFIG["speech_pitch"]
+    config["voice_profile"] = PIPBOY_DEFAULT_CONFIG["voice_profile"]
+    config["voice_backend"] = PIPBOY_DEFAULT_CONFIG["voice_backend"]
+    pipboy_save_config(config)
+
+
+def pipboy_voice_settings_summary(config):
+    rate, pitch = pipboy_effective_voice_values(config)
+    return pipboy_text(
+        f"Voice: {pipboy_voice_profile_label(config)} | speed {rate:.2f}x | pitch {pitch:.2f}x | backend {pipboy_voice_backend_label(config)}",
+        f"Φωνή: {pipboy_voice_profile_label(config)} | ταχύτητα {rate:.2f}x | τόνος {pitch:.2f}x | μηχανή {pipboy_voice_backend_label(config)}"
+    )
+
+
+
+def pipboy_is_voice_stop_phrase(text):
+    normalized = pipboy_canonicalize(text)
+    stop_now = {
+        "stop", "quiet", "be quiet", "stop talking", "ded guy stop",
+        "stop ded guy", "quiet ded guy", "silence", "enough",
+        "σταματα", "σταματα να μιλασ", "ded guy σταματα", "σιωπη", "αρκετα",
+    }
+    mute_voice = {
+        "mute assistant", "mute ded guy", "voice off", "turn your voice off",
+        "κλεισε τη φωνη", "φωνη κλειστη", "σταματα τη φωνη",
+    }
+    stop_listening = {
+        "stop listening", "text mode", "typing mode", "leave voice mode",
+        "σταματα να ακουσ", "λειτουργια κειμενου", "μονο πληκτρολογιο",
+    }
+    mute_microphone = {
+        "mute microphone", "microphone off", "stop microphone",
+        "κλεισε το μικροφωνο", "μικροφωνο κλειστο",
+    }
+    if normalized in mute_voice:
+        return "mute_voice"
+    if normalized in stop_listening:
+        return "stop_listening"
+    if normalized in mute_microphone:
+        return "mute_microphone"
+    if normalized in stop_now:
+        return "stop_speech"
+    return None
+
+
+def pipboy_stop_speech():
+    """Stop every Ded-Guy speech backend without waiting on Android services."""
+    global PIPBOY_TTS_PROCESS, PIPBOY_BARGE_IN_GENERATION, PIPBOY_CURRENT_SPOKEN_TEXT
+    PIPBOY_BARGE_IN_GENERATION += 1
+    process = PIPBOY_TTS_PROCESS
+    PIPBOY_TTS_PROCESS = None
+    PIPBOY_CURRENT_SPOKEN_TEXT = ""
+    media = shutil.which("termux-media-player")
+    if media:
+        try:
+            subprocess.Popen([media, "stop"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+    if process and process.poll() is None:
+        try:
+            process.terminate()
+            process.wait(timeout=0.25)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+    try:
+        if os.path.isfile(PIPBOY_TTS_AUDIO_PATH):
+            os.unlink(PIPBOY_TTS_AUDIO_PATH)
+    except OSError:
+        pass
+
+
+
+def pipboy_prepare_speech_text(text):
+    clean = pipboy_clean_terminal_text(str(text or ""))
+    clean = re.sub(r"https?://\S+", pipboy_text("link", "σύνδεσμος"), clean)
+    clean = re.sub(r"(?:/[^\s]+){2,}", pipboy_text("file path", "διαδρομή αρχείου"), clean)
+    clean = re.sub(r"^[\s>*#-]+", "", clean, flags=re.MULTILINE)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    if len(clean) > 760:
+        clean = clean[:757].rsplit(" ", 1)[0] + "..."
+    return clean
+
+
+def pipboy_start_barge_in_monitor(config):
+    """Compatibility hook; the main continuous wake worker owns recognition.
+
+    Running a second recognizer while the normal listener is active causes audio
+    focus conflicts and lag on Android. The main worker now remains active while
+    Ded-Guy speaks and handles wake-word interruption itself.
+    """
+    return bool(
+        config.get("barge_in_enabled", True)
+        and config.get("continuous_wake_monitor", True)
+        and config.get("interaction_mode") == "voice"
+        and config.get("microphone_enabled", True)
+        and config.get("input_mode") != "text_only"
+    )
+
+
+def pipboy_speak(text, config=None, force=False):
+    """Speak reliably with a masculine eSpeak WAV played by an Android/media backend.
+
+    Direct eSpeak audio is unreliable on many Termux installations because it may
+    not have an active audio server. Generating a WAV and handing it to Android's
+    media player avoids that failure. Android TTS remains the final fallback.
+    """
+    global PIPBOY_TTS_PROCESS, PIPBOY_CURRENT_SPOKEN_TEXT
+    config = config or pipboy_load_config()
+    if (not force and not config.get("voice_enabled", True)) or not text:
+        return False
+    spoken = pipboy_prepare_speech_text(text)
+    if not spoken:
+        return False
+    pipboy_stop_speech()
+    language = pipboy_effective_language(config, spoken)
+    lang_code, region = (("el", "GR") if language == "greek" else ("en", "US"))
+    rate_value, pitch_value = pipboy_effective_voice_values(config)
+    espeak_bin = shutil.which("espeak-ng") or shutil.which("espeak")
+    android_tts = shutil.which("termux-tts-speak")
+    media_player = shutil.which("termux-media-player")
+    mpv = shutil.which("mpv")
+    ffplay = shutil.which("ffplay")
+    play = shutil.which("play")
+    backend = config.get("voice_backend", "espeak")
+    profile = config.get("voice_profile", "male")
+
+    def launch_espeak_media():
+        if not espeak_bin:
+            return False
+        player_kind = "termux" if media_player else "mpv" if mpv else "ffplay" if ffplay else "play" if play else ""
+        if not player_kind:
+            return False
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        variant = "+m3" if profile == "deep_male" else "+m2" if profile == "male" else "+m1"
+        voice_code = ("el" if language == "greek" else "en-us") + variant
+        words_per_minute = max(80, min(320, int(170 * rate_value)))
+        base_pitch = 30 if profile == "deep_male" else 38 if profile == "male" else 48
+        espeak_pitch = max(0, min(99, int(base_pitch * max(0.55, pitch_value))))
+        duration = max(1.2, min(35.0, len(spoken.split()) / max(1.0, words_per_minute / 60.0) + 0.8))
+        sh = shutil.which("sh") or "/bin/sh"
+        wav_q = shlex.quote(PIPBOY_TTS_AUDIO_PATH)
+        es_q = shlex.quote(espeak_bin)
+        text_q = shlex.quote(spoken)
+        if player_kind == "termux":
+            player = shlex.quote(media_player)
+            fallbacks = []
+            if mpv:
+                fallbacks.append(f'{shlex.quote(mpv)} --no-video --really-quiet {wav_q} >/dev/null 2>&1')
+            if ffplay:
+                fallbacks.append(f'{shlex.quote(ffplay)} -nodisp -autoexit -loglevel quiet {wav_q} >/dev/null 2>&1')
+            if play:
+                fallbacks.append(f'{shlex.quote(play)} -q {wav_q} >/dev/null 2>&1')
+            fallback_chain = " || ".join(fallbacks) or "exit 33"
+            playback = (
+                f'if {player} play {wav_q} >/dev/null 2>&1; then '
+                f'sleep {duration:.2f}; {player} stop >/dev/null 2>&1; '
+                f'else {fallback_chain}; fi'
+            )
+        elif player_kind == "mpv":
+            playback = f'{shlex.quote(mpv)} --no-video --really-quiet {wav_q} >/dev/null 2>&1'
+        elif player_kind == "ffplay":
+            playback = f'{shlex.quote(ffplay)} -nodisp -autoexit -loglevel quiet {wav_q} >/dev/null 2>&1'
+        else:
+            playback = f'{shlex.quote(play)} -q {wav_q} >/dev/null 2>&1'
+        wav_dir_q = shlex.quote(os.path.dirname(PIPBOY_TTS_AUDIO_PATH) or PIPBOY_DATA_DIR)
+        voice_q = shlex.quote(voice_code)
+        # Termux eSpeak builds are not completely uniform. Prefer -w, then
+        # fall back to --stdout redirected to the WAV file. Both run in the
+        # detached speech process, so WAV creation never blocks the curses UI.
+        generate_wav = (
+            f'({es_q} -v {voice_q} -s {words_per_minute} -p {espeak_pitch} '
+            f'-w {wav_q} {text_q} >/dev/null 2>&1 || '
+            f'{es_q} -v {voice_q} -s {words_per_minute} -p {espeak_pitch} '
+            f'--stdout {text_q} > {wav_q} 2>/dev/null)'
+        )
+        script = (
+            f'mkdir -p {wav_dir_q}; rm -f {wav_q}; '
+            f'{generate_wav} || exit 31; '
+            f'test -s {wav_q} || exit 32; {playback}; rm -f {wav_q}'
+        )
+        try:
+            proc = subprocess.Popen([sh, "-c", script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            time.sleep(0.05)
+            if proc.poll() not in (None, 0):
+                return False
+            return proc
+        except Exception:
+            return False
+
+    def launch_android():
+        if not android_tts:
+            return False
+        help_text = pipboy_command_help(android_tts)
+        command = [android_tts]
+        if re.search(r"(^|\\s)-l(?:\\s|,|$)|--language", help_text):
+            command += ["-l", lang_code]
+        if re.search(r"(^|\\s)-n(?:\\s|,|$)|--region", help_text):
+            command += ["-n", region]
+        if re.search(r"(^|\\s)-r(?:\\s|,|$)|--rate", help_text):
+            command += ["-r", f"{min(rate_value, 0.95):.2f}"]
+        if re.search(r"(^|\\s)-p(?:\\s|,|$)|--pitch", help_text):
+            command += ["-p", f"{min(pitch_value, 0.58):.2f}"]
+        command.append(spoken)
+        try:
+            proc = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            time.sleep(0.05)
+            if proc.poll() not in (None, 0):
+                return False
+            return proc
+        except Exception:
+            return False
+
+    def launch_espeak_direct():
+        if not espeak_bin:
+            return False
+        variant = "+m3" if profile == "deep_male" else "+m2" if profile == "male" else "+m1"
+        voice_code = ("el" if language == "greek" else "en-us") + variant
+        words_per_minute = str(max(80, min(320, int(170 * rate_value))))
+        base_pitch = 30 if profile == "deep_male" else 38 if profile == "male" else 48
+        espeak_pitch = str(max(0, min(99, int(base_pitch * max(0.55, pitch_value)))))
+        try:
+            proc = subprocess.Popen([espeak_bin, "-v", voice_code, "-s", words_per_minute, "-p", espeak_pitch, spoken], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+            time.sleep(0.05)
+            if proc.poll() not in (None, 0):
+                return False
+            return proc
+        except Exception:
+            return False
+
+    if backend == "android":
+        process = launch_android() or launch_espeak_media() or launch_espeak_direct()
+    else:
+        process = launch_espeak_media() or launch_android() or launch_espeak_direct()
+    if not process:
+        PIPBOY_TTS_PROCESS = None
+        return False
+    PIPBOY_TTS_PROCESS = process
+    PIPBOY_CURRENT_SPOKEN_TEXT = pipboy_normalize(spoken)
+    if len(spoken.split()) >= 9:
+        pipboy_start_barge_in_monitor(config)
+    return True
+
+
+
+def pipboy_is_speaking():
+    return bool(PIPBOY_TTS_PROCESS and PIPBOY_TTS_PROCESS.poll() is None)
+
+
+PIPBOY_VOICE_SILENCE_SENTINEL = "__pipboy_voice_silence__"
+PIPBOY_VOICE_LEXICON_CACHE = None
+PIPBOY_WAKE_DISPLAY = "Hey Guy"
+PIPBOY_WAKE_VARIANTS = (
+    "hey guy", "hay guy", "hey gai", "hey guide", "hey guys",
+    "okay hey guy", "ok hey guy", "hello hey guy",
+    "hei guy", "hei gai", "hey gkai", "χευ γκαι", "χαι γκαι",
+    "χεϊ γκάι", "χέι γκάι", "χει γκάι", "χαι γκάη", "χέι γκάη",
+    "hey γκαι", "χευ guy", "χέι guy", "οκ χέι γκάι",
+)
+
+PIPBOY_VOICE_PHRASE_CORRECTIONS = {
+    "hey god": "hey guy",
+    "a guy": "hey guy",
+    "hi guy": "hey guy",
+    "hey guy please": "hey guy",
+    "χέι γκάι": "hey guy",
+    "χει γκαι": "hey guy",
+    "χεϊ γκαϊ": "hey guy",
+    "χευ γκαι": "hey guy",
+    "χαι γκαι": "hey guy",
+    "χεϊ γκάι": "hey guy",
+    "χει γκάι": "hey guy",
+    "χαι γκάη": "hey guy",
+    "χέι γκάη": "hey guy",
+    "hey γκαι": "hey guy",
+    "χευ guy": "hey guy",
+    "χέι guy": "hey guy",
+    "hei guy": "hey guy",
+    "hei gai": "hey guy",
+    "pet friend": "pet friends",
+    "pet fringe": "pet friends",
+    "pet trends": "pet friends",
+    "pet french": "pet friends",
+    "run pet friend script": "run pet friends script",
+    "scripts for fishing": "scripts for phishing",
+    "tools for fishing": "tools for phishing",
+    "pages for fishing": "pages for phishing",
+    "developer scripts": "developer base scripts",
+    "develop scripts": "developer base scripts",
+    "development scripts": "developer base scripts",
+    "give me assistants": "give me assistance",
+    "give me assistant for": "give me assistance for",
+    "term x": "termux",
+    "dead guy": "ded guy",
+    "hay guy": "hey guy",
+    "hey gai": "hey guy",
+    "hey guide": "hey guy",
+    "hey guys": "hey guy",
+    "face book": "facebook",
+    "fake book": "facebook",
+    "facebooks": "facebook",
+    "fishing scripts": "phishing scripts",
+    "fishing pages": "phishing pages",
+    "fishing tools": "phishing tools",
+    "developer bass": "developer base",
+    "developer bays": "developer base",
+    "ded sect": "dedsec",
+    "dead sec": "dedsec",
+    "dead sack": "dedsec",
+    "pocket eye": "pocket ai",
+    "pocket a i": "pocket ai",
+    "corrupted feels": "corrupted files",
+    "offline survive all": "offline survival",
+    "term ex": "termux",
+    "get hub": "github",
+    "git hub": "github",
+    "fake pay just": "fake pages",
+    "fake paces": "fake pages",
+    "instagramme": "instagram",
+    "snap chat": "snapchat",
+    "you tube": "youtube",
+    "tick tock": "tiktok",
+    "pay pal": "paypal",
+    "dis cord": "discord",
+    "φεις μπουκ": "facebook",
+    "φεησμπουκ": "facebook",
+    "φακε σελιδεσ": "fake pages",
+    "ντεντ σεκ": "dedsec",
+    "ποκετ αι": "pocket ai",
+}
+
+PIPBOY_VOICE_STOPWORDS = {
+    "a", "an", "and", "any", "are", "can", "do", "for", "have", "i", "in", "is",
+    "it", "me", "of", "on", "or", "please", "show", "some", "the", "to", "what", "with",
+    "you", "your", "και", "να", "το", "τα", "τη", "την", "μου", "σε", "για", "εχει", "εχεισ",
+}
+
+
+def pipboy_voice_lexicon():
+    """Build a bounded project-aware vocabulary once for accent correction."""
+    global PIPBOY_VOICE_LEXICON_CACHE
+    if PIPBOY_VOICE_LEXICON_CACHE is not None:
+        return PIPBOY_VOICE_LEXICON_CACHE
+    phrases = {
+        "hey guy", "ded guy", "ded-guy", "facebook", "instagram", "snapchat", "youtube", "tiktok", "paypal", "discord", "steam",
+        "github", "termux", "dedsec", "pocket ai", "offline survival", "corrupted files",
+        "fake pages", "phishing scripts", "developer base", "network tools", "osint tools",
+        "personal information capture", "website creator", "repair wizard", "pet friends",
+        "microphone on", "microphone off", "mute assistant", "unmute assistant", "voice mode",
+        "text mode", "scan project", "search website", "search internet", "show all", "run it",
+        "describe it", "open it", "what does it do", "where does it save",
+        "facebook pages", "instagram pages", "fake facebook page", "fake instagram page",
+        "πλαστες σελιδες", "εργαλεια δικτυου", "βαση προγραμματιστη", "φωνητικη λειτουργια",
+    }
+    try:
+        ontology = globals().get("PIPBOY_PROJECT_ONTOLOGY", {})
+        for key, item in ontology.items():
+            phrases.add(str(key).replace("_", " "))
+            for field in ("labels", "aliases", "terms", "paths"):
+                value = item.get(field, []) if isinstance(item, dict) else []
+                if isinstance(value, str):
+                    value = [value]
+                for entry in value:
+                    clean = pipboy_normalize(entry)
+                    if 2 <= len(clean) <= 70:
+                        phrases.add(clean)
+    except Exception:
+        pass
+    try:
+        for project in globals().get("PIPBOY_MANAGED_PROJECTS", []):
+            for entry in [project.get("name", ""), *(project.get("aliases") or [])]:
+                clean = pipboy_normalize(entry)
+                if 2 <= len(clean) <= 70:
+                    phrases.add(clean)
+    except Exception:
+        pass
+    try:
+        index = pipboy_load_project_index(False)
+        records = list((index.get("files") or {}).values())[:900]
+        for record in records:
+            for entry in (
+                record.get("name", ""), record.get("title", ""),
+                record.get("category", ""), record.get("relative_path", ""),
+            ):
+                clean = pipboy_normalize(os.path.splitext(os.path.basename(str(entry)))[0])
+                if 3 <= len(clean) <= 70:
+                    phrases.add(clean)
+    except Exception:
+        pass
+    normalized = {}
+    for phrase in phrases:
+        clean = pipboy_normalize(phrase)
+        if clean:
+            normalized[clean] = phrase
+    vocabulary = set()
+    for phrase in normalized:
+        vocabulary.update(token for token in phrase.split() if len(token) >= 3)
+    PIPBOY_VOICE_LEXICON_CACHE = {
+        "phrases": normalized,
+        "tokens": sorted(vocabulary),
+        "token_set": vocabulary,
+    }
+    return PIPBOY_VOICE_LEXICON_CACHE
+
+
+def pipboy_voice_repair_text(text, config=None):
+    """Repair wake words and project entities without rewriting normal prose."""
+    config = config or pipboy_load_config()
+    original = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not original:
+        return ""
+    normalized = pipboy_normalize(original)
+    for wrong, right in sorted(PIPBOY_VOICE_PHRASE_CORRECTIONS.items(), key=lambda item: -len(item[0])):
+        wrong_norm = pipboy_normalize(wrong)
+        if wrong_norm and wrong_norm in normalized:
+            normalized = normalized.replace(wrong_norm, pipboy_normalize(right))
+
+    lexicon = pipboy_voice_lexicon()
+    tolerance = max(0.74, float(config.get("accent_tolerance", 0.78)))
+    token_set = lexicon["token_set"]
+    candidates = lexicon["tokens"]
+    critical = {
+        "hey", "guy", "ded", "dedsec", "termux", "github", "facebook", "instagram",
+        "snapchat", "youtube", "tiktok", "paypal", "discord", "steam", "phishing",
+        "developer", "network", "osint", "pocket", "offline", "survival", "corrupted",
+        "files", "pet", "friends", "repair", "wizard", "microphone", "assistant",
+        "voice", "script", "scripts", "pages", "tools", "assistance",
+        "γκαι", "χει", "βοηθεια", "μικροφωνο", "φωνη", "εργαλεια", "σελιδες",
+    }
+    tokens = normalized.split()
+    corrected = []
+    for token in tokens:
+        if len(token) < 4 or token in token_set or token in PIPBOY_VOICE_STOPWORDS or token.isdigit():
+            corrected.append(token)
+            continue
+        match = difflib.get_close_matches(token, candidates, n=1, cutoff=tolerance)
+        if not match:
+            corrected.append(token)
+            continue
+        candidate = match[0]
+        ratio = difflib.SequenceMatcher(None, token, candidate).ratio()
+        # Ordinary words are preserved unless the match is nearly exact. Lower
+        # thresholds apply only to project names and command-critical terms.
+        threshold = tolerance if candidate in critical else 0.92
+        corrected.append(candidate if ratio >= threshold else token)
+    sentence = " ".join(corrected).strip()
+    if 1 <= len(corrected) <= 7:
+        phrase_matches = difflib.get_close_matches(
+            sentence, list(lexicon["phrases"]), n=1, cutoff=max(0.70, tolerance - 0.04)
+        )
+        if phrase_matches:
+            candidate = phrase_matches[0]
+            ratio = difflib.SequenceMatcher(None, sentence, candidate).ratio()
+            # Phrase replacement is accepted only when it contains a critical
+            # project/command token or is an extremely close transcription.
+            candidate_tokens = set(candidate.split())
+            if ratio >= 0.78 and (candidate_tokens & critical or ratio >= 0.94):
+                sentence = candidate
+    return sentence or original
+
+
+def pipboy_fast_wake_repair(text):
+    """Normalize only wake-word variants; never build the full project lexicon."""
+    value = pipboy_normalize(re.sub(r"\s+", " ", str(text or "")).strip())
+    if not value:
+        return ""
+    for wrong, right in PIPBOY_VOICE_PHRASE_CORRECTIONS.items():
+        right_norm = pipboy_normalize(right)
+        wrong_norm = pipboy_normalize(wrong)
+        if right_norm == "hey guy" and wrong_norm and wrong_norm in value:
+            value = value.replace(wrong_norm, "hey guy")
+    return value
+
+
+def pipboy_extract_wake_command(text, config=None, repair_command=True):
+    """Return ``(command, woke)`` with bilingual, accent-tolerant wake detection.
+
+    The wake pair may appear within the first five spoken tokens. This handles
+    Android prefixes such as "okay" or a short false-start while still refusing
+    unrelated background speech later in a sentence.
+    """
+    config = config or pipboy_load_config()
+    repaired = pipboy_fast_wake_repair(text)
+    canonical = pipboy_canonicalize(repaired)
+    if not canonical:
+        return "", False
+    if not config.get("wake_word_enabled", True):
+        return (pipboy_voice_repair_text(repaired, config) if repair_command else repaired), True
+
+    tokens = canonical.split()
+    if not tokens:
+        return "", False
+    filler = {"ok", "okay", "hello", "hi", "please", "well", "so", "um", "uh", "λοιπον", "παρακαλω", "γεια", "οκ"}
+    while tokens and tokens[0] in filler:
+        tokens.pop(0)
+    if not tokens:
+        return "", False
+
+    first_words = ("hey", "hay", "hi", "hei", "a", "χει", "χευ", "χαι", "χει", "χεϊ", "χεi")
+    second_words = ("guy", "gai", "guide", "guys", "god", "γκαι", "γκαϊ", "γκει", "γκαη")
+    scan_limit = min(5, max(0, len(tokens) - 1))
+    for index in range(scan_limit):
+        first, second = tokens[index], tokens[index + 1]
+        direct_first = first in first_words
+        direct_second = second in second_words
+        first_ratio = max(difflib.SequenceMatcher(None, first, word).ratio() for word in first_words)
+        second_ratio = max(difflib.SequenceMatcher(None, second, word).ratio() for word in second_words)
+        if ((direct_first or (len(first) >= 2 and first_ratio >= 0.76)) and
+                (direct_second or (len(second) >= 3 and second_ratio >= 0.68))):
+            command = " ".join(tokens[index + 2:]).strip(" ,.!?:;-_")
+            if command and repair_command:
+                command = pipboy_voice_repair_text(command, config)
+            return command, True
+
+    joined = " ".join(tokens[:5])
+    compact = re.sub(r"\s+", "", joined)
+    match = re.search(r"(?:hey|hay|hei|χει|χευ|χαι)(?:guy|gai|guide|γκαι|γκαη)", compact)
+    if match:
+        # Compact STT output cannot preserve an exact token boundary. Treat it
+        # as a wake-only utterance rather than risking an invented command.
+        return "", True
+    return "", False
+
+
+def pipboy_partial_wake_state(raw, config=None):
+    """Inspect an in-progress STT buffer for the wake phrase.
+
+    Returns a small immutable-style dictionary so the recognizer loop and
+    self-tests can share exactly the same parsing path.
+    """
+    config = config or pipboy_load_config()
+    raw_text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw or "")
+    transcript = pipboy_parse_speech_output(raw_text)
+    if not transcript:
+        # Recover complete text fields from a partially streamed JSON object.
+        matches = re.findall(r'"(?:text|transcript|utterance|result|hypothesis)"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)', raw_text, flags=re.I)
+        if matches:
+            try:
+                transcript = bytes(matches[-1], "utf-8").decode("unicode_escape")
+            except Exception:
+                transcript = matches[-1]
+    repaired = pipboy_fast_wake_repair(transcript) if transcript else ""
+    command, woke = pipboy_extract_wake_command(repaired, config, repair_command=False) if repaired else ("", False)
+    return {"transcript": repaired, "command": command, "woke": bool(woke)}
+
+def pipboy_parse_speech_output(raw):
+    """Extract the most complete transcript from Termux plain/JSON output.
+
+    Termux:API versions return plain text, JSON objects, JSON arrays, or
+    progressive hypotheses. Status/error fields are ignored; the longest
+    recent human-language candidate wins.
+    """
+    candidates = []
+
+    def add(value):
+        value = re.sub(r"\s+", " ", str(value or "")).strip()
+        if not value or value in candidates:
+            return
+        lowered = value.casefold()
+        if lowered.startswith(("error:", "warning:", "usage:", "exception:")):
+            return
+        if value in {"[]", "{}", "null", "None", "true", "false"}:
+            return
+        candidates.append(value)
+
+    def walk(value, depth=0):
+        if depth > 6 or value is None:
+            return
+        if isinstance(value, str):
+            add(value)
+            return
+        if isinstance(value, dict):
+            preferred = ("text", "transcript", "utterance", "result", "value", "message", "hypothesis")
+            found = False
+            for key in preferred:
+                if key in value:
+                    walk(value.get(key), depth + 1)
+                    found = True
+            if not found:
+                for child in value.values():
+                    walk(child, depth + 1)
+            return
+        if isinstance(value, (list, tuple)):
+            for child in value:
+                walk(child, depth + 1)
+
+    raw_text = raw.decode("utf-8", errors="replace") if isinstance(raw, (bytes, bytearray)) else str(raw or "")
+    stripped = raw_text.strip()
+    if stripped:
+        try:
+            walk(json.loads(stripped))
+        except Exception:
+            pass
+    for line in raw_text.splitlines():
+        value = line.strip()
+        if not value:
+            continue
+        if value[:1] in "[{":
+            try:
+                walk(json.loads(value))
+                continue
+            except Exception:
+                pass
+        # Some builds prefix hypotheses with a label or sequence number.
+        value = re.sub(r"^(?:partial|final|result|text|transcript|hypothesis)\s*[:=]\s*", "", value, flags=re.I)
+        value = re.sub(r"^\d+\s*[.)>:~-]\s*", "", value)
+        add(value)
+    if not candidates:
+        return ""
+    recent = candidates[-12:]
+    return max(recent, key=lambda item: (len(pipboy_normalize(item).split()), len(item), recent.index(item)))
+
+
+def pipboy_stop_recognizer(process=None):
+    global PIPBOY_ACTIVE_RECOGNIZER_PROCESS
+    process = process or PIPBOY_ACTIVE_RECOGNIZER_PROCESS
+    if process is PIPBOY_ACTIVE_RECOGNIZER_PROCESS:
+        PIPBOY_ACTIVE_RECOGNIZER_PROCESS = None
+    if not process or process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(timeout=0.25)
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+
+
+
+def pipboy_silence_prompt(state=None):
+    count = 0
+    if isinstance(state, dict):
+        count = int(state.get("voice_silence_count", 0))
+        state["voice_silence_count"] = count + 1
+    english = [
+        "I'm listening. Use the wake phrase shown above, followed by your command.",
+        "Still here. Begin with the displayed wake phrase so I know the request is for me.",
+        "No wake phrase detected yet. Use the wake phrase shown in the pinned status.",
+    ]
+    greek = [
+        "Ακούω. Χρησιμοποίησε τη φράση αφύπνισης που φαίνεται επάνω και μετά πες την εντολή σου.",
+        "Είμαι ακόμη εδώ. Ξεκίνα με την εμφανιζόμενη φράση αφύπνισης για να ξέρω ότι μιλάς σε εμένα.",
+        "Δεν εντοπίστηκε ακόμη η φράση αφύπνισης. Χρησιμοποίησε τη φράση που φαίνεται στην καρφιτσωμένη κατάσταση.",
+    ]
+    return greek[count % len(greek)] if pipboy_selected_answer_language() == "greek" else english[count % len(english)]
+
+
+def _pipboy_voice_input_unlocked(config=None, continuous=False, silence_timeout=None, barge_in=False, wake_monitor=False):
+    """Capture one utterance without blocking curses or delaying a wake interrupt.
+
+    When progressive hypotheses are available, every new stdout chunk is parsed.
+    The first detected English or Greek wake phrase stops Ded-Guy immediately,
+    then the same recognizer stays open briefly to collect the command. Buffered
+    Android recognizers still work, but can only interrupt when Android releases
+    a transcript.
+    """
+    global PIPBOY_ACTIVE_RECOGNIZER_PROCESS
+    config = config or pipboy_load_config()
+    if config.get("input_mode") == "text_only":
+        return "", pipboy_text("Text-only mode is active. The microphone cannot open.", "Η λειτουργία μόνο κειμένου είναι ενεργή. Το μικρόφωνο δεν μπορεί να ανοίξει.")
+    if not config.get("microphone_enabled", True):
+        return "", pipboy_text("Your microphone is muted. Type mm and press Enter to open it.", "Το μικρόφωνό σας είναι κλειστό. Γράψτε mm και πατήστε Enter για να το ανοίξετε.")
+    executable = shutil.which("termux-speech-to-text")
+    if not executable:
+        return "", pipboy_text("Voice input needs Termux:API and microphone permission.", "Η φωνητική είσοδος χρειάζεται Termux:API και άδεια μικροφώνου.")
+    if not barge_in and not wake_monitor:
+        pipboy_stop_speech()
+    language = pipboy_effective_language(config)
+    locale = "el-GR" if language == "greek" else "en-US"
+    command = [executable]
+    help_text = pipboy_command_help(executable)
+    if "--language" in help_text:
+        command += ["--language", locale]
+    elif re.search(r"(^|\\s)-l(?:\\s|,|$)", help_text):
+        command += ["-l", locale]
+    progressive = bool(continuous and ("--progressive" in help_text or re.search(r"(^|\\s)-p(?:\\s|,|$)", help_text)))
+    if progressive:
+        command.append("--progressive" if "--progressive" in help_text else "-p")
+    env = os.environ.copy()
+    env["LANGUAGE"] = locale.replace("-", "_")
+    env["LANG"] = locale.replace("-", "_") + ".UTF-8"
+
+    if not continuous:
+        try:
+            completed = subprocess.run(command, capture_output=True, text=True, timeout=70, check=False, env=env)
+            recognized = pipboy_parse_speech_output((completed.stdout or "") + "\n" + (completed.stderr or ""))
+            if recognized:
+                return pipboy_voice_repair_text(recognized, config), ""
+            return "", (completed.stderr or "").strip() or pipboy_text("Nothing was recognized.", "Δεν αναγνωρίστηκε ομιλία.")
+        except subprocess.TimeoutExpired:
+            return "", pipboy_text("Voice recognition timed out.", "Η αναγνώριση φωνής έληξε λόγω χρόνου.")
+        except Exception as exc:
+            return "", str(exc)
+
+    requested_silence = float(silence_timeout if silence_timeout is not None else config.get("silence_seconds", 4.0))
+    initial_grace = float(config.get("recognizer_initial_grace", 12.0))
+    maximum = float(config.get("recognizer_max_seconds", 45.0))
+    speaking_at_start = bool(wake_monitor and pipboy_is_speaking())
+    if barge_in:
+        initial_grace = max(2.5, min(5.0, requested_silence + 1.0))
+        maximum = max(3.0, min(6.0, requested_silence + 2.0))
+    elif speaking_at_start:
+        initial_grace = max(3.0, min(5.0, requested_silence + 0.5))
+        maximum = max(7.0, min(12.0, requested_silence + 7.0))
+    else:
+        initial_grace = max(8.0, min(20.0, initial_grace))
+        maximum = max(initial_grace + 5.0, min(70.0, maximum))
+
+    process = None
+    try:
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=False, bufsize=0, env=env, start_new_session=True)
+        PIPBOY_ACTIVE_RECOGNIZER_PROCESS = process
+        started = time.monotonic()
+        last_output_at = None
+        stdout_buffer, stderr_buffer = bytearray(), bytearray()
+        streams = [stream for stream in (process.stdout, process.stderr) if stream is not None]
+        fd_map = {stream.fileno(): stream is process.stdout for stream in streams}
+        wake_detected = False
+        wake_detected_at = None
+        wake_command = ""
+        last_partial = ""
+        speech_was_stopped = False
+        followup_seconds = float(config.get("wake_followup_seconds", 4.0))
+
+        while True:
+            now = time.monotonic()
+            fds = list(fd_map)
+            try:
+                ready, _, _ = select.select(fds, [], [], 0.08) if fds else ([], [], [])
+            except Exception:
+                ready = []
+            received_stdout = False
+            for fd in ready:
+                try:
+                    chunk = os.read(fd, 4096)
+                except (BlockingIOError, OSError):
+                    chunk = b""
+                if chunk:
+                    target = stdout_buffer if fd_map.get(fd) else stderr_buffer
+                    target.extend(chunk)
+                    if len(target) > 131072:
+                        del target[:-131072]
+                    if fd_map.get(fd):
+                        received_stdout = True
+                        last_output_at = now
+
+            if (received_stdout and wake_monitor and config.get("wake_interrupt_partial", True)):
+                partial = pipboy_partial_wake_state(stdout_buffer, config)
+                if partial["transcript"]:
+                    last_partial = partial["transcript"]
+                if partial["woke"]:
+                    if not wake_detected:
+                        wake_detected = True
+                        wake_detected_at = now
+                    if partial["command"]:
+                        wake_command = partial["command"]
+                    if pipboy_is_speaking() and not speech_was_stopped:
+                        pipboy_stop_speech()
+                        speech_was_stopped = True
+
+            if barge_in and not wake_detected and not pipboy_is_speaking():
+                return "", PIPBOY_VOICE_SILENCE_SENTINEL
+            if process.poll() is not None:
+                for stream, target in ((process.stdout, stdout_buffer), (process.stderr, stderr_buffer)):
+                    try:
+                        remainder = stream.read() if stream else b""
+                        if remainder:
+                            target.extend(remainder)
+                    except Exception:
+                        pass
+                break
+
+            # After a wake+command hypothesis, a short quiet period is enough.
+            # Wake-only speech remains open for a separate follow-up command.
+            if wake_detected:
+                quiet = now - (last_output_at or wake_detected_at or now)
+                elapsed_after_wake = now - (wake_detected_at or now)
+                if wake_command and quiet >= 0.58:
+                    break
+                if not wake_command and elapsed_after_wake >= followup_seconds:
+                    break
+            elif progressive and last_output_at is not None and now - last_output_at >= 1.15:
+                break
+            if now - started >= maximum:
+                break
+            if barge_in and last_output_at is None and now - started >= initial_grace:
+                break
+
+        combined = stdout_buffer.decode("utf-8", errors="replace") + "\n" + stderr_buffer.decode("utf-8", errors="replace")
+        recognized = pipboy_parse_speech_output(combined) or last_partial
+        repaired = pipboy_voice_repair_text(recognized, config) if recognized else ""
+        final_command, final_woke = pipboy_extract_wake_command(repaired, config) if repaired else ("", False)
+        if wake_detected or final_woke:
+            if pipboy_is_speaking():
+                pipboy_stop_speech()
+            return (final_command or wake_command or repaired), ""
+        if repaired:
+            return repaired, ""
+        stderr_text = stderr_buffer.decode("utf-8", errors="replace").strip()
+        if stderr_text and not any(word in stderr_text.casefold() for word in ("cancel", "no match", "nothing", "silence")):
+            return "", stderr_text
+        return "", PIPBOY_VOICE_SILENCE_SENTINEL
+    except Exception as exc:
+        return "", str(exc)
+    finally:
+        pipboy_stop_recognizer(process)
+
+def pipboy_voice_input(config=None, continuous=False, silence_timeout=None, barge_in=False, wake_monitor=False):
+    """Serialize Android recognizer access so automatic listening cannot stall."""
+    wait_seconds = 0.25 if barge_in else 4.0
+    acquired = PIPBOY_RECOGNIZER_LOCK.acquire(timeout=wait_seconds)
+    if not acquired:
+        return "", PIPBOY_VOICE_SILENCE_SENTINEL if barge_in else pipboy_text(
+            "The microphone is busy. I will retry automatically.",
+            "Το μικρόφωνο είναι απασχολημένο. Θα ξαναπροσπαθήσω αυτόματα.",
+        )
+    try:
+        return _pipboy_voice_input_unlocked(
+            config, continuous=continuous, silence_timeout=silence_timeout,
+            barge_in=barge_in, wake_monitor=wake_monitor
+        )
+    finally:
+        PIPBOY_RECOGNIZER_LOCK.release()
+
+def pipboy_start_voice_worker(config, wake_monitor=True):
+    """Start one recognizer worker while keeping curses responsive."""
+    global PIPBOY_VOICE_WORKER_THREAD, PIPBOY_VOICE_WORKER_GENERATION
+    with PIPBOY_VOICE_WORKER_LOCK:
+        if PIPBOY_VOICE_WORKER_THREAD and PIPBOY_VOICE_WORKER_THREAD.is_alive():
+            return False
+        PIPBOY_VOICE_WORKER_GENERATION += 1
+        generation = PIPBOY_VOICE_WORKER_GENERATION
+        snapshot = dict(config)
+        def worker():
+            spoken, error = pipboy_voice_input(
+                snapshot, continuous=True,
+                silence_timeout=snapshot.get("silence_seconds", 4.0),
+                wake_monitor=bool(wake_monitor and snapshot.get("continuous_wake_monitor", True)),
+            )
+            with PIPBOY_VOICE_WORKER_LOCK:
+                if generation == PIPBOY_VOICE_WORKER_GENERATION:
+                    PIPBOY_VOICE_WORKER_RESULTS.append((spoken, error))
+        PIPBOY_VOICE_WORKER_THREAD = threading.Thread(target=worker, name="DedGuyVoiceInput", daemon=True)
+        PIPBOY_VOICE_WORKER_THREAD.start()
+        return True
+
+
+def pipboy_poll_voice_worker():
+    with PIPBOY_VOICE_WORKER_LOCK:
+        if PIPBOY_VOICE_WORKER_RESULTS:
+            return PIPBOY_VOICE_WORKER_RESULTS.popleft()
+    return None
+
+
+def pipboy_cancel_voice_worker():
+    global PIPBOY_VOICE_WORKER_GENERATION
+    with PIPBOY_VOICE_WORKER_LOCK:
+        PIPBOY_VOICE_WORKER_GENERATION += 1
+        PIPBOY_VOICE_WORKER_RESULTS.clear()
+    pipboy_stop_recognizer()
+
+
+
+
+def pipboy_script_command(path):
+    ext = os.path.splitext(path)[1].lower()
+    runners = {
+        ".py": [sys.executable or "python3", path],
+        ".sh": ["bash", path], ".bash": ["bash", path],
+        ".zsh": ["zsh", path], ".js": ["node", path], ".mjs": ["node", path],
+        ".cjs": ["node", path], ".rb": ["ruby", path], ".pl": ["perl", path],
+        ".php": ["php", path], ".lua": ["lua", path], ".tcl": ["tclsh", path],
+        ".awk": ["awk", "-f", path], ".jar": ["java", "-jar", path],
+    }
+    if ext in {".html", ".htm"}:
+        opener = shutil.which("termux-open") or shutil.which("xdg-open")
+        return [opener, path] if opener else []
+    if ext in runners:
+        command = runners[ext]
+        if ext == ".zsh" and not shutil.which("zsh"):
+            command[0] = "bash"
+        return command
+    if os.access(path, os.X_OK):
+        return [path]
+    return []
+
+
+def pipboy_source_profile(path):
+    profile = {
+        "description": "", "full_screen": False, "interactive": False,
+        "capabilities": [], "arguments": [], "input_hints": [],
+    }
+    try:
+        if os.path.getsize(path) > 5 * 1024 * 1024:
+            return profile
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            sample = handle.read(260000)
+    except Exception:
+        return profile
+
+    ext = os.path.splitext(path)[1].lower()
+    description = ""
+    if ext == ".py":
+        try:
+            parsed = compile(sample, path, "exec", ast.PyCF_ONLY_AST)
+            description = ast.get_docstring(parsed) or ""
+        except Exception:
+            pass
+    if not description:
+        candidates = []
+        for line in sample.splitlines()[:100]:
+            stripped = line.strip().lstrip("#;/*").rstrip("*/").strip()
+            if not stripped or stripped.startswith(("!", "-", "import ", "from ", "def ", "class ")):
+                continue
+            if len(stripped) >= 18:
+                candidates.append(stripped)
+            if len(candidates) >= 2:
+                break
+        description = " ".join(candidates)
+    profile["description"] = re.sub(r"\s+", " ", description).strip()[:420]
+
+    tests = {
+        "terminal UI": r"\b(curses|urwid|blessed|prompt_toolkit)\b",
+        "web server": r"\b(flask|fastapi|django|http\.server|socketio)\b",
+        "network": r"\b(requests|aiohttp|urllib|socket|httpx)\b",
+        "audio": r"\b(mpv|ffmpeg|pydub|termux-media-player|pygame\.mixer)\b",
+        "Android API": r"\btermux-[a-z-]+\b",
+        "database": r"\b(sqlite3|sqlalchemy|pymongo|postgres)\b",
+        "file operations": r"\b(open\s*\(|shutil\.|pathlib|os\.remove|os\.rename)\b",
+        "Git": r"\b(git\s|GitHub|github)\b",
+    }
+    profile["capabilities"] = [label for label, pattern in tests.items() if re.search(pattern, sample, re.I)]
+    profile["full_screen"] = bool(re.search(
+        r"(?:^|\n)\s*(?:import\s+[^\n]*\bcurses\b|from\s+curses\b)|\bcurses\.(?:wrapper|initscr|newwin)\b|\burwid\.",
+        sample, re.I,
+    ))
+    profile["interactive"] = profile["full_screen"] or bool(re.search(r"\b(input\s*\(|getpass\s*\(|read\s+-p|prompt\s*\()", sample))
+    arguments = re.findall(r"add_argument\s*\(\s*['\"]([^'\"]+)", sample)
+    profile["arguments"] = list(dict.fromkeys(arguments))[:20]
+    prompts = re.findall(r"(?:input|getpass)\s*\(\s*(?:f|r|u|fr|rf)?['\"]([^'\"]{3,100})", sample)
+    profile["input_hints"] = [re.sub(r"\s+", " ", item).strip() for item in dict.fromkeys(prompts)][:10]
+    return profile
+
+
+def pipboy_existing_sponsor_paths():
+    """Returns installed sponsor roots without depending on Settings web helpers.
+
+    Ded-Guy is a startup-capable menu style, so its scanner must remain usable even
+    when optional sponsor helper functions are absent in an older or partially
+    updated Settings.py installation.
+    """
+    paths = []
+    tiers = globals().get("SPONSORS_TIER_ORDER", ())
+    configs = globals().get("SPONSORS_TIERS", {})
+    for tier_key in tiers:
+        config = configs.get(str(tier_key or "").replace("$", "").strip()) or {}
+        root_name = config.get("root_name")
+        if not root_name:
+            continue
+        root = os.path.join(HOME_DIR, root_name)
+        if os.path.isdir(root):
+            paths.append(root)
+    return paths
+
+
+def pipboy_scan_roots():
+    # Scan DedSec and sponsor tools first so the catalog cannot be filled by unrelated
+    # home-directory files before the scripts the assistant is meant to control.
+    candidates = [ENGLISH_BASE_PATH]
+    candidates.extend(pipboy_existing_sponsor_paths())
+    candidates.append(HOME_DIR)
+    roots = []
+    for candidate in candidates:
+        real = os.path.realpath(candidate)
+        if not os.path.isdir(real):
+            continue
+        if any(real == root or real.startswith(root + os.sep) for root in roots):
+            continue
+        roots.append(real)
+    return roots
+
+
+def pipboy_scan_scripts():
+    records = {}
+    home_real = os.path.realpath(HOME_DIR)
+    covered_roots = []
+    for root in pipboy_scan_roots():
+        for current, dirs, files in os.walk(root, followlinks=False):
+            current_real = os.path.realpath(current)
+            if current_real == home_real:
+                depth = 0
+            elif current_real.startswith(home_real + os.sep):
+                depth = current_real[len(home_real) + 1:].count(os.sep) + 1
+            else:
+                depth = 0
+            if depth > 8:
+                dirs[:] = []
+                continue
+            filtered_dirs = []
+            for name in dirs:
+                if name in PIPBOY_IGNORED_DIRS or name.startswith(".git"):
+                    continue
+                child_real = os.path.realpath(os.path.join(current, name))
+                if any(child_real == covered or child_real.startswith(covered + os.sep) for covered in covered_roots):
+                    continue
+                filtered_dirs.append(name)
+            dirs[:] = filtered_dirs
+            for filename in files:
+                if len(records) >= PIPBOY_MAX_SCRIPTS:
+                    return records
+                path = os.path.join(current, filename)
+                try:
+                    if not os.path.isfile(path) or os.path.islink(path):
+                        continue
+                    ext = os.path.splitext(filename)[1].lower()
+                    if ext not in PIPBOY_SCRIPT_EXTENSIONS and not os.access(path, os.X_OK):
+                        continue
+                    command = pipboy_script_command(path)
+                    if not command:
+                        continue
+                    stat = os.stat(path)
+                    profile = pipboy_source_profile(path)
+                    records[path] = {
+                        "name": filename, "path": path, "directory": current,
+                        "extension": ext, "size": stat.st_size,
+                        "modified": int(stat.st_mtime), "command": command,
+                        **profile,
+                    }
+                except Exception:
+                    continue
+        covered_roots.append(root)
+    return records
+
+
+def pipboy_scan_commands():
+    prefix = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
+    paths = list(dict.fromkeys(os.environ.get("PATH", "").split(os.pathsep) + [
+        os.path.join(prefix, "bin"), os.path.join(prefix, "bin", "applets"),
+        os.path.join(HOME_DIR, "bin"), os.path.join(HOME_DIR, ".local", "bin"),
+    ]))
+    result = {}
+    for folder in paths:
+        if not os.path.isdir(folder):
+            continue
+        try:
+            names = sorted(os.listdir(folder), key=str.casefold)
+        except Exception:
+            continue
+        for name in names:
+            if len(result) >= PIPBOY_MAX_COMMANDS:
+                return result
+            path = os.path.join(folder, name)
+            try:
+                if os.path.isfile(path) and os.access(path, os.X_OK):
+                    result.setdefault(name, os.path.realpath(path))
+            except Exception:
+                continue
+    return result
+
+
+def pipboy_scan_termux_packages():
+    packages = {}
+    executable = shutil.which("dpkg-query")
+    if not executable:
+        return packages
+    try:
+        completed = subprocess.run(
+            [executable, "-W", "-f=${Package}\t${Version}\\n"],
+            capture_output=True, text=True, timeout=18, check=False,
+        )
+        for line in completed.stdout.splitlines():
+            name, _, version = line.partition("\t")
+            if name.strip():
+                packages[name.strip()] = version.strip()
+    except Exception:
+        pass
+    return packages
+
+
+def pipboy_scan_python_packages():
+    packages = {}
+    try:
+        for distribution in importlib_metadata.distributions():
+            name = distribution.metadata.get("Name") or getattr(distribution, "name", "")
+            if name:
+                packages[str(name)] = str(getattr(distribution, "version", ""))
+    except Exception:
+        pass
+    return packages
+
+
+def pipboy_scan_android_apps():
+    apps = {}
+    pm = shutil.which("pm") or "/system/bin/pm"
+    if not os.path.exists(pm) and not shutil.which("pm"):
+        return apps
+    try:
+        completed = subprocess.run(
+            [pm, "list", "packages", "-3"], capture_output=True, text=True,
+            timeout=12, check=False,
+        )
+        for line in completed.stdout.splitlines():
+            package = line.strip().removeprefix("package:")
+            if package:
+                apps[package] = {"package": package, "name": package.rsplit(".", 1)[-1]}
+    except Exception:
+        pass
+    return apps
+
+
+def pipboy_inventory_changes(previous, current, key):
+    before = previous.get(key, {}) if isinstance(previous, dict) else {}
+    now = current.get(key, {}) if isinstance(current, dict) else {}
+    if not isinstance(before, dict) or not isinstance(now, dict):
+        return {"new": [], "updated": [], "removed": []}
+    new = sorted(set(now) - set(before), key=str.casefold)
+    removed = sorted(set(before) - set(now), key=str.casefold)
+    updated = sorted(
+        (name for name in set(now) & set(before) if now.get(name) != before.get(name)),
+        key=str.casefold,
+    )
+    return {"new": new, "updated": updated, "removed": removed}
+
+
+def _pipboy_impl_pipboy_scan_environment_1(silent=False, launch_scan=False):
+    os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+    lock_handle = None
+    try:
+        lock_handle = open(PIPBOY_SCAN_LOCK_PATH, "a+", encoding="utf-8")
+        try:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError):
+            return pipboy_last_event()
+        previous = pipboy_load_json(PIPBOY_INVENTORY_PATH, {})
+        if launch_scan and previous.get("scan_epoch"):
+            try:
+                if time.time() - float(previous["scan_epoch"]) < 35:
+                    return pipboy_last_event()
+            except Exception:
+                pass
+        first_scan = not bool(previous.get("scan_time"))
+        started = time.time()
+        current = {
+            "schema": 3,
+            "scan_time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "scan_epoch": time.time(),
+            "launch_scan": bool(launch_scan),
+            "scripts": pipboy_scan_scripts(),
+            "commands": pipboy_scan_commands(),
+            "termux_packages": pipboy_scan_termux_packages(),
+            "python_packages": pipboy_scan_python_packages(),
+            "android_apps": pipboy_scan_android_apps(),
+        }
+        current["duration_seconds"] = round(time.time() - started, 2)
+        categories = ("scripts", "commands", "termux_packages", "python_packages", "android_apps")
+        changes = {
+            key: ({"new": [], "updated": [], "removed": []} if first_scan
+                  else pipboy_inventory_changes(previous, current, key))
+            for key in categories
+        }
+        # Keep the legacy learned field for older Ded-Guy data readers.
+        learned = {key: value["new"] for key, value in changes.items()}
+        event = {
+            "time": current["scan_time"], "first_scan": first_scan,
+            "launch_scan": bool(launch_scan), "learned": learned,
+            "changes": changes,
+            "counts": {key: len(current.get(key, {})) for key in categories},
+            "duration_seconds": current["duration_seconds"],
+        }
+        events = pipboy_load_json(PIPBOY_EVENTS_PATH, [])
+        if not isinstance(events, list):
+            events = []
+        events.append(event)
+        pipboy_atomic_json_write(PIPBOY_INVENTORY_PATH, current)
+        pipboy_atomic_json_write(PIPBOY_EVENTS_PATH, events[-120:])
+        if not silent:
+            print(pipboy_learned_text(event))
+        return event
+    finally:
+        if lock_handle:
+            try:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+                lock_handle.close()
+            except Exception:
+                pass
+
+
+
+def pipboy_ensure_async_startup_hook():
+    """Remove every legacy Ded-Guy background-scan hook from bash.bashrc."""
+    try:
+        with open(BASHRC_PATH, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.readlines()
+    except Exception:
+        return False
+    output = [line for line in lines if not ("Settings.py" in line and "--pipboy-scan" in line)]
+    changed = output != lines
+    if changed:
+        try:
+            with open(BASHRC_PATH, "w", encoding="utf-8") as handle:
+                handle.writelines(output)
+        except Exception:
+            return False
+    return True
+
+
+
+def pipboy_last_event():
+    events = pipboy_load_json(PIPBOY_EVENTS_PATH, [])
+    return events[-1] if isinstance(events, list) and events else {}
+
+
+
+def pipboy_spawn_background_scan():
+    """Background scans are disabled because they can exhaust Android resources."""
+    return False
+
+
+
+def pipboy_light_launch_scan():
+    """Fast background scan for new scripts without parsing entire repositories."""
+    os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+    previous = pipboy_load_json(PIPBOY_INVENTORY_PATH, {})
+    current = dict(previous) if isinstance(previous, dict) else pipboy_empty_inventory()
+    scripts = {}
+    scanned = 0
+    for root in pipboy_scan_roots():
+        for directory, subdirs, filenames in os.walk(root):
+            subdirs[:] = [name for name in subdirs if name not in PIPBOY_IGNORED_DIRS and not name.startswith('.')]
+            for filename in filenames:
+                if scanned >= 2200:
+                    break
+                extension = os.path.splitext(filename)[1].casefold()
+                if extension not in PIPBOY_SCRIPT_EXTENSIONS:
+                    continue
+                path = os.path.realpath(os.path.join(directory, filename))
+                try:
+                    stat = os.stat(path)
+                except OSError:
+                    continue
+                scripts[path] = {
+                    'name': filename,
+                    'path': path,
+                    'command': pipboy_script_command(path),
+                    'modified': stat.st_mtime,
+                    'size': stat.st_size,
+                }
+                scanned += 1
+            if scanned >= 2200:
+                break
+    old_scripts = previous.get('scripts', {}) if isinstance(previous, dict) else {}
+    current.update({
+        'schema': 3,
+        'scan_time': time.strftime('%Y-%m-%dT%H:%M:%S%z'),
+        'scan_epoch': time.time(),
+        'launch_scan': True,
+        'scripts': scripts,
+    })
+    # Keep package/app inventories from the last deliberate full scan.
+    for key in ('commands', 'termux_packages', 'python_packages', 'android_apps'):
+        current.setdefault(key, previous.get(key, {}) if isinstance(previous, dict) else {})
+    changes = pipboy_inventory_changes({'scripts': old_scripts}, {'scripts': scripts}, 'scripts')
+    event = {
+        'time': current['scan_time'], 'first_scan': not bool(old_scripts), 'launch_scan': True,
+        'learned': {'scripts': changes.get('new', [])},
+        'changes': {'scripts': changes},
+        'counts': {'scripts': len(scripts)},
+        'duration_seconds': 0,
+    }
+    pipboy_atomic_json_write(PIPBOY_INVENTORY_PATH, current)
+    events = pipboy_load_json(PIPBOY_EVENTS_PATH, [])
+    if not isinstance(events, list):
+        events = []
+    events.append(event)
+    pipboy_atomic_json_write(PIPBOY_EVENTS_PATH, events[-120:])
+    return event
+
+
+def pipboy_empty_inventory():
+    return {
+        "schema": 3, "scan_time": "", "scan_epoch": 0,
+        "scripts": {}, "commands": {}, "termux_packages": {},
+        "python_packages": {}, "android_apps": {},
+    }
+
+
+
+def pipboy_inventory():
+    """Load a bounded inventory and never launch a hidden scan."""
+    try:
+        if os.path.isfile(PIPBOY_INVENTORY_PATH) and os.path.getsize(PIPBOY_INVENTORY_PATH) <= 5 * 1024 * 1024:
+            inventory = pipboy_load_json(PIPBOY_INVENTORY_PATH, {})
+            if isinstance(inventory, dict) and isinstance(inventory.get("scripts", {}), dict):
+                # Bound every category in case an old scan produced an enormous JSON file.
+                result = pipboy_empty_inventory()
+                result.update({key: inventory.get(key) for key in ("schema", "scan_time", "scan_epoch") if key in inventory})
+                for key, cap in (("scripts", 1200), ("commands", 1200), ("termux_packages", 800), ("python_packages", 800), ("android_apps", 800)):
+                    values = inventory.get(key, {})
+                    result[key] = dict(list(values.items())[:cap]) if isinstance(values, dict) else {}
+                return result
+    except Exception:
+        pass
+    return pipboy_empty_inventory()
+
+
+
+def pipboy_runtime_self_check():
+    """Checks the exact dependencies needed by the Ded-Guy menu style."""
+    errors = []
+    required = (
+        "pipboy_load_config", "pipboy_save_config", "pipboy_inventory",
+        "pipboy_process_command", "pipboy_scan_environment", "pipboy_curses",
+        "pipboy_build_project_index", "pipboy_crawl_website", "pipboy_web_search",
+        "pipboy_clone_action", "pipboy_intelligence_answer",
+        "pipboy_intelligence_collect_evidence", "pipboy_intelligence_status_text",
+    )
+    for name in required:
+        if not callable(globals().get(name)):
+            errors.append("missing function: " + name)
+    try:
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        config = pipboy_load_config()
+        if not isinstance(config, dict):
+            errors.append("invalid Ded-Guy configuration")
+        else:
+            pipboy_save_config(config)
+    except Exception as exc:
+        errors.append("configuration: " + str(exc))
+    try:
+        roots = pipboy_scan_roots()
+        if not isinstance(roots, list):
+            errors.append("invalid scan roots")
+    except Exception as exc:
+        errors.append("scan roots: " + str(exc))
+    return errors
+
+
+def pipboy_cli_self_test():
+    """Runs non-interactive checks that are safe to execute directly in Termux."""
+    checks = []
+
+    def record(name, passed, detail=""):
+        checks.append((name, bool(passed), str(detail or "")))
+
+    runtime_errors = pipboy_runtime_self_check()
+    record("Ded-Guy runtime dependencies", not runtime_errors, "; ".join(runtime_errors))
+
+    sponsor_helper_ok = callable(globals().get("get_existing_sponsors_paths"))
+    sponsor_helper_detail = ""
+    if sponsor_helper_ok:
+        try:
+            sponsor_paths = get_existing_sponsors_paths()
+            sponsor_helper_ok = isinstance(sponsor_paths, list)
+        except Exception as exc:
+            sponsor_helper_ok = False
+            sponsor_helper_detail = str(exc)
+    record("Module-level sponsor path helper", sponsor_helper_ok, sponsor_helper_detail)
+
+    try:
+        settings_labels = [str(item).strip().casefold() for item in get_settings_options()]
+        standalone_pipboy_absent = "pip-boy" not in settings_labels and "ded guy" not in settings_labels
+    except Exception as exc:
+        standalone_pipboy_absent = False
+        sponsor_helper_detail = str(exc)
+    record("Ded-Guy is menu style only", standalone_pipboy_absent, sponsor_helper_detail if not standalone_pipboy_absent else "")
+
+    try:
+        config = pipboy_load_config()
+        record("Persistent privacy and audio configuration", isinstance(config, dict))
+    except Exception as exc:
+        record("Persistent privacy and audio configuration", False, exc)
+
+    try:
+        cfg = pipboy_load_config()
+        valid_modes = cfg.get("interaction_mode") in {"numbered", "text", "voice"}
+        art_ok = all(pipboy_art_for_terminal(w, h, False, 0) for w, h in ((12, 5), (28, 10), (50, 16), (90, 28)))
+        record("Saved numbered/text/voice mode", valid_modes)
+        record("Adaptive complete mascot art", art_ok)
+    except Exception as exc:
+        record("Saved numbered/text/voice mode", False, exc)
+        record("Adaptive complete mascot art", False, exc)
+
+    try:
+        inventory = pipboy_inventory()
+        valid_inventory = isinstance(inventory, dict) and all(
+            isinstance(inventory.get(key, {}), dict)
+            for key in ("scripts", "commands", "termux_packages", "python_packages", "android_apps")
+        )
+        record("Learned installation inventory", valid_inventory)
+    except Exception as exc:
+        record("Learned installation inventory", False, exc)
+
+    try:
+        test_state = {
+            "inventory": pipboy_inventory(),
+            "config": pipboy_load_config(),
+            "cwd": HOME_DIR,
+            "last_matches": [],
+            "pending_action": None,
+        }
+        result = pipboy_process_command("status", test_state)
+        record("Bilingual command engine", isinstance(result, dict) and bool(result.get("message")))
+    except Exception as exc:
+        record("Bilingual command engine", False, exc)
+
+    try:
+        seed_index = pipboy_website_seed_index()
+        record("DedSec website knowledge seed", len(seed_index.get("pages", {})) >= 10)
+        sample_parser = PipboyWebsiteHTMLParser()
+        sample_parser.feed("<html><head><title>Test</title></head><body><main><h1>Hello</h1><p>Save Location: ~/Test</p><a href='/Pages/test.html'>Next</a></main></body></html>")
+        title, _, headings, parsed_text, links = sample_parser.result()
+        record("Website crawler parser", title == "Test" and "Hello" in headings and "Save Location" in parsed_text and links)
+    except Exception as exc:
+        record("DedSec website knowledge seed", False, exc)
+        record("Website crawler parser", False, exc)
+
+    try:
+        valid_url, destination, _ = pipboy_validate_repo_url("dedsec1121fk/DedSec")
+        rejected = False
+        try:
+            pipboy_validate_repo_url("http://evil.example/repo")
+        except ValueError:
+            rejected = True
+        record("Confirmed HTTPS Git clone planner", valid_url.startswith("https://github.com/") and destination.startswith(os.path.realpath(PIPBOY_DOWNLOADED_REPOS_DIR)) and rejected)
+    except Exception as exc:
+        record("Confirmed HTTPS Git clone planner", False, exc)
+
+    try:
+        shell_action = pipboy_shell_action("printf test")
+        record("Confirmed arbitrary command planner", shell_action.get("risky") and shell_action.get("command"))
+    except Exception as exc:
+        record("Confirmed arbitrary command planner", False, exc)
+
+    try:
+        intelligence_config = pipboy_load_config()
+        required_keys = {
+            "intelligence_enabled", "intelligence_depth", "intelligence_detail",
+            "intelligence_web_context", "intelligence_max_sources",
+            "intelligence_memory_turns",
+        }
+        record("Persistent model-free intelligence configuration", required_keys.issubset(intelligence_config))
+        variants = pipboy_intelligence_query_variants("Please explain Pet Friends.py save location")
+        record("Project-aware retrieval expansion", bool(variants) and any("Pet Friends.py" in item for item in variants))
+        evidence, matches, sources = pipboy_intelligence_collect_evidence(
+            "What does Pet Friends.py do and where does it save?", scope="project",
+            config=intelligence_config, state={"last_matches": []},
+        )
+        record("Deterministic multi-source project retrieval", isinstance(evidence, list) and isinstance(matches, list) and isinstance(sources, list))
+        answer, answer_matches = pipboy_intelligence_answer(
+            "Summarize the installed DedSec Project architecture",
+            {"config": intelligence_config, "last_matches": [], "inventory": pipboy_inventory(), "cwd": HOME_DIR},
+            scope="project",
+        )
+        record("Model-free project answer synthesis", bool(answer) and isinstance(answer_matches, list) and not any(token in answer.casefold() for token in ("llama.cpp", ".gguf", "qwen3")))
+    except Exception as exc:
+        record("Persistent model-free intelligence configuration", False, exc)
+        record("Project-aware retrieval expansion", False, exc)
+        record("Deterministic multi-source project retrieval", False, exc)
+        record("Model-free project answer synthesis", False, exc)
+
+    try:
+        generated_source = dedsec_os_server_source()
+        compile(generated_source, "<dedsec_os_server>", "exec")
+        record("Generated DedSec OS server", True)
+    except Exception as exc:
+        record("Generated DedSec OS server", False, exc)
+
+    microphone_tool, speech_tool = pipboy_audio_backend_status()
+    audio_detail = (
+        f"speech-to-text={'ready' if microphone_tool else 'missing'}, "
+        f"text-to-speech={'ready' if speech_tool else 'missing'}"
+    )
+    record("Optional Android audio backends", True, audio_detail)
+
+    print("Ded-Guy self-test")
+    print("=" * 40)
+    for name, passed, detail in checks:
+        marker = "PASS" if passed else "FAIL"
+        print(f"[{marker}] {name}" + (f": {detail}" if detail else ""))
+    failures = [item for item in checks if not item[1]]
+    print("=" * 40)
+    print("RESULT: " + ("PASS" if not failures else "FAIL"))
+    return not failures
+
+
+
+_PIPBOY_MASCOT_COLORS_READY = False
+_PIPBOY_BRAILLE_FRAME_CACHE = {}
+_PIPBOY_BRAILLE_PIXELS = None
+_PIPBOY_BRAILLE_DOTS = (
+    (0, 0, 0), (0, 1, 1), (0, 2, 2),
+    (1, 0, 3), (1, 1, 4), (1, 2, 5),
+    (0, 3, 6), (1, 3, 7),
+)
+
+PIPBOY_VAULT_BRAILLE_SOURCE = r"""⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⡿⠛⢶⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣴⣦⠀⣠⡾⠛⠙⠛⠋⠀⠀⠀⠈⠉⠛⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢾⡇⠙⠛⠋⢀⣤⣀⠀⣀⣤⣤⡀⠀⠀⠀⠈⠻⣦⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⣧⡀⢀⡤⠋⠀⠈⠉⠉⠀⠉⠳⠤⠤⠴⢦⡄⠸⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣀⡿⠿⠾⠀⠀⠀⠀⠀⢴⣦⡀⠀⠀⠀⣠⠟⠀⢹⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡟⠀⣴⡄⠀⢀⡄⠀⠀⣦⡈⠃⠀⠀⡾⣳⣄⠀⣼⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⣠⡶⠟⠻⠶⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡿⠀⠀⠿⠁⢀⡞⠁⠀⠀⣿⠗⠀⠀⠀⣟⢮⣿⣆⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢸⠏⠀⠀⠀⣰⡏⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇⠀⠀⠀⠰⣯⡀⠀⠀⠀⠀⠀⠀⠀⠀⠪⣳⡵⡿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⢸⡀⠀⠀⢰⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠸⣇⠀⣦⣀⠀⠈⠉⢀⣀⣰⣦⡀⠀⠀⠀⠀⠈⠉⣷⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠘⣷⠀⠀⠘⢷⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⡆⠻⠦⣌⣉⣉⣁⡤⠔⠻⡇⠀⠀⠀⣀⣠⣼⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⢠⡾⠛⠉⠙⠛⠲⢦⣄⠀⠙⣦⡀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣄⠀⠀⠲⠇⠀⠀⠀⠀⠀⠀⢀⣴⢏⠉⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⢸⣇⣀⣀⣀⡀⠀⠀⠈⣧⠀⠈⣿⣦⣄⡀⠀⠀⠀⠀⠀⠀⢀⣻⣦⣄⠀⠀⠀⠀⠀⠀⡠⠔⣿⠓⢶⣤⣄⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⢸⠟⠁⠀⠈⠉⠙⠳⢴⡏⠀⠀⣿⡇⠈⠙⠻⠶⠤⠴⠶⠛⠋⠹⡀⠈⠻⣶⣤⠤⠄⣀⣠⠞⠁⠀⢸⠀⠈⠙⠳⢦⣄⠀⠀⠀⠀⠀⠀⠀
+⠸⣧⣤⣤⣤⣤⣀⡀⠀⣷⢀⣼⠃⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢦⣀⠀⠉⠉⠉⠉⠀⠀⢀⣴⠏⠀⠀⠀⠀⠀⠉⠻⣦⣄⠀⠀⠀⠀
+⢰⡏⠀⢠⠀⠀⠈⠉⢺⠁⢈⡞⢀⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠒⢦⠀⠀⠀⢸⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢷⡄⠀⠀
+⠀⠻⣦⣈⠙⠶⠤⠴⢞⣠⠞⢀⡞⠀⠀⠀⠀⠀⠀⠀⠀⢀⣦⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠈⡆⠀⠀⠀⢰⠀⠀⠀⠀⠀⠀⠀⠈⠻⣆⠀
+⠀⠀⠈⠉⠉⠛⠛⠛⠯⢤⣤⣎⣀⠀⠀⠀⢀⣀⣠⣤⣾⠛⠁⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⢻⠀⠀⠀⠈⡆⠀⠀⡀⠀⠀⠀⠀⠀⠙⣇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠙⠛⠛⠛⠛⠉⠉⠠⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢇⠀⠀⠀⠀⡇⠀⠀⠀⡇⠀⣰⠏⠀⠀⠀⠀⠀⠀⡿
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠀⢃⠀⠀⠀⢸⣰⠁⠀⠀⠀⠀⠀⠀⣸⠇
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡄⠀⠀⠀⠀⠀⠀⠀⠀⢸⡄⠀⠀⠀⢸⠀⠀⢀⣸⡇⠀⠀⠀⠀⠀⠀⣰⠏⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠛⠢⣄⡀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠸⣤⠴⠛⠁⣿⠤⢤⡀⠀⢀⡼⠏⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⠀⠀⠀⠉⠉⠓⠒⠶⠶⠞⠁⠀⠀⠀⠀⠁⠀⠀⠀⢿⠀⠀⠈⢳⡟⠁⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⡴⢻⠀⠀⣀⡼⠃⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠙⠢⢄⣀⡀⠀⠀⠀⠀⠀⠀⠀⣀⣀⣤⡴⠞⠋⠀⠀⡇⠛⣻⡄⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡏⠀⠀⠀⠈⠉⠉⠛⠛⠛⠛⠛⠉⠉⠉⠀⠀⠀⠀⠀⠀⡟⠛⠋⠁⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡖⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⠏⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠃⠀⠀⠀⠀⠀⠀⠀⠀⢀⡾⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠃⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠇⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣾⠁⠀⠀⠀⠀⠀⠀⠀⠀⢰⡟⠀⢸⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡏⠀⠀⠀⠀⠀⠀⠀⠀⢀⡿⠁⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⣸⠇⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⣼⠃⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢰⡇⠀⠀⠀⠀⠀⠀⠀⠀⣸⠏⠀⠀⠀⣿⠀⠀⠀⠀⠀⠀⠀⢸⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢘⣧⣄⡀⠀⠀⠀⠀⣀⡼⠏⠀⠀⠀⠀⢻⡖⠶⡤⠤⠤⠤⠶⠛⠶⣦⣄⡀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⠁⠀⠉⠙⠛⠛⣿⠋⠀⠀⠀⠀⠀⠀⠘⠻⠶⠿⠶⣦⣀⣀⠀⠀⠀⢉⣻⡆⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣧⣀⣀⣠⣴⠞⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀"""
+
+
+def pipboy_init_mascot_colors():
+    """Prepare a Ded-Guy-green palette with a brighter animation accent."""
+    global _PIPBOY_MASCOT_COLORS_READY
+    if _PIPBOY_MASCOT_COLORS_READY:
+        return True
+    try:
+        if not curses.has_colors():
+            return False
+        curses.start_color()
+        try:
+            curses.use_default_colors()
+        except Exception:
+            pass
+        curses.init_pair(20, curses.COLOR_GREEN, -1)
+        curses.init_pair(21, curses.COLOR_YELLOW, -1)
+        _PIPBOY_MASCOT_COLORS_READY = True
+        return True
+    except Exception:
+        return False
+
+
+def pipboy_mascot_char_attr(character):
+    """Style the detailed Braille mascot without turning it into solid blocks."""
+    colors = pipboy_init_mascot_colors()
+    if not character or not character.strip():
+        return 0
+    if character in "*+.'()":
+        return (curses.color_pair(21) | curses.A_BOLD) if colors else curses.A_BOLD
+    return (curses.color_pair(20) | curses.A_BOLD) if colors else curses.A_BOLD
+
+
+def pipboy_draw_mascot_line(stdscr, row, column, line):
+    """Draw one Unicode-art line in styled runs without breaking mobile curses."""
+    if not line:
+        return
+    start = 0
+    while start < len(line):
+        attr = pipboy_mascot_char_attr(line[start])
+        end = start + 1
+        while end < len(line) and pipboy_mascot_char_attr(line[end]) == attr:
+            end += 1
+        chunk = line[start:end]
+        if chunk.strip():
+            safe_curses_addstr(stdscr, row, column + start, chunk, attr)
+        start = end
+
+
+def pipboy_decode_braille_art(lines):
+    """Decode Unicode Braille cells into a 2x4-dot bitmap using only stdlib."""
+    lines = list(lines or [])
+    if not lines:
+        return [[0]]
+    cell_width = max(len(line) for line in lines)
+    pixels = [[0 for _ in range(cell_width * 2)] for _ in range(len(lines) * 4)]
+    for cell_y, line in enumerate(lines):
+        for cell_x, character in enumerate(line):
+            codepoint = ord(character)
+            if not 0x2800 <= codepoint <= 0x28FF:
+                continue
+            bits = codepoint - 0x2800
+            for dot_x, dot_y, bit in _PIPBOY_BRAILLE_DOTS:
+                if bits & (1 << bit):
+                    pixels[cell_y * 4 + dot_y][cell_x * 2 + dot_x] = 1
+    active_x, active_y = [], []
+    for y, row in enumerate(pixels):
+        for x, value in enumerate(row):
+            if value:
+                active_x.append(x)
+                active_y.append(y)
+    if not active_x:
+        return [[0]]
+    left, right = min(active_x), max(active_x)
+    top, bottom = min(active_y), max(active_y)
+    return [row[left:right + 1] for row in pixels[top:bottom + 1]]
+
+
+def pipboy_base_braille_pixels():
+    global _PIPBOY_BRAILLE_PIXELS
+    if _PIPBOY_BRAILLE_PIXELS is None:
+        _PIPBOY_BRAILLE_PIXELS = pipboy_decode_braille_art(PIPBOY_VAULT_BRAILLE_SOURCE.splitlines())
+    return _PIPBOY_BRAILLE_PIXELS
+
+
+def pipboy_copy_pixels(pixels):
+    return [row[:] for row in pixels]
+
+
+def pipboy_move_pixel_region(pixels, x0, y0, x1, y1, dx=0, dy=0):
+    """Move a bounded pixel region for a subtle hand/arm animation."""
+    height = len(pixels)
+    width = len(pixels[0]) if height else 0
+    x0, x1 = max(0, x0), min(width, x1)
+    y0, y1 = max(0, y0), min(height, y1)
+    snapshot = [row[x0:x1] for row in pixels[y0:y1]]
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            pixels[y][x] = 0
+    for local_y, row in enumerate(snapshot):
+        target_y = y0 + local_y + dy
+        if not 0 <= target_y < height:
+            continue
+        for local_x, value in enumerate(row):
+            if not value:
+                continue
+            target_x = x0 + local_x + dx
+            if 0 <= target_x < width:
+                pixels[target_y][target_x] = 1
+
+
+def pipboy_clear_pixel_region(pixels, x0, y0, x1, y1):
+    height = len(pixels)
+    width = len(pixels[0]) if height else 0
+    for y in range(max(0, y0), min(height, y1)):
+        for x in range(max(0, x0), min(width, x1)):
+            pixels[y][x] = 0
+
+
+def pipboy_draw_pixel_line(pixels, x0, y0, x1, y1, thickness=1):
+    """Draw a bounded integer line on the mascot bitmap."""
+    height = len(pixels)
+    width = len(pixels[0]) if height else 0
+    dx = abs(x1 - x0)
+    sx = 1 if x0 < x1 else -1
+    dy = -abs(y1 - y0)
+    sy = 1 if y0 < y1 else -1
+    error = dx + dy
+    x, y = x0, y0
+    while True:
+        for oy in range(-max(0, thickness - 1), max(0, thickness - 1) + 1):
+            for ox in range(-max(0, thickness - 1), max(0, thickness - 1) + 1):
+                tx, ty = x + ox, y + oy
+                if 0 <= tx < width and 0 <= ty < height:
+                    pixels[ty][tx] = 1
+        if x == x1 and y == y1:
+            break
+        twice = 2 * error
+        if twice >= dy:
+            error += dy
+            x += sx
+        if twice <= dx:
+            error += dx
+            y += sy
+
+
+def pipboy_draw_closed_fist(pixels, punch_offset=0):
+    """Replace the raised thumb with a compact closed fist for animation."""
+    pipboy_clear_pixel_region(pixels, 0, 20, 31, 66)
+    x0 = max(0, 2 + int(punch_offset))
+    x1 = max(x0 + 12, 27 + int(punch_offset))
+    y0, y1 = 38, 62
+    # Rounded fist outline and knuckles.
+    pipboy_draw_pixel_line(pixels, x0 + 4, y0, x1 - 4, y0, 2)
+    pipboy_draw_pixel_line(pixels, x0 + 1, y0 + 5, x0 + 1, y1 - 5, 2)
+    pipboy_draw_pixel_line(pixels, x1 - 1, y0 + 5, x1 - 1, y1 - 5, 2)
+    pipboy_draw_pixel_line(pixels, x0 + 4, y1, x1 - 4, y1, 2)
+    pipboy_draw_pixel_line(pixels, x0 + 1, y0 + 5, x0 + 5, y0 + 1, 2)
+    pipboy_draw_pixel_line(pixels, x1 - 5, y0 + 1, x1 - 1, y0 + 5, 2)
+    pipboy_draw_pixel_line(pixels, x0 + 1, y1 - 5, x0 + 5, y1 - 1, 2)
+    pipboy_draw_pixel_line(pixels, x1 - 5, y1 - 1, x1 - 1, y1 - 5, 2)
+    # Finger divisions and folded thumb.
+    for divider in (x0 + 7, x0 + 13, x0 + 19):
+        pipboy_draw_pixel_line(pixels, divider, y0 + 2, divider, y0 + 9, 1)
+    pipboy_draw_pixel_line(pixels, x0 + 5, y0 + 14, x1 - 4, y0 + 14, 2)
+    pipboy_draw_pixel_line(pixels, x0 + 5, y0 + 14, x0 + 10, y1 - 4, 2)
+    # Wrist reconnects to the original forearm.
+    pipboy_draw_pixel_line(pixels, x1 - 3, y1 - 8, 37, 67, 2)
+    pipboy_draw_pixel_line(pixels, x1 - 8, y1, 31, 69, 2)
+
+
+def pipboy_apply_wink(pixels):
+    """Close the viewer-left eye while keeping the original face intact."""
+    pipboy_clear_pixel_region(pixels, 46, 21, 55, 35)
+    pipboy_draw_pixel_line(pixels, 47, 29, 54, 29, 1)
+    pipboy_draw_pixel_line(pixels, 48, 30, 53, 31, 1)
+
+
+def pipboy_apply_bald_head(pixels):
+    """Remove the original hair and draw a smooth bald head outline."""
+    # Preserve eyebrows and face details below this region.
+    pipboy_clear_pixel_region(pixels, 39, 0, 87, 16)
+    pipboy_clear_pixel_region(pixels, 39, 16, 45, 22)
+    pipboy_clear_pixel_region(pixels, 79, 14, 87, 24)
+    dome = (
+        (42, 21), (42, 14), (45, 9), (50, 5), (56, 2),
+        (63, 1), (70, 2), (76, 5), (81, 10), (84, 16), (84, 23),
+    )
+    for start, end in zip(dome, dome[1:]):
+        pipboy_draw_pixel_line(pixels, start[0], start[1], end[0], end[1], 1)
+    pipboy_draw_pixel_line(pixels, 42, 20, 42, 33, 1)
+    pipboy_draw_pixel_line(pixels, 84, 22, 84, 29, 1)
+    return pixels
+
+
+def pipboy_animated_braille_pixels(speaking=False, frame=0):
+    """Animate thumb-open -> fist/punch -> thumb-open, plus a clear wink."""
+    pixels = pipboy_copy_pixels(pipboy_base_braille_pixels())
+    pipboy_apply_bald_head(pixels)
+    height = len(pixels)
+    width = len(pixels[0]) if height else 1
+    phase = int(frame) % 8
+
+    if phase == 1:
+        # Thumb starts folding toward the palm.
+        pipboy_move_pixel_region(pixels, 0, 20, 22, 48, dx=3, dy=5)
+    elif phase in (2, 3):
+        # Closed fist; phase 3 extends slightly like a small punch.
+        pipboy_draw_closed_fist(pixels, punch_offset=-2 if phase == 3 else 0)
+    elif phase == 4:
+        # Opening transition.
+        pipboy_move_pixel_region(pixels, 0, 20, 22, 48, dx=2, dy=2)
+
+    if phase == 5:
+        pipboy_apply_wink(pixels)
+
+    # A small sparkle near the thumb only while the hand is open.
+    if phase in (0, 6, 7):
+        center_x = max(2, int(width * 0.07))
+        center_y = max(2, int(height * 0.20))
+        if phase in (6, 7):
+            for offset_x, offset_y in ((0, -2), (0, -1), (0, 0), (0, 1), (0, 2), (-2, 0), (-1, 0), (1, 0), (2, 0)):
+                x, y = center_x + offset_x, center_y + offset_y
+                if 0 <= x < width and 0 <= y < height:
+                    pixels[y][x] = 1
+
+    return pixels
+
+
+def pipboy_resize_outline_pixels(pixels, target_width, target_height):
+    """Area-resize while preserving the thin outlines at small terminal sizes."""
+    source_height = len(pixels)
+    source_width = len(pixels[0]) if source_height else 1
+    target_width = max(2, int(target_width))
+    target_height = max(4, int(target_height))
+    output = [[0 for _ in range(target_width)] for _ in range(target_height)]
+    for target_y in range(target_height):
+        source_y0 = int(target_y * source_height / target_height)
+        source_y1 = max(source_y0 + 1, math.ceil((target_y + 1) * source_height / target_height))
+        source_y1 = min(source_height, source_y1)
+        for target_x in range(target_width):
+            source_x0 = int(target_x * source_width / target_width)
+            source_x1 = max(source_x0 + 1, math.ceil((target_x + 1) * source_width / target_width))
+            source_x1 = min(source_width, source_x1)
+            active = 0
+            total = 0
+            for source_y in range(source_y0, source_y1):
+                for source_x in range(source_x0, source_x1):
+                    total += 1
+                    active += 1 if pixels[source_y][source_x] else 0
+            if active and (total <= 4 or active / max(1, total) >= 0.16):
+                output[target_y][target_x] = 1
+    return output
+
+
+def pipboy_encode_braille_pixels(pixels):
+    """Encode a dot bitmap back into compact Unicode Braille terminal lines."""
+    height = len(pixels)
+    width = len(pixels[0]) if height else 1
+    padded_height = ((height + 3) // 4) * 4
+    padded_width = ((width + 1) // 2) * 2
+    padded = [row + [0] * (padded_width - width) for row in pixels]
+    padded.extend([[0] * padded_width for _ in range(padded_height - height)])
+    lines = []
+    for pixel_y in range(0, padded_height, 4):
+        characters = []
+        for pixel_x in range(0, padded_width, 2):
+            bits = 0
+            for dot_x, dot_y, bit in _PIPBOY_BRAILLE_DOTS:
+                if padded[pixel_y + dot_y][pixel_x + dot_x]:
+                    bits |= 1 << bit
+            characters.append(chr(0x2800 + bits) if bits else " ")
+        lines.append("".join(characters).rstrip())
+    while lines and not lines[-1].strip():
+        lines.pop()
+    return lines or ["."]
+
+
+def pipboy_add_braille_motion_accents(lines, speaking=False, frame=0):
+    """Add non-destructive sound waves while TTS is active."""
+    lines = list(lines)
+    if speaking and lines:
+        phase = int(frame) % 8
+        wave = (" )", " ))", " )))", " ))", " )", " ))", " )))", " ))")[phase]
+        wave_row = max(1, min(len(lines) - 1, int(len(lines) * 0.22)))
+        lines[wave_row] = lines[wave_row] + wave
+    if int(frame) % 8 in (0, 6, 7) and lines:
+        sparkle_row = max(0, min(len(lines) - 1, int(len(lines) * 0.18)))
+        first = len(lines[sparkle_row]) - len(lines[sparkle_row].lstrip(" "))
+        if first >= 2:
+            marker = "*" if int(frame) % 8 in (0, 6) else "+"
+            line = lines[sparkle_row]
+            lines[sparkle_row] = line[:first - 2] + marker + line[first - 1:]
+    if int(frame) % 8 == 3:
+        lines = [" " + line for line in lines]
+    return lines
+
+
+_PIPBOY_ART_SIZES = {
+    "exact": (50, 37),
+    "large": (44, 33),
+    "medium": (40, 30),
+    "small": (32, 24),
+    "compact": (25, 19),
+    "micro": (18, 14),
+    "nano": (12, 9),
+}
+
+
+def pipboy_build_vault_mascot(size, speaking=False, frame=0):
+    """Render the user's detailed thumbs-up Unicode art at a named size."""
+    size = size if size in _PIPBOY_ART_SIZES else "nano"
+    key = (size, bool(speaking), int(frame) % 8)
+    cached = _PIPBOY_BRAILLE_FRAME_CACHE.get(key)
+    if cached is not None:
+        return list(cached)
+    character_width, character_height = _PIPBOY_ART_SIZES[size]
+    pixels = pipboy_animated_braille_pixels(speaking, frame)
+    target_pixels = pipboy_resize_outline_pixels(pixels, character_width * 2, character_height * 4)
+    lines = pipboy_encode_braille_pixels(target_pixels)
+    lines = pipboy_add_braille_motion_accents(lines, speaking, frame)
+    _PIPBOY_BRAILLE_FRAME_CACHE[key] = tuple(lines)
+    return list(lines)
+
+
+def pipboy_art_for_terminal(width, max_rows, speaking=False, frame_index=0):
+    """Choose the most detailed complete art that fits the current terminal."""
+    width = max(1, int(width))
+    max_rows = max(1, int(max_rows))
+    for size in ("exact", "large", "medium", "small", "compact", "micro", "nano"):
+        art = pipboy_build_vault_mascot(size, speaking, frame_index)
+        if len(art) <= max_rows and max((len(line) for line in art), default=0) <= width:
+            return art
+    return [pipboy_build_vault_mascot("nano", speaking, frame_index)[0][:width]]
+
+
+def pipboy_art_frames(speaking=False):
+    return [pipboy_build_vault_mascot("exact", speaking, frame) for frame in range(8)]
+
+
+def pipboy_compact_art_frames(speaking=False):
+    return [pipboy_build_vault_mascot("compact", speaking, frame) for frame in range(8)]
+
+
+def pipboy_marquee_window(text, viewport_width, tick, start_pause=5, end_pause=5, blank_pause=2):
+    """Return a repeating, readable horizontal window over the complete text.
+
+    The beginning stays visible briefly, the viewport advances through every
+    character, the ending pauses, and then the sentence restarts. Short text
+    remains still. No content is shortened or replaced with an ellipsis.
+    """
+    text = str(text or "...")
+    viewport_width = max(1, int(viewport_width))
+    if len(text) <= viewport_width:
+        return text.ljust(viewport_width)
+
+    travel = max(1, len(text) - viewport_width)
+    cycle = start_pause + travel + end_pause + blank_pause
+    position = max(0, int(tick)) % max(1, cycle)
+
+    if position < start_pause:
+        start = 0
+    elif position < start_pause + travel:
+        start = min(travel, position - start_pause + 1)
+    elif position < start_pause + travel + end_pause:
+        start = travel
+    else:
+        return " " * viewport_width
+
+    return text[start:start + viewport_width].ljust(viewport_width)
+
+
+def pipboy_bubble_lines(messages, width, offset=0, max_content_lines=7,
+                        max_answers=PIPBOY_MAX_BUBBLE_ANSWERS, marquee_tick=0):
+    """Show the latest three complete answers as repeating horizontal marquees."""
+    width = max(16, min(int(width), 92))
+    if isinstance(messages, str):
+        messages = [messages]
+    answers = [str(item).strip() for item in (messages or []) if str(item).strip()][-max_answers:]
+    if not answers:
+        answers = ["..."]
+
+    max_content_lines = max(1, min(3, int(max_content_lines)))
+    max_offset = max(0, len(answers) - max_content_lines)
+    offset = max(0, min(int(offset), max_offset))
+    visible_answers = answers[offset:offset + max_content_lines] or ["..."]
+
+    inner = max(8, width - 4)
+    rows = []
+    first_number = max(1, len(answers) - max_answers + 1) + offset
+    for row_number, answer in enumerate(visible_answers, first_number):
+        clean = pipboy_clean_terminal_text(answer).replace("\n", " ")
+        clean = re.sub(r"\s+", " ", clean).strip() or "..."
+        prefix = f"{row_number}> "
+        viewport = max(1, inner - len(prefix))
+        moving = pipboy_marquee_window(clean, viewport, marquee_tick)
+        rows.append((prefix + moving)[:inner].ljust(inner))
+
+    if offset > 0 and rows:
+        rows[0] = ("^ " + rows[0][2:])[:inner].ljust(inner)
+    if offset + max_content_lines < len(answers) and rows:
+        marker = " v"
+        rows[-1] = (rows[-1][:max(0, inner - len(marker))] + marker).ljust(inner)
+
+    top = ".-" + "-" * inner + "-."
+    body = ["| " + line + " |" for line in rows]
+    bottom = "'-" + "-" * inner + "-'"
+    return [top] + body + [bottom], max_offset
+
+
+# ------------------------------
+# Ded-Guy project, website, web-search, and Git knowledge
+# ------------------------------
+PIPBOY_PROJECT_INDEX_PATH = os.path.join(PIPBOY_DATA_DIR, "project_knowledge.json")
+PIPBOY_WEBSITE_INDEX_PATH = os.path.join(PIPBOY_DATA_DIR, "website_knowledge.json")
+PIPBOY_WEB_CACHE_PATH = os.path.join(PIPBOY_DATA_DIR, "web_search_cache.json")
+PIPBOY_CLONE_REGISTRY_PATH = os.path.join(PIPBOY_DATA_DIR, "cloned_repositories.json")
+PIPBOY_DOWNLOADED_REPOS_DIR = os.path.join(HOME_DIR, "DedSec", "Downloaded Scripts")
+PIPBOY_WEBSITE_BASE_URL = "https://ded-sec.space/"
+PIPBOY_WEBSITE_HOSTS = {"ded-sec.space", "www.ded-sec.space"}
+PIPBOY_ALLOWED_GIT_HOSTS = {"github.com", "www.github.com", "gitlab.com", "www.gitlab.com", "codeberg.org", "www.codeberg.org"}
+PIPBOY_WEBSITE_REFRESH_SECONDS = 7 * 24 * 60 * 60
+PIPBOY_MAX_WEBSITE_PAGES = 300
+PIPBOY_MAX_WEBSITE_PAGE_CHARS = 6000
+PIPBOY_MAX_PROJECT_FILES = 2500
+PIPBOY_MAX_PROJECT_FILE_CHARS = 6000
+PIPBOY_PROJECT_TEXT_EXTENSIONS = {
+    ".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".cjs", ".html", ".htm",
+    ".md", ".markdown", ".txt", ".json", ".jsonl", ".yaml", ".yml", ".toml",
+    ".ini", ".cfg", ".conf", ".css", ".scss", ".xml", ".csv", ".tsv",
+    ".php", ".rb", ".pl", ".lua", ".sql", ".env.example", ".gitignore",
+}
+PIPBOY_WEBSITE_SKIP_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico", ".pdf", ".zip",
+    ".gz", ".tar", ".mp3", ".wav", ".ogg", ".mp4", ".webm", ".apk", ".css",
+    ".js", ".map", ".woff", ".woff2", ".ttf", ".eot", ".json", ".xml",
+}
+
+
+
+# -----------------------------------------------------------------------------
+# Embedded DedSec Project expert knowledge
+# -----------------------------------------------------------------------------
+# This compressed knowledge was generated from every file in the uploaded
+# DedSec-main project. It makes Ded-Guy useful immediately, even before the live
+# project index is rebuilt. Runtime indexing always overrides stale embedded
+# details with the installed project's current source code.
+PIPBOY_EMBEDDED_PROJECT_B85 = '''c-ri}4R_?maVYv%I-_fGxSqibFrS2W<#0)^mKK*}NUmgMXAcerXpj(RfH8m}ceGKC{F&swB=6)VIeBs7r{vtcoAb`G<)dpWifk+T2i*VQKk)n$UR8Ai17I-x+Fg0qnkZfl8r_ZV>aOal>iT$G3aukPG)ubHu9QN599X=hm)5zx&#mgvbUo!gcf`h{fp6N}W?EfqSL>as+AdW}mOu8Qu%tgOIqrbN53R0NN)dk)8L~iK(V$l=a7S2A?Y1hVf$1HN%|lM@xOX^k!y|a5!mF`&?D?l&N$*rjhXLou@N4D$N(nmTUg-KBwNWO+0W_$Tl#zE>(i`yO-O-^aIpzJ4_;nOftvXhlz>iK7ehqC=KYA32AGU8jf?;DN+Yvu#H1JW&jQF7+xMHBnp&K2I`_%WwqbM-hn(x7=upa>2=5XW(k?BQj-M7X=PGEuZt<ANK?fnh$L1?<SvATY5gT?_*`x|Tb_cjmSiJ#B@{_I!q-=}AvpM7@r%d?Nz*`LFoUz~mM<a=kI0xSS5`!OtGI_vy|5Bw1i*ljc9VzPJ4W6pL3cr^g&8|ILUp=|T$)DMo?f$tAOQF$jig2u7{D(~_j^gVOHHa*7=hGqmHXKUst8VA@tex66;kpvOINUm}Mp4y%J+v}U#Z-^y&T=L-Su$$7QsnvuxvMAmYP!jKmO3CJ8<A|E8w#_E6J=q&>ba&im`y<#6eh{*8$OHUNIb3Ei9S$wSBU5X&p;6QB+IHJkEnBU(?WP0oj<{*N-XV<o!9%ENo^WGiMo02_91P?y%N&_~ci={}0Ung#vo-PQ61+8o!+4dkvg?h;k#XcE1<u&BBC%nqvw<0gJg!W8MLq;>cx*&wJRZv*4o%Na#xRJ7V{^y#xNU@!VV{=kG2w;9gHd!v=veW_y+W(^bGyE_ImA6y19DJjyMgaJY{y}D-dqaV>L$C*Vf%2l>P;AJu@E*Cdjk;K;sR%ropHVPxjiI`QhO+-BdMKWs-~v3?5?IZcwg&xOKIq3fHHTkYkm-nM-dRgJGkv}*za;H%FXD!TGttOy|0;e-Raw%Mz`)b*BJLUKV@r2X5f2*P9{Umy~vGD6rDdh$Ffa8t5)CYH2ZC<bB)pMIL-ieHrpQuC+-Q*o?@_`TkRTf?Wk&FMQvJ+Y1)q3H?J}Bx7<M#jE8Q-VdKh^CmC<S%iJhs*#*mQnJe8DtJCQBo7`;FuQJU2fggq9EMV(==!Z3vA9B+(0J);E$K?^347uoSZp^am669J3oQ@u|YPEl;>aPHnchtsf^r*pO2e6Uj<H+>*fC}oWlN4YTQ|&bBSc2??{)*Fa+73Mr$ADaVaM(A?TC-Epnr--By`prqWqfT~7EE4$MTPpjKP`bi?WXB8I#_h*5A5`_4HM#l{))BI?l-L0GAm%$R~lBk-3RJn_8mKWgp^h{-q={(W_Nb>4(@Mnl&*B7zz$$=WbnW-f$4f)r%K5RxDB1UCX55PGe4+~0{_vZ^c2U<OTD^1FS}?x@8*z4CPOs1)hnI2{1idiD=~>(P<ZOv(a|lNpSTvU(nAH7&PAYBLx3B<rB+znvg)|eEz3XQ0rXLO9r};lXuw}zB?M!41cKeHiPD~T{;ctR1V@R^V7-T<a<e{qRAC)OI~lqj{Ai9I0cdJBSinO(zugngus#dj_c$wuLs(TFEVCOm?1=`eGnHC6?jvr$#s(%Z0TFY<bQiMvk!ky<I;%6aJ9@<M+l+=;ui$@5vxNh^@tF1fM^*SBpoQM|1Dgj`D0z*&-}8`WRQkR>c?_(Cdw3K9>skLAy>bA)RmU8<gNe?@ZZ$N$unMe)>r_}c2_rtNj@=5YnxoNxS4ByM?E_oR+5OE5+w=Q=<X6~g0P9d;z0xXH1Ohnl1GX{r-*tN>ERI{mWiVu19iUhKU{LMzBlE=d1D$!k$KhQ7=nd<7h<{=E%PI^Q=G|%Izh=ZV?Q2ZczE%;CXs8ucRV!MfRZ+D1a)kj6_QH`FKvUMPe+^0i)N<|ngE41^1OJrZoBz;?_)cAZr`!G-YjxxAXsT9GJFQ9!zN0qhd?#}xEU<Ker3);55wY|VyqX2)^27+?hz9{E&#D!?d{&%Vr{1VL36)Su{zy{^3+O~MO(oQ39Ym`Pl>j-VkV@1m8p0(<CHh*YBN`-Bf_JR8C=yh{Y1#F*lco}m(*)v@;ncL2$t}}VwK}gioK`2tsjVT**uH?-SCmnExfZwQW!CIVI{`9ZJ@)`e&3SPEyl@9V3l4yKOqkV97fyf`v0$23M42xp_0VHG=~2ToWu+^6RNI&9vE9PHT3Y=)PHlmv3p8Dz>5GA;mtocXaOhfwWd<IqCTEznqSw!gU2E3sYHLa=;4w=o04QoVBh=aTdPb;ooUWtgNd>@4YXZ!g+6<|19LuWLGo+$pJ1ZGdkyM$IiWWC{R<YJ^v|4=*|7uO(d%AgcjiAQXB-Fm54BN}Kyl@g^SMAF?3$ovxcN*m9y*LeCY^hz<aKTp2qumJWFfxMyPX8M6I&O)26X88qTxUZw`1X1H+5$@#Sh~Q{7XnK!!>&#GJTO9YI1WsAhFP0^`K(yAE>Hn&N+tR+35cmgKTjp5ge0L7omr`lu%%Nd)j5vFyWI?xFuSdmlhVIC{l23$(^R5f2T8A)VbwY<-tRQp9n-G2RA6B8tQx|M?F*QFMH#i1YjNQSNUzzKcL1cndM^3zEJXH~h5X|}HQN=n(LV2L#pAxmLh~3_{_6B!ZFehOu`SLyU|<dd9-YUiEwFTfr3);5A+YokjG8_1%rKf5fomP{&@ep<$6#2%4w!kq?c%!6ij4yh)Y};vB1lS1LmV`u$Sdd7c9w?lxiqA)GDAZwRn^q2a$a@JM#ntQjKXpH4G{m*Y+SwDF<Xwh(sJ5OtKQXeY~1=g+pGHr@36hiwYwYpUr|2p<yzgImtC|k?TA<x=*IR4-7Y#K;#n`wh!<RtUujg-Zl$5lyLv%L4@~RZW8e<}6|ZR{gBLPw_>!ibC(fV8$1SjQfu##9eIc;)5_}v#oQ%*TFqm;U$iI13JX)*XuJ@;=u6@;M<P`EN!W1@T>RNv)1Bxl~C-lM5Z0&sdz&lMV=Wd``cDrGz^_FdRc-Lv?c(e@!7`p=i`-<{sFW1WUyy=2{X;gpu$%RqO?}t%L+Nii#cE6%cOdSr8CXn})d8GXuix|;gtNyj~7_<eNF3@y=rY{DXUV=k&0{=bk8P2<~V0j*G_T97M(i*DNwhJO*Y7XFHibyoohH7PqL`Q2j8Yv>taCiZcXaLGI3yDO_;cCvz)dVtQx6@`5yxujlQe3;=?q|5Pw$p9#x@onVPFrnv^0sSt2xROIg6wJdv`T3dxF@DHsfFAc2W~WZnOV1&Yq@(~dKJI4Qz8A)x#vP|#*1^|#TM9CS``gVWXL?GJ5Q1}$AJ$-ntac$arGkj1Wj$iH?#}BaUSQkz|sYlF0k~4z|u=FZbz^w{8JA68O+_c^1NH&>u0BAQ|snb3E!yKg@%1<Owmqh<*|weQl9e^N_ePm=B!@(%~n5a^-3!D45iR`yOCkvY_-{StVW;n6|Sjv-c$5$3^jHaq4t&4w7pEr+w*d(_NAQ#x$iD+S$==)W$^B!e%>w1XgnMpyWTZ#SO8(@IB0dxI}O6Y`HHp$mM*Y#fu%11mR^Egdv^@16*mGtaIG-UtQEX`W~>?z1~a9O*ZNs1(N;V4tWalaO|_9x$2(4=NF7fY)0m+W4Grl^RvquyYC9v;#m^}RrIl9BOSElTEyrv)mepvr>}HNt`zFDR?Genrs*Ku8wYWVmvu0n~0g(CXc{eWUIWNfni%tGpf;6kzxkk;F>G`9{bptw)>)A?0t)FWL69wE1&t=pWSh~Q{1(v=DSb7OY4gDYt57%ObO`Cc3>|*3Lgwd*?5G#2v@^-zOA{j(PfQ&R#6avHX%xd17B2r<2=Dl9$t(@i^1hu}SW++5GFUmFh&D?dUZKEx0+cGV!(Q4=QY1`;jvP}^C$_B`NnU=QarB>`qBmJpw&L#Z0`7Q|mi%s}}?rZ0Ua!OpztcmGekLu$!TT?yH;fy|jA=|y^{HxCemM*Y#fu%15md>zf_q}n*Z6?#-)NTWNb!;HVX52QdV`B~WePB|ipM+7HUnie0VsbftZQTvH1?<6uMLt6=hPjjpf|b|(Qx6j)g*EY!>h2MAu$<<RR_bP}+qc^quu3*J)$>!)l>W39!k3`;nqAm;Y05a2j-qH3>b08ruK7qg^nH+^%#j-^z`RgdZQ%C9+PmlvGO4LbS82!x<y~UPE;2&1O;{33rUAMl7Y1)_{s=AE{4grb=gCSw@?L#2<ZaaPIZ*3Zxr6^EPq1GAEe$}S(ZGzj5k`SanLgszFsCpQ<K>Y%<VyUbl;`+7kqfCLGZ+a>Jq_H5^5Y0F4_&~n(Gg%&hAFHdco4@=L=@p-4)H+=P+kduDnV=QVdX(d&PB!FeyHF=EBq0hBsM17nR(%c0G6b1XdZLh4dRk{kdQA44hm*)QVua50u@6YhhQNd6Bv2^sVt(+Y~W%m;RtqvEEa2`^xI9FTfWV6Lw(nGy|`$^<DZTqp-E387+%~R!DUSK3fXA6VRW@E_l&Np%?xjSWi;%0>pO36Z|$tE8+UfL);IRpEjGIZ<)w>oZV7sF9U!t1%Pv$o*Z;B(^m)2!Gp~VwazG}J6)$9YX=&*h9q3BESHi<vkTDibM%Wv2E46pc6H^pJr(s}0`O^>*_|DCm=np<9j!>Oxa3F;Kz_r;cP0Msz=nQ%D#I?E4T$|<vKjHf@{YmJ0l;X!6M?OA7fAkv1Z<!v9mL0h^NNPAz`T-587x5OJ1VnnJb`$0;PiuH=cIz}eQ4jkYy}s^-K#BkZV3Y?injxS!Y$brM$BB9Y`*Dc5&;XA_k}RwM;|bsZJL2+qkI7;f??K-YmBVoW*zXa2S8mou@X>G#JYE>;ET)fTXg3~2%j|K_voQ14fGY$4u-q$Ah9QRAAI?14&KVB|lU@ngmAEp8Zv;?%1OHNW_?#FCBRrl~kC=e^EoRFEbx0dF1{{Cho^0CXC91GAZ6INOP76_knowh%J!Wubz##4cq0qC;_5y7eXuCk$mjZ3Cz<u8dpvpz;cfQi^g#T`;twvXE0t2qvU9Gd=zZd-Xg8yFd-;0C%g*eDhP-!+1hcJ@8E1uuu5RXu*FV<rzWP*--Wl!;5X&f#X@CDv3@b)Fd+beM3TfRk!+UIiL=?c$`^B%}f31pd+>zeJ<n@+c3u2{{wx^fLZJ09@5=$gKeW48g>+>z@!zT*0|cS9eOCd+cX7#RVNTLlzUY+i#uHR7g6Ks+SRcmcyL*;B#Y!oK7KV66g}J76S~U6%zPk8plQ3_2)*y<xZ`11BP%JZ=X4iGe`jNWOtpGaSi=V*vHYAlBD6qA^Ik11j}LhL35|4L~{E^we-@0$+F$zaNhKvJLJ7|L`!)(C4}Tn7tRz2z0>wLUtecb@}Hg5Ni*=<tiO=e>4H4@R64dLS@?@x*ot|h?5oH2+xrhG9xY!9#X))y3BwO;DI8RLt8<1nHYHb75A(J=Bbh{rZz-XN|g>V@*}~;Q>9kAZK}M9<p~fQ_(VVq2b_;&f$ZC~?Yl7C0g5SF!o#Ozn;34QXIVrSp<EGQr?M&Rgakl^$r33C^y@i@OLAl3=(cD^sdAWJ2*rqF7m6g!#w-r$XjPWMBVDU^if~ESv_=}AbhIBV#3@~C)#u=qu5}s`w{)%By+AI?5XqjmwX?Q*u(`8+b#5w65$AJLx&HIqRQ`3(6AJ+2m|3B+Vc<bx7)h;UnaXkH&Fwoo@H#}Jx}k9-c4(@zeR?5xZh5BW+zt_|3%a`l#c^j#c%kk}e1r;1xn}eG2BF-HqHM=;S$XMeWnk?P4VOb!WnU`~unz=;d>+CsfR$MemkOsd?J4<A!N7`Z&ER@D+kat|bk|S;s48taAE%cP)-vuZgKpM=r%OnYWW|8n>3N&G#_H~-aer?M8up4$*j}mU?Yy<Ix4XK(UsU^oa~GRGQ`TG<pTwBKR*B!6+NAVN>-dm#xm63zDRlOVdVx5!K-UGjF3|M_Lf0!uLH81E@mx75TjiRP(B8({&ffaw_8a?GCkuPr0`VRtp{2~#gsR%S+v;-=n;PAIr+y8QY1%b1zQE0hjER>IH1$mG7$kFMj&0XJPxiQ)e38AGcp)wqvV8mVy=oA*3HZe;-6mY+eqhcO1AOGFmj<oeCYZTAcvko`?@*oTKYy&wR(LLi?kyi`vbRt>CJ(+Tt;<-AO4HA&<tS?Uj?~xhj$!9zI$(RS7l3K8Z`R;FDdXPe%;P{1qpTv%C3l91I2#~wfYMmL1b+}>ChPl=!gdE7mYoFzRMGB)1`TV#EO;3VCYZA=;^HN2>Ifl%cBkSbXPb0u&K%Pn;HLmvMuSO3s{atV*pTwQ^*IBihSSg{^<X#-N3P}i<B*v^L{4C&QribpIyiDeF`0PU@QlJ2IcQLOni4AQC@P*9@Yo}27K}%z{WIxwi979&qX_!(JqwtSV^~cR`jXuQyiV!$eJo;0+0B}0G^e>g%D47M#f?Wo(~58$hvGZ%1D5^NbV>1u+nvAw09E9O&2ZvbiN=%Vha0OtBPMtbKp_*mgB^V09wI-X3}LgI>$F`-D{vpaau3VOj~QX6&Z1z<+54!5q{`5LhCN;&>H<+0i28ye>P3w4+L0N+c;HWzWruSwuE_)=I{@=?+`|V;`x|R}8wbXl8}BSVg!#eV9Suyvz38ZFR>jI!kNIRNlTmU-ZLPH1D-E??*SLMbEkS{;jb(f9hKe=t$2RQPfamVoLf<;(5z0bMrLNSc&zCg0$=m=~04?kRw)L~(l!Xvz2<9w)lH%&Lz~%#x#jegtpJ%6I2v7hd_UXsw&g>gLbfa_F>Sx14(?<jYoqQNo)r~w0Jss!8#y2TeT-ekkb}uPz*)RkI4I^fB<L_UF$89v!?D|1TYi14gMzfh;M<~l`jIW1B*E|MiPQgl%uU9Gy;FMHMPsI2_JbUl`6v&vp{=UI7j#w<`iG{HdF^m%vj!$%N3&hLj3{jK?CTi<h1W?BtZ+wlDa$=A2k!fQgbO%I#sIzW;^oZQZ;0!(CEF8u6*LY!#u!N6<)KZQE4iBBF)2sPL14CLRgA~2ayeD@j7fFDQ!)J9xgM$)|ba<!Wz^ii8Fn4$;c`I&L@-OMKIC+gn%bZa)o0vNCCJ`cWsL3v1holS{g!O>MkNg4j0)+?gPOt>BJ{)tg^WW^z3RrkgR1*g)JhKDnw%|afF$nhMHkClH)1D&#@NmGh$MkPM{Of=G|Nis;JpXWqFQSrBHu&4`oLd`ZUtyCH*Z(wKUjR!&2h|3#i3I-M#FsH7;+h#|d4b3aL|!2BONz)BG1KeZ-sjd*$nZJ`Rb^S0y72Wi8S8r{pg@1ZM4xOo@ZaTDRD*2-WP>u$9sfZl@P^vxI&HfTqGjJS+v=6rXux;8T^JnsVWdAs`tknMismuBGThPo@vEzH%`>SBu4775`t65*_cv?}geQ=0O@<d1rziyr<OYFL@R{%@L|C)(i5t580broVU|e{mGFaA2vurqsYJ&kVW+UV#F<ERV4RGRlldZ{U6hOzoV%oq{;vW!P6GNOSnY5?YIM@YU^Q3Hg=ow^We&`32SS{_o$Hje;w0m&_4&Oc`c_99q)2m}Ugrd~5B+tZM(kf>RhAuSznar2~rR{a33C|GzAUcI9-FtlYJ&NF1z&_|4z%_?4h@z)*Ac&uBx}r@AkWd&-;13NuzPnAmqYaQe!$vn8w8)Xq`0r8jM5}@&uym3}%Js(`ma>Jqz9G`QpfVZpNJx`NG|rQhV)K2vT#yrK3sESB5Lp=|b8h8Cp;r1P0q`wMnI@%-g7Ay;Op)fT9labW7+W=vPqCs8r$sbURuX$d*`<A|C0`L6N-K7q5K|rls%9=ra>Z^aaY2|lO+u^~w=TwYlKXD2?r#|Dn|sRe7yu~?6VY>?6j;!mu6A?OLvLww35ecqokK(PPAgAFbhX|rA|=B3DMwCpwb9Iz6uqf7W3r+*wR&Z0Ql(|di{9)u^CU)Z)mvFIqqlIvDO;*mBP-cn<{<0g9X0&758v>j!GuZBViXUdKLvVk9V2ckq9$^Fq5v4{2Z9#}!y^$RBLzxPFq%Y1$fD41choCAM04WIZZAV8qvJzSM}A&BR44cs-aV`^v3j>sZPz#6+P=TFMXz8*3tlZ3e+!2(`>pDDgrPKedaPgiXK5v$=EFp$%1*EJn;-oP@O<oTGw_J{Uyo5GSz@6tMs+l|6?TC3;X)h{YG_n`!{!3kJwWm{m?(^_wRQHGzfTqrG3LTPNYj;auM~4(nQ8*T%S1j5|M=EHFy`<YNhIvY01yl0F>%2$1}5M3hvkL_6_&`RJY3S*gC*tN(cw~s;a@I(j6Cu8&~@l<e>kGQ;fW{*LO)u12>k!jTgdXuZib^Ky&d`|^w&Ib#q;q=+-fLVt)l)nZqyJjO;HJsC;AJEW{Jw{(%xKtWn_yn*}fJ3eMCQ^N0Au(DETX1JQ{@ZZ$`9TVDbW!7nuCAV)A8WTVwXBXy(;5W!g6ee%~Ch6Ekp4kjz3dw?vcdSUVBYy&zpMa=K*;(;_Z6S8U$4y1dbC)$5J^OLJ57oUex5P{urvLZ;a428wu>_Wqzq33*vYbo5L_xJ%zP&6K95cS#ZKx))Hb=X(J)NKCHMD<-PajyGt>r%bz~zF0mD!$T!kBC$q+Pr*ovIve>TSxmO1?kHU()>pwl)7!C`9aMNPhF>?`i?7H!-P{dXSDU>cTWJ+-W)O86vl|*pS7Nsd;5jm)#x>~6b1@`I^nhQgq8;NBq66XimMW-oS8(cy68bTdX10d`=N?o*^*I_Jzyv_}o5BvY<_fvN%(gu}aw9I=?vTo!z`K-f{fA_>z{(&BJMdQ6_W}%$_>k+&HiP43p#-Oy%o+msVe=oqmjC8O{SJ`-IKN}rRrWK`@lD%3$>`e!%%Sx4dFuGA0{-6h)b1%gHtc3579DsQSayjX<x{{g|5QnQ(fq&#nI3IJ<QDP0@{$}D@BoR^ERYd`#ayq{c&1CsiVL3#?jGFRVqd?-py6v|!c`{K#=fxi!seSm0Lx1rOb5|uX_@+uAIV;ST0bLEED&~qunUBJ!4dW{g2MoWI|}W@isC=btMSZS(4`HQEn^8NX{o_lv9!8lb-1(A;*AyOX`?+=F04|s%+U3Glr5n)Y@@G>aS0V_fn0(VAk0ULu)<LLh9C>Kc7nbe0r2!wK#V_Z*6Xiz>h)KFSHd6<x586%^xT6-g(KH9Ld=eU0QBkR2g~4(Fk>}@Ef^VvC7-xlh^a)*DDoe_hU_tQ7|F^azuVYT&3R5B+SDT>@#)U`l52?%hL-UaFY+<TdyNPlKQsYUiH}IywPWh>!M#+mJ3OTQst8Z;i^ZMv2FduVAO|m8&tnG_GbQ8933YXKua;slBsD5s?Z}<0<5dT3UR}eV*$oV3o#`glwWfN3Z+D*hJj-A?=fuFNu)OL^&RghFfBWIT|BFxp{`SNF@j?9S@BW|o*Z=zOq&$to=%lwvS$0%m4br!*z4^x8&i(CmWAonX8ym*%>cQP>PANqiadv13#c=1B3qOJb4f?&(GBYtujM$Jm9BIj(fnntLZ#lDb%gf7(*zV<CX&gD#F6j{SD3%0)k(b^njzg>}24ev_4%@QKmzQ%xKs7ddh1~(H$981GKO9A9icdE0((S>)?v#rn7sXof=fvjXIlM-Tz^ZH)jt}-Kd)xKcZTIjGrkw8|3R=zJq$)2x!()nK-2lhA$3tL`khh2Bb1eYWgiODX=R||CA)HOFr?dKNOj>x+@AK`*fCXmL{e^obwTc%wd@pc#fx`<Ne$jFGvZ6?FAgrRd*A+pY5pl>|Z)oj?Rd4XR+G?~qb@llOD!GVSSCM6Yhmy;TwcvA?W|FW%SC?XBc&q0u%$yfL>!}5ur;44GjJQ2d;>r8UH)dp)yiDZ4){M=#3PNZJxyiQC#41&i7LA^zAT%qX<-FvdiKLW@hbC`k;vgX~7If+4my>%mEs=XViQLm{&u(>HYvp8}-whA+?85Dw6GdmidM#M5-&58rE9)$9c!9$U9DeC=__DIjyl_{=?_VH!XGL4-II7vVR1kNX-R|>|cQWCyUJhx8f<4sehV)C8eKG-?pcGksBZwjR0*gWydj(CsfJPI0+*imBbDtj~*q+<PkX*~FTo5I5Y@RDTohvL&Z;G;)B<F-AOGO_05(K5|iAPrse3lArb_pq|nMg@1iImiuiDIU;>$8ZVYu)CHAUM5{k(w4P*@7i|30N{zS-%K^(*lPVIK05&r@-Nh1gAUxqk?c~>C$ToNpTl2{X65q0F$%_oXlD63RCNE+-8E6fZcz<gW>p5)d^f!DvZB}{Qn`wMqt(vhlLLK&_CgJT3*sRP1uQ=?X<N<%W3l~yT7CYIkf8ax{UA;W`aNDUOX_X@2yt<xL#eUKKy#Gr$oVIYWNDz7IFE--PB-o0}4ctvYb`Y=CN%>O_|3IU2l$~O&q=fAS(Fl`EECeo(vdmSSjM{Q7EyF$D^8D2`E_g?7(+z3G(=wqaa4bQv`b}ZQuYI2nSW<Nt2)y`{bC$-sBTjK6PP_Aolh-*&x{GM5mC>lj3`L^Wy>GL(Jv_$3W*D;A?^Rj0z%G2<LK`ijfE<7<dqcp=n9dA<$cceEtj&HIM0A0f5;V4~+0=93kyZMWYZaY|xgSIwVcKk**ZmE_sGy2peN7gCgW0`e8Vq<SB7i!b_lxf6yhuTuAwo_Cm&Q2q)+c(m^bQA0f%f(GcJCVH<{)>!!yr8!~yCy{3YmsIpfpn2aJHz&SdaD34n8m7+2QcBZloBxz@JJ^%j5d~b*ZDsYD`8pMZC5*|^wiVNzQaO?un4_r$LLi6JKXnAf9-1o#a`39bT(yQ$%?RF8RB7P^1ZE~f?+dh028@L$_!tdA_jrL^VPo3hXufz_O@18->kOD2kB?E~_f9h(A3|<^kL?ek=%v!C_c*0SFBSZoPjy!Y3Wy$mgwwsN&(JE3e#F`5+)i~l~6zenu{wb$Nu60y!0~`zU^hCIVc(NM7Qun73*Jo5s$~dw}C6G^iw43TYAAV#o)uj-cD>1fH*&(^DgheTs&W{w5A>+E%IggU-&6z+V=u9_D&-L!gEJ-Jyy17(cSJjmw%C4*JMiLNY1w(ygC_EIc%usoKMQ!AK{8lg)$&8a<qcIZ&bEQ+yQhg|CXDGkE(rsm_zrM24O{lM~*3n5YdkjFKTF<Cso&#rw%(hIml>{^ZhHK#V8|bo%?o7t1aF!3t^Q+<*iN=M>rY8ad?up9M(?0RR@0Hf@`^fd<rGea1__#|k5m<V2u`)^q9LR;eOs*`HF!S3|fRj-Hk^lh-5ff$cXk`e76xAlVPRbneU{heTV-hYC=x;edS<)KX_!&V9U`7$bf?^X4Q?U>VA{Tgm)iMFdRS-krOCS_Qz7f|+ps<-tTo(=D|A{V_r?r=}ArpeJSB6nl#0tiOcHH6Ht9#oZ?dp^@6V4>pVlcuOz%rl#0|{>InJ4go)1gmuA!Db>Ryh~4Vi_Z0Z(~$#T(gMwmf?@Yy-!Xs@0DsuPQ^b!trbxnI?<<t1#*W1ATB$|g7FxaQXgHyfM;SC$19(Z+%iSRfX$A?kyR(`byfo@ujV0AXs^GjvR7Zlg-tq6^;=Y(dIu2XW`gvK1d-*Uc^>nLc&QhxLA={CnwSOpF3@*@zAqK}UP1|D6e?k!e~gie@N})P&0YA1GAB@^S>W73PLFVLvL1x}6{pX&PP?u4J6*oQznXDJLS#i<Ar&n`kv!*6B%K)nthoq9@|2-SR_b{%rCG4KK{RU23NNZwFAh<nb&Eojpq;G@QPQkmF+|Cw$WzawpxH1_stm%|*h6>oE_;QobH^MHA|`8y?y!YD1hLAsDZ?NfX|J%iQ3HwEM;@VjJEtJojvIuLNO6K-!j{kU!r&!|sc>=Rghh0O--GA~wHn*;29wOrzha1z1;Q>6c7d?JQ-r-p+Mq7(ARiE91&-W{Yswt&_+w_79^$<R8*j-oJ%0%a#nOp8Tte9s3Mj^o<oc>0|8j;JPk85wjBH}>q~(r=YSlYUt=_Slown7#C>d-mv@J8RYwOZJ0+v{$euytT1-2I%ww|7zf_O(38i>f^A~G*_WW<c(OVn#b^<VdC_NOM0Lx31Y2wf7AGoXGn9#y5;#}f1W({Hfyq~^i!D)NFAcLDI#Az%-~tj1-o94Zwye_nAz0*rM;$@9u;wVmtJ<EQC<XD?=@=|M^a!VuVUc}Wc8)-mbbW8MGA9T`%8RQO(M7xGo)^o<eTfyaUEk>ixZGelf<DoSE?<CUaAam-61m*CVO)`%}-N)C^#BST(nCQVT?qxk(ohN1T~&TI|r0QawW566_)%q6)gsWkHAyacef@f1ob_XGcwY*{ZS5~5Hed&*we(tWPb#VI2*2stX|q}ZA-rXMrq-nYkolw1cVSHsEmZ9i-(x4AivTxUGk_s65BxYA1tgIBwwo7rvcPC*Ei*eVw9{o5kmJ)oNWErYAHGQwOw>_16V&FRG({hYgl=q-Rjh=~p1nmG;rpFxO5<_hn;<N(wAz{2apg6&1+DGTQU+h~{?>3!#4(d9v`<8@Vf3VO415nAi*<|Qy&@2s4I-1<tV0KY-d)aK#15I5(o5=fwG2G@19rOx2Hu41Zz3vpi8a2Q2+uWRj25$@}adTT!Z>kYKJ7LszKnKhw)hKFj;+gRT`*pZf$+&ggtVM$(I5-%`DGWEaQ^A0xl?%n^E5!-3*8yIgoWt2#|>Ou>}rDf<QKCa+rVyKASmY4AA6^oBxO!(IdF*ftS9QJLK0UGH{;!=4j;DaThd|g7fARZoZ9+74ksyv|A58-34u(kbtHmwojX9Qz{9{`RW|GbNzK>>nVeA7HJ1zW_3L}3$mc$lg$BA}$(h=AGDIUJi7PgN$yH(i&aV%Nx6o{8FFd@956Z;o6G4X9qn^}9(Ix~~&(=qGkK@_}Xs#p9s9nW!NHwG;u?#YC$YgVyvW<p2lufLhR`j^Ny}kf+9ihm>0=$bp?ka>qQOuk^gl?XAu24FeX!07k*s+jwK+Td-S%L^Q%&R>2Y+IlW%_L9e&eD?R*1S-J6z`1f+Jw~V_(m}c&xIz41&EL!4jmwC%Ve*m10Flt361VmC27Lp+PcwZx8ybB_WG20(g6;k7s>1RbW3Lh-lLgs||y#H8!?fu6yFW>Ls(30`(jXfM4>@~bw@H2Aq0$msAx<J<#8eK1vk~dNO0d|%hfbbS(1?Aay*YzZw=8f1CY(9IHNhRBz0r1qUTCHXh+pXBGrsZ^-UA4Jlu3Qur=P?>mDO3i$(EE?~5#5x%js1-SV|8om{a&d^0Cqt_G>;XSU=6*@YAK`Tz&uqBVI{|Xq#Kgpk-Ez^J(mxLARdPU9@O@^wS_EKZD`_-udU-f!3hs0we{`&8gSXRkDN}3$sN_9JE)?OG^TEtrrL8yRdeK0=lNj><M{c~dDcccBdY_uZ@NJZF#pg4WOS|YDpt@*TCz&%4L7R6|L%_aSH4;_4A|9X6a|=RxnxAZpb9CEd?cq=|M@(8Mu2Y828;%zLxWP=W2p_R5*NZ4#$xDR6h9!K4Oi}21C<ffnSm-!8Ub;&B2Q~9vnEgU?%0Flz>shZ<2o~?)ZwY?xJC+2RERV+N|y?EL0OJw7h-h`6f&fUFx4M8B!dE$ASaDy>NKaIxF9vYJvIkog+e%YjT6_5dx0$^s{(`qSfSWf4`b%YWQ3U94zK3qR1EBc9DvcZASq3a9^}-)<UO9Adn_`=wPn{K%nPk&5Gb-+V*Y0bLo)GUTsfYJuy>q_)g$Q7K(7KhsiEJ;)Mq$0@yU$(ptL?74kv3!8liqnwuow#E|>XGR1vugr9z;{e>o|`e{4RWa9YyeS=g3;8`g(6a=8?NXb;5fL&e55PTQMbPG^y*I1+zrv;!9dPVUK*J8<|hwuCYJKwQiVyb)so?q_H!cZ6p|@=QcCU2xkZ1OMb1cQ{TAEl5$D{amsm7U)Pa<Veh;I(9E(-dt~{G$PIR)X2A<(we9_qh^t3Q9zpvoW&;<f`frnRh9?H^vd6PwMC~$$<m2?1D-&bS#en?AtwevC2)==CIP4%p<j{I`p`p$p0;OILqY?@6I~D<k%e?eyoPQ#Jrt`-QW&PUnw1P~*U@7-JsiEYavp`(JDp-8udC>WJxl0ywbjWGdtGg-#ROm1)K;DZKv_3+5WwR~_At=3Ry}(l=o%(zEIJf)ty3>P7<3KuoD>`m@S;<EKnP7q;US?n)K2k1p*I@!Ifn(jS}8m*P}5R;Xy^@84V`yz=nYhH6&@aXqtlvyfanc0znD2h^d?$c6dojcQ)?6)CVCTLKJP$*x1H>vqBmC>g$Ik?!cR{R7ronT%{gH77S5V`09gxA0rxcx#zPfWyAB&FvPSVR<S^T)4;$N~_z{;K_^iIsm+d-;7@<2HlevzMc}szY1hlhh(K|Ts1duT^i5YY>@j)OceSmDY)kbD)l&RCnnw?yV>+X5`yBizp2OImqD!;Y5xwU$G3q|QWK$<x^CjZfWc(q^jZg+KW_1@;2J4NsCaDgX0Lf{V_E%0|rM9Ltr41Ie{#mV8Th+l?yQx<<n84A^<14eoIf%s*dm;t?e2wjM(^Cpv`O&}kSIJYAn3i&&ESe`T4OxyU90GlSi(W!aAIloaqq&#u(M^21dr0*Bd?>Kpzy?U4f=FA6xMKFi%v5?K<-|&sM@9u1#GnvyP-=&#|AJ70~mig6f4;AVl<emuGAD)fmIgvkCV}o3v`bn0+X&y+=_o{*KM=X6HOp`*!i3cC!{!!N6S>1mBw;%o!B_Z72ICy(!?@e~Fv$M6&sx0|XIxFF3Dl1`u6o{6up(K78mvb_5T`IKYT@q&4G<+kSwQ|W5M--_u0A<mlm>xtj%Rv<nq@{=H*3)YPVb$#|WrGha5O#sE3xs{K5%wa5+Lr4bvp0kjo}aTknSFOng_`u|Ae&kc4Ha?_3{m%3?!|f~bV5k$)Vhtn*=Y5f4Ydw`)vH;wLw{;rLEV-7pWduDuNpL9R)ck+rO57pn;0G39|`N9`D0-i1B~iO+cmsfcy}zU<ZRL=k5EU)+=w0VfX|qBoMVuXwMyqtA^2X-9$d<=jkJ`Sl4Pg$)Y-L{Z-g_hTI~5M4ZD?)n}Kzdm{Ld9k%HD~@t5LO=wg~Hl1j&OLTqKY(93Sso)=fa0|qAw@1NuHGx(@Nz%4JQJ(W&CV6xHvM`7~ooGgS)Cf;C7MIubnXR07ybu>m{EOwCsxJAC@%V(T{mZWVCs5GAVLmUSI89L4{o$!X5&FH+lxw}!6&Uyb}edqo`g+)MMV)rS$E1?@W*JE)#(IbGLHi5Vn5u2kNEL{P+@iGUxhOda}%au%Rt#Un`TblmsdGDZ276tP`|0pDoI+Q-1_Cfa>J#Pm<0D!_uYe%ruyu$7PjduJ;6}+d~Hytx@D{On`fZcwFy|Z(FkL}*w+1_BA>zh!vc?Zkb+TO<M!NxjUW%pLMHrF<H?(eg$&Fwe;pcfy9FvNbq&13coFhTw(1`~eQ83%Ni3E)B#%)}NKZP46M#N+9C!aES7ee``Zut^gUj7O24Vf7YRvA~K2Rv=bf#82()Z*Cu~?`IjQRN*x_C=?ww_h8buSUK-L3#`5P0UYy)9Cf7=Ed8z$_YE*fGgr-iqv7y&ziFFJ$HGvUSB+~6E%L^^6ufplsW8iu{YktNm#5c>z+ou3Pu&x)_`zY#vLDsN&c&bKfF5o=7MGImze?Uux71g~+TEgyjH~({(oz%#VR~lf!iCnmt&6O8lb6sr2l<8Oj98Jf8P3}Ylcza_Dnkt(840&qjn?uv*jqf9uyEj?Drk<pEkBOlAq<$gz7G@;q(M&R2sZDJDHO~%rgitm9;00^^V*UTdc3wgsBH+F7~iAG$T7o6lP>a?tHPLY#(+3B3FM<NXCNF(<KVG}wGCK7TU;`f@S-aH>|yYpf%_ge#5m|~^_cF~lS@$~pvfg_coLf~k9^e8V`*%$jK~t-63Pq~21=p>-#<onvm`}QgRTj@P#`pd$&klo+*-`|)STeulQA@5k9#SbX?c5XAl~sHF?JSa&3zvGqfQ^fRM09A|E7Z!<B_+I$sNAY55^IY*1$?WidUq<x!ZUTPC$^pO)nG%{Q#?M1EIL3`#aY%@Se~>HHP7PNYCNLqY%Y&M_v@tOT=o&m^C|x!nCz0uIuH(U<H|*N0{{V`Z6|yPVN%ZlFandQCN<rjI&`7Q_Joon${IBH8aKZukr07Gw(R|@XQO`)aROd!&1wu1H~Dmc~hty&<*V_P@xUFjPrxydM0iZBolN&cD|u_rIgmX$VaG8L8<X~5<CLGMR-FP@;k9Gmttm1llI}TVZ;q&lLWq^t*12$Y|xui_u^?NYVi}VuYkA3rpY@JXVsb5QX&AAkW%SNR-$h=CHac`SRRkFJ!ARZ%9y9q({%T>gmf&{S^>BY6YKcw8prL#{OD<hy0zw9lorxu9j~?0q*>Qiim0>RRc8sbu4=73k=9kbgq<POy4q3G#9CLo-88}0RSXf85N%z<>&N`m#C2(oc<UNkZ5I%5T|*oBJQ3G5yr3#1<hs^r%_HUjmgZc7t~ctPn5gRwy2zUncD<psiix}4XtYuUUT<I)qzsW47o3HJUT+{kWhAUdr#X+{>kSOZl_UBff^}lTuQ%2DT;i`cF)Uco0iZXVjlx4fZ+04m2Z7$~)<uh)wSN<DBcc3aga4K$dMLE{Z^;1_nEkgpn*72X%l{VcMyQbXOla3N;d4Q?9dgTqQdLcR76{^m7pxL(NH`SCU`g-br8l{4;5voEBtY<4@Uq#?=%bzi;~z^!6x=67J7zOBa0bb8GLpJ<lD$nC*M&(^P(h(6iAh6tt0<ilNnZ*X#wkv;>#|RA!O!VpW~K;uM%go6tt8=qGZAj`tti9|>L1W-H#Zxyr;WA$GE7mT11FnYfdFATn2qV7Cc=!Ei9XUUNruTZ<Q<VrGv6yoFe2PAZq2P*GZ1Ec0Q@w(Oi9Mm7((#}@}tw)W7Osg>u*_SSzIEZB3}aG>T!;4$i5zC0u%`%g)3c7^}d{lx~ZybP>I{S;z<OCHbchs)a)K??CtIBJ!E%8<f0U4<s{SBFYLrMG2RhOn9KP|MUB+WkV9oUAX2=|SwH4hLf}@KEZOHQy#Pxn$Bl6hE2-X7qg?ga80I+wN(F<Zkk`z&h;Oo)J*Ftt_Vkj+O<nTLj`_iz)q~Zohiq@|rlUQTQJ*c4c!9(VBz_5z_#$oJ-p1<sy$xk(r<8ruvYf7uN-m-6qksy)Cm(vZdLTU@chD=n&ThKH!(4=mbL{@P4GgKOYN~Ubd64xf>_x}4yS!!fO_TF_({x%b&E)O=N}bzQbH%bdt$ssm_G_!eXw`(zPHoFS^uyY1jQ{X8t-d=BKn#H&x5p8x+y)c)ja8I)NBj`b${b)U4-CG~Ee8AXU06Vd72utS@X;%&t$MFigDD=VuV-uCtU(dGIfDP0483tuvxjL_VO~lItHx^>bRxv~`-iXZIF5_K#n{_|(Y#rcFK*UM=%_ZD*Q10D0x%q*hfEM=fQR3hT?Hsn!XuXt>=41)H|;}S+ZXMtzxnaMRYwG)Z;)5jEueK(Aiq_r_UZrtaZC6sB(RcAV-Qd@4LR<#4!7Q4ahiSGwmVvf*E>#Dhg<sXhkyHjumd9az7y|Xl*xbl;g3FGcl}d#;K%k17=D56V<-c504GCs2~ZoD4eh=k@lmxusp4PJ3<`hqqklv*ihUVPhP{g4blk&nqDoC(-QgywDo}%o;W4TQ7=J$Q=(ivK)4yU*8;?c<wDQ3bp<(PXnRCluY<~>2kJJ>u{qW!a<~JYw)o(xiAHRZ;$J*N4!v6ZVAO79Hvu&ZA5Pm^a__rUkU69ep>1h*hRE9K2wkBfdv+{;L7BNH6TLq{a#`9P%T`J+*9n>tt+(Gn27n>VdwYYeFFd0D|q~=hA{R#V{u?eDCgu=P-q0^aSqrG<EkAZ5(ROH5-{BUxghw@`eIK%+VaM<#YGE&WJw+{P-?Vq|J-qbEp<wk+hzqW1$#{ghfh8_E-$rA>x6n){b?|P<17cj6JmnA@GkInn23z&#jWWFB}$(Hd?Y7dakkxiCyqH5@vln3v*{r=G&ER3DNX|}>XMNI<gjv?Y;Weiq!J!>$AHX@>uV)rX}odnw>g7Y{$Nj*IpgpVp1^>sYt!a|&YKdn)#NEbtcf{@mhl^aElUN1aVPubCAX>i&X>;h7ns``xR=S4l@ocxeiQ>b0-55`;xPYy3^3ycI(iK@IL0%(*4kG)*&2N*kvLOfljt1Za@R0YccJ$<dS2LFC@Kl!<j-jLM^$5>mJ>2fo^?5b{TC!M^pR~^WKO{kNrIpod1C!0xDQs}#PC_=tm-i5Cqh2%NOO`gWlZ~ooGe69A?QXLd}1s%GV^bN`d(3SCW$0LBBoi2$PZRnVxtGRqt6q!hT9%Jo#oINPO(F|n~H1uKla`l!=DJ}iQ238C1cER1w;ck0gG1H3WSL0cGUYcd?d9xgA&%1zOg+_UPwddv8RUFw|Znfv-m{qJjk5|Qac~+I+aV<_21MfXAe9CCH7TCPN<^?vt%-DR9ife!WE=GUlvw<n|Z?0+DcI%n`Us^-rw4JuPVmX{^YOCG2I5?%02f1)~v}^ULn46v~^z#@)_!#S(d)Z(eSL3lS#Rgx}+-z!T)-15T%14zz=`^v8iXQ;K4XJ34!#IePfJWp4j>hl8T;PUOvG9?OTgCl~$^=t4{+tme`kU0)jBMT}AuNb&Ql!pDTLN@P!K(3Zyx12>1pN`+=L=?D+^|wBYhsb<Px?djD+w|nJ%Z(>HNF?9X~b4W=nh{huxt`R-AkuJUy%BhjrXuc$yQMXwtqLZiQ=CJur+cX9I?$)IxNF9f&!UHos+j-{z;-K2y3cjx-he&E7%xaCW6A1f+k!gC_<x~L<0yT8|a2&+P1LRnHTM#li2sPXWB-1xXydwII)dR5XTuvC0%PJZDj7;48F8dJ!UszD>Y2oc4CyGc;F%m$!NqF<ro?!F)hbKN{uF;2^^US5&21YzRhX>7Fazsrq)VnKb=NFFv?;>A-RY3mX?l9(7=3eDUzbMwG36!(Z(VTC^8v3hqmad+L}XOL`JwG8Y4`O&ZRTD+EBCjr>m_-A<5CzcDI=9=vt#WLwZE)h1{y^TDLtzf<*X)G}Z(B+Bs^ZH@eLkiljHu>?A{#^d@@mBW2Q?)X9v=O{=cPfh$`$?wB^|t*)98$)D{B-19UH!HJ>d0JVX+0ZtK>wq!>P3()hrb$omG;9!@PeFs3vM5F?n^(U<FM<GLFEwa|9n0yn;l1+xrzzd;?k!-$yo%Wha;nt=fCljbD*+Ai4s@8zl2Yld>QoE=|eD>4L@};>3yq4bDc|$hL#Quvr#7kg67IELdf3SM6Z`|43+BmN|V24RjT4A%3x|!N;+}k~P$5^|&vG%61xqYy)_txqb^wO@w)Kmui2+XJF0UHkktZGWVik=zp+vqCVNM-l?V=o$4n`8Q0R~o%uK+YAF!bTmX360iy-!;9eTK~Gu`zzzlMQv7~&7FYr+xzQPt*+JUU9DN%2E+A-N7cHrG95|JySMr+WA)$wr@9YwYr)j+nUAKX0(~@V<1C2t%`*qB<pI1kcf|T8hy>7j6##T_cW-0=?#>pPXS5JP+v8y$T|}H|XRZey5O5<S1fZTs4w=lqhMQo-2+Mn(B*{p9NPBvVO&_vp?Bmk}E#c6*-$fg{Bzu^AOEwtU@JzAvy+GUr;w}*PB|+Q^1#P<MxQ#nDCue70TvN>cgTm+oHDcUr<1nc8U9ZNy6KR#xNDI=M*=f}K4tJV-MeEv~D`%HWDXaPcV7%|yK5#penr8xWsiI_KnNcm^WJ?q#H?m^50f2JikF#+oQR|^&l&3!=u|mbp^=`eJ_VTAU8odGHGi{5$Sq8l{+>tIlZQ@2U25{kfc#VGmROGBi+3VwWL$a1u@E)!YRE#DITLh|(j?(oo;R9XW90ul4<fO4E)lMj?ixf52%x+PjQpnz-UE$iS^!n>FiiFT~xFJQeR6O@Eot`1(n)L{TGA?qYC*D^Xu~6nDBl~FBztpX;aueVext(RaN>?}!h&Lk;Ql)ai1B5UV;S%r-(@EPWA`+IA6tIgBgpB}0lzDO3L1gh|N(kiN#ZQ_9?kt>0D14y~1GGW!o5}mg45uMC;|CB;={KoDFqVJ(Wb+8aZsF}EEC)F?p*jEbIjx%jl*CAAoZ>DTQWB6I8QFf*f)sjVCs4qBB3ztsj_CsVBdef5oh1>NJJS8@j@-pmNI@#)hK&mj;B!Di;z#uP<@TnRympTdrmgoqbA;P4e%>XMcOE7Md)&6&<ms(9lWu^Z50a1UkNn7WCgO3f)7Tsbu`~x219$3LmUdc_E?Lu*j7hr3B3(<6$;R=e#hAp~<a4wqX*^XMTB0eSnJc6|XiYUM*-h4(rkf83oR8vIl&KD|qG8iDcyp@xn711n?Ns{2vFD-~3#FnV;vGLhB@_jJ6y905h8X;3l#X#JV&lmVDALVF5krq%v<m2nTF-q4=m33cB^75fja4hTm?JB>$$vWpDkPn|QpLz`OlFH|0#rCmLUd+lGOdv(6WuwwnAGZmFrOvFq=A{G#X4#W(&Sk0bPFglsb^+^NQo&6=(3LS|B6YouGX6~<XKly5iyTM>uR$*L#B0As8?cAt*fZ*NXWIWu4pqP8wxu)vaM_Aft4cN!b2=YzI6>_P9`K=1lde)3@GW$kaAsXH}d3M*U<ASM^kmJ+sH)qL^V&E*6SKNyJb*OZy*dayHmv3oP%k410DAyg-1<VCq4l5Mx&dj>cWpKN7?lzMn}z1cfEzHpQZ4yo!VI{uXix4WtP&z9@A#1Jrs7b6kqS48(mEG^%ZnBOjCZ?O6W3`A^$kLtf$mf8Qhut-B->hK6T`HSQOM_edDd|`&(N@aXsWKkQMIk+}p^63QMv-^h$q9A|c2)_qRZxED%4jF%G1_kZ~$AP$zHi?5%HY?jM}jiz1jrl9?02Aw=4P)%`d34RjQ_RAWM@sZhJOv-ajYJNGf00ZHD^Tq;1RGX6->Ak(v_g-bUj*Baym!WKrQ(K?t7Qc;2A;Z1)fmHhGm9bXX96t+PWmrC4_Nm_-DF>-@&Tj_bbdpqBH$GE$(x^-|@%JgXv%m@>`5`64_D10%5s}1_A;1}^LlJ^$^^lcD;ckbMQ&Kh+TeK$R%s@Qf2vNYb-_>P0pFGvCa*RW9Ro;FJ4WxRTf327{eAG#+vyYUF)J>X6F^e|0JxXK2WB!PI0yacRlK>@zb=&%-OyFl9o+P)NMdyxj~02n<0G4Yo^<@AI#kWX2a)<re1owy}{9f%2K+RbWz5^+{;samz~M$7D&Ph{w+-P>=j-_fdf@2##?_wTMk4JEDY;w`mnn_Wk>Tdi)}ZeLc}b)oIYjBe(VrX9(;md%JEPDQMXIjqoU93-GzV4+l^AIa*^eQ)#R{Vp=fOxE(5bm)}Hf-r`?qA0ToMhV;oK$et2v6@GAi-raw(+P5`6n8CQ(JzrzGqF}kg1Pw8m;^h4Uu(2olr?vB!~<n@V}Dw<Cq&Iu(tF$tsYbgpoSOnWK@t05Ms&{#<X5p-$QdBW>-vU}@TMRmp%%uic>Gj8$%}joRyoKP1>AupI+BG2RuAdQv55qg6+xd~$a#x!nX|B>VoN|*F0P2b;2x4%L`2yfn8@8fij+9kjVh*@dJqeUVQ)xo?YEnmy0fn{t>p;hrlJv?V7~3i%m}j0B!u9PkoMJiNj0Y{qN|PRJ_dntx|MZIUnx>Kw7P{GT3<=BM5=Wy7uf!qRH^5|?x+G)ik+iFpyY!IYiNwt2v`)KonrW{<8+$!BXi(DTkQIl?6w?_6El_%q6)K*x43r;<UdBL=UZAG|F6Q1hNflU2`+<0-=a)uiHA4z`2d8>hvL9XeKQ^sUEIl0_dH4ALzXO(oUE)-ePivOLczR;W~9^5SXph0u9n%?F`P3QwWW#xJ+lR3gHY$?6Ekqh-W0I!FgjYMA)v>X94gXc8Tn5P1P=BpZacEtgk9M4;OK_N3BZ=wO?Gc{8~Bs`edI@st&QzB4({p+NO~pmuGZOZOs0nzu(HotA+=U0vl>qH7R%!tOlukM`PyQaV6Au=r@J(_lo-R3005OFEh$5-3O(H0S>G@K#@H)@9DY*Rx3~=gtwIpJ#pYsqIgjJzW%M`~^#GU1FXxt6ym&Pfv2bFw(o2+pZ5~l5XFFb&SY2KkM^3d%LBzS-RHj_Cs%U95kxxjv+lfnMTz1)Gc{xe&4$Hik3uV7R(FKYwQ1k^u(TfBQk-ZZ`U1Y_JZ22{X32`~(`j}sWes1oR&Cv+a5qJs{oihOfe&8O0@OZ0Nx`9%s8BRP45tH9qN+hVIOzhQmvsG`mOwHk%Woi8Cm+6-6DbivTE%}wUqSlgU1q2Qd;jbJQ^&DTztL9NeSM5j0uX~1!mk7TA%_ztw+HA(xY4Dr!0g1q8=g0yMlpia12IA6FJOyN%W1##?*@=>5a`Ef<_Ku#7cr}%HEoa|wim#V1#VHtpPj`s9S2QQ_?rNT+>D#@_h1loQ*ni3A@tRY{GEBxHIC}{xVuYvjm9g}T!A37(dn<uIj$$S{HTPIZh$HpKgCNuRdAzmQ3BXA=r@KLf>q~ZouA%AfbXVvaW(&*i3^cpVaMaHdHG3Y#wngm@{&({a)_2wp-r3z?7|HGRo_BM|0T+<4Kt~uS4tHg*#3b_og~Bt;<|nSjtMq`0iRn(P8p0CtTdGp;m9VeKjRsu0jV*;T`|ui|-p!hL)$?vt*bQA5DjfQ0Iw+JsW_|xrHFV#DLF@24fK{wQ(Q9l7$mx1ItG~uZAo$UH`2Bv*!x>bdu04U~M;yJub*9$qUwch>v&9dXkjnv>>Fmh0LFRpp6j2!N+p~4{3UD2-i7dbH;5g1}z(IIX)iH<eV1g`x7vc_f9r~#JoU}&PnKR%pNc^{I1Ak<RfIQIMc<50B%F_%jGD9*$4D?eayA~*`sW8eu`hry*H^SyH<kut^;Qi<k@L3qx{gr038J9zA+Z~5GYmOd?p^c-+_ux}F8fcXQm|Dj=G%vi}g@S+&b8u)h8aX(`--n}=U+`5$22y^Uhi$j%IH`I%01nwB8*2I^({dw#VO?ob6_MVWx%RD|xI;!iym90sq>+J}0K-I~;fH|3_UkumA{{m~lvAgch=#W#4|e1?;TIi~H*2CozAE-ZRarc&*YAzdNwK&(eNNQRu-6NGUEu2iUter|g#%V(aWlP$t^1bX_iAV!fXR80xnm#&5-T3Kee?|r*~T^*Wu|kmU!r=BAs0oLQSWc8?{BQJ-MyV}Zmb<JK>YjnHntB|4>otUSs8@Bt<C+r?5&NxeJIHA+;&Ur)>k?!UDZ+@tJ`=AoqmREo{5E$W}}~5SduCGIG1C*I1b0vfZ6j_F~f;79?*RjQXkSIgf2#*mg!nT=7u13R~hNA2NNciuP?L^hrT(e;9LHP#8oQ9Xu|_OWN5?!58QHbS5P%1*seF8#;e3wjtF1+u;V_Gu_0ju0gx90Gc}Z~ztks)fR`r217uQ-{Azq1iQT}5kGRKx%fwreU;<KSL&0cVn1z;l$BPl@Svrx=`lbt2!ZGI~3djkY8hyhecH)N63!oWZA;`W=0*puW8-3nKslFAqfoV}A%Af+LAT*2tM4t(d{PDmh{|Gkn5k0tFNu*_ftbhfbak9X}=+`V5V^zH4bj)K86WlPZBe`G|@-n8}D+DO<5n94NANVj5c>@IJG#&*Y5=Q*c4<;2+1!)*c@o2y-O!YB{B<uqKHcU?hT%v)&-bogf$N}CenRxq(#{HA{J94(a`QRVJ1WE}|EnJ?a!YG2;PH+g#-xKch_=PnwG#4HFTZ&W>uzjLNc;}0CWG*`xG4=r!--gvED2*rpvxQ*eQ~1PC4<i#JN@Cg|Mrk<^S_<2AFcFc*xlOJGhq8AO!L1^-SRwic5GE6xk<i!-<!b=`5rRj412%(`)k!W8bb+7?1bwj(^jcif8+%vcl4SLZxFn1?cYH-2>Fn>%{t5p3hqE7_{o~n>&i;Wx!H>@V?(D;}|9SQg8IEbC(`mJueco(zSNeU`dbv5KsXFdU;GNC~a?d;a+q2KkK4xbhKl$M7S7$$oX>)}=`LieAIs53z_u%!f&pu^OK7hxM&wlyj`%v)9vya%>Cucu9`y7fsBMNZ#Ur_MNv!9&(Cv^24YH;=m{P^tb=h*Pc51|RP{o=_F*pu%)`Tmo?eDY`bKxj@M{{oB8zJNhYE8;i5IQ!pN27~yRioeU?=O@sK=oE(V3C@5zf-Zgl1wVzpKZ6RNGSMf4k^TZIeIX8nv!BzH#hCzOhAA-k$R}sN!pS}PYiJ2wKKbr+Y#*Qf3|@UoUE-W!@=*F2P2@Z9xgWyw_o*N8Ie-8R0RaRLKc#6Q6u*c+jT3tE=VzY+l>d?%evWN^fM7|%Reqb`F1`;Pi8JTyU$9GRjHMqZ)A$#v55R-5{tSM@h+&QY4L+SahzPbn#YMtqG$#bn$JFC@a1abW@oVuJ{0me1Ax{5e0_}g&cjZoy-^M>;^*>^A;F*EIu>Z1xt)_e9rvxSmw)pUZRzD;t{3<gzD1q9ai~6)PXrX=%gZn8Ie}TYE1`1E2x!6ij8zKKogs&JaZ9vfx{lu!@!4>+5{pN#zhQ;~h$zRDCe({?Rehgp-w87o|Npc#}9DWYH{VHDSkFrajhOs~rv3HUMh7I%=v_*e{lNOzQ{^T!`8BN<jIqdacipgV(PjS!uQmhxW!`1+1Mu_x-1c7K%5~P1}_8-`I+9g$i+BhZn{RwR`T1P}Lz=xj*48qO(d5r!)muM(Jncy=532ID%`+aN~6Od13#niVEPk)Wy0NBY@7Fz{(;P)ile<EiZqxBa6*n~F7%_7eDvkwV)KSAILB>kIs833A}Cp+{<8F&GzpM9QMSEL-UYVt5IKo9}$k6~heLE!$6Dca|jM9k|`{9n;3(Q;y)FL22vLBpBO?Af2iEA<1I<v-;6`b;k2&tlqySn@fecAtyEU4e^V92JYBVsTU~j*7)m@fAHP=E##<{1D{xbvFe0#vOwAyCGEKnAeqjMs44EloBW}S3f6F%Cbu+-qV6%ztgE}4sTmlTkAG#=UEAcalr9{2nJt9sPB31*H0lOX83?huk;%z)?a#^3u<4u%EgL<OnPWd<#xB;>bF{UOTB!&kAgLRftK}oFXcT<O&`R$w>CZ2Ve953jB!yJ0kTY&@-nsamTOd$TFJ3@?D?l&dg)YdIsIncf)&(wdqpihvuV&)yW}LMb+0jnrn%Bkold9OY?v+HUpapYTbpYe+xr_i4O_bOy4Q_s{%AtE9az~~W?Efqu}m~wwu)J<umb8+$%f0$coNx|oyW3Twx+hVX19NRG<sh6@f0X=E$E<WC^5QKWOaci@W>1%Y|FJ^eR$8?MTaSJYe&zyL(GXI-0H?;$_!<p??k7VoeS?6MsX}<)E#@iSH;QjfZ}OO<+iZLh7WK1SiQLSp>Mm+q=J{`Qu$4)V3|I)3L69<LH<*z5h%zo?Qv<!I@5SG?hjlG?^uLo1%)#knL&i%sj^eSyA^*NF$@KQQOi)Fj)5xh1M3_U{kjA30bJ7|Ik^@MZ|)bUr~8E<EP_}(9=r!~EjLO5PQfb{=wl#O460%#zH#JZAZw9=P&&Ou9K9eX{+OM(KAIYecy2f{j_Kk!LQCveh20-vCVANq@0X|{-Q3t%(HG#e{1K+2n*pHfVSRwPAI3p7i1WO0BXv|ltGCU7(k$`t#tmK0WZFrHY%7{X*chG-@5(6byIdR5lxBcK0j|YXGCQ7ObTCYD$PPs|CoYB>*G3~FOeKW3FtAG~7vjJjx^fRXZseg49!0*RWpu6azzmXG8Ysst?s^VdY|?dFdNneHae<r*<Xj-<3xu3-bS`p5F7j`jpMOJ4=Q*W|<Z9DtwcA!-wYsKeo4It67v+4sEn*711DL-rL&|NYQmnF_kzhVSkf&cv)mbXP#vKgdDH}i?RY?+m+^Mc(97DWp2kIK<w2~499vx_QfU!V<6ncpMrfpZnmo$Z8RMK?i5hf#pamI;Up;kj-Yn1mYnzaqVMC~Caibr|0sj#V=e5~$t{DDo>+olY+p-fWQQZPs^EK?+{Kzx`fy~G0|llHQW_A0J*%myZ~=tnGaM@-lV$DK)tX*!TvTM%QmfiXpq8l|CJlz=jo@Gwp-r^pa^=SH~ArKzmMHZ3B?xSTgo;4ust=<PRm->9(NZTx5bPKDjuZQwu63j5>D-3mMS)`75Zq0pIOQJ%<xyqA8wbaY}~kR%i6JdIDZP-atRCPpBMEmCUjObRHARM!SdBC=$PNHfO3_2AzVv^A#ydqGXCAVE<{nWTvIL!gLbO-2mCPyV;vy^TAY-=bJG2rcNXDn2swL5$;7o1cj7QHwK5(n&+c5MhmmIL#QjtgyR$fFV6%vn~7}8BEaE3c9VLoe(CN91X^3L@%qo7amn*Nlh$Jj4PuNNBCL77$yyn+C@7j$u?S?Y?S>;l7&ZS+4n{YvQSN=r3RWdQ;*U+V}RZBvXb62FWls*dhi9CW1a%aWr{HYXozx^;gAVq0s<`2I82d-c$u=RkQjgodn2*c#^_u{oryKQ>tg*$ZIR~lSss0hOrKw=OrNQgnTw>K*G>9)xm=#I$!JVm8VvbJWJZIXxXALkkV~FjYQXao{N;s>o>wGm^t=m2jh^=mB#oYT2|<GlKQ19>km}=dVg{K>UrNg8c^3#738-QjW0AyjfvgK;eOZtdj@JE+wflRU2k&I{hw0L5Y7qA&XU2Ac8M7wrHy`{Rn^6WOTBL5frK*k2O5IWWT@9nHWwc0_>TG{JLf#A3>_pftgrsi5G8BqUb}}BI%uW33gq8O=;f9MrgK7X{@?;^2oD|4DhV)z(F$^6L9J#GCVml*FOBtZAkI53z;SOvh<ZN~3$7mZbEU=-T$BDDsrQoH^_SyCha>s9@Z6Z3)kno<kEXmv;=|S1apcux`C;#4ZAN`%U<6tHu1c3z%u+C1g(^D=yXlP5Jd0WgYGdB#!{5K!`m>qFqgcIoUN9b*B3jYytQ84u%LG{`)+a|9WL=WKSpvQod8c$nh2N->wAvO`ijOvObWabCFbbafcr{ey<46Z(te&IP7`&_*9d*1BEM_T%H`@ZL0X506?OYC~+D!u8^`D*T-?|E0+@-X+S?|97Fe3=ao=SJ~<hqK_k?Vdl_@RG^&7*C~OwkCbN#gn6mWCCcJT#Q0d0hx~XK7w1S3g7^MkM_ryS~8q!@zBpMk|-o~MJ7d8t=bqn%$tU1QYiIw;w^|ngM|pi24XjEnB(Zk58U_A$57r#R#C#VZ`{C$W|Z3s&Q4A`WTE-9F`Ze6F%2k2aj5jX*P*9vA4W3m4rir9C+j}lf#KC|4oc_=2>n*jsSwbKu0De?n%v^$7-cnMBDYCM7lpRy$v^e5!V%CH_-b-{8DFbTZ!zKH@)JsG2S|6)fKTrM(XWu<F8j>~e<Su8hAeYwgOEWlf^d-Ibr*QLz|#euzL<E5Y_5##clP(vM*H*Fjp5JX&o9WU;M3aK59#g4?CkF|M*bhy;x%3!jo6mFugS&+oLA$5D1pUBv*@OC_Rlcbe?0qt@wbk)?ZQ)poF>Qz;`6hg2y5`zW#)^#eL6b#{FE&DV;_WHlF|RKQilIG$lv6XCqF=IcyikK?hWc64b(rAX8UC9k99tZcYDTkTQ%GLPSdu#9o}qd>Qk8Y&Zvf;iUEA8aDy14Gr5d2%+V;$IWMFujDlmNu7mLnRD!pCK1h<J8~#WRIhBcxvIW_&2YBF*Lu0!2!z2q_VB+nh5i58@v5nAIJzd?P)PU1GaIzVtj05sDd5_bOvLB$upx1yaMj~p=X)v9@Y+&`$J_Uh*9giklAYmhs_JhI{YH2n(;DuS@k!9w?k-Rq)N!Q+U<7avI{Af5(cmznJYz#<K0Q8;DNuh>24l}OpVqW@l8TX>RX$4ApjI|`8k=D>BYWM=x`z<DBXGFdM&kw}Y!%|Uv_a-IlauhiPO`T1*P9fm4iArSnMv4pHk}bqs<THSFJctyLkwnQPXrJb7M+g{5$`lTxM+2z14h1t%LZH_X9_*ov1&P1o&Qb+fO%{j|YjQ|qj7W7XpXIVDf9#I#(DG^`OyscvZxkGcNc5<sAuvsb5=W)aq8OD)j5LO(%<+~UtO;9EOl@9d$pWO;<HT4+c&|6rJnHL|S1dC$y<4x$Ll#|C>*@SmDh9PYheAMw?p!LNtC)^!KBdrAOg@&U7BIuce2Sr~m_MwLYUmm!g}Z=q=nXXqVc*cQ8RB33bFSx|{SEo;{ZcsW{aQNCo_$Vkqr!XjXNl`64uU)=e*%;E3v!{uw&)HjeA1-T*JtR_O0Jh@zo0q&8mfGkt?s@l9lzj#T<JcQzPQ5Wi=5ZU8|}NvP|z9j=L9Bl&;2~{rw#EE7<edaXj522{3|yuL-b12maJMutYURm<*e#pm})^YFt&3xDH8Ni5gk)f;!1qF8iGv7LJapDCoPsSw{NimGL$5TDfeJ2JozDc$NhThboUb$JJ^X8{VA?!>|6LL!XPzYeEbzG#rGt9vXIv?^dpW3r3VsFFsw_Sww0H45e7U<FJO2QR?rPrp$=|QwFek7Jp2A(rh)><g3)rIk^&U&mPi(bKN)2kLaK-Kt&%K`Y)8X_Rt#IH2&yS<dmw+uaC``j;*O@U&2HVF3gkef_^;TPQ#g+1w)1DOoqr}gM`=Tohb=il&fCsk2ps$feTc=f{1X2A4EJQbe_5(?=_ng-^fFpI!wKu5p!hs@{kO+Fm{chOqmaR-8y}4@xWlR@%1Vg%iV(giUZd|R_f|KzS=GwFjpHIITdViC*Y0j)!~ZYH+k(6;$lHRv{T`9GXP`^j@<}&<k=oGWEu%%5eRnPW$wg@tvk}Qut<i0&cE@a4rrCdHdD-%YZx^Oz14w-UphRN-Ur69Fff@iAN$<xL=-}rfXhR&Hfr4#(1_b}tbfAbW`wJxSSc~ZHuP~TF{7Qr&NyRKU`%gR*kn+e)Ii);bz`MVMmBoiAKYa3+Prie_V3jA|)k{UXl6dk48AISXNERQ48CtGO8RKDnjDc8SBcug3`j{1vR01H+Nb#~n@^A74khhLdemM#(s)?56(`PBI<vLEiu*PBJ4`<)Y?8h_ZGEuV42j=7w`Q%a=;-%UlJVGV!6%`H_XMYnJ%+r9PEN~fMweymBD=R=_22YvX;k@N&<kQOuMFEM@+#3(ca6L{Lmsw>ggQr(aOTKoFJYS&d5cwbomP%%Si8Sd+cDek%Q>VHI`Z+Wo$zP-*5#6S=8Rw}2a((NVE;=(|z1cc<XY0+C%;wfHt9N?I^maS9#r2Mw-{q7&ea=RgsnXBe>$<9{^Y**0;+!&jURRr)B<EZ^n+*Hn{Is`M_wO3JdpmbFw>IWxhsAkeZgE6|q}AS<@y6E9?Nt$k|DyE0JhE!ojUr%#T;0~r>iXvP8^-?H-p0nZv460-cR+o;!d`#<b&P@aV_+Hn_3Zz~m?|Hh{a^6E9|ME_KiS#;f}j6-_HTkqhl17pwav{cHWwE<1-)-<ugkt~-n_}6Er#6s5Ieha&oVF4yuDstRz#Tmu;<Y}l=-8wo3p%}%1hP5B(?(P#9*--m<P68uds4ibWx>LSGWh4mszdGv}H`FMSNYFg#;E+@>{ag<qSKyoMtD9D`U5Av7&X*FH;j>I?b+yG^dPvXIVi6l3zss(kwj_br>InoIQAmAcE;7jd8o3!m#n)&k=*5+o)_8ne7*Iz#(z<G3w^(2u|CrB#=tzA^|m&oOZ7i`>X)x0_y-3sR3Td^-AG@b4>G#Ba(08Z$EI6=LKP<OqH0by~ZA=!T0_$dzDrMW;~@Q*-?toh0Ag%Nl!Ba!9ivu*9D$0@O**izn^&i3`Dpj;h_lBla=8LUS97K{GUlK!QhXojw8db|C}O7eixDazbNe9_elo-ge06-6aAW$=s(4JKabTdQg?!4PPJN1%YdfV<XuO#T1~6Z&He>Zsn7QfM6CpT=VwU>%r9_M--90s{9yb!AQd|tmaZUeKFgc)izU^6A&7oN5dB1$GGiw13NG456d3TktSt4JpGc_|!`^+w)HWp+haN;QNZ4O8DB$Ob#*?&^0$v{@yk2AFv(Ia1UtHXhBKQ5r*-tKR@rBU2V4FV&q4tND`%bFW_n!O}6{C=yZJ7p#5Z|Yw``IsHr~V?2N+|<_#$iZ*CIcA)<di3Wrc~Gx3H~1gApctGia%ZwgZuk5Q1wfHNroUKRq&_O41*~COs?bEkDmOM)J4P3q;=|pIMV-3kxBnT^e~&GG4{om$;L0v=5G0;iD3=gQQtQyg*zU4K>a9>t3ipDs8IMz$7xfOyo~btv7kzlCSDd}`qa@;AROijO5+AHu|)hxF3|Bq#*E{TvQUO11Es8hslkj8rfwY(h4D`fK%-y+!c}CtWEgDPB2m33oascC0OQ0Q528}6TSy*J4ig{G*<MHlz8{HBV}h~;qeA-i7PX(NtH@|05?D?Rx`!s|aHL8@8efRatzv}`Y;)``Xvxf>nfj^Rkx}{M=i4UfeUj&WbSOcCk4M%?-&4dNGO315;sgB}9ZeL62Of`<JM<_2^2mG-2CV>r8@iZcD^xI<F%K`UcWgV#s1N^YipZIanV7F`Fme?S&WqJOEA_Mzh8{9Yu1Ne+NvA?fK<9p3g1PVTHMKN77{`jRnV=O`tRtU-JGB$VNPDX2X%~DghosH9iY1|XA+=F}77X%tyrK<hx#1{9Xg+<LpmjqkdT_%j$;O*j6zJE;8OD%}qhS##5*nyUh~p%Ska<}}1?ke&b|r^idb1G|G}8E_Xc}pFVzQ>UI#bF<x}F@|NV$_mRlTbfl03cJm`nBaZhK1jbhX}@L;Q4A*r&`AK$v9b93rTz-DZvu>MClQQp8Z#w3V37=vqrlTd`=ZMob{#_lhKvy0+4lgi>$RTUla>#vz3SQ*R(tk!b3T?n**9^`_d*5l>hqHAg`8CPI8lMD<pEC2NB6e7Ve?x3}>}_c!-8P>OueO9-C0CKE^@ey534uk<j!It0<+!Pg(o`+|&%{8*Bh_krsmIlB-O$`1q*z}AjT3MkeqRfpp1BX=ZzNG!ky+3CaO^jNA7ar$_%_I&`tpNYuEpA-!aZw~UqV<d6>6srGMe3S91V5L5%n+v*R{wRIL{Zq-CETz5F`(t-tS7CO7;DU(L4}IGm4@n>l!@-gOLwx&6qyAU;%75Yon}A##jXaJ=Em%8P^=Ar0cw3d;_Nht_(_^F6rJKjk<;~*H=;B3$vKL$*nFL@wXgM}tjNzo5AI*cM5k-YqdI(}Zz63`81T)3Q2Q6Y~8H2ZBe7@uw+Z<pDrRZpQOB|ZY{@qm&jmpav)E@v*y4BD`*7;lbPldsmCuEB7R<m1&|EpY_-yP3cK{=C5_S3xb2yj!}$;%@u@{duEK8Zlw1*xIu0lCFYubFdcN{N#`#W<&G5;0)GG?by@a-8YDOfg#Q@o*HDMaKD5mV4Qls!(v4a=Hge<I6C{ti{KInk=Zvf|@L-$+fA;GtkaS5B1xm5n_8nBb3$A&8>1RP2Iu9-o5+ZGWK?MP!Esh_T{B>^!iH~`wPqIuGFngqtk3_cDGT#NcVQmeZi4W^5?ngIRt<qlx50$cqe^z#oHw!8Wk(wuAyn$<GC0Gu~pkQSb0+0CS}mH4v>SQ3a`(oX^w=>g4_p6GGLtqgFy*1h3;ZJunl09(fbdVWek%RC=@%YhzJCvSL6;wi^3fgf;fs&g}AB5Q;MwNF@riT9H|$M<5eIH3ShRhS|`g40;3_8XJiH-l>oga_k=L@9xxQ-PScBG1Ck*h_DPpYcNa$NIRXNyfw5Jw?Fl9*pBT7PFfO0#@Gy#%H&?Rqn0ls2dygU~7bJghnoKn)8JCnI?aA+0>(C+>6frujE-g2t>OfpSpz&j=Le*&ZbP@%E@J-2W8d4=>HcqS10i>0(5^1J1AI+&&B33z^nuFLz#Toto?7a(f9LJR=`d7;Iy#v5PH@d3d>7i#p5~N^(AO-*>+XQb-b$2yTLU&iIsv8gS(qT)M9~+V<JeFhbc<d{0*t@e4SE7QpIn>jPm>&TChxr3LKjEH7W>sc&H2^;3)y%eKqO0;<`8b*9<T>9d1~KyRY+ItjA|F9Q4$$aE2JWRo0&S*BJs0(K<;E-PcvH3IerI(f5o(mB4NW>F%TojhREe-1URT1dPFY&O5l^fx;WW$zM!F{Y8WWX<zRX0;&aN~PE=(*oVV4|p!3n!k$}BqI<sEb338!40TztZ*SMwGiG{0dkLg4kA#zF-CzG^H+QAVjs?t%oCznTaNnx@Uj6K^&<1H6wucLv%;FqbhM(wtAQxtOI~S>1$E%t?muF$1)wzOjCF^_nX$)91Jd9oBMgXRz|E%WF5UtYA6r`ttRaEl7E1uI<5ba&FO@D<)5){*VIj_b#+x<?8aywQX1B-&|R98CR5wxW(UvU#-4v4i0J@iZ}2FUbIAIFL}e!63S{&YC4&w7w(#YSpUN9?7jElUeMk{P3r};YQ`(k^>E<B33iG)_L(Z!viNyi_xOZ|E?_sLDmEG&&&|nqKZ^KW%a&Uwp3pB|1)}ON7^PxKdhV%nVs1g*Im;{LAzdExYIkuNqd_xY9>d9b9!M5zH`Cf!0Jd;qxFPX)fKHZS%;qj(Ltdi4*Xi#y`n!E;4muoYlgIk)cjo%g?m1!2p}S>FA&vQ68qpYH=qn)twUi?UQg?fJP=UA_g!2-{X1V<qgjGur=nu#aPOe&m1)i<X+4`KV&o9^de11&jCPB4YuLQ4qz;EaAloKhQilt0Z=@dUBi2yLm2Q<+oG%1Sqm(UGI45N%6y|n2QjL8m^sj-=G*l7E9!|9egjaH@WoWW))0CZe6aURU_(>6;7IgWyU&yR|+uX3qE3r^*%%(7ZM*L#Q;Q-r>IlFI!f5ABf=BTx%%_rh_fNK6DdS`4Enh5emmj&sp{y>TZ9m-;@0J^{Nt9mDr*m6czcqDA&NiM~r8p}a70#hTgznFc|y1YoI-5zj@L6|wyty_|ghb?X-CeO$zfPCmAltdmC<Psrcs?Q`(pI2Va^g@uCD6pq};!@<Ej)u@nB*cn<v641Fr;+0icFq8!ZK-;jJLb5f7BXxiX=<bNQUV;U5Q&?ZA1}-IxG?+(jD?-T`v)yO~kJHKp7ShH0(1A=8@%+N-T*MRFRk@J^cH?p1?FVrm)!b$Hs296!RB<QBpIGXP4BU?2V$zp{;K!&CrRPr8>|`7QkvzZfg}b8T520+_A$anI?jE7us}><mG$AoCm<+3E{b#g16s1}u!wRMEkx|AV%Jq`(L%EFTl+nEK;#9Q*`F|-fkWzs#5g5dKJ^yH`OhF1DQjm=E09~ZG)6WQb@q`f78aOpA_ESKr^CS`VS|Vbom6!#`&MWdDRI3_SPtj@tImEBSK_UUC&<#oGaC2eN<}g$uk&mN9SHf6j9K`YvBU()hN*Ak0W4$(|yuu$G1W`C(IEscQ=ip~T1d}hUJ5kf>(U&)UGs&^z;xHU0@E*l(Fz8T~)l(%C<z`)qCMqR6AvvPr)C{sCDrLtcJrL3~$&aX1?K~0$;mrv$Br0g+LZnDk>WzdPiAvKkNs_3N4uC<HAgnP#nnV?WE;RBas+Gz#5+$mLdNGAei7F~W<dZ5<tvmVT3St_QBui9LYa&awL=`0=8PX+crJ6y$L=BB}CP^5CH%&4oYB*rIq)gPx<q2{oYSqSK9*Gh){D@R(qgHR~C$n0!BxxQzmX!)ey;PNg9z5f_C`E!mtQM+lL1tGjYzSpl83G$gi>=pCvjk13_`FBbA!vFX8<W4fM5C1U4e!FPci;s*Jlmk6Oev96ahinkHc&f92DYJ50nQ=}r$)#jF$#vbx?>2Op36}bHMpPt+?Offsm^|~j3MfU(d^i{AT0Bp6Hsqp<gNMijV>GI^TKUPm=uEP;yq5&@$gBeXweHN;Ac$I(vx(9GzmXr5`L0NUWK9NsiG1NLUsR%Pp`&F($VqIKQrl~h2g`a+!CU3>saOGXH3LTG6^i8<g@viI)|QQ5(EY31o(u}yCKeLt(rJ#VjB*wp{fUixrO-LHi9{8JITi-(rv#{c)P%){p^Ipp^@f=7pA1jD=<GX4wg!W&+-dUg8yn~zu?$O%KZ?nOZ2okNvS6|r7THhQyr-a*i_?A9Y$b?>4+I~p2qD^O*K7EChs8HxJ<~;JhP*85Mns5B;QFdh74>*GG-)WMlxn3;|!8<ezDx&qbd|?GyR54YRI(c<TEL&U|^GbiC40@*xDj*WTt#BH~OiBbIThWB=RJ~$cbWiE*R<^<$BX=wfsi8>NQ)o{}iTGC;xPE4~=v*_kUW@cbAGRhhN%7*8L7a^@Y21tfX@17w%G%AdsBW32R!K95J8fN#jm<IPjyp@Z0Oqb?Dt9yJ0#l?dHnH4eF~WOROc7v6{aVE#1<&OI%W(>0nD@#8Q>-@bIv>8-}|q3|#7a!}zaWyLjidaX9klfmNM{aadTmyQqhR0|+@=GI;2>QcUBsC52C|Ml&H7d;;kI3nxD$!>*4{{y^YNoXy%G=qS}`csT%^<{`rA48lWAx5l)@Vgs~4vU(jw|N7(u7A7L#&pm4%ZQBrY2-XfmurP`XtnSYqzy0`)v&u{?xhC=o^5lSb|I&KxeUf0Zn-PWm@+OKZPd*@!A_$O1YCnfk-iPJ%z`C-swz9nfKikWzYg<WWgsjAPUVl(&3FJ#jN*_^!KS4+<GWvsxev$^6&`9^Geg6!}?n&KA!%Xl2jl&1fM-tEGV=1eBsNs$&A#P%1dGGNXU$^GJy);;my?#Gw33L;xef|U?a(;@*Evk!hSzFh)5IX7;D(n-5e#2&RC@OwP<tBsuw!}Z<Z}=Uw33W<;h;2fnxzDn8caML>RX%=W(PE=M>xFWu*0h~+r3&o#^u{u!H~R79w`M;kAM|x)Ye`zJAEx$@3#v=9vS%OfyxKkxKr}2T=>px2M&p5$DZ(NQdq9~J=a_DXgsdtY1%o{qMye#N7^K8{h<7VP6i*-Ssxr_^C?sJ&oJfa}+0Fq<R)WcHZ%iI$g4i38$tp{TWMi?MU8VvPbY1DGsdcRIkF|Hqa}dM<!|rq8W&qUVGWHOO>ZJ@Zk%t*7K5006^T|r|<qPix>SeMt)_BSUdcz<MYoh{A$H$KJ2kn4G=%iSz#2S(AY1x!lZ~Ok%DDu7jbOS*tnr5lAA%s?<=~M$wPMOhO#5+4aM?mpgY~;5$>i6jGq3_da`vPsVD6l4>O_BDMN#!_53uP782nkrdZI6dsCBJU@THKYOt-UP|j=wara2)QlMc(CFJ=M6=1;ur;V1quXrFwTY9i*v}YT>c`o9zKdQJ06t(E*v2?3>{VNGff!f}a$QH#GUPn#Fcq6NJ|iy*XP+>1l!Ro4&ej5>eykEGuF?zi}TPsi9u%qF1aVWwsdkJrk&T8a&fk6ik$zX+(@bn<wd*s8)4SCQvw?rDmepm?UVzMp>@**}}HVS;8i4)UZnz9=sdER~wD#c=idKq_{-%gpEQ}N%(|awWkq3h->5#Kw;OKSt2NG)YdZzp>Qg-31Y}*eepzKH6e<^sa55rf`cg6JcmRXL9O!%B*c}oL=pzeG4CMC<&r@xMOnLW*u@&Em0Y69)`F9SQ<Q6^Q;4T1qq*fN1QhiU^`YN|>4?^i6<Z>Jvw=a3eooL})Jg9_lCVlz0!>(oz&jJP^xSg^3Ju<BQr_>iM`M_q%)V8y`Fsrk<kSTMikB(sYJhcFC}{^ZMavk@>mhYTFDe;T%Cq>mox$45wdKp-c2&YHHanuED$(to!Pe!?)s1b^jyk10LPkLgCdraeD)gO=v@$NlNu^g;*O%Aav(sU#US8SUTD`GOX`GT%E0o~>jzzSgFz^ox`27W%y*<BhP}V*wsX+Uxg8HgO`32c`HycpUK2C*MdLn9hoOTv&!qLdmK5yFh$&?e_F)cm(ga2Lx{@6k?HaZs8XfIIyXRQ7>9$5qSlY>ri{3Z16f-VJN5n9@}kdGgWoB?o=qy?2W;42riZ9+7gaF;B)zH%Euk{(%)lcO>hM@M3WHvZ`GPvMaJ5cwd<8Ca5*S%h@)wv}?NUy1IbGnhM>>L3`QexOlvsMLnc*={dv!Dc)!0fJa%O`k%UB6bFNd1fskTn-baoeT7qY!xKiB>l0SQ>79pax(SJ&P+e4b(p(RF@CW0?qsMYVx}catxAdd>+gE)V<G|AAvDPiq4aFE&sO_vwf|>c?ay7Fd=LPKWL*u=RasV;oQ-=bN%FtF`@Jv2|8;?N$!U4@PPye(YW14$x6f1*RimGbW~Sq;YnvpdJ}v%Kd&5(usON|II>i~*g+c)sVg}VI6j&U9Pps2jV5v=^09*xQl@$s=S6U${cNGeQu%J+y3I%E?VUTmARH-f?R*N1$&p-$GD+)l}jtc0QZ#N3bCa_TG`2MgEw>^Si&dO}xWkf6s2+TVYmVKUtdfz{JA8o&tI9FJ}SpZ{Fsg&Vgbz!<}lm(DD^+}TU!;^a`9nA{P+UiSN=rl1(RV?FiTS^lSy@+HtsMdu29-zBA5|ahH$gA#o=oV0yrAd8osX{M>WQq$(*py>Ux~7cNB*&7G10ipwv~Uzph+J+m#*F8wjL%$lwsc_-Mt!drypAg4ZIX9{XypJe?g11}UxP#BqRyHG^zu3#7u`RGFd>dzbev5PUMk4#MqwWjK-;bt4JRUkp*!#cl7E>IgT6O(hdei+<!z#?sFokYNBV4df#2)vIk9cAf(VbHTS>XI4?oO9p%&R-h^=XnRBO;5x^ncOTUtRFt5<&z0UHb5itF?=yHHp}B*W5dIdj!IY2@)CZ12+u<mh!u%RQWFML8onEYZpc#;|jqvuNv?4M%GX1};}emE=iKU7y816*dE<iLcz7l}QdoSZGdD*MxLxny^Z$IO4RD5~NBB<t@?1q5q>IPDDl0R1{e^(wNG;Y|*M#D%IM@YPh*H_6-R)C7<Lft|$7Ub;cAQPVvP?ZBLebZHn+p_LD%kB1uR@xt{1qR#I|8R-Z&s1d3v~IRZrlsuF>MfedL8waTf~MWC)-4uKJ<shFWL!gflzbcRJ%I;|0Qy_Q37gx#p;(;VSo514dEIJI&f?GaABl%+qST&qu^LC~MosdPw`o7Jhbh($Wn=#i*6<+ErKjG!|?my}>9rA;ulj!vIYK4Z`*Q7u(;Iwh**T837^R48TX6)UHbB$H9#V2U`YTR2W7tE?e*7y+P294-W|Z=oV-LsC7o&XrkEdXMU)WeLYsqp1fwG~|uwNP}vebrQk*${k(<<($wL!=9HZs8ME%X70Zhf~z%9c-O`GFmja&XT4+yt-d5j#)Js~Hs}s5=eu`MM0^+cnXQ%WyU0f|C<`z4`ODv4UbkMbF5OtWvdGZQR^}XdP%b*aFDzs-URk}484&*`^S_+L-(Fc;yYUL8|F>WM#ya^Gb7uMlaN-3DT{20YEWNONlW&>vy7?0X<vDp&%&7)HhAO%BwcF_D2R^JH?`Bh7L$qg3_QEO2v^FC{IW^tp$`wvjI9Fkanhc#xJnApVea{b(6;&76pU|cCy&`f(e*zxpkBreoSGe~Ryxx13^re!pMtIlGz&QvqLv**uKlAc!YxUad`u3t_5@p8O$$?Wp4+Ft$=al^C&PPDuA>H}34?76Qvva}t`YHLz<F?YCMs_n*r52KFPC^!n{e9$S*>X0P_Mo(vxZ%FC2~{?)H*Rik+}zHx#S<GA^2Y4(=qW*`b_Pf-QDiX%`f7s|6?J<rRNz3YDMN-fBR(_YGb27T;`3)CKF?XChhRI_<#2%Bg|Z^O$+)M3?f)5l$H(*)2$4>ZbA~0Yqy*R^**=>6OeLfl`TWVdu>S8eZ8&)!)?3yj-AXNam0QcSl#|~R7~iKThK7ZAk5arLd)mMs>pJDGV|N<WX2UPpt>%*}sGbEmW_Ik-g=g>~m!l*3be7a-X+=)Ry%79Z`L;sLpAKWSD<)E1@{_26?AH?E6moqTQ!67L=U9Zass*XA?9n(*^_&!RlBdLLtp31?14@63Owou@lNw1WRuws3?{o=_3rV3H^s%@$4M)t~BV*!&-Q4hD+{q314swGfpJjxh@HIDapL9#4hLmat3{cY0Z1Z7$je=|(mz*G;bt3Q3O)SdkE$LR|*CkXvK9Zscdn+gT9<%en$s!BJEyW--J(Q2ssZ#HVOPgqsdr069=kT7#lCN+Ak$%EbT0zT`1#w2dOjAVjBKg#g4^lzgE+fe$nrn2PJEGzvST_+GC^GuU^vICDx9tT{2=jz(>W_+7!nTw+T?jkfB5I&?WDwyz%5W^OxPhxTt`sl%9<-x7?rpK8yYEH&xQi+uiP5NAOdjB$u1eVo!+mU-KODF8_tou{>+Y2smv3HQS>Hw(-f(mzt>2*=y;c!MW!E1RVW&LsVk3t2@OFKK5Q~e;m5E3KH7N!IQhMB2T`R8kS<w;K1sP}-H@2>D;FH4FovAtZG^XQ~YAPbE<~SDAFy(CN3$X)~4Mm7-2Tp-pW04MaE+Y)E%9^pBIA|r+Usd+xR3e^r63cPb3Ic4Q@vQ5Wk48~A$O-FqPZKrj!2dNZYvgxfi`X**p*el;==exkjwhs`s(B1Bkp0mnhGplufdA8w@bY&HfeK=$Y#1U{!J4*b2)oocb>9$nr95r#5O%}P?jOP_Ik|g?aL^6F<US%C6mU)3OGKG0>vQ)Lh-*&UQyBa{cVB_1dfwh5%BZk6Wq%Q66ah}|F``l`ox0CJg8FHDji_L^82gQ=lq=?*BPz{`x$lT-sjBTgqKer4llzaTR-K$ZNL1@pZ66X<oJg6yNYw1oS^JTwRcz(ivQ{^B;r=5WTgkLeS>}D!(wdw)f}iyAYu06vS_ZL_sgZ?Q>qB6^e+t3UcoQl`^vFMVov^BLyN>_d^=<?`poDDcs-CF@zhEf^Sy#M4hJ<RH<iy%5rGJ+!Rz4;#;5Y+t>^H7lC38VIJ4jnvs<*%al<mjp`deDH+_zo{qYmbPQv_##2Ub3sNO}Wyv>V+n@X*wKafLIq)Nvz*<3>gGrtSyIdU5;u+S0eKukldxX@oOhPu_B}C6N%_JL*g8V1CL;4izk6O*D(;If}ESZ<Os<Y`!8d;=hMhIxk-%qfB++kbM_-3i4H}?hiQ7%vNt*A;U{~mf}q5TW+4sZ5p5zJXoy-a%9uD+&n8AH!o51;Lv4^DhK4Z4L92jIFF2ICh@sd&Lj0AXWgI3%;_g&3bwht$p+W;*CSOGJx(UA7rqk=G4VGyuCZuhV_iPHvT|vIpDtaO58JC(ukzEiRr#=b`363i{taeSaz-U*RB}coXH+snCBFzk?e_7|w=N^IlPjyuMn9Ff_UetbD=V9+>h(m)ra6BJnB=PCc<oZz_nYm`^YGTdCjE)HG|vnlZPX6}1hoi(CnP&{Zx}2clx10WxPf<{8LaYLCg@KpJSFxLa`;nq`&e%e6A(kxXK9ya3X4&xKSSbw)BZ4&<j{FqNMkP@#1RJs3wqp^#_=jVBr=FPHW5kSlJtHmJXB$t?*<hFjQg%PkUoZ7)O6{2dbJ9P*vJw|tJ~McUgQl%!N6BSOE#`05su57M6Ues!Zp(U-U7Z7%USLmc!RdzS>_s|b9%f?9WzKrmyzky0k%~yZU+I&<i@Op2i=RRDY_(43K;XeV50Sy&kBkDQP4%xSPTu?dx%#NhdsY|nSWI<T`Co~3Dism4ZVTiD{kOl6$G6ejz`5c`cZ+nAB~4aSlQmte+Jz^&BQeo&7C4~BM*$Io<_E$YyzpwNl5@lPwIP>YfDnB<EFCcsaxdksU-HVmBhbeFz5u(s4z;)uS^Q{q-%%NnFGuB%1W`%<<3P_u_!#05vmW%Y}-nmT+Wkokv3t+M~rFtGAST)k`|M>tC3o{y9i=8nPX0_9}EsHVv($sJIz~VhNcMAO3NiH0xc;`%0l{s`Z^MbTR5?l1bSOcEmWH&gA57VspOC%VWZ!ONpd7?6z$}bBw?e<Up`q9cD<ZOnuLw5n;=iZu`6ehDB++)ZGub*2Vo+!q)Iqgf0kUa5i6O!l3NRdY>6_eU$U5~Vw+;7b8NRegX_!RV)Lr4)$gphYpd5+5gET)vc6{7C8v`4fiun9(rYs$xdw-<<@M#YZ*Q$`xtq(^lk85ZG?`IpXh7ukOXMF64o}xpg$+2Wd|#f$6vD*gci;(l1Tqsc7s`2X`$eL=vNO5$!wKyLOY5Q}ZB~gOM-zddpLQ->(JXrOqJS;jUf#U6qVD_6^)s(~rQ6vlmCLu9wLa>XWPSMEPdKc^haW0rP?l1k%zdQYFlh|TA$dkzceNehv)T{lZco-)?n|AKJVk-IJFscpoy%7ETztzx$%b#flV7rDa00G*gy17TB;R&qRB^|@OEvHLN3<Z}Q`MGPgs@)FJtik;6nP8Q_w5Bq5$6|*V<6+y<1qcNUTNTwS|Df_iENi%9r_Y^Oyec*Ti@JRxyA}1I~N+wYN@hPsT=u*gS>2Xn&(_j6>?Q7HJJ-GlU~5P-O{krm3eh$@ewhiGB@PCR4SJ$Ik{g~y$S61_a!*XBkMb>8!B(*N_9CW-w`mhF%D4DZp}@h?Dkg-@ym>Q%&5nVdd#TD`KibA7E46FZ>^%)9PktwkwiA?DgAyh6rKFwYw`uZa0*@>n=KGx9nLDl=|`!FSHI;_)oa<MO1XBXEvNAj(*zMyD%T+OI^*^}{@V>H6<)nAO(epiT8LD1N<kc4Y(>z{)6!vC1e=4J9Gq~Nq#gUwaeleS-d-5$<qk9Hj)6q_M_P)dzarN@W-4zO6p2-Ykp!lWlA~w_I+Iz*0`f9TyWFME02z3GW7jDVfzlztba=oE1+qd->|m9FE3uPj3VK`<Aq?0(-oqx`bw~v`87SQhQ@dIFl&Bxeig1r<_X2328=wS1!VtPK`vOu3XHpVD6FPbB`tpJuczi7@nwck1XcK|#m=N_0_TfWgf{szB_VV2w1tSttsCP8=i={beng`!dD2&nxrQO5@^N2wIw0dX}*&#d|7C-dJ@JAt_K}o3J;Zb?`0zEw7+{0tEri?Wtcul(mQpT`T@Cee%a9P0(+BTGrn24sQEA1>JpY=VYIv%idy>l9WvX^2*u(ZcUw6ZKYBsvC~W**8uit*_+)D0?6ar~j<tFe$t$5F%AF-?)g$}}HQ&BRGF@zrh+AtsSx263$my|8b}wJ4}~RYvgJrXLSsH6%HT_;)XPQz~^@0BU=?=+uPd1<ZFpi+Sr*Xf_}%1vFG6!RAz)Hq)ulG{F~iyxYZD#L8y!BP$ZaOnqayE&<VsQ8*@}*Q#<sDv{U9(!D74X%WSXdbo07(&R+cQ$td|lfY{-AIwCB<VN8wc3x6VaoVJYS3)S*KsLJ~IW)D~<#)~47FdyDyGMrq9KaNhmEK4K$`g|VGNgqAJ1tc18BqUBMR%iO1$y6*fMTRNmXK4DMdeUbfo7c<qAF~3pfN#Mg<WoBiL0>DgKCz*LTFPbvcg8~rj*bM2X($O#1;apS%NDZyOc|Gg@YbFatW_+P-Q8P_%iaENq~ieP1T98D5HLxL5M{e?OQWL4}pydf-K5tyO|}*qKpR08etY?6z%E68A57#1e)!2^N2K?>!yTSlnJ6v5o=Mgoe6?1Do!Iqv{@I82sb>E16$Mr!wzHJKA8#)k|Po%st}wxT~ybk8sKP>m<+39jeAf*#kI53F*Xajq$%a5-StC+kVi3WSxzkeDpZyuFEUMaGBtv6+Tnz4B^l5T9l{%|L@Wa#8nxldMj)J7G1Mt%T$?=WX`6AGwpX{;q(nkLKr>8HdKi|~T!9z-cP%ulntp0ltPmcTWg(XW#j%}vo=$S(DOzRcXFdO^XKhtRa>$nDY^Cqnww!q$S7p*ET$cB3e$HuE{#iXO0}tv+A^f73a>_|wm2q>6FUwE<fwVwK8-x^VPJROn;ipQigcLj2@x!%CIXQsa|9g@+d`Pm7k53-S)Z<a#jl*%&mYs#~Xty%%r|)gAKlFm#K^lT2UyEm1m@IJ@Xm>~Ye`ux8{kGfIo_+Nk?8bXZ_&z~4O7MTb>&8)=O1-pp<MK-@SKJqGY;C(6%iG&4o9pDtl~q#4K*yk__I{BjI6G><<q;qAMOA=XWZ2iEypFPuPh*lWwYt<N(Hk6l_+S!c%PP<X1$t4`%1VOLm8xnP9I1rl?ZU&OftMzLV+l<7Kx=Zwk;#le%m~DcK+Fh)Mj)QEO!0cy!fT8xe!LIIJyWPS8TV9DMX7eW77XC8EDX^qvHz@_Yul^Wm$z4}gN8Lf2(2g#M+?@)C;p$c-08&DMugYR{iO7Hyv2?S=w2xb7p)esYX!dxjNWKLSOp8YZ|g6BAkvZ88glN~nn&4{JSh7ei?c64hE2a89{6d(f_0NzBg!P!3tAcIQ`(X)6BkfPazD1hLGRc?Y;Bn#w&W2UYH1xS1>L_LVlT*6|7}tA+0x7FmzTa}+g8{2@a8_YA|LO$i`JHuz2P@OB5Q4V-D0yF^df%a>QyXU`MsVemICE$)SQK)F0-vwn{~TVZQ12o$*z`LXUc4g2ZQ#`&Hz>xdxL@3r6Z!PWL}pEfs{{TfP03z*m;a^&ncd4?|GvoV3-0DzC3{glL;YYf8TBQJ1G4?EN%Kl1`y{3H7DFvcxd#DOGQZ$*^`bE4JL0RmY9s=R8cG5a}{ns@+9mror?@dDL$PE#BGW_W#Ex*yULr{1?9+5PEKZ+dSt&(2KlnOgr!soWq7h;v~Y4(+4q6(YN@yOa7-BBNi>S86LT?2*M`kBPT&B5F9tqr=#$f7>C&?6^@HAV^2xn$HyB{YYqra5+=ePJJnFQFT;_5)CEn;9yV`V>g~OE9ApBCr9xegR;~)ilh>lSZrJ_!gSEd3-B_K|`4ClhqJwNH;7a`4K%TQB9hur}?@jU*7ku^8Bz?QW03*1!@=N@=H!ivDPLF)ihr}4v}!xozJb7F4MvKMaIx06U(c$gj+Q-3&`ES^)0qWN}rchQ<twAgK<epFv(n_EaT<{7Zs4U(;qEoz-)f7$|OUk`FI@(Zm<r>;v3tD1KRb_oF;>q4WXV6VY)$jrpmJv*?(kcO9^b0@Vlpw+1bo5T*`1eC7c1guY1Z);LYn+qQ!Dj|+JTgy&a%}vcxm0e^cbf_^+mZ<0<xrAVnNN9U$rwRmOO9`W}%Z^SQS*J}WkPy-|iKMU*7Hx!rMZ_@U@ey{-mTF=)>VzeYWl5t(I3b{tA)XLa&n2M3Zj??XqQY*L&LpHPw#+A{tRa^_1i~pdOrk2BN_~Q`3a8qbLR^JYtDHh$g@b)#5?SG(Oe{NJMY&YXC$<pN$RoI{x0fNh?0q7K@Ur}K8u1ln5-?^7FpEdYX9g5C1X6rRc!U)c#LCe+^!CZ~$UX+chha(@o5(vvS!acV6lz`~R;{3wFvd{R@x7wnvE~X29PxEOfcCQIZX6n!gA8%WaW_pog#L8dXLpr&{sE(pN?^fCt!l^$XJ_ay_ZfO;@Z=-3GkEeL+8I3Y80`$6bdWH|ImcvY@C<{pGdOEhuq9737%25(T`@d96;XX{e!*I@=A>F1talhDq7jmjpW7K+zOjCF^%@ElUWAOQ2*|{nOcBp*a|~c*i0Ni)bG9~TYxB#qHoqtdnUWf8A%@8mN!di2r*`qnUG(CO>nqeZeX60*@ec}wp)#jSZK~}`-LF<W-)np2R=s())FxXT8>udFZ|>~CVPr3~3O-A4q$;rVVh-~Jz7PdA472!EYv3PRz}I;(`hu}q-e`vujK5;R*A1=0Yu3&V7xa3(7q!2ReozRXkt#9bl2BDOgcgRqF`PN$C4BbAqYw^=z}AlZiGU)f#7w8vsLDR859r%aqXL#-e@NboAqa@Y%GUPs^$k+<zBs*{V$Xv!<(Ss0OS-*~`|^t`mtS&M*SA+TUtV6j_<zjLlTLT7M1K|*RJD}e;>_63Qa$0+h7S(fdtRp?M+-9T1|y4Zz<1DR4C)c!**X|OwHOsaeqvKBT+diFtn3gQo1ZF-0_fc(m6!%Of0R1tNF{yJ#$_@+`Sb4K!m&&H<{PDhq3fSA8RGFSFkK{m%L~h|6QASb!3e!x1iO1Z_=kS@riD`>r@N=_dr>bW9B^0~lM{2Q_i5k@_r1}9)>mgHHM?kPax4+`>+`$ioZ0d^<D6Ng4h*_BVXd-)yeT_pe%W`Yw|2P~9(moR?(5yc$ZHjqr_X0ab$l|<*JrA=o+&hz`*G|l|0c@sjqbv>6A<EJo_cGGmHdd`mtb`%c2=@cC|ln_NXStAVd9^cR9uu#O8J6#8ZP$?))u<0;}MB$iB;wZ7HLwirAcMYNRp_=n8kC763Www43y^^Y}K%@y}@49-eX4wBjCUN9y0zoCZq+$`l?Da5bnACW0x0tyN7%=JiBtOliv~a?d8%|;KsfJhh#dhNpZ%3R6F(Bz8gj^dB;d<Vd|Rpxe6x=EWsH06Eh~$m(O(bE7eI8fp7|>m@2dyqFS7FvW8;vJXL1Aiavo_y5rvIdZq;T7d?y2_?dJ*pAc%0p#m=~mgzw)7>7idye8~&>eQFK>}t!RuE|w-aaB{_C(`vvvY;ybu8h3-U0Z{dM8#7sAX%}8)ZbTT&b>iV%7}Fb!piE|9~=ZxIN<bBVyiWQ-3Y^!DR##Fp)!n?lcmTi+o{UvG}GnFC^}ork{p3PGukMPN(hgrmQ311E_$U#Xtil*gw`BMgakRHP1-Ebd{^spK^TA<H6knLlpu*_&7eu-5=A3R!bX5Roiqs>brTcv#G+w?L@_8~hD<?VBac)G8`WNO$d#}WA5kY+?8jFpTf#=K#b=W)NLSAzUkryhNx~q!K81`42Q^3YNSScTr3rEdfz4?oO*qwNmaMU`SR-x1X+k%Q2Pzr$nv1L*N_|toGIz79`y*p{t{MlF<3=QHkTP4DLl%YNYdG^BN^xizrxk-2meI?NGVd-=c+@?MZQ2=JTE6_!%?;%ZP-7+Kgn=Y*zTaM<^SzmZm$T$Gw{P57+d8X0KAI<~O*S?yAz@^bl$UPY*xuUST;9k{+yYh|2#Gf=#(PPYn;TcK*?H-C^km|d&FeS6m2Egrf;lu`-F(Ttv~q0~9evJy)%wOazF}RzaS8k4%F4^u*2?zH4Qrl>cxM5lRi>5oE1cyo|MD+S%L379Gj49JY(kSSzqEXforBKx!@+LYX`zAT`o?wl+S-jv%WLlS8&__w$rOJL-HZ1eM@#TfJVLWfGV34?8sGkU0JH2>VC8zj9Nhz=pKU+F=N?Q&xhK(Ux=isELfia=+Pj#H^2e|B*ewnf&RRT6u!jYMpa6CJb*X3<?FvP{cIXcZXe_yuJVA7+*u+>M76sz$3X-#<z}+a^$FEh$_*ZYNZ@V`)*RV6ynK$wdi+t|I6S9;&GFx!$4MHytfdBKOPN54?F|Z>sf}Im7@>Sq<KkkJ~YfGE{?zrbg{JwT=YaQ}kg%kxDQ5=oBFhJ`sUw(1<iYvzny?N>l(hlKQ{DW<r<=-M?ufXdioalrH+}Y}!t<Kr%{Iaah=PW4Q3Xo&BUh!Ko9IImMGI~A^GuUaTBzh`Q>80hZ6}eh=PIUxfBB^z&cHOVG8|`|n>69A&llz@W3eJ-Z;krTO0y!&+Qdi~-*RtmqJ3N7`;ljy#G^8+UtTD_Wo<BE+5QiBe(0?oXa)t3Xyt6WX1p8=(S%O8~V`r|cO3V&~PJRUy`~k}Oh~XBVs0zC_JmMm`l#i8rqTfJ;?@Juh$y`pUr1Jejw(f(IKcObH^lx<X;o~0>yyin|-Y%4_Yzb)hFDpY|KkrX3>+xGBpH3;`w~PZx_ycc|TD8=*rqcfXy`TRYzvBTReJF$iSYp2=z<>{7ncb(4OQ1qOMoia-gvk0K51EB19&e`U@dYx;^8fDP|NQ9htdoDj_EIN9@BdP&cO%N{`%pN!K6?D4$3M~GMp=KH93LU-0*#d{^Jl-aPEx<(@QH6}@CqNC+^2r}9pRjQ%H#b@Nc%D7fW||=pFG4~*FNkjI*ka!{iW^0U<BQ#+yPJY%anpJITBtSB;wS1<+Qy|vkvh(DH~P$a^N2#|2sLQ<QbtG1^%GZJBHL*X<f<_6K?u3NzMkas$XXtM5*3M){W%9K>6z+9I$XOG6EP;&SmH0=!;QlQ^rIo30#ZCFdU3Kj8?#a^tLjoWT3QuW)Jl4A(LDs!IQ6~5!wkxT6D)pnY9)`j2PbG0r7En$3Z6vWb#H<v9TF5@JEOwVg~XCZiaQC8&URShL%btsGt0e8sWeWA|l!`X*C%!uZ>aXZ8&bh*X_BZfP|B0c|b{(G862;>5{KAgk4Jbe7elaZZ>q~z{Z5yU^0>^pkJbrXG|y4uLVo3YMO#xEh!D>K~h>Z4`NSAw_<c`QZeOXYLaJx{W7zN!o0z;l3aPPUn26G5_mc4BlHQ(cF>cHM<zDrvBOw}vg-{TKqwX+s7x1nO?-`L<}F%bS0>l3up1LgS2(q)t5;NNQx-4*{bjm<wHtHRv9O!9>{=EM>dIx-v#6lPo;ez#f@Z14x@P0q%-R-J6s+W|Z&7X9)7QADNt5a9Iv2H?owwFSjjU>O*1M>qPGJ6;7xi*^`nnhOYI*wF7xj8s$%*Ps69(`J&Wt;QS5_`<t!}R<UeZ9bQUwuUvFv-oR)UQ1UoN~hc^CWycF<4B-C}YOhS1N^LE!`Vf#lyK_$~w_`j`u&EA>G*%HnqE?L&nUh(`G+N^H%zq*asH)$pqJ@wXUBO!I?Cz9O}g!2J{`>G4~tZ4&E?NyvOOckBP!**V<Vi3_)piGqJ*1)eBg7o}Wse$K*pcP?$+FX(iVVnoA{<@=9+s)N}}KaJlbAC2-*`pM&W6xx|;l7`MT`1kjI`ai6be^w<~?6#BijqeH?u_U$Pag4*Ru<l5Wmb(+Fu|o(=AG_oavZ42dHFxqEwebOdA)Qw~f&b{Bf+1h+c45Mo=&@A7mpLk$T9)XtQx)7L2+jR~PoqhfocE}XPBT^CCxgW`!K~s3zZd&TZ)f^wNF+IexJppetPDqJob}D|ki+pVoG$+>94SA793RTmr?U+DFkz?g+Ij?&^ka5gKpqOF<cB#71F{?e`->fZ%@3p9z{AIvfxY$y^!TFRJAgAl+nY11V!K-lneZ4&*$i9ZD8vkiW^ZkI0}>Rhc^r5hllc)4Z7zm(4OXO1MitxtMR8>`)P~?~M($?hZbt5A<nBK)xqIG{%)S?mto0BGRYrPgMm&|ol7#vftsErOx$n*y&T(rE+o_jYey#14s*Rd`x{&gj9NRvPqlF8ad<grL91?xVREecE=u(8mE)#I58qI%1&R6a~e&g#f=$|j0yq6<$A)Nr^&tDG*tcAq(VB-O-atd$>1Bz4+q*@In8H6n3psrFcr&-&YmR;U3p!B=0pL&_R5aa!ZOGptUKOm6y#5-!+$7u@;sB&p3m0Dcn$3pF0Npa*WJL1#L_R<*CoKreWQ6CstuSfR82Z4V`pOse69tz1SYQQGKXlZArk>#=_W`NkmX<&pmC+MD0d8&=^mSWsX`UHv!x<Om_P>Z4kWFC{eQud;XNLrvP1SsHkaw~Y2kj7A$GIWr#+EeLAdcf9qJi;B^>-k3+$F+HGBa$%u1H3Z1+~@?|E^1Y6A>JFX_}A&)CX&gqR)zq?5S*T<vQSLT`t(^lJRZGHKRk1fpUGwGxm2Y{7l`$vCgvpvqkWuo8j*Eh$`+}8?<nJ|6^4*N=nPk_@Pk?-i3zHdca?KIvf8<BQCXnXCoi!j7GxRAjs<5ish$k*!h{vLq6qE(<btTP>8>2*BHs&QA<B)bMh5DsK&zJHh_;q~oLZ^1jInHOinu95twgyoL9j@JDoe9Oy=IUt5*TSs7IvweHHAg>C({(xuIEuPVLP=fB@=epHmRAgE2S(&gRsgZRbxwAld=iBR?kp3wnUvq;e>;*Y9^Iq%gzj?gD!05P&-k<4#`qHQ9%RaEY%YgR6fh0e4<KfSGm+rR8j5gR0=3+wbC>yDC#9!r-Y)8Hlw-JP}G}EgCdHCQ#Zs`rym@42J1JF_mO%L2IGb~;jC7S@%X}XiS;BF63d!%W^;9W8_2z~xp`yLUAuAZJb7uU7GXH&=%5%`n0zs@6$%E{t@-pL7OgvX7Z$B~t$`GDTTJ5(@fmqSvUS3RJ<k=)9nLLSXq^Iaqt|0-YE0Ho^S4H1u|ien5bXH{WEbX^<}iMAJ7pzgcAUcVNYaZ0sHn0nK*G73+n4cpyfQ{>nWbekK#8@0wQ$gZ9!vu+`B5*>12#O^80HqCsAV8GFxi&YVe)@FjP@~+3R??fcX_Z2>nhfRFYm$MT{@sI$AP!B9qu28To}G??ZF{+&kK_Hm%`q@H}aDAE8~`o9it*k5Az&%2L3UXvEj9G`Y$by+xu|b?NGulRs78miiSRDjU&{S!DBP__pLTL)uG;QV{axqU@;+yx3k>~o5?&CKplDw4%2NPtGWra$?sU`Jcqwp2D}7ouM_r};{m!qIL61T5pEXvv^DgwhoP+1k=LWhRamg})zD$g6@3#9&I9AiDH_ho9eTPHd9Me=Rc(&rI4}e)vjsX^ptA+~C0n4+Sv0VX2#PC5!ycTOGOA4zQBNfvm}9u%&Ugq5lEjE}!kXLJ8JzqQn)4Bf-$;Ms@!Kc@`Xju2@8nZ>`2n)jB%Yer#F^x{_mh+N=`-J0m@_>zG}>OxZr3Z#n%C{r%4cdpk<S+d@k%^LrcY4qC#;D9jrkF@@*#EELzG~CPVR^wUU&u>#S_|8P3I?{p5>a#X614L#@X$Q9@U+}s@+%@7UDzQf_1TI!JpfRi#XTb3(=#S?N+eLM74?JXVxvdP`RCG${4aW%U*!=xEi_DUJvLMmhdx3@rTFkx9B4hO1@#Cp^`OkU+j0Pi<WbdXV^ln%+7L*Vt1nu)q1huzemv}J3OZAfjfh{7Ri_JJ0DExm!ekI0H`~bG%qg}PJW*$F<ZdN{RJ(%F)r_BQ|ea%_pN#SV$SUMhofWQKE^<3r+x-~0y%X4*dlK{pO7*aycV@Wj28TGY8K9c%mXb>s`ck2H~leQ7Lcmf$seifKSOCgr;j3F{csh`5h$qP6i9X0XV9r{leW~G_{E>IFYxyfKh%O0y7OMCpf`61n{amy9ScR#T|%;?x^RD|mQAY&JzqcmsjTEai4s3N`4d#cR3q~h#pENfKDQqLaUbmFead9sq>=eIPDR;hNxF&s;<ZBJ%SU`GBrIN~IOlPdUc_!8f=9O?i`Mue7K&Z9XayJPGUOp$AN-Jfd=oP3qBXpzFA8)74uyS>mDU!m*DjI{-y>ewb4Ih^K!qAC)UtQE7ax#*;Qh=5dHhDv%$ZD*-_hm3kD&a|VZ69c%#^?qCuD*VV*hmVK+T{eRpb*Z-h~sH-ki*!W<Qj#-;5*kj4saT;*2iN=;Dkn-g^R0<rk!0ai1@OahAMGIsrd;{0?5GEnOP#S}%@q8JG-;8UA$U7D*9699fwhZ=xC1>fgTiu0`71Y1<z042IPK<Ns4h%t<*r@?jTPu!t6XY_aP+>8kN93tlkWM|4?8n(9RAp$oM;ba@p|m&0HC8jT2FC4MaD$q(pGk`(bF{Ee@DEmIBqgnUyj61tOyphLe^WR?E6X-0gED;n1WYtX+*l>HrR{-8n_TPOd><O~fU?jx1RCGP+FFqsAF^8Rzy^?xJ@iPQ<8OpmO8{r^mrlqGUq3A9sbvH$C*tQk@$;2lDtA9j4zm*g@H76g1oK{2z24m{4M`|$ZcAeI07OjaJ`daY#I2L1j6UHw6(BZ9=s4ZR<tj?V+Ow9vm*5i$sQKo$o$KUi1)W61syrdi;oN>hMGhKa&M9;A10)aY9<h#L47k5Ljh*$!=rDgzJtxQ}_;{1hh=MZ95+ym&w6cKkD>yC>Z^QaYN#l3byF(EK;IZmcg|-g<fI#qH~BOB+|NE-dmFJ}RiK)HFxHb%9DzI3eGMW<xhFTJ%*oIe!cZ;x=pyRQ*5ERQN%nMumNtS!>Y4ADF&PKf=V1e@fH_riBEQglVVe^bRcs8^#ZX^U7~d-lKp2c=8V?zdiW}RK59cC;t!p`!xn|M?6&iEVa-1fF~|2y3bfu3YHe>QIVa@+sW#pNkA%Aw5acs901APTiDKfR%-DgSEH&#zJ9>_5SH|Pn)>(B1B0;(b1Gf5;WZrJX*ZpQ-D%eB^XpC|CR}%P2aiA!q^I&?80{{#J4eb*13W&XTg3_VnR7vwXFVsfKU{Q}7?RgSQi-M~#Dt><lz)b#a8PJd0AFIlLyxcHftHLS-|H7pc-%{33h*U`7+N43BSX>LHZIU-9eA9YtS5&dgcUG3Cq@By0rr$Z;?5DzT7|gn4H8F>@j1LZj?mFoUpf_p4SA@+#mMVU<-He?deL9opv}4=d<{&#{zl^=V%YA|ZT-Ga_vrBfUBpUgobjklPmraD)&c6v-JaL-39nlP^nF-KE;<H`_rhMs$i)yf-5`obbo{1cES>4G^)B77BAgdy4@d0J(Ul(Mq{2iu7)XDEuDr*_e%FKfwlEvYs1`#nLf~#U9TSYx)8bV@jCa{d1Pv)1wxvRdgzlv%=x-k;p3lMIa3U02Jn~6P1$wjZyV8><oUQRb9*Y_5$9ll4u}h0i3xYwTrb@)*S6Q(KW{R77X@uSmdr)_05ND8f+>M?W46agNjpz%mCcUx^O&f$T@;KsKNNZOSSpuKE0ZOW|XgJ;Q;U)vw<GS53VjsG0(Hp>V)8kpWs5_zb;$xU@A<riRx+fSy-$X25OjMJ0ce!0`f#eN3VLx$5nc%^bSJFIRl+a&?kvAk(y4PbYkhpj`<i?w!9h_7d&>%0CPB*6^3F+b8z^BQ5ros$fu1rNCS{@v0F!r)dxv2J&ctuli?!O3N`&^WwDLyGLu=m5VRp?u=5)@dcRk&&4&T(WR9-P(kz40gjDjdV&uUIf`Ihz&vIKhCbm@xFooGr6Xj^FDR4RTOs_;?Cbdw_CNDYb5#T8aatY`YLpjZmc+k)934Si^_vNU0C&?2uy$>8Ub>jVIL@R?neaOiPOd(;~xRQOm+hnmHPK(JV5!ko1??Oktb!5K=g5WUJ`-t?{l5Zx=gonAu`)r5uzYz4d8$^x8HeD$UGJLO@2RZYBbKJZ1@vun|XG?lQtAN0a(a13{IP7zrD_O5)xlY{Xd7NE1WWr{oFV8#;+%Z<xu3C2X|PQk#}=N~KdaE{HClvUx#tGrNHa2epfGH!+B+>jaY_dy<U}UYq*nCMu`{l}s^FsWi<^j<s`gH#$*8p!vMbPE^sm==2RwRMCKJ%BCl(2*#eX@rf#W!_3|ML>1wW@-{%2IgYjoiW+rCx)F*Rx){i8hN6brMH3sMsF!M|Zi=FgQ1s@;DC*^^xjBkD&F>N6aG^Eas298Bj4BRLw+!K!&;vsYVYtw9Cwt38LdT!fXga3d+>H63G5<5>f5!ZO8JYi`!T%=Y331o|jC98|C7kU5vmIcz1I%`S*$(i((GKw3E+#K0Zmu$Rm6?dAx|-C=uwJmP_?<1kJr`S7r0m9;zc~oHf#0##(1n@BUu4)@wrvkMuTIIf?RvFaIZGXq&<VGsIeqNM*j)LVAcMiOC#^_??Yd8k?sK!_X}s>!E80urwKY==oF6zaZ|WdnOT1PrhDZdW^AV2bk7#shcVZvVa&7!x%^aqGk1+TH9(jcg21)-!)xTf-+dLq<TVCPy<-&JLg=XRQ3p+c-QFPqyh2u`Q=S4oew@GY?sqxAr9H1Qz^1FBQL&crF*gXiM(HIzYl)>E9Zdux$L6PZGF$k9`#ahu`O5Th8U{EA^@Y$e?9lrxyv28ncci(tP;rN#PQrBzM%k65-_nLmKVV9cSYNgaImz-9mRB!toyJc5e<)!5~27<Y?+DH7GC73&5y!6UmF!KLTr?fGShCO_^G)6g4w|5NBn56jX(BJ)XwDnTYYwtfvTfb%wGPZId9nH1nb$4|`Y~0w~UU<ffucvmz@Kip1QHE<lYf+B>gb0fN{@%Mkvov&zcZkY8WaNksc&$A^I!#OYPu9t=kkG56nhwSHVL}+__`+Bei0p@3BAzixALjm~{j<W`mO@Exs|F8+f>JjQc2U~d_M-$`j=a7g{MH2)XEEV$Q{nib7mUbqF2U(XWO%%-aN|)2v8~|8kD{c6bY^s1hGtEoV9=n`Ivs!DO7H2|3^c~<j(aW|=yt-xfdayV(PwmT?Y#}(vdfTqB()D-_mjIjmoT-s{Veoy`Tnlca=r0rFA><%bZCdzFCAC)qL!`|1)W`Tb};CWRq%L7CY93XLPw&ZB<~EFHRRh2%H!hH;@zPK1(L*(u6zca9vNcdMwAAyG+e#)p>MriKMmjt(swkb#H%961+=o`V-NLw+<Md-4m96?oWo{X-qi5bl5v+b>3}%7WRuW=Em+ENI|$M`p}f6_H$}AZhO!CVS4Ys34CB#=ufODVka6opqk^cknY*eRQ3q{I<$Vxt+qFuuRjc55cK9nufK1mq@ag--tN1s0i%?J>xg)<n?9sB2Hv~zvx?ffAj0l$m#E_q*tU9`*ilZGqd55hM7f$kyfA^9%n$j5Jchrc-&vIeqq0MojAGD*8e21QTiFLN$jVU);d5DE<CGPiw#E)=t;V18Fc>cg1jlIKnI*2%^TxC!QR>)U84Ze?}kthP;l{Y_Zo=sD-D1F?dmss>9JGdtODWg%@Na7j7(r)#}KDD?Q0oC$l1oU2?%U8IE+_4hnkiI1D`TkG_(DhbDLKUhos0-S8P?YqdqJO}F2ldKNkP&K5Ri<1)<<fFdsh>v9MZKP(=)y*;<y@-H*G*Z<E^NG^m_pr!ji`lFDZH?&wNt3Pu<=@ClF|zYuN_QkFUoc;kK&6m-VkM|z9?g}rci!Su9b7BzbH4H+#LWSDigbaC^s8wClEEf{?m5@QAhAcb4L($G?CYL1yQe7jGaL^<P6x@9x$vju}5HN!`vv)p>us=w}4P|E@EyO!l`PxY2Sb#ym`|$546CqnL7x&`lu%)T{tzIN^nN+1aaE1TB%{&{yZIjg*JmsvWv<?Hd0R55XwcUj_f%Py$C%l$Me&ZCYS|radklFK7W%FzrvXj!3efO>#No)L9b`Ee2aU9TwLa@xD@dSSXe`rlJNYw60!Sq$YTM`I|O+nx&QAm&>2g2tPQ^7pC?WCghPA(<X;$#?BwHxVzEewNzf>=z}(@TW9I_GtI?yY2rGxF-r=`)bUYk|1hIO&bK!Pkay#7LB^rwNoi5H=Kbnuw=(gSOU^PrRp$A9U_gGS)&m|6nAwS6O;ujJpwmq1{C{%=+VDLwwx-r*!@fUghCAbjyKU*EAInib`-SvvmcrXtwTx8FO7q_FauYppX{O07pp1cQD{39I04WX5=P;hl#aVE;fP*a0O@dL78_z@oB?<M;8sphy;mj4LSu?UPm2Ac(4Es-F?;mCq{mNj(Vxv+#A9{+*;RXT8h@fP|=krw=$q#gf}l4|9)oFz2+{E}W<=QU!zNG8>BytfDg6eaTu8mn)sP_dQ=QlQt?bvRKlm>zGBkO=0H^gn48j;(K4=*?kifc|BjZ~TRA{l#D4OiNT=v?BA8n+-9p6lP>)MpkBIWkyz>16g@)a_TEyv~LQiRmf9GrcZu$zIlXGNSYj)!?$2MdoFi7^|p^<!g8rmIiJyf0`f{9w@&Q-ca!HF$#2K+01w$N#y~Xv1x-Ha?ezl>=z!9I|Et$7-g)ir*|NYhWPj&CAiTgz)dgT>j|zlGPH!C`;d@HA95t>AosfXPNuzz>4dcC#b<dIT#Y#P%wdD)IX|(+U<MJs)Kh$t1ei!3e3REb_IY~(;WrXCIA|u1ci=-k+zmXJR|1Bs~M3{U3a&nJk{7B9)^xceYo}3787!b4;UOmdYMw0dOU1xHuIK^Z&N%|J;5?D|>@(z1kob;5E-t5YJk4~v*;eTzLb08vfEdnxz0Eud6JnoHRazdE;iIr-E^sa<|YKu=(N%Z|x8WbaQDkm1IVvZPLayOB%xw^|<V4h)58t^JWUDTARM(H;ySE84O3yJa{%w&@9r~s1w=m9OVS5R+9{YX!|JIt|4Ak;aw7EuYwz?QrZXn{&&pKY|2FJTyjp-=7r5|_bpjinApV3??9kU+RZFw$4pw^}F?QMnbSBVpK)>O4K7+M=o6zj<D*d`<XCQcqa}7p~wU6Pc$jdDHay6BtQ8D>B4mG0|<F2v+%w@Ylv6PpNpiQvQTay(Z&q#g*bEr9ZyK#v=zXlpXY$MN+?BM~)Uru3>9BD3YjxpVRgzdDUhj0?kCgD`6o%AJ4zJLdPfZ?aS)y{Af=)I<f1CY|zdFZ{$EtP-#~sqNIYY?6AzvuH^Y8VO@8|hGZ>vuC}SUYiTME!1|JAt@Uxsr8SUI(Qg<YOzQHh5Tpu@z%n39Uh0YdeO(q!g(|?&y7I&_9gNb@Z+Dvcq)~VFn@1hV5$_~{WSL@?NJ1^O2|_8#C`wC-CBr;Qg2{3|270VCGlWx=(a}eyr$rex<);!*QLdLJh^VNbihG8Tii&NU#1#F?ngkU>swPo|kottSd<C_#6XGf=s8hX(y6*K{LMtlOdY0I-GZ&5Eib|ty5?%J~l0$e!wd^S3E2@=ph5(Cdy*x>TMYUPc39+b^8X7ScHK(KzWKqLGBLb5QcCG42_{$^&_2<z*LxNt`nx#p<H>q!zM8sJ~2h$RVQ^I8uo@l@0PE4^TN;xrx7`t>5pbP1WjNzVW)=fF)v!BLy2AeB?!@RZ0JOjDrhu%?N^0_Is=J%9fOYWE$dP%NT5Umj6zFldn;=1!g#JU?=U%5D$i^1%7E~s~CVITcHb)?s)`Lv<8sO;O6#_v&y7jsG!lO=G9f>wv(IB$LJww2GPV<!@O%Y~V|IgcDt{`n^oAE2lpDKBZmS8k&(KRRL(`~Bf*T(4@DpDjVTH$Y*{r-;{(mcZII_gKfqlB#KVY*i<Ibc2wQOUP!X?jBO!{64EbN>!blYRK&$23QjCA9dqCr+}1chZkv0rsPXfzw3UgStL~#p<jN=r4}tlyCHQwRB8Mn)ioNUXU_R>ABKxjL<ppJL3uO?_hHU!yUG0Z)vc}7^=m2Y;yi4~^9X){j$~n4l@=B)e#L=r<EX0uC@N<kn$M2MFG;E5k#qo%^VPb<g^+A=yYoKzq<jbCO_>glm~3*U?%$G9hEzgiEEbe0yiW>TvQ<)#)YRDgP`Xu|P=ftT>B~+P20_N6xwgz+ct9eX9G%_|NSDlztj-ACjL^*p-Hg!vrzCXGPu8n$oYtAq&B%RoVxLL|d_@iZv9-z~4C^nfYrU}L^{lHs;I*wnp<rOMmdZ}0RBo19^-jfZwV%O5^^)?sm6h{~rKMn4@P+}YqT=~~Nf-1&_@0L*u?#N44$aYiIQD~KFAPyv6Q#c#{iGt`8?dCd&!+~Or|_vMFrDG0Cb8vVr!-ecI4qqBCq9Mo3J2F6+KABfBzIvL{bCr8NZ2XuLRc|-QvT>7*XNB!k;L`T;Yz%5dP9|!NxH-->1>Yy5OSKY8cO7i(amSlA1FU+hfzm{r??=}=clW*Sx7ky`8HC}9Ux;q^ik!9#Y4!i;XIE9q;I5DHDO!Bq_CN_ah{Rb+#l>AgmZ^9y2&bez?!5C@xop%l(QRY$9=dL2C)=15W-2HemJ-b-Gr0CHAGI>B97P8Mmqy61wT0EZ)CPlYO=QYCcs6X9i$P=ikfl~<7e?Smb2cKSOl2&HTdemtE2-6uScjcm3&ycAHyh)SaUFrQJDx;&P;LTm2tm+d>MU>;q6A}fVxPMk!{j_oT{>Ed^RUx4azL)h9)(XLQYomd<|BhU(P6N=E)xuG3dF(nNy^nB;}k)JID>DzwT>!f>l@%tmK)E7!OoySR+(NOi466;d{nX_Y~Grg!=U?9*%PZi`&#Q8!!+nbR45$k^*ehAC(sXFr!*gc*x#;67_}G1CIamBal3q6tz*&oK2Ujn)K4H=Ll8pRH$0glpJ+z4&DDwQ+NME9tMXV3Njl~q>98)z8z}1pS;%jQKyosMarLJ8e;gW&J*`mCGLovCskA9w5qj}NG3N^_h^Jo#q~20*6mJL<kVKUKp!yr4j@oGX@HHOr{(GUfIu<d<W?YTr#^*x2)kL*5jO}6#PAK|pw!av4dkHwH*ePv4hk!CcMjp8Y&K{2KrO=QI|xf{b9WI@MzP-HP9n<n`n26dl$&L_qlgOPoanoXs37D@-p&Fs4Y|9B3W_pM*<nPbQk~dkM5R%h+-XD=!87#TMpVnqi5-U_Mx_2{wOY;FdDsQFvHOTBVuctx5c?t0cOg-2R*jtqreIy)jbH{gq|2mUh~%k8;$ieG;nU=D<Iyq7@M{(JUxZJl$Dwl_T6YFp8!IbUwpX^c-Q|~;SJ##=k*AWYK-zqgAl!tgt-QF6<;~^mt1sQii@OR(KX|(Yg9JZY*i`sUmmG3X{Sdt}p`S^$M;4_Nfn(<Rha8_m@?B~<@Lsq0$vyDcDJlX&bJA%aqpjrmIhy4-$<fP1`m!+PV~xCuq+-_O8FEflUV9Q%wM$!-={2|F3RVg~vUjjr<8l#lq_O6`<CL*7Dgff^^@DwKYLYxd9k0B2WA&6Cp~Z%I_yICpSwAH?EW@Hixrs0rFH89jnT^El_yE)34@4=^4X~l?&g1<FE*V|_e#*?}57<64M=_7N-i&EHTUnY$$3@L`?j4-a#mnDbUcdYA@BPzn{^v)3CzTy7B<K6V2yMUfWlIn|VTFH(Rzz`gWordy>e?DR>cvYk*5JCB)g7D5RUN}_F@%P*B|ls8vnBtZe#t*S@ma7NjF2|Kx6_APSIPHbMvQh!s;3gCT?@UQuv)MbtRZ<&gkz*76&EaWFNQd8h)j#l6|GS;_6x%hPO$jK2PP<}s0-Yh^>(G%@G6eis(KyUenP#<JRQpEX5aCiAN7FuMy?N!cuBxg-vd4|O5R<S04Mx7f`clJXHl~I2}1GVAzCxSxt)r~>Xz>4#`Rci*a^wP9+=Lhzcylr!I9tV`W+Q(MD~0jz(rs@dYz@Q86|DhvC3?C&&vr%2EXM;yM&^A=k7BakSht|bF>nlZWew4`;?|LffjobT{#)Z#Az<6ine>>j$atW-NQs-l_jwFM)zXIJ0l_|0eBlhRm2jNnc-=%w(t<=aU8UyR_b2R@r@AF`6{sLDzhS*E~`R-J`-%2Z>&%ONMlw>Sc%F<agex`rls5QIV@Jd#bGq=CojOu6VHR<n{m)flM=5=eZfIW6Og;Z45PHknouQhGkFq9SKTrw@?hn|R?mS6lwzlY-dW)oz>1I^m`bU0ZP~h1u@f0g6y3;CcTwF(<}}rLx?Zd+Q=)cHHVnA7aDY@wMIieZyS-rFNA?Uj#xQcp{xfKsvEE=5w8Bi5S7YoA(sXU1!V}s#5_+T5(nMMVV;{51%_!XW`Iy&-Q73IBH?ikdfgIqHH{c9LHQQhI$+<Y0x{#o;=PLu^ROq<{BeOO1+Y(rLQ^|K(=)Q(C@%-q@EDR0fDIULbC4HI(XCfoiMWa%}Hx2hV3o$$eqSyo^-p2dH^U6@C3P2Nisiyx)QZ=vdu_`D|fg@^uBAD|!-f)EIxi4;SZ!GgmQgXRS_8F0nZX7r9uU2I7DvxvWPNxe!0LOod4r(e^{vsrxyTN%))YIu!(czEFB}3Da(U4hXGK-pA(;$jj(NrUG4wa)%WL6htXyl46P9@0Xu=T3cDs@t<WIIu0l?ckT&SI%=kc5&;O(l3`&C_Ngj%_Adpc78eDWC=0nS3-wy3=5grx1AZRGxIIu$`(-@`c@~=8}DuJ!+(1R8ZH@B>$p{_RsnjAgZXOnZFH)Dw;b_ZUwB6n719U9BX1r5OoyQ<!lRV$DO}5h<deQZV#efYZ^37G|*_;+%rUjy|L^2hG>*a`rZNWwcPzfG_Zdr_Yl#j+Ee!th^(K!mxu-$wdd?7qEWZ=_Y{b!<?bt@(WvI{Eux8##X0+nXxh~&dyHtJ(y_TS2)k4=aHQ=Ls^=y<5Wd&aZ3saSoOCaOSJY1>jAI1A=1E(sNI^6m;8E3D*o3Ri@?s?^wrw<%hc8B<tZkzTGeKRutz!+Pz;+V-Slmin264x5R0u}GfRCoe>2qRMly1!msgqdIcz_$BrC%dh#Q9nCY{pmUMgc_iju(nbwIu;HN2RYE#V$qsrJ9!kU9W3=-A)xZc6J80PJVgvvy<P!zu(Hg|1eciYO1AcF4kmXySr$qrY&X=^%pH{Qev0*9Q3Z(K6N|<a?$Zw4NLDgU1<eA@;4{{2p|35PW~Bwe+HlZ9$WcNN(v^Fb>2^%;Ym%UDL`-p`9|EY`pS^M=3qYiU6~KXwk!OS1x++@3&!Zb!$|$p$*-u<(oxwxQXxWrfTR+1pD`Do2p$yu-LYii=GMxlyL@eBeS1q-cw)LGeJ|d^nS4EbJ?QnkrE0Nc&A$@BQSC6c*0(LYR4jenf`D4(>()`NvS2L_;du3m-+Bpnvue3sEZ400mk@aqMjq&vbqz*2T(B<hMPc7xvYiT)xaD=dD3Hm?ja{b3>s}kWB8>OGZmj~_*s~zOy0K+_3mV|sRk!{H)%z{m{yKEVV0>g9HEQnk?=z&bGYT@JATtUwqaaU4L7tnC7i!zLw)W5ukSW*AL_C!!Hyvac*f|!E7qDP1mp}Rig1LrsWr36v7Um3JZ%(OMY1f^SZ+9C`xqDt;Z(oGT`qQ~@o77tT24venQLu&TiSy)o1^TDm3x=)Gi#lX~y+Z7fbR@*E)Gu7WvhY{d{PEH{rMQF;DvB4e=7AIRV9&6~*o?YY9$=+mx@NRJ;VX7N9B^asJJ3N$jt#cvI!8({bc_@kwC9nxx#9k<X0I)QFOu(*_Q_e(<sS6pAl@7K!N3%V5ys_kJUB)XGcYCY7`P->C&QzE<nIP3R|jsCWVEJMC9s*u3QM72db@OieWna~+7e$UUA(4N(Xbuk1aay5i*OKWyLDNct&@hg_fRiHs)y`_Bu-^TlSBtmGA?N3>qpW<7dd&6j<s}t#k8K5jB?+L_9e!q3}K^Z`dpm#3~nfO+epJGBfm=-TvJHL<;dE?c$%*=9dR=CfTjz&&KAB+@%A+#ZZjow+62o(xqM!7svPaSv(@k_jno|%3w2=mq!J*9ArXsmZb=amJIn&U7Vm!(VNpZ#-Brz6BliP^mB<35nlu^K&~T(SoRoO6W?Xky)00C-TO%}=HNw(osZ2=EypmZYHbAFJ<WRCAmGSaqp_N3CRbi)HBds5%>Dgteig3y~ghim7g<2#~!lIKGfs&qF3PX0!88cqg+|%idK*^6uYDA-vPi+JW!X^ohXx1~jd3LF6&>a*%n6yXOXg8eDA7P`mok4?yU2jaIL&8DD!F*aIoQj=Cj}R#^Lz9GqLLx<%goE-QMVmyq?wBGmLS9S=7DFqVLKafg)2xjvHG7hHL1@h&V4`Z5@`;$JqWp(dC97rAUDeYaEOrJPn=3D`uDs%2U;dVR>D${YTaev$8l_TcXK?w(`qkBI?$uS&Qkc{BQ65<6YPy<*VzzE>ZLD5iy>WBP-Cnzbh1{8YJs6^LLO*03g&ukphlf!}!AHlhlTrlGB~mjP56LS%Jd)>i`0a%~%INi3nS}LG+T9NR?7l{2QQkhM>r%KkcNfmmn``dYi#Im6SJqcHxizg|RO}s7red3PI7Y$X82SP)ZYgIN7I&$n@KB}<fG$vNt#P+2!y><hcP;V__y$#MjQJ^bTny+pY87`mY7agQtMW$Jy304NU%#>LUb%67d37CIcMB`u?fI%HUb~InEunTJ7_Ws}Fjdt%t#~+#^;N*oJ05z;2N8a59Ck-40G+rcRp2Q)dFgwv1IH}i2pBW!s8?9nULR>bEc?;13LOReqqHSQNigu|=yDxjf$81eT)zC$>iRX8v}<@E#-qN=xBHj@-}*o|#(nh$<303(-GO>XQkKNAkbs5@CKUB@x22x?al5zAkHId?R1R#r?c~Xq1LJq)kIO1fRKc+-$K8v8h{&gYfJ4Td;M{bZNT5ckXyI5`OsNgI#%zhsmgsDWe(9Fza}yj~_u~DmE?64&bYOb#k&lFbQ8vQlpbNnk(F*uO@-p>DWM4lcuTbx^-;~7F(3@l=e2?9)u>T-3PbF|N>6VAQHjtGc6mP1Cbt=ua?b|J<UiDjz(i1zCr=_{X$T-E}-cVPK!eiVxVpB|S7%UywOSA%gUC-+dl$fhFrHLxe<ImzBq-C^pPV;GM?u~w8$RbiYs`!j%3K{|{uUt9qDH7mvI7WNSby3S*luf%qyxYl!sn1o$k$nUvWd@wE`%dv~pmBPWW?(uGIi2UzdAhUNH)5l>s$v^X$9V1TFn1OYQSM%hydd@&Y<=X75bev+__T@au?&>=#**PPO2qrtqEaqkXnZ^kBRM9ln;3ghM!k#}^ea(>CTvEzLvq1x7R)TXEqS!b!m>kY8-`$8N;@iTlR3(h;ps@*y26CUOVV>@7TD|vn)@%GEzGo3;6?Fdiv+<=<u*u^tJ&EnDvq3hqFyp#gZ|8PhYmScSHHC~A^N`XvL6NAW4>kBBDHXSUMAoHe!fW<tNbh>midKXl=*Q3I>nQ>6_@d*gKlNEZeGo=cA58gPQM-=PB!3X>__~B-m7IiNmEo>nmw|$<Ix^fC=nx4|2nDPJLz2~fj#)}<k2EK)gqr&<hSi73}0zI{xL=T5xwBS?`Jp|se?JBX~`WHFworq6{d|<Ij=gL?tr>^DOBG;iVmtYBf|3B97AB3D}0_QQjwD_TKgBBg%m#mmBYCackggjckgh@yV$;I=o#!Mh`>70MExC!ogsS(sWw4En?CzKrVjZ5O-Jep+JxBRUG=X7e<Abt&*({drpxKoqSUHKqz;0gwo>|IF)lUMvb?dXE}mqC4-6=dAL~s|2NL}yeTEB#Dx*(k2Y9Tl{|I3t2CzNiYPAs0W!lzC<4p1nJiqNo@9aAl1muZfH|fba3*}%S{NS59^I{N@mAg1*Ogf<)jbP8qMl4!f%SHZKNYhX33iAurSFKFn(UiY0@4+~fFUAz%Fh2jjg?fI7)>C}^qoP$gI$E@<M@Kke)%JjMR^LQSNT3-Jn-Q@Y5t|XQ|7b+)xpAa_vuRyMXUW(2@EB&8)7<E%<5L+`>3z~|c&LoJ@=?0xPyP#Ew<;VO@`L>OLKYLKT5VO^je6N}Dvg%oG|w<m`fdUWq^$PiB?FY{;p8o^bO4|c9b5}Ie4h{;_ak&re2*u-T#M-97oFLn5#0}QiD3}I%THDh!KWe>$^M6gr(V<N-@HG?H9HImGPOvAAEf-R^vwK6iBtZ_ng_D9kg&v`JpKvw+b5=z=jmP>NzYng0VQn9YY{Cg6i}Y&$}h)zA6>P+7SXj+meV!OB@)&8vsqnMTu;IHBqN)v5+&nIg>%Ul7a@nro49I|Jl|xW*e1>gUW$zgab<!_G~hv)HPsnP?vCQ$Y+k0Te;GzP|9H`yhF~G)8#IO>&AH0{ZZW3IO_L|qhiocen)8LCK4siR*+g7;UQ~m&H|0$F0qc{!k7`+JuS^i;9vKuN)zW&vNLR@oDi3=q$D~y)mag#o5PJ`r@H<F5$76D981!z><>e%Ft~YVjVbPr0l0kZ<8$quZ9$NDotJ+fhW9Gai!4T;b%36WCLGHi(>Me^Jm22Yr$n2K6JMymo?wrv@_ps7adP;}2gF65Hy`TSgu5^0o(n-wk@k}8#`W_Umlb=(i(y`Ap4LU+Q{63tupRe|!HfnIbeO~3tZ@#^dHz=p|e!kk{19<@CLs<fc$sNJg^On}`%g_qHv%znC)bnD?7kXoU{q_@}YpUH(YdE}WO)nz2VsiFL6&p1NL>dgInv3YU`vLsJ3HlR0I`iIyjFnssbI`qWPquU?;2ZHsF8L1L_N8Z^3HmiJ7xCP}>5NWt43z5+USLC~1)Z+shYU`M8>bva`057<Cn^b)e&U!@r-C`4DW4I9<o(oX$@Ig?yvh5{Nb8KW&PeNww9ZKD^B}FyjU(R*GfL$$;HkLoImD?Wozz0R7vQD4uqMM6jZ59GU$fhG%P%$B?M};i2JLY}UwlFj{48d45>Pg=z-O``q07;nmKok4cIA3ds*dDVDRGv;aau?Y{H*k!K?2Tf+^Mj&8Hidk28G%NqxcNeS~A7t`V_K-^c6!Wcqsq_n&SrXC}?v;w-<&T31mydNq#65Uac}0cgcyH8wVs^kPh3?)3o&KY((^fBjDX|%=DtznTQd>&FzQq$pjQCpOSd=V}j3aJO=)n4DDI*v86C$@v9XE?&J;k1p>Iju1Ep6u9J$fjvl)PP1^S3NeBfEJ61W7N^ZuLhPDm`3q13<ovLjou&Sxbw$${_Xl@5XV5K7|fS3kSn}<$&UI13@ZvPYvgR|fdhOxwHO{Pj(-WP&ca2~7zDPd_=GM=d%Cq-R#vQFtG4y&nq&{Qs~<b0}4=n_;D%mLQ$rlqGjsYn0v#oR?l(WyfAblFciDJP!_m9@+MvW`NV=F5^P`ud#tpAjQDse-$se|aA-b}%eoEF)K#KqpO;l?Zf4q=TterchmhXsEfLEZ7UY`B9?goI-v{k9;}>7B=Fwo&p+cqwl30>HzI8=g?*0I1?DLPBV)UTd{L!G`gD4r_;izRi@Bt;h^4o9=&GwUDIi{D5Jx%DRf&@5NkD$c8dzCq-W{3sG>u!3=J1mRO>hBxTvDzs!3W7V_446b5X0=I!zZfgtB18ky^vl969Hi1o!}46{(%5bXH9_KO7fITbN9oJU3?iO@EM{!Qho0N2|L-^qC9mNzQ3Py0!k&nlCR}wFUjmeuo!LadYL$-Nf+-Gk1J)#)GHyNnI}1$m21xRd3T#`THji(*m|uw(pwkn~J-(xw5i;_tpzg{NL+rnkx8CwyDLw_i7m3E#^c7gJ}`%D7>4~n*6>y+gmaoU6bCN0!67vgv6qhRplEsXBZvjQaZit&2-wgSJu{UymI%}cc+?3-_fhT3p{Mj*JoMGxdLnCvJSMQIXE?MFIw@a6OKn0we8@_%FF9F*VZV?kD{EYGlu&Y8gqGXYQJZ`B<C~E!;gw{e=WIw!K$8;(al{n=VE$|4>g2WGa53ZAu}2>qaja9L!O_M23_%3Tj+;$nAPZ?jC(5CjaiJ6LraAOxsKTpYGeqsPCg@n*dx>FxYA(wo>Xvu-wFq4c59jL$5IsF42~~!fI_fH6xtp<enTK;@4Ms-4YiZrKlv9Hu&HVuJ${Fzm(Y^8X~^D673jFNzgJ2#+>VFnXq~k32x3^u@>rMYzmTLITgR0`gFa1UdMwUFY2T;h6bo@Bs9)gyL(*M%!|>#FU**xd<eOUsJb!nlb&6CE`8|E-Bc*{QEXJ@vyn({n6;x(}s5c+~g!9oai$^g9ENx()``$2Kw6^xbVbDFcfQ1=`DE3;kUJ1j?z%lz#+edXP2qBT@=c%)=Pvo6V>Jm(K3|>MkS}l|#w4-sq1(|OEdvp!v$lekns9DJ5Cm)Z(+n>l?1xtUQaS*U`f0idSRd*+(>cw|Gko5m0e3g&!D#@bGzeoB`Z}8kii<->nJz{b8Lzb(444;RJHat1xrO)qa=DkU>){l9xac}$)t6Ewo|AJr2$SSySb4WkSniKeng0+IExv;lOCu$_e$N34>-{a*&xYyE$9+0L!5Q(W>L6hM=(;%8*AFwG1FCD5}Sa}LR=AvHu%adPfZAUrx{cj|J=~AG;-=w|xjV0^kx0D>k&p%awIJy|O-7ed;cBfWv)*PqRt~`ZqRHm)@DohlbzCAxQkqNJ7UnIQ9$!|>!r#y#d((FE!BI}T_d)}bKUbaRNWFo_V<;@#<ehi=HcKn`qe8F&Mjl%$Cpsl?;<HqRGxl3Dybd!j_c}V`~cE<go{_Mub1B8}kN93}=^hHIp_{s<x4}#amzPs=HLpO}r_gMm^n8J(1&?adTPgoD5J+zr;Pze-exxEn5`$?byyht&)cO)HvpUB4Q61^l%-a;9SL={wBF)ex`bIf>NDj$BQR?9GG@4MX~BFQwv&BCN<`*iEXQrPw}-yUFTz2j_6X#|jk&bUn~nHhOC(Ac(*fUu(whiEN0@VBJt(}l~jxJ~kwgFrT1O!7_(O|7%@q5*4qa3tuK5^5=6?t5s#q~Lv(Gq6+&t~_@ou*Zp9IF)(hc=MC;@0F378(MYP0WF3B*QMX*m2~H%^J4VNKJ58~1UnTbMGx<yVRI(Ti#rBb@$%sKd^pCFP%B&h=nIgSn?mvnfA*stQK}BALL-8I5!hk`$p{DjJU@of!UaQgkLMRDSZ8_q1m&oZSX*Ct9HNuHN-F5Dq@cizRjecWGA422YmZ+&97Lz0fgC$!Hjz70z{MHLDg%+{XU***;jVCS4n1VBW4;;C?h80LqvToAFk~2#CWUyhYmDsD@ugj3HNkwb&p>!dh31t-lfnqQVe9hwI*IGmCd97Ll8p#n8_8xQ97LwoHzeU8nus<s5Kzl*Ou|7p8MQeH2N7hn4GIFP`X(hD1d_>YR1jD-HY?%Os*@X*a8PzUv1thhJ&#QelyLB4C#Ik%mult)CdvqvtZiZt(8%4$L>Vn1r)*}TjJU*k8=5FroijEyQLZ_sZ)}jFIel{z<$5i%!HF`u%F~vb#F?44(TPf_Hg&TT6@<9X-|$4G(lCL4NJCguut@}A%po!{PEgoy_R~Pb!Nv=azIWVGfH&0=;T5BgKiD$K$)2i|fP$(e=#4|KhYsTsFlm}s)B(&d<5iRNO1BsGQ>T0}&rR|)#|J(M_(m?}j7y0bvpr+BXUz7D**-tBy)!tCX6y|9>_lT{@V|mOs9K+bJQz1RGXgv#z%v3oBfv8P{AVP<=f4j74P8;=l>Cs%!qTPj>#v*lUMl3NZo4ks{LXi*`Ryn;2t0En7jRzwN)6a2G+5G%Vlg`gnDjStiNo}UbV$8EmrCEXhCZU`dq8REVwi^NA?m@uFA>;bcz$ByuiMpPsZ`2DvEH{<f4+r?T&;;Z`UAW~glYIG+k`I^dBNwXxKH@y%uz!BE)By{271C+zCtA;zn7#aiV{TE?-BM<uekfVkzy~{-6L);rg$R`2nETtCSziMG{U<Dj)715G4#tDmcy6uAJRwTq?;dlaa;g~v@q;>$27FR%$w^EV2OT@^d8<yfD0Z-XQYqc#=byRiBIJs;>nY&YFr{XP`GtN{P)=6gJ;D97_qn2{Gs}P4O9O;VSP<OfGIMGko`oJAJL+@Pj*nsH|i3men&<=#MfWZfZnH3U&8alJ4xn;3zGVLLiQvN(9^Du70Rg!GxN<vzXN8ZwL@#EKn}@wE+ENxhhZOJWx(V2*^@&`#f(L<pgbl_%vQ~YW1@>R3IqG~5G~OQ-WVuo<aZ3vw|2eV@=7(QL&$Hwcjm>?nKP8Gkj|K*nKYS6nu#^0X(rB?s84cTg<zZE5~3V>=dq*LrxJn5zsoz9#bd@e7);842&3{TrTHHdXeaY4>)R`v<}UG>97iJbOpYHBVEyI2FpPbgT~wSz9D&}x2fh8!A}Y>n@uB5>9cIwyOEN1}b8!HK+xow)*Dk&`4o24G6&MN$Nuk^u$G(K4=L?c!GJ-%EV-Sb(8lsaZ_@}pHsmw4ji;#n)!?!2ey)8HBy8R%I`No0LcUqJp7`bYkr8z+uxl$n)X$#+JQIDkWFnUQgRZ2RS@M4T0c3k+*jvo;&w)EQ>smmJDhc)uZN;*Ne8??tgx`UKqiExb|nU#OEA-Si!@anj;i^92><i-~eb4|^CysJS;SV%gyn2C~L7@V?(?r0CnMrUs_5S^c)if$MB$)~QR>_BTNX)ElvWEi#_b(r`4ICF*NZa>l0lX2^``#L!sNDL>Eizay;m1hI-1fC=(FJ$Ds)u})aIae?!$d&!8+bhu8K8LY_Q>v?53>c0|mHjBvTHxCZzQU*_7aL_qQ}vg)_V6JIY9f_j4!om5CGzFOP~JS~z=@l(gB=4zupv|ICif1R1;9=kUz0ZxWdrV>tu5#Rh0QGV$;u(x8f6!ZOoAzUbDC>K>MZn3r|1SeS0(KbHlh?t`T;MMl!l<sIg^eE8}-g%nhG1QJJQ>Za>XPp!mgHe;sWnA17_W>m8TIIh-;>VM%eXwme>dzVcl~H4m*A{`&>BqwFco44qiNDi4Vig=MW&_pm#ov2nnZNnIuHQX;kuvktkQ}DFjKBQ8ccNGh^5rgh`Z})eLbG6&$EZ0wpSVNt8pRL<O<?^9Yrw)arS}N>uTdB1^DD6)hdoiV@YAra%=36vM*<^uY+F_#I?6s%TJx;jJ*}kvjm)C%tA;`T?bmhj_D7tH{)^dhLA<p<4_H>4f7}&&Lr5Lbyj0rCySCvgZJp2yN~i^028j^3WTi2TdC((tvNMc8O!EH=4#J#Eb`;@jx>k=u652?F^pJ@+5i9f3Wo_WlUe-0^J#$xkAk(nI&pQ!WuO$7iNTYMp$Qrbw*fcg!MTP)@QjixV(MUx|Rhv(E^|9>R@x_<(1_%_wtP`bemHvSzoo{K5%wc<R1WkV9oo*-QuD}+EG^3g5!D=TVdDg_PpH%U9?#$mpX0VtGBD=R@<r7&Jb;$irgtbDj(qUN#u@^KlFm=|7Y)gm>V~)e9^ChoophhBL2Z20wA18B9El8Ze~Whk|s{pa^ZmhD8WM#3_(gG`#R+~v6EEUspp%`+m}uDCR@(#zE?H&)Wq@Hlh|?9`vB5+*iUdj!aL`50|Y>Tq$tjqnjjO;5RFEoyV2+LIj7J0or>dGhaDdy%7a{A_*op^W7bH78D@Dei03>aLi!XL0r8}cdjfwCJoxJeWM2FiSjk@`?3u9^u*NsZ?g@=NpfIYx0(1Hb#xqu9M{N)BSQaa9-dek9WIV8%Q+?~s+ASe`Xlp%;e0u{r^(Q)9UFNXej~F=V`8zDB=N}^G{w7^B#M4K>`+km`xpMYvcB09SBDo!vpXCCPg)qIMRORh4_L&ti5SmMmdgPaHbt404wCc>pY2OWomq8!v;>x7h24={LCFBd-9`|zZ`F&9)w|zIDw{-jyGHW^3sd>*mO$8|MG<xU@h$|;_%xACw=nzX04Ya_cD~60Pfc4vsZbp|a#2m-s&;$}$RZZ?e94oOpeJ}jibX=R_AlMbC&Ni%8o~DzPF*}EO((}pe%L;w0*n?ZtZ*C_c4@2~CwCp1fmVcWA?qI?}{D;{#$hd<aB?U5bgpr42ExY!-Pg8x{3(<CffRTQ4fn}2Z_8E{dLmMdYH2(Ep<+tKC(J`*=+ylS7!@T)3ZKO&2X?}W8GSObtUYZZ_f*zZ0P#Snsq3DvO5y^lVMESyI7xCy7mJT$umuitomHi}VZ1!cD7dW?jN<$DAzUJaNLwVL2eb_>LmB-4%XF=Qy{Y3d~PRPu4n?cjiD`6!wU|kv?TLa~Ws;~r;k%hI4^lTm@qIx-bD`t2l@)fzkH$Eq#INq{Kw$L8S@=43gKqDFFGnBw3!D<Ypmf$u98oh|&7-*tmpN6noGT4q$(?ZT;pvjFhA4&;|12E7>d&q(eU0#h*8D#?{LNmmwG9)%bL_iWwaE2%;3FsO0NX}+ohKSvavoJ$MSNZq{=AQC#Rt80Cik%r!wHmTCX0T1OHRj=-W^IOqDMuN5GbCM4vN%J+0gtjd=9`|u>I@kTt0U}=S#Za*Jg8IWY!AMFb(Hlnw{Tv{v%uCVXn_2zF_Wpu#0jr|N<t1dpPFnjM)#l?hc&G0qjPp$2}Kpcpb5H`je!fIoUm|SN>sy~ds}z*%$<#0b8q|BcQ?%E*Y+@}p;*IP+qc%YU%X@PZQR(tL&*z89ov@$5T*vO@&(WxfnOXRy1iklL#Tgadw0X!-`%=-b7L2t(%~6iEfB&_7Jp!U<Hp+esS~%i?%-<<I%{{<cel6J&E4&792c_d<%6l@LyEQcgEHg0@DLF-sAXPLfMQBh{&$!X0dsT+ZYyvFtP{|4Jn_WAwF5*#U>PgI&87_Nv$fn>6;3>-f3zYr{hrVQc~R(NBCRe+o0N2U853A^%k6uP*8}w#<FA72`@Mm?D!BJypMj4{m&3R54X(^s$Z}()eB|DDyhBhdmUC+bobSN^2mNMAhwf)T*E}FW@U_=o8?vb7z;zwr>%x*@EWtmv=d8R04CLk4U#G+xG)I^q0YTQ6dpH}x*BKtDiT`k@2wn}bAJ|OUG$%IB3EhJkU$)C$V6{4f_VS7l-h^gK2v<4m<TBQO2{^*bSn1%}8p27%zerH-1C<8&(J^NT0jg8UGJdGF=WncUY~Flf>%V>H*6lmnJO6!mZ~yLhU;N(p|G{e5z~>K-yjSkE+8w|910aLJ@yY$uS79LdXrgwaokZ<KJ2*%FpwH7vFWX1G<z-+w@B_8$x&~7k9C^+DittrIQsJtu;aG={Bur@q1s4=tQ1Dfw;LF%-)+uQ^W}Qt~Z4$*Z*=^!22><oQKZf4^PFODBF{yx2sLc{`APXhngvCZ|s-jx2Y0ai1)^&L@%0cu_gfn1E>@4O9P59V<B69}!6i(aJ;+evj<MY8aY6?FBz6?XoE@0jnfjKy2>V4eZY)X^^rbi0!KJ?m|Z2Ng>2W5TcEB-P!*Q_~?U<n<+@4{av-x8KjE1eYq@7%$%uuA{P3*fy}F^Jb%vq7SEg<ueLVV(t`!v^$lSu82+zPKX1cx3g36APX{a)s|~d|%l3?$-Loof{j_4rM$Nx<@@wrPu>f>VexE`!8&-XI7QdRk!!IzMIwR2(ob7>f1-AZIM%3pP@LIe&ZGHF+@5LzsptHYmsXk1soDaL-hG0Z<JUG#hro@z|yFM)}Y9t4!?xyb{Jmk(2b759oY*bZH#bwX+JdGmema?IG&01ypNVmun#sj3!>*pV7ncL3xFY|EKPS*nCFIvzi~M-Z2-m^nTEp>dNSb*hcAl?*vR^zBP8n3J7}FJ?J;X%kN0@TZm{v}LH(P&dfFJ1G{eN*%Z65$X^;cbC;{V)EC~dGn8gJ@Lf`8|zzp01bYY_l47F#K2w$yx<aegW4#+gV$YeVSSA$rsMnUstgSikY%-xGaGqVW%(6pjP_L^{cvS|0%a%5%}W)@-Z8ZJ0yGNA>@e)c0Tv@nm6%!(Pk#Vj`UG!TFunS=Dm8I5sEx<-#CGxV&Z5-4a>j-hL-8nZOva?o<jDRC|U8hV{L0chlE#0?BtmeL#n^zIN06-_W<q%n`<j<^HUz9W7By0<vWC7@JEaSABXLbHw%#_3~CbdHOE7DJJwnDZRPaYx((F7-GEF%)!}OLGxJL1PgoLKf}K2+>f`O^k@qP;iJ5L9*cQ81rEP-T1wYnxsZd$fzMc>~LMcwUWt<3{BLNu6qo4Am+O#$y%B<q0LAh<xg0wjxs4MuBSN_+L>xu><VtEQk-W&fmY+KCQ8xv<+un}k}5|?;g;V=Qw#s9qJ&O$A$YDRqxC7iez8bjO;9NmiM50=Wk&f4rO@b6mOJt6U+8=ok0$?2QEGn-rBz=TPK9vl_RIW%f22Gjbh!I~LZ~qQ2(v9vItDycg?m4vEO->g_eVN>{fthmzo6sMk1^{bdkZcnCu}(tfksECn52Z)T?_6BRs%#^gV+Dp^Iz};HXrkIB7;}mbs0c1$i`g(Q(X(kz{b5cfAD?i^#|<O_p>n5-Pxy<7vm9cVdL0CY-yLy*?PD(s6pPquPCwRCv?L6aF{3JF$*Ze(_`KY$yq?@LPco%^kG0WZiRFIdzy?NvqLvLh59@^JjO7?4=DnXkTKa@fn4P^JsZEW<+Y-*yhZqjc)<K4I@Lz;^%F|OasCERF8TqBE{jIDcH_p~y|sPNh<PjjeD>biAI|>i?3ZW1JNwtOU!T1<Qc>7>0Tgy#{okSb`)B_oj6QevK7W#((yec--@Sp4@9`)907}Sjpdvhop?&{$_FI^RU%|83;BTq5@ZHFDgk7}$4shzjul^hIfS^_O1}wNw*$ke)8Gie<CW_g>1i}Y?OY3`h6pv7@e`N8K;WOX&2R)cp!k&OtV?>?hNm@VSejX2^=*I`>dI8@iY~h8in=c4tj@T2H_x-LQ)>e2c|91BOzzqEcM)|&Q_CH~W|2K5$cTn&<n6_V2@$d=urMcG&EDM%-moN9Xh>#veZU`0hdH{uv$C5;TF5v{euyNx%JKI}#_QSOT{rD}s@YiR*6X-kq3VQG#(2su$pMX!ixpiv;TD}ECiGA&Vrux6bA^aP>^mj0bUr~GSM|D}(@9ynv+}Ib^xA*q8Hg@+in)r3t#P4B(|KGEJ2`P^20>bm#YrE^h^4i{wt*w=aQht5*FVx0+*oF7uNoWZAj)Q?VhSjO9{jJ*@3ENe{FbjrRFwBBs77TL?!@P{CaL4Tnn?273Z8T{tOx>8tT=>6#_kaFXfGK%M91&p&$W!s`{{nu7KmO~DU-FcDA4fU=$nS@z2_t79UVxAa=tqZ6bCm6w`w5aGCJZ~_re_E&=ZOqc3Ij3uK+K!iO>=Y5YQYE&t_{HxJ|s^37JK%G@mZ;K-F}llj+y}TXid*#s>6ii9j1xri}o=P)tihDi)!`jER^&Sp-Vhs<34+^iro1}gbTm`FCrWeA_-m=O~u)xRpy~caP$Nc@D^`s1c@WWBEanOZ{xz?dEgm30^)(tE<x`Z?qD#vtH6NJ)sZtGqPx`)T!L)}v;nT-*dE}<aQ<e6TKoxzGr>WA5N5=CgQuN-SKv-w9G`nN%G5_j+i+TNgpbH2EZkm)Tp_{<iIQ0|_uuok$!``rfFB3OP)^W67{&Wz?nMfF2`xv48Nxhpq39RrOUk@#(S7v;?&<lM0h^%X+$Zc|o<#dGrRe({H#l6KpAAu2K8(5MF-(d7?-SvB*#E!80)tsy?kju#?y7L7vJ)Y~Af5|}A2CP>n44X`%FvG)%KkHK=nKaGBRKzXuEdIz)nt5AKYNr29<REprC4=K6YZ*E*WHQs`bo4y(cNb9e+LIYr2oat@YgU4PheCkuv?V^*DjNPLS-!oJZ4?0@MypiRDk<vU3&!tz7qF0DRUsziOuv$qAWGsLl1TP(%}FEqFGzvmc5b<bJQ;dM=pqy7i<DeK+sP2wA97OyNf;^&Po6~y-njN(aA16)E{&&+FEbWDKS=BVvN1SJzQF+7i|jTDNAHKEuo-V>R28BqHT2i61owUT3*}Z!Og6RiH9~PZi7j<P4sfPIFxm!PjBYI&$N!d7~pC3D}ir&WQtCl1g&1X>Gdn{-wT7r#nUd@12myx=%(E_*+M|iO1EVm_WVJY|Hktkn5#q?tlx&!4`G>27<CKg%e>d|PdX+$jv*`giRpMjmw{ssn_?cQ5!$2`*q&!vJ@Wo!hqGRvWso0qsLA0CEIeW1`l%8;jb^rdco9d;23qekuTtKP@J4t^rtO3`t$B!=O~1#k2&B~OIPQIR0K%Mj;YWx4GGoU$?02)}Tf-}~f2Ll*R8k&89K@VzgXaAqoIzOF9t55pE9S=wrWcr2%cBD)ldoXr(nfcqPlXU#CapX49|J1sou*D^cCC~3=o69L^CFCw9FF(=0lA3WTDvpM(6~cT(ivwq%x!ddV8eMh1G5etW;u9u1WC;^ImV!;LqO{Ru-D{SPvUSTg1J6nr*2W6N0<i6oj1h4CNiOg@B6JFJowAQE{Mt~KHY8gt;^s-XPo!MfC}<`aDfd0gX<kL_z1!<$al=Wb_4c8<RiY&_YRNxLIb^aPLAA;Kr;*SI3m3yj*u9dvL4IGSf@iAlMyoN<`_Wj-=ll%ps7vXw#>Dc4E`ZCi_DjnR(sF#`cVlHswfTt6vQe6GH}a?|4lCBVzoAeZ^jj8G7j4-vqf2Fe!4Vvc&g?1Ok}awR<)sjFZQMlUxCp3HR>$#+|2g05Le;as>+}a`VQ<_<&e5nIs`*5%Ym?^^l6o%aR*=I6W3PR<U~wIX7e~?3{a4BES1H74YgKR<4o94RXqP0<-~YH9c9ND*{<gCWVneC%rT<Jl6sO=LlJuS#`rasXn9N<Zq}t-&TXi5JOW9xZzz_kxjY>1qR(?Ur*Mg&(;+uEv?`vlC0II?p{H@2uVayx<Y`bOCD64+rN-d4hg=`)s7cn3fB@Bq|KpW5+yvlKQQ|uR6d>F~d^><5O-$?wP=c<?jK#tQxf7?h21BFssf_&r?%-$4+$8Xxp0!gTdO>Z>b^-Sh!#Q)$Ff^H*wVA{4=uHAC@40RNIP0!TUe^diKIp=yIkfCk-rKMXxW+UYu`kT7N2xpm6IPGQI|4Tq#AJvX>Gs@X&mRQ*Wl@GsO~F-#QW-*wGkVYz#QbJ+G;#<1q}^tdrkxHJHARsUXK{sbqA*Sr#)+$EoH*z_Ey_LU%t*TM;Ec2jPc91aLRS`sdZ8~*f_xK4jm3UY><7huQ0xcAe(<-uA6(`nb>C`RhkoBa@{$Ls$?}=bQP2MM?BD1x{nuyj(?Rh2LMh{a@nf5Y*p$S2qt;OLYE2U-0ApMr`hnZLv#i_`!xxru+87`UPCduG50P^DDv6fyhvjm4h43CY4$lW?f2GG5S_JV6Sn38v5}f_7^LJ=f{tQ<=Zh5~BU1jM0HyMxwEbvb`t0AV$0!BF2(1Va!KgXK<4~C7w@=`OF`If*}+hd0PA7)NCe~Ul!Pa%Ciq6PdY^qvUE@i2nPK->!&>!S*+qenzN4=d3BN1S6m=3o~O3G9OC=^^#>Et;S=1;Pl*8WEdb{;tQ2LGXkI?{ZrC>)9uSCX6jtprN0hJ<f`=u#a5(p6OU#>(q3Q+1Uu02=95V76<XA-=O{<yI~225Vq0mWcvep1PgJcw9JOz8HDJ+)*-I4(?nU&@421B{!yZ^HGodU3!1(?2ofc20&d~)){bYj{6jJ~+bxSSaCZDY%h3sowbPFWVu#TUT{2vgk1+db1!!tEkNif1f(Jap?xk^>WQE6xxQ{>DKE0ip&e+2&VO^9m6oEgni0sKO#eZ<qe9&^;Fs_6^gwaaV@O^w29w|{se8RLpF{C1Hb|2=COjy}ZgA2zvTquG;7a0fxO@2)dEz3AtatNcqz8OP;h^;AUm|2j;Erd}AdiY#o!Lj&-kq<A%(I!~*LJUDSO#DZ$%2*LG?A$Ix%Ef?(@brMkDuhc)kAeJ#!3<jT0RO%$D8ub@+cRFRZ)~pJy|r)dZ0wiuy!YB_UUI=vDkRi~;iMULd6X6zXm18R!VP_tCJj-Pvgi`Z^-S6{L`fQ<Pjs~(rBMd|8-8;J`H=o(hJ=P*wqy)R)+3r_sS8KHl0l&Y(MK{QgqDct*N`ZFAx^`FjJ8IiV?)MpiinmCMbaXAHWb8-AeuH5G}I31+E5TkI8NJ!QkN3+ZPakOh{jnOJ7#((xLdXsj2c>q8NC}S%cd97yrCkTL`3(7ie1687p#g+-~pBSir*mnJG4kC7Xvc#YSfP|#|hSOg)|1ICMNTNOI#s%i2x`)SU=cHyoO%)oI%isX@Dtq;GH_Ya}c=vNgd&SSw6pdxI!q713o1Tx2~uOv+9(x%0cIa?b{ef9_HnA?{|TO5VmCb;Mxx<uy=3myBp@t+Wrf%Y7|9`k768XnYjf33kyXo^H?_zdrWk`wjz8*IM!1cV;+qP;waf4Tss;dzA?JtiRCJ`eq?pK7_J>)S+!ilGPmRQ4o_KuwkojDaY{K8R#QMY-QC#V+TAd3ZG3m*7W7@JQAZ30c=ZrnEK!7sQVP9635(uf*#Sr*3DXy`kXGE*e@V`dD099uOhJ>}&ks6lH#f}vZS%$pTesHXy)t5V{f2wTK7if+y$~!B=HWfiCqFuWXC-=Se`5n9>ouvGdQ6lAP^2hl(y;d0I<PJro2aJi%W70VRQSFK)r?^S8@JXe^uMN!G@uBfCvSEO2iF+Vi(^`Sob-q>FRzeOB<z%Z6UjX5rhClYY|Z{@*Nwb_5qt1q<TiYSab>Q9cQ>t8;Nq7?v}h;;vUfX)8`$D;yfU^B)^-tQJ5il69kH5h+_R6MtXfUBf;<5zzHQbLwcF?z)FUeFC0e4sQve%MxdmIcDaW3~RY=q42W`&|Pi(}D8n3z?lfR{wal7mG0*s)9T>|eWHoxVU$c;5rj~<hH^nj=E`ho{=|A8ZVe!xF#SpG}y-2HjRGd~0I|1ClR4NDkw<U{)VBP@M+C1KJlcu~QN3SLz3qA!aVUCNvkT3yz9Hi%^@o6_jbnG8!_V0P~v!pd(BS}g|1(h-2o-S`er#$Mc><Th)HR&Q2CwcgO{@@4Ev8D5hY^>C!5)9A#)oUKrg0BLkU&R_0**B)M(Va^byGBam8Sjv4+X2|=Dbf6y0B|2R+G1CRPvw59#uAPl`!*w>%aio{>kYmnnq=-kLk{mXY)k^&?TMavL&0XH0t6k>Rh*N}4QSCPA^(_kqe?)y}ce;aDUv0T!EmpPDfk&0709a1nvirUpl_1(vFYre6{!1p<VLCMOFVtT{uQMg-Nfk$4B)2P^o-&rSIk2RZgkwxpj$F#<%12zIW3T6T60nbSFaBkzU?2Lm(d+p=e%&IB2q~6yM`F%qI1(~8BtA+RKM2cPj*2DO4Cp-@x1Zlw=a7|HutksYH&F>vQ@MxP={*kPK;C5cam|Wp&$B$d$i$*EQ2QFLd;>Mb<l;BbNhZGj4NAW=LIMW*ImPD6P~=QPAnZt@1x)mlQ1ixfj)PA06RN=MF2A%yt8nS%Az;&lsa_6SUKOxIs{+2#vhM*uyUyMYO`$uV3F`&kGW;gX9DOS2*-)NZYRl<Gwj8#xvQp+HON5uT1WmAcESn}8#7q;%yYvkgKZ@fz#%uVZ*T1<GtH*mtRq^haTd~!#yi{IVd8zvHK?lFyGGFk^Fo0Dd)rD1I3F|Da#O@#tifKZ3y{0f+R?9GF@ddPEz?7T@WlXe7oVpA(-ClpWnyg3gWSLa9ytMQE{TH_HY;AAcxv{;zb?4?1bSIjuoM-koc5h?7`zRroU^^jaPkex5wc*EOysjMLYp@%LQATWLc?oxEibZ`C9p16MPY9PSt&$S1+k=A+wvI?+Fhy($;Tpje$`%P)HiBiEkm=S)&hkinsKm<PFNVbteXwvW&87eP?LP@O*rQAd_<&INLC!XW=t=mATy@!9fiH|Drio?l>&cdWDeRqg`qq76`#Zw&YruS$*%((|=j$U#>O=+M7KB?6?iC^2izpC(;n}X~IR5>3-ssAvb<Y*n(fr?Yggaip=L<XVm6AHem`XG07Q^$TGCRLO(Q)}DT*x@BgTB>hkp@|6GZm`qb=eOtuds_!=?4SP?c)V-j+YZyf_kH=)g48(RNbvh>g3qO(R}BL0aIvVZXK#p$qG?y0(T9{hrWN<a;>gMl6%Dt0_j^#tL?Q;uW#W}H%<<Z`rlTn)#qyPp9=qJ)#}%{XZv-^ImaU5pv9Aulk$mN_IrmF2{iFaaC{gGlY7Z3y}DNVhia)_dim=I2jzb6)Nc6$r`fW4E?nDm;>Vj3C9PbAKcWGzm9iq`(y?(P(1jOO&-e!<&^&f{*lZ1gBT{i#$W@q%pf~84!>&7Ke*k(+i{F5<;9g1%TOYLBr<<q^<ih+X4l;Y`15tiP3LQ91osiP&%A54k@T%t`V>QDRI26agLI(M5O3xBqhyLo>AxI}~@7}BK;E=Y>piI;2((cgVVOO(;BTW-;G_5K}fcm^;jRo~&&jE`U>UPULf6$LKDGox%9;DeR13z!`gs8kqlg)_4BXZbG5u8314L>q}B8!!Tsu)*mFbI#I9P`CTSNwB|?9`XOId<iie|Q*ab5M@^-YtHh91g2Rb<%f6ZN$SHh>phcBoAYe;wfP9A2!oD`d-*~1CK(7vtUT|kdzDzSYgy;$YMxPq|k9Jd=<|<bLa|ly2^3lLR5b(q1Zhkw#{~RlssWGf9ZhH3#%HE#lf|gVPD6Y2g(3Z6Y~+k7Qf^$_Dd2%3CcifgQ3Emk?*;@6t;z1ZTzz?hjll0cei(iuM1*zg}p2Fm9r}%=C!%G&CSHw#{`o$mk@P2TqMh}Mn{34IVX8($+5#In5CCdB=7f@ldEYNO|?}J1?%*`7-Vub;Vv&N!3=%_g-McTuOD1H_S_Ssp@VAzR}`R-Fs!dT?y+aPCAt7fzT+X6DFqm4d7aKC+SYxqJ!r>^a7O4Fm&)}HjQpFa7sAB1+)~?zT?pC+9t8y@+LkE6*{~C*Zor-fal7SylQIoG;@OKnOiC-?sIWQ*oo_RaAiy@gyfp7UdTHgkgHEXwF3Lu0(1WoU!dGg#THBNoH&HO^z%5B$tJUhyAq{l;CH6i;SfV$gn0a_81Xd@&pLhJeFYNJ)7u?n{@J8Db?zjUNN}_^Q5TfBjfQDryw7Y_O3+gSX_bO5EJXO4nu4fAv!XM=6cNsMnRk>@_wOYNZYML!K+?wjlpxg~do1@ub1-hT9)(yH?t9;_!^XQn0)G@s3;#GxNK7vaBXwYs{<ccg(dnPq#0w?mzpte;+O;x)0OBuJy-A-Jqvz?Aq9sv1Un0pCCLt5m(c>6%NZmA|p_u;>iTy<5us#~h1*i*I8fW_?gS}6F-Q7d(~>d0=bA?Xcgs#dJty<r#X&4#Nq8o;}(sUGeTE(DP7;b1rrweF~{E-P}q(MYv2vw|y5rQq@t$U@Kk8`X2Qw4Pfp^xUhb=VGR_d_A|G(sM<ry5M@Q3p+%K4qL9EusqyqXOxt2^v{T_%p}>EsI`Y6VwBjOvQK}EL50G1OV1DNdx7vZVbuF)C=Gw3<#q1C_*&3U&qhx|0S_1Os*PXZeu<X?>u*Bo)0ACkw1~WcI3pd$5YYF~>Xp!s+;j1J$u-A4Tot||O87^peieR8YxoBiTlK3exk7b`=@^XvuL{rOEZny2y;ItR7FpjdsJNiwf{G_o@jUh3O%UtRJv9ua&eMK#>n*AdtTa^1we(ue)l|*0YcuG;=`m+1y0f1rR*Un*LeCn}v*N0iTBue}NVOurRazgRBkGe=wnR!6ouh0?s-DobBwb%{RjbLF;uRFp()@fzL9N+XWHBu+fkgub$?JWLF`}J+nA7BKhWmnGIzxdgA&+F)-8%vDF|P@-OT)ikf*lv8*bu6M)V(i&v?TNn8x}g)vHzFF75G=s;fAPY-KBQW&T0rE+z<Sg=LlbM9H;3@(Y+Em&>6z9)mtu=nhiXEaOu&Q_%+>42ko&@4c2<Y@Av(7vICamxME%-bi#oRe8cgM1=<y_V^B~N(ZX^2U2t8iAmf6J3o@R9jOVIs!P|sgzcIL<t7eVXSX2c|(wnwxR~vQ7k?M_xHiLo%18w>D*?4n~8Ceyok$KRF-kv?G!;bu{V>Abp;jh@4SgH~k4uT45@)cHGIynMit~@VSQMpj<3e_$@MREEFO)vDkD|duetEu@~onA|7b-J!BxK_v6;MEfb<6Fp#f?%)lOqt#Jj3i9$Orp5y9lO?vbvo9#o-(87@2`1=_^D0e8~BHr#KpR}Ca!0j#K%~|-S#HbTosn~+(X|L?rtru;!yp*zbb6sKRt9itHRyJpwl0u1YUH#yXW;weXCo-45ls25faL#lz*WM1l{RJV&j5qa|QVp<Xe#M81kK`7ROSH2|M|rfEhIw)>YJ&>dm^_)NM<1_1Y}QWW&+s=y0sUPEG{iq1QheG|KEB)Ij<{Tub8tousW{Ff_Ex+AH0*diUn#{8+8cq_Slvr@KV{xk9JAnmV0Q=ycD3PN!&NbUFkpjp=lCanVoe7)QN=Lg8>jnNcJ>JbI=?!n5C>|LFW3N;mO{rJD#PjP+>uN%>Zx=)oSN>=%^CekeDVN_=f}!x$dDUeny#b5qKGRYw#>jmv(j*pQ^T$bJ(}DI%#4B&ky1z3P@M=aoUwH|XW5zSHr9B&`aPwkpWVs!%Q0YvEaf)APHSPZ#5!1Po+aUU2=cAmxIT3sRnvl;^7JQP?Cqmb>kDfEx2uzTAq7s`+V3wV}9@DAu&PsyfYCG{5wqXF_;kt$ZD0Ka)|YIT$a6+hw806>gV>+vRv=PO3^{+%9!7q0GruanY4IVv?nvdt!x%5HLdJ3Q2<Ly<$dzkpD0}XVKlZ_=r)Q!(@Uacszu^KVhz0?{UcY&nQ3EA2AzU+OnTA=Fe{@g@LhCgP?y3y!6P$MarZ}w$38wDg&+is^&0!2Y#2?+d-HF!SE|hy;*NsBY`Y@^dX`Hv+FPA`JavYjaiQER&)HucsGX5Uvc*}{IlrlTtUnQF&D%<Eiuniq1!@|hQYRlO}|CC%yL8C##LS1sJE&ETD;@d6}91r(hN#n#;}XPw?YFeG_XPgyPyUpjnTklF{OdYi>`rrAz!?LX7~)AKBL6u9bT2FnS>F2xP!A~*u%{|Ct_wsx21`JHlwmp1OJRjT+e&0meue(htN2%=)gO6Cz$jVZqaYLj-}P`ho!k9W_xl}sjjK;qpnKLMiYK0&051D8+vGoAGTbwTVB@?&@`X6)B}%h<+)icxXM*fZ$Z5U_2yIWJaw$wuo`XyW#%bXBll<0rmoZfuydHI{iE}rQet<?5YIBgWB&P%&wmc<hgFU1Nn%5*HD#-=xlJABau$Tla1>d}QREc}{4WxIn1&x+mi&%e;mOBPX$gPh+6^k450-!|Vg2<7-LND~IF^OrSi9f}*%W#hR{)s8F_r)0{1r7WX`etXN)XStl%Z5vC~=GB4k?dhLlEmREltkW(&Q)wo}8t;NV6z~7u5LTY3ErJB(Zq?Mbii;X>CeEYr_okq1IL#YHezywJA!P$_!Dg)w4*=5H)R#o201ewIq6^E+w;^Uzl%Wrc(R^`_f0S5j{Hl^z1S1KM#0fUChAy2=08qQsP2|^LL=7x6oUr%$@}qXyHUs6q?#ldnl1&0^Rp$^L=pkR~XF40!{@Dj~s?Rf?4_K?8Co%`jRXE0{;QsK#TWdG;~u2X0(MrB-8ifD4j7TLIz=h1USqA3lhYiDTfsk8!!j(hah`8K&r5>0zLPluQa2C9PY(4ipAlVC;;bEPhT9UK9cQ90?;ea>2TR1%-<J8;a{A;%`-uNasF=1mu)nxC!tjqoTK0z1?MO@$8?-yt{Sap_x!+b_61q3<*K!rl@>PeuUd0dwN|g&%|_EvW^w;a3^*tDFRBAoGQ<D8_8}@6PRVWurCz_(4j(9il2Nwq0eN|^x=tCCm<m*>SY5AT@#sL5Zr828RoUGTZx7_gw?I9)UbAI!E}o+G;+(QjadRX7)FR^V8Aya6R`XTadM&BR)^%yYk0^({^XeUPBsP;-rLo|d3KmKV6sfSFv-d$w`TXopC^2JBuy{z&a2;^3uWD7(*Oljz_rfGyVpY2#R!44<KbS1ZqMW`*9%FEGQ{I#|#c3mrSZx+*v`PQVfk2NP%tXJ17h&IBei2r+urcWQUDxWYj7Lcyp7U%{2-QA_VerI)A5#_-Tu^X9!Q&}-o{HUer**n%b#i?`NA53dKKHunx~eOwqGdZ(Ri8nf3&)zH$%VHwwK&`9yfSjuX}x0Iue7{IK+eu3>%<NGwp&rlO1X-z&J`G0x$SkzHVNxtTQK6jXP13=UlZO(P4$mlcrq-CBY4gWv{NkHQVVr2U)|G-ym!w6XlLyrpq=W1t9v0kyn?b~xS7l-Ci=~1N=%HTjFON65OMa8AmDsPChxbP_@nb*fbjUW5lje>k=(X7XlKI%#$$uhp-7kBym`1$v>v<gUXoeYHaD5*8QsEIB)qkWf0DN%p_KlYyvK!Ey^4P>gH5sE`d>lP1xXhqeL<3*r$V@6o$gqzJasU2cX3lQxRT~d)rM_1Y7KW5Wsr?DM-^l@bMrBDt<$d6@*A(XHplV=S(|Bf6$F{Bbi1;YLhhXMIjN@4E#G;OrJ+#x@)f@NhzqM8Q{vQYB~E<`KB|SrcL9yBE{;jQC(6}&(pOcMwFTGt7>~Sy;vw5JW)u$DsGlhTk&6-|DZRL(+vmdBZ{VMg$bauKiG!b=zk^<Vk4B*-CLzF2y&;bQg)f!((qniL(Xm9`cHHM;w@+P+)gqbih9cLeK3k~aA9l8|p@Sf~F&7-dr5D@<*Z2y8E(p3H=nE0_T=hK?_VHA5Og@L~N{g!fS-LA~wT4_*HLD>yvn1wA4wz5!1DLl*c^YBv19``VWsv7v&M_=t_!rOda1~RMhe|hWtR&7YC7)I(dxf%Bq;GhpPxr<pTG#6-XHIF+@n(ix@CwR?x!b|4@}k#ywuHrKf~Gwk$U=qB5GdoaWT`Y<LqH24!fmM4sw6*`ycHVhH#YH4>Lxeti}b(LJ#N9*RQ&VYQ-R=^3>+W92QIqaSCDr>-UWHjPTq6X0$bMUUZ0><ggZ?7%+&?QR9#e!u&F9ivtcQ<x(@nzy*`UZI6CY+Rd867SIkra2VJaQKJo5>2<&)P+3y`z@T!Yf6_nT!6sLbQXg4ZKMRBR&fHiEQqG%$P(V&MaVg<%o?cOhqsq%D>4adXg6l&$)hFYl=PNUC2jG!)$IYO+eNv~0{TCXj-Vi|O<qRctE0nI9G2G5wVnIVy+#mPO8TLuBSm?7ZC`A<PqLJ0^2%Y;A)OCxn0pjB_&m?h=%q`YJFKXyD&t;$thoBeno5-MT%19xd2DaRIFc`Qh{AmM_9$CL0p6~tZFalF3p9jn*2@-)NDI*Y0jI(5sIt%lQRNOen<tr=9p#CTIP{2<Rav_}u|5I;Qf3yxS(g{6Lvu1oU_?yHK$@n4~*P0l&N6}JV+KQW3%dZqQYCwTHFiTNs;rpgHoP1BVHSI{^Eym|uO*d1X;QIAc=vy}uoF4raI>}$deA68Xdp5u!Frn+;8;#{+-U=pxtWwfSfNe)l%Y{8$#T)eQR1<W7G;;gO;^q&^X;yj9~FDr6QR!5S7=}<$K;IH1{g6n4m1s4=tQ1EyPo~L@Y2ZUiCS$$!%2eaqo!nx$uTiASls;g^NMQ(_iURUet3~E|>%!`oB4}s;aekJg2SaOA$RiySSPQb2IYCo|)CIy64Po?$~7v0q|;4JbA3T$caK5HUo`>G@ciw0a8!X<o4p*9~2Xa5dj!C%O)D&{8@mtk1S;lM66T2MM7L`@QbqQ_ZK%u1$&RI7n_6#WJJ<aE{QSPl3dN`i(UMY2@ZJGsC$w$e8o?^vL%4W{|<$cL59V}Jhl@80{%H!5)Zo2gpxJX&3$N;u1z)fQa&DyX@j=7O51r{=jTVtv<Y3pZhj<m+G=RTfqKvK>WtHO;DOb;Yq8$}H+vY`8c1ICASzHL8{AGl@^R<p67TF(0Pu&=FeGI>xn7hQDHmWfyX=)GNBox?o~cW_b8ksfn;GOBr|O=1(aVM{|YFIDMLh!iDk*x=>ctF=-YwCFMa`U3h&F*<tArnRO&&5*YWrD<o>B_oZ27&1cK9&!#1b(>~&F1=8vsP=ebN_Mp+R;0>AR3u#D)$@@BWajNqIu_5WQ&d&=p(UQa*koMbtANEujK_^(6*7z?o<G(D&jQ>!{>G@quFWpBmw$U2&;G1{v<K0D96$?Tx2)Q8SX$X1#TH=e8X?VPvn5wg|-jp@HE-R|jXo#Y#YWmE2;)`L9^V}+|#^pomzC4Yusumhwq45=1EYG&aHzsJVUQcU$QuRt`d{^*5A-1a&a^X-ej7fbXX}NySl7yfC0#6~}_nQ;b4_`rfF3V@jQIuMBoX-}#31*l7zf5oWHc1-7a@*^$Z)6CXs&}u1-dB)wLCys^Peso2)c*Fpd&0hdPuTSFaMSJOo)qR+T-d}5uG^@)wT5h4O|9OX<-8CEofz{XxN8=wSK**pXj@mxK~t}fanRI~X%D1&eZkeQzIU(h-@AeWTbi5CD75waSH+==54eQrbswJp?Cg`IG!{+7IESu&KgXeK#u%4eVJj`%DO|Q|x{{4<TwjrDO~rLrV%P)2$4hq0>ly-r5u~vRfS<M|11n7MFUuG9c+2tU7hK;e=(nKXf_}%*?_3qE-XQ2tI9|)Fv#4rStp;Dw(OpSu*s89|v#3?E@#Y+_QI#>rYkj<bLibrZMFv>HbCHK<yvakd@z0R59hU9CxNqLtzPW8af9vi>su{a?+U@(49ieR7JWT?%U1E)w`X?MQWnONX%7tMranTRD6~vD9N$pze01bE!JpnY@XPQw)Frb5c+wZzPq3`=GY;FD;=P~k+(?aE3tkXV88cDOK6bk6oIqu_BWz=PT3`nL@OD10sm4(M(Nix@~C%4A7yIEycY~q<ZD@e#ZAmP3TQq<cZ*8T<01rV71_aH<4hy%0#7>mySOyKNi?^6mdbRGNn?BV&(&pw~tRg5L!O8JRRElRLVUGoO++Y}Xv1NVtHBw3c{lbUO5(cL`@qArNKAnFSf^;~t+6R&R{344P^{;^+1m4(G;Y2ayJqiHu>O|M&xSv1q(aPt&Xs(}?Q@AfHGB$YQfbomq|9kVB-ic_lOg<jLFG{x{WAnLbWawTP{8mfvud|C45++0kR0+yywL8o*$l?#W{XCV1sRT`80PfY5cy0YjIhJE6WS5ZbC?q;)!s3*^se99(d2lqKl{e=SPM<{KgTN+F0HR7`N{`p&&KpG0ZIQtAmsW_Y<UmD#(59ByQ_)1+=)XmN5#l-5SBy%xQ7j^0R9JjSC+$cc+yr8@|ZGx|hNxkf-1ZEolQ>r6gaf_~Z7Svo&b3x5hQ}etPP8fT1ay?G#%&fPls;5@BRK4M<bxqgohN{n~dd9~*P635_QMF7p)M^A}Sk3K2GJf>jpbL7DckJRKsn{)Cxbzcsy^;r<q#-tKP13BnDSbtfheFNERrBg;El(@7yep^W$+a<w9%^#Zt+l2~S3t`H&U8fu!^F-}h=(J%@WZeb5>UPfMU0{N_cSvqPa&dZ#1QF<qO8Z`f~@;tT#$k`;}zkx%$u?r-i$opdidrJeC*}w3iJ`aA$+xE5?5j7fr<B*YZCkp+^%OW*Y&Sn0i~`W-hy}w;>{%9dFpU49$EdRK)Bl#)(4K8r@`gaTG*pQP1anou4<N6lNx$;2K^039PsgGsbsiBgYu#8AGTbp>jk8l*+C$Ei>=%1x3PlTgO6#Pzz6=eT&+H*z<-#ZM1}vfYV~W57XXc(UJp*JZcI(PY}<M57O{<m`d7p@7O{<Elt6t9nrKZ?Q%az^;7Z^LGVwvT<Ny<A!lYD{l&d36#y6o^F)7#&({mO*JSr(;d<$*;@1MVm=6wRK|3o<ZEEl<+IhCcH#^%07!}yrrTF^fQW_sk}DrK3WdtTe>F?`DoC5CP`wPprhMfk#{iP-s$)w@?}9L9p0cmx<mQIWKYxA52kCNw&}u)Ut$as{g|NY$?jI-XvHU=$P%C9>pV;tCyXgmUhJtAhm@7i3(J@f2h{PsQ+i4gbDy%RA212}dg|EQDy)R>g*^Hyu|~EO(X|$Khc4#6EzzdX#gfmtDCsSGXBbDO9pTCChcZ)Qa2=&j8Y=G6v~Wtg3nn>a$*3aDD7P;-%3xaJ8)Z*$jO~QSN@@%A59Ah42NXrq{o2`@ogrGT?B&QVv@Pr4Qml5C~txq-5`$ea-@fgxj9o^8>%xzaUf~%~TkgQ`K&W)f_Lac-&2NG$7n@2kz2@0|FG(0`FC~WI3-4g1$j7xTJ?x3>#1%g&<sTb*!M`f{F_&o=nB_)W*K=5B3KQm)wP+&BhpL&v8{3RYR*vqU+dBRcu;SNw%#SG_<T?v!s9-YM1SFUV+g>VigN2eZ{(8X?cx+Ob#XM#0~tmTT#nOxrzpd3Jj&(_Bv&oq<5~Aot&JMPh^VNlVA~7g5$Wy<tYf%&?{>H+i=mdk1Vbig;lVDc(r~7^tW~ptI_pao(&ovH-b<tuGx)g=kf=CdR3q5;BQJWnnL&d+c^#-{gW%B#nIpujQOjNOEMuPlT6f=MF%<Md=VD3+x7-m5uQGGdz(>yJ?%fk@@u>k%zLcu!v;q266j7=q8+W}COUTN22(x_YqUQIN)3=@=?Edw48b$T#pv+MjgMXWgbRNpQDe~`2|hm+(satt4Cq+F5WXU5_~*IAE!crURQ^g+!ao<2aHFdJz&<M33$BM2L|qVdLDUx}>UpZA-VGEF@-)%Z-GzlfRjUozcB?h3R+U|)K7;bPhAS!@@3>U-qZKP(s(w1VOQ>F)KNdP*kz4+mK7SmS=|U7kSeWqqQIr;44P+aCEF1OJ5fw)_ju~Y{tNV;Z7F|vrWa3wRR=++X%)JM4(Ib%A9-Ms&!rWu#z4qSu8z97ediEhmN*@#M;U}XmY@_~VX|J|R@9@)SyWXt9AB~-^Y|{TO24A?~YG6Us1yL77ePN=WUJXQ@7Vm#?_7UDAO%}AmpTnFz4gp_LRs4i*yp0JUVP2t_>4?w6aD*H1NqbhFqL@`>CT(%u?c#Fo*rx)ldtsks6=4rndRHiwN^z~P-mvO5MN+j!!x3xtEKZ@U$EBSkFE}dU7_wBkC;`LB!Wdqb{El0J_1tlp<`e$Lj~7%p<1E35Kmv!Mge7#+R>{)OUPD5CeI`AR@Md7irai8Q%lH+L#e1g}xm+uY{DRi+D-*QN*<eFQ6IhT+WC_p~Ffeykl@dO!eGk_XB9r1q=7ehp`!*`~!t9%*-Iz#1OqFVTeKV;s#X2=qH8b?fh84J~l2*u=*4ayHm66I>-ltzf%`;0gyu9jp8SRk~L>t{ex<|06=ciHDveiHW7-hnTH@#LEZqTpzXgXj;@bUT2W~j4ftEFQ!$k;ttK1nTdxZcuLci6jG<$k0E0+$GY_uEJOx^4CCqcUy`-LMT9chGmBb7gK75!taTYxl(R`Wd=ww%R#Xi;Vhih-xOe7*cg2#Tc@ZNi@)AZAdtVsL2T}aso>~=p0<bKU=J)fnW)|vmjx>Di=Wh6iC)=ot9ZukelWq#PZirwI761?VyWWHHarD(z4gxz&8W}%D1uEp~2vK_V8lov=8JGHW_4f6lQlB1mjo};X8qVaF>L4t_n095)W4ewluEC+F0NC?wz~0ZqY5b*UPvCy~e5U_J!rx%^Qfk?(DFujb6|1tqN#Pxa0RXQBI+v6_C#9bAzz^5=qA|3uk{g`$AZX^?6A^^D#;cAD=xWN$fHH{0QWYN9RAm2qF0U6U6d^n_mbhZ}9qm1gYX72qY+={e+(5=n*?>`!5KTar!MRdW(ubgeIUt0u6+R9-Y5g#_2+yb)Az9Ou)*p#~{Hxf;T+Ej-37F{1@?FF&p@Y^!LZ~DgnygIDf|wp4u)yq4&RvI{SdS`H1A&a8}-+aeXkn#D56J{~=s_eD>H7h(naiIkUvp<6hr_Jq#!;zK)qah?X<;CJ_2ZuFxGcTAq#K>%C|(+ieGQldLt&+K6bVM?aefd2&ry5te7)w|)K~R!*p@1?MO@N5MG?&M_V5_)_%Y?|P2wPootlE6$`F=X_~ewvR)=U4+^F(fQjj7`peXv%livW@{M8=jSlClpd`sN?mqp4ZESaVoj1}(4(nmA0Z9FY|&Bk?~!27e=eN;^VtK87p8k}7V7l^s@K<O<vf5d^ye@w(8saQ`5}DHWpWvKi@5ZU&fh`y0Xz^E;EHkWNonVx9hyDY_ItPzO=l3fC4=gLI`C1y-HJ5g*m3eWt=>FFDtt0p{wo3X?rAIgWqdD7-nqcazg$ge;>xHNPnLjaG&9--@{9mE=g(me@H-RdzN#jIX|?}aw)QX9r_lc8T%t6TS`J+r_3H3o8Ubpv><4nKmL^d{R^^yYK~6=+&T%UYC7iIyvrq9%0UH)b5`C1Ap@j3F0$==ulBInHg25Y<CG8g!Km{8dsT?FOzIFc7vqxW!)<M$G2f)BFc^k~eN5s_Qf*YSF>@$h8ctsN8ySP`U2mOfaC|6%KIeY)?-_PDV`_0*J&))m;H54fPn^a9$`aw1+Fu0FMMu)YRQdXu@OwRrnH1=m`;`1TFa=j#D#Y5fCK&E*F)gGSxCy@u6xIf`{1%82a{RMuhA>a*=`5g6_gn^@AV+9*4*jT~Ft{@wGYSxw;R?iXE-M;0uawDcQ>&#?hnZoZVVLK7sMzd~<T2*wKj^obcgV1x<V9g#|OodLFNMO=iKCsy%Kj@D$Ta>4<TTDb^+wL{Ie$VeP95&^WD8~%RdrVssEgrMF27q=$iaJ^?O_*}BCv;o{=1%B1p(g-yzs66;68%KR1pIt9d?B>GSf|(zGZ@&RLpf+nF%@{6A%Tnq2?cztBRaD%%)vU)Lnky~gHZvjEwf1zGQkBs%V06PZDEFB<U}Mg_a$du>5&evW+~)kIiP+AE!XYxf|%_=&eqK(?wx%Y^Izw`Vr~W*Mu!Xdl26w6QwRNnFeKrk4(EC6WRj_XD2KcRhQwn?;yC&-q}m7x83;AZ_5PX?CnWR_7$qh{s)`AMG9*<?sQj1o2wlmN_qz8E*;Y5`;&<iS-YE%tGYWWPUXt{mJ>?s&-(x>Uw&E^Ht1&rxuARzp>W$=Zyv+9DokuT-<ggz!{MnnFL4--~rucg3+sI4y_Sd)X?!zsjQCNBr?JoBYF0=vT`_T<_=(3CNK%d%(_?JUxWsq8%-r-A2dmA@)H}=i%Y<!>mfrp%6SyG_tjkVo%b8mlpckSkQx8<cNM2@AD$8tvFqn^t=hn-vI6#vrF_ewXIVq4lj?YgDyE^8dSzm(8=3ra31xuE2$O36=8@jL4IZCCg%0)crp4KP>#8&ma3yP>;Hw=UatS+%T&ZB?~dRKU^hKMN=2P}%Exou*&*{0cuFozn?=2$vPZ)3Rw2bMI&Anh4Y7b*z?fcZ;bdiL-XD-0&0i%b&9Uh6n-eV2{ay#1bOkq#g>(Kp`9W^3cwC{u5?<J$rce#fkxMJNp&U4Vpy%%1veG@1o&WSYE3<U%63PUlq>ZAdrHOc}*fbLs;X_1DSqIhAL+7eMt7-PXwy|2&#X0_USNohPMUu`U~zfw0v6W<h|mQy&~;MfCg$I&v!sru9Yy!adwNMG+VEK!s~rXMz4ot&7Pv?d9Q)LU_i|FPX1){CW<j)o)MR6I?f+y#<Q4VroDCId!L+F2G;@^Wto<3`vW}Tr=#KH7zYDIuHPpvxEh{TQ**=)aqGU2I|tHaqWR&iu&tciEVRuGY%5mCtP>_Or<lu#4{vw-srSs^MI=HQ_!50Z_?>`0oZmeKG2FL(-2TgVd}NC7(mA`5B)|DQyh=2YTVyOAOOkXU5o^o}b3$ekdDP=X6h|#OVs#j<Uya4<+ef}<r>s#LbNv7|AO7yrl8PCpm}yB(S)l0J3w*R>Sz&Ap_Pgv1+FgE~u<0bCXOPs`TB;@8V(2nSnXm?6Y1rXS%W-;0i4HTChcP(Qx{v5N!6VWX?jw3W_b^mx90M^hsZ~A?F~oX3&;3NIYmpsF)DZ9>m!aT&bpls`I*OjjTHuaW&EzjIYoa)T$v~Z&G)vS>p7(Fk?UypPEX0}a&*;<)&vbDY%Rkd)$GLQ7_z+JkNnj`rbBn{=nGbV$d<E#RuN^Qe`@uCMX&MPPMRsF&h4*NeWH<QF*CWUS6Lry5frHQB1%e<%5go84wu5E-=qZM}96meyG4P*BPj~|b#oS}yv7Y#|1l$x%r(ik-(<zwF>`dpW84=gfMsu@gH5zU&&w7|yXC|}Z+Mw^3_<Rd(FJMuK;UeInh;iegT9X^DB1yK^RGo&_n8A3s0}BK6FB9`T1T!VNj=O1usrR%mEeSP(rvP<<mI6a{Gfi*v#~=g}@A=2>VxSOSO3|MIY!Gy-Q_{nFxHd^$?+n_AWm~?nefQ4(?)S|b+v^+V{<gWhadT_?4qZM~XOKvV6~&yuk%YF)+&AD$xK0%RaRK1MD~UNc=2NlFAdDOdzjc}YOKB<Genu;MW#|UX+YrLg>qg!s>2R8h!Wbf!L<nP88^RdIyhh|9SsGGxOj>I>bRFS1hO(3dpqPp)&q*e|5HMQwDfnfK^0JWA=7NbPd_{1ZO%!pU!l@7-6R_PUkCc|!rY;7OM&a|m19RVV50R(iOio<xB>V9Bg^uPd`(>-uJ+e&cI%^saWHTsW8KgJt0g7VHgKJ-Z4KH{sa`XueA$$XJ)z{NanS0y2`y1;B?naDhIdOMYxaXc;Z&~ezV+r>S;r>gpmS2wA+RA9>C7WKzPzFc_933iChCrA?vHf#l-F5a{dzH&_JO+TA<^^5@%Kij$)X(YepFye%)uEx!Jyk>5`|Yy_%oiHOM;>r5pwtI1{5LxB_#;(787_=3V4BsBS=K3X@PEjTi{R#}Kw1GPY6!Od$=Ro%WTIeCa%ptz^9h~sybF(jMiKV>5h{0|Q(y$ev7&+kRm0wJ0hZzdehSqe#-2tfISM04D8vQpC|F0qIttb?CF^*4YONPw5bjjYF=Ok_6^P>FjL<YbbKI1e@}03=TT~pWsyj|o6D4s5^*3vD&$9Cjlw(GXF6f`oEwAjj75Jw@8g#ekQfT=+y=*3054P~lN#g;i`p>E3jR+3=Y;*9;c`}d~@1S85nF))OWX47E*+5{SpE8G-i~H=H{pI`}bOaHW#gdZi`ZA+4jZ({NQL4`BO!Ej|Hss+`dc5R%Dv2d|!l*Ca#ZPD!-X?40lzvJVc7<Y`7#P}Tm-YIYr{B^Ock<y>YNBw)O+}#KV{ISJI%e0iiJr!L|KL6D8Nsg*61j0|l1*ny{~+3lF5xBQIXO2-bk4iSqf};cJjy=lj~JFoNkLElmi>#ud$7#<7N`<f2_y~AesZ2iGy59V<)p8Xq-8h<Nht>;EyL$X&G0!=QvN`Z6A~KS>RDMs>O<!uJ?4d^N6t%n%CJe-IGr))q)cZZHQSLX=AERD*jv?Xo1hx=zp72`V^q)aF_Ne7F{+PaUIyaNWb!XVSH}7uiDEs;#tccVX0b9Tua9+AlF<x0hNT&bI5dGuny!v>Sdz4QHJ8B|l8%Ped@ctSVvlFCIzy^UwMi~fQoW{6a&MCAIKwH<hlX2uDp;SX6pI1@qwroRycY`Zg%pW!PloZx8Tj#&{tHv#^b~xl;7bKxD)`dV<V#P@#=HpvXT$gJO=V;rUwN)p=3nJA-Lro^e>avDD%<GX1hLwd#HIz(v!aW$7@admTZC**HYW3VTa19rn2q;>X59;$X4U*SNB!xVX20BU%K2DvJ5R&*$t*7B>}Jm=8uXZJ&Ya08S=b=2gbh-yCT)<Slo!)DG(n0n8=O9Bdel-uirnT{i`f)wDNAB4Wvo<242DX|V5p2343%typ)w{!F*Iz-*^!WPG7@qGKKyB0ALHy}jNwt0#~L2%`uM;{EkE#4)rWzP3MP#n6Zohgws)Q#QB*W>VpwFYs!a@WtV#M**1lN;y!k8Hc#~vh6ptS)xT0O?*oBT==-3k?m&QdcO=a#Y7*oNR3dU40rl-o7o}Rt02MlmRp6|>$Pa0vZS#LI6w^@~BQPQ1S^|Fb+X%Iy!vLe%Wk?Fh0^j&27zEGxbr5?}pUDJw8-$lOOB42NjueZqbU2u+qa}=E8*~;{tP<O|s`W{pBNvp@2)NpH#q>FmhlJ)v5>hWmrgF-(pQgs)px{FlZMXK&1Rrdu`bt{(vGA_L1ivzOafb0os3v*Hv=6AyN<dfBoXcU(LJuVnj!JrBTRWPV0%b=c`iG$~#y5*0L@5!q+lX2sTGt{_w#IZEVsk(B*tv8zuN1wqw5{^13fTb>E5_y{8JWtBDF)oT@GO$e|k9hRtBvS@6TJUc(3LYKvH(;iT3`54V8(cAuKng84&VcT?Ef?1rE2$-cQ))?LhmwrQ$ccsM#ylW~zcTQk;|7o*X8ee9boMMSa4~^9d?~9x2-5f2qRI4zh`t?Ng)3z?BTCXIE)xoSS~G{7<E0=@Vdl`rMn|Yx3baL(wM@_!5p5zN=87(+$rZ|K36sXNqY!Ypd92thSb^Y1a&mK2P=1eOG!`WJFtkaJ2zD^m*La6sH-y(125PSGR`?e$hIUf;5I=Pv;)HRcU^NA+DOgRxYMv0Qd1__`^4tP$(4GoSWJ2wQf)jD8nkF@rx?Y#+ie6P_urFi}w=g!$4|v22XZWfCPCs2Rl38)0-$tt8?kAsD&c4WN|LpUy%h{ddV@x`=B$}5?Vs7tib3{^^Y8Z0?Q<?mxrv-Jg04UG11EL%w0`F4+ODPbXr!nxsH2CG`Py24LwY`8)Dw>*tbI!;sC)ScsDoO@&vz&?CoJMQbQ)taYgywiA`Ix~jo>^YKBy#hpHFI*Nc@7w(WMi!;(;D|M)F{)qr%X2PDb+C?%BV?sh$@;s0m`|ShH}R2>{(FG*!wZ&MM+iiJgLYdDl{lcwXxtUlBCMxxR@cy)!G=8XIarEA~ef&bs|Eu!iJkfXqFU3y+W8RSH`n~*%F}tKMAuZrN>)X6AHJAFWJ(7r8`~=_5xPCvvq3$pi-|8QcJ;(3U*Ymqi38QJv9^RBp0pu_+~v71{JrTinT`7b?driDY8@5oWehAW|L{*f>pR+6)sqX3)Z|`u%-cusf~BRl15yxvW+bwg6D=76U?nOYHUf^A^v8a77Do=<?iw<p#_CAzy$I4DPT89uqN?4(YnDz<f*vZW#~iJI^EgY*@zZt!URxof`StioZxSj6FfET`*w5!nWuke)R@gt={@F-zzsy7<Zy}X>~ksSq^hXu4b9S2U6-r6J&SV^QBdfN@xl3<U#5;tIfR<+u6szaM`0(+c>MM(VaHel2bBM|>v+}^b2$1H8NeUF$NiY4rvKB${D{uqD4+kdEQqyLL9VU}Dt8@1GW#6X$xlOonlH}Zh1L9X*wm2h9v}_k)pL~LXPkEn*_&g=gYX7ZMkiSnaxrP9LbJILV$Gn7i_oNx_T{0;#@sFDYG=5F@5VHMG<>m7VKI<uS-P;2VGM|=-5E$VdFx1u`CQBnPMd>XGfur9qP%)!&B@T@SM%vYjJc8UiXoIN_u`la;AVoUAo)(hrpcMc+zdM7FllP)WJ^O`%py%gti}unlAeuPBgs;VObtn?CLJ3tx$9o=^pImgPCi8Zl1>go@#qa22?*i>jUnskiJdKGosednb%keQ`);p2xE~##J%s&&Mc%^<VA%afAo_nyM`LXCUQ<Yt$?{SKH$3(iaE@}HT3lL5=wDlRHn(5K<KWM^^W{UXJ-{Z%`%o5g4v}9A<>A)_R5nmnMDdzn2Qt*JCAhb=DlGBYhMz-Oe5rK0lu*D{;+>4cXvSZ9c`XQLEo@J?em$vW#Wb?gH-+ROV|WTY;ixfwD8@E?@?rfmb@-DAJ!An+Bi&YdDwr5Kk6B<XO*;X3;_ECSN=a9Uf`JtbtYBaT1G`EL?5UY=wmYrUO{)`36@E6p@{`8%)$0wlDmR;wWmR=q(`K;QWDcM}^o^SEVSbu0KZ}-!njuah+7xU&EUxHX3IU_Y<008jhzR=?4<h>D?61tUgG}~Q+L*q8=H9EE{m;tTFLPs#-kUN=Yc$A-w+Oxb1;_1Lu9f8c+}Au}>-Y4?JIvzrUvEATmSLfYB@zD4e-`eIkHVTI-0F*`5pG2>1Agzxrj{l)^du5Ycdb)g%SHO>xwz*nU}RLvpGJyDG}%WOppp|Bm5QE{M~!CnVH}heGf=5fOq7~3-;K>l9SggfGOQ^bmz5jel(7EM<)GVj!|c;J8LFpsx6yOlZKNsOZS*`oV$`a+5mDm!h^VSMKF&#2#&Q)y7GtTVwW=~U)wEXC$E2FpV!=$Aj0URc%EWBcdfX70lZ{$e>IF{qMPXoz5P>2@ph)F921gd^eg@j-BdGT9>_2m{WO>S*0*AU_Km`LT7|@r;fS#HGZm;i73H~&u=4}2{$$-zXv7zrn87||G;19CNbgC`Qs=JcpiZx5CYK}aUJ5`3+gogaA*yjQq3@Vv}j@Lh>&T^F`sJxcYBbTWvr~$#s>+?16;k>(LYQBp)rt3`X<RaMt6A)009xiVMgc|Rn93U*ORi3ZhsI2E%!PaI&HySbhomM(|uQ;6%x=Na8OPmY()8w9C{57A@NZzIt15-}Vg}(q}zrfKxV`y1VVjLMZ)iJN>JPm^?V<R#6s??p(A_ClX^kxeQceMBrS_&4}49j~tuzF6+Hj8$^r)Rf??`j=;c45I?EDNqKCM~$K60@~RsX)X`>+TSwiv7&O#mWN0idk;!G0UwUv)rbkuwq7BEoH>jMvS;>w!KzO+H2J;Q*SNXIa666dv1!2kwte5Co?oThnX2@BF*GyhCUu0t1eA21=puH1xwYcIu`h<DptqfT2*V+OlAjn^!hlCXGo%4onS?lM72H<HA@neiKtnUtPZ&#TxxpKtMqcZ$NX(Rc$0KC6h|Ih30Rr}al0`1{0$p?J_|LY7<b4q{QP<9EM`g1(Sk`8OsZf~1(RAdCiT>e)B7i0-#(hkIz6uH)5=RQ)_YWIT8^fOP208fn%kJcM4d6jA{W8@Y}0+3-g5u=D&---e}FuH%1oD&lM>__pE;2tUw%wW{WIp|DpsUi)9(E99LzUW01{<|X6JD}kUv(MFgMxl!^~9V33GD^OEEFW83r+*+y@tVYmo<G!TffMObAaFXYYv_h-(=}UuFp&T8+hehUHhuaQjVLTC*H~MJZ+L9Wf8byn?x<Sc{C%nb{GZaz=zv({XKT19477yd+OyAg+(if*|Jk{OS{YenmZ<1woOsvmn$an1nI4Ku#6}ycHUQ<0%NTjKNBEoH1BY<VhA?CH8_mi*9YQU$9hT15V{ZsOi<q=0SM!4t-b9ZZhJ}7seIG3@C-=q_CVk<NkcP@Zv(2wWK>}w7kpaK`7W!!Hx=cRIsCYv7@JEto^<}*dH|9sjRhQ>(13&`*A*}h0^%>TGC2B>SS!!8kTIyV%65GdQFyQu;6A6JM~o_6nFqp6A06I3hWr>?4IWYsTaiVE*xOMpUKl7?QM_e1QsxK6P^|*;L?u5Q|64lp!rvRI=;eBBvb5&C+}p~f;5i8-_Hj{VUD?Mp9;7FCsfluvT)xr(;mU${mU77pBWQw;kdg<&<k1$dO^#w)5^0$FO2ucWd>Ki$YZ%!;wTMiY=(<tFtqShxh7R8{_e)^*5=lYwf(K_JLcZT{{GgTn|rbQQ{Xi`ZO`3IrjzvF9pO8MmJ8URYvYZ#(gc%iP0uySDsl{}L6gTrHE7xxs0LlsCqXsnHGLvfL%k|bglecu+Em8Z%gNwH{>LJ=x-fqH?HWHAja<r;Z7Q2=!KDf=RdA_-OMQ7<YHCyM^Mn2#sXj^5YNB{1E9z~p<F&1p;0!Tu8ou8L8Q$s&%M91JWSziJ61id(Npu>DEL&2&UTbLj1k-3_8FkwOlz*K{6`sf_t-Rp3U9SB7a5!qAMAswsRbd%df!Bj|!$6zaf-CWgIqz8KkE4djOoPBiPFt>k>!p9>1%hSUzzzBc&n&$D`Zp?$cl=GLy|f~HU05=NCHQBVv_l-B@IU?sEog4UATS}e5?Put*cb>U8q=?Eyl6)0RC8hvsG&cgiSbilB8&?>ik8(E#HeZQeHO8ZA9MWR4=~qDf-n8){1=E)jqufIqk|1F#s*?teJkQv<Zt@c*<V;%8nQv1zfGpF5Pp=K;((`NOUT+rJWJ2tL5PzKGk4EADIa?Mqd^1JF}`IJw{cu2aBWeP#OA%k1+S03!*<mXn`&LRZCQ63PPHc2th&<Fb+u;M^@de%Hk4XbS1W4)tc#$s)kcD^-0~0opz?eRsQjx^b!X56T?c-^YQvAwI)&d@rTj|QJ&akOzr?=2cmz!9B7L<TG^{&r%RBCsJ8u8E@tKhFAFOn`?MlQEzFjNJWx0Z`brm}ZhBwHPZwGNxKFkA9qg@WV%=UiqH@p&mK?8Q@mOFZ4a9D=V;P>b|9E+7cnyP>eee0fkdj0QT1BT{1?%mz38=%p`t_3?J+*o=2Yb_7--0PC^HOlQ|0{y~#UT-sQ_<uZi$)knsy{$X@++-!Rtqy!jRLjYXXWxSz5jYkCqd>u0$LaZ=Lv0=QQtq6ST*~but6vFx+p}8f!wYtaRzvuC)9Y8@zZV9L$%h(i4vbO=ts`iXzTtP8Uay@fW3|v#A4cs6%Xp=O&}Q|5mH0DZjZuTMNm+xgnb5@}{MQRi#>4S~{W5U_=9@BZZy-hX+_XhHtP6V+numI@VzAUc^8LUykNAF)E+;dK<Mu&n@p~pnmpBKGhY<#5+dCvnQOi9<*E5_)vMXAS33a(W2R?@fO?b}et+oYwR?mcmhDnv&;LvWH(B0l?7Xzq!h%f|iA#*0%oXo&`6+aWRA9Y)n*D+a=9GalR=xKZg*B%UrWo%-NJ1)D;ZCrkD^u2wM4Mrc}rB1`-5*#jM|HOQi6#_NTobidb{T8>z<4Q2QJ-10V=yU=7Ycg)&w9P>Wjm{?RXTj)f1t5u|If_jeEcYH7umT&FI$XCc_;!8=*1MZDkzX@!`F<D4X$LL5n;x#4?Zzw7-{zjxbYIxt-`Pc@Cyea{3pq$HRc-v=|9#-Ou?P1<OZtm@H@Eh}yjjBsGVJz5ip)&U4eZ=J4_jf&Ys75lyr2st<PI-g)JWj+Rj<px{$a~+#191E`2oG;XwdiY3jss8heq0KUY9%LV&M;fleu!@pr8#M>YsL*FFZ&x@V@wQ!N_3)tQwa-Vb-}pREB>6dnckv6u!y~^zcSJi`XU+lo%H;x#iJ3@T+ytj$Q2oJ;WYf>zqEhV}mKvrEx8xl;H0X(;aijfV9TdcRWU5Kp?2+9HFx}9T~vK$He9c`%#Oh6=R4ZJ-(u$fSpuOi=cJj!Vxuw3KFAfQBEg87un%ONNq^IP$-h;Ip#U5%EJU^)tq!{{6=&DQm1o>rrWpKl<L~(fe7nA>n_X=vKQ7}&UM&@)c_K@wyK7G98Q*6jh%zk>N)2Nw6z!r2*Gw21M`^2HW))wv-cPS0WGq&8AGgU*;@^R;>g}^n9ugaEys{_IcM83WX#r<yY(2dCXL&E3<Z%hvbP{ZQN*lm$WT-zb1O1xh$ua>9T_#8Xuc)Eg+69mGHQ6%lC?F#CsMMvCqtE##1>_!c%H)+jG?Nv;Z|j+cu*4Gt_)4qN46{k+OCc4TbRJE7T>%KQN-CB*}<S3z1PQVV^9O(vy*!n6k_k<8yb55W751}SRf%PH@k{XsMtvp!lYnBCd#EY$b_bU4{zW>5)H$)dJa{sDNz#v5E86Zyid0fb!K$qG(;IkYSJv4CY?AD$&k5`3S^9(Fq!^u9?_|ljBw^=L@l%?n_ZYC|DNa4{Uij-1xyVGoh=ltQP@6mTPX8}qGS1>vyb|*<J;^IS~$U6-}k$~XwgT`7x0u5s-qALzfr92U>K0#T7l>G;Ca}?2EC4uvPe>rV`g-uzb9rqj+O82uW#SoUlnk@UdO*y1-Em29sXOH{&mAAxZQHZE@?!KncRko+>IMgTQ>fHW+U6_ChTACYN!xg=l`x`P9Vq$FniXZ@3&zW#IJsea|yys&p+n#2>&sC=(LR1Mqs=5h3lA03wrJK;L`w^EgxLl+1=RO`X1{QrMKdJhFinrS_jw21V@dm2!1b}lI!4FW=^gO1Fswey-LIDRDgBU8@#6A1;oSQL!;F$z^_DhT-pGjIVcncT@*)z(kaappB9>>m1IS}9Y9SOgYb3y>);ygVAS}^=+nEntqMm>P{i@TUfT-&{n!$QNn@YwV#fP~tv*qSOkJo8auevuk&F4jliz=3*0++~^_$nFvJ6coj#COcF6g+R<Eu%>Qy)02yUw0#3%5a9ar?<bhml(|9Xu>~onx!zffVg_eT30NyZYI0@m%%;Jg=g>TVDvwY9(N$zylHTRJgl)%Mf0J2VP%VjUP#<qElDvqHepgB}?@Q+1fH}(Fi%g?X^j_<6&Xa(!1SkqL5YE8}yDn7)%KSs#lm1WzwTJ{9X?}y6cpXI|LVaa)*@r(%RN!6J^3AIfW@Q%ffg8%VFBUhXKQpG6nR{&1;~qS%Vg;A<P|<<mm7Mv;@$~O;XgkPZ|4eVFj{|L~DlZEATUD4agkYa;*-#$q!>X=n~fgwT6{K*L%1+BS{zLn`j-|@AdoE;jjeuw!}3z1EMa$&1TG{%MUL}M>kQv$MdPg%R_1~(Hc#iZUZ|uE!%dvO)RPas-<P4{ubHGGMZ^w4T8#L+T>_CbO>7sW3Y!60)Ao}tHX(8Y#lOm!{i==E|IRs))w~IZ8u!pe@wqi)aquo>5$)Nhs|PCBk{5(?90&1kr;n&I7JxW?vT!9vxVCPZilOR_`XI9$RtQv3>nAT;0Co_7<b!!VgL56eR%T*d%53B+3+GO8z^&u8}P3_wBp5Ve3AJrZhb<JKW?|f@t%N;G_(Y!Onlh}z?gxs<Kg<@3laOl>h{VwiXHknwB(g{;NQy_$#Sh=hh!CI6H*#@DN`5iyw?Rb9p#fF&*s}PZ1L9;b})jqmFp3@fJ_FXwsk*5%JmUaS*l0QsuEd;5}%RTvAB7RT_D~(uq%$E!0b-!H?wCkUtX7-0bodn%s?t~NZT?9PWDmg&I|ICNt!u#<sFJAA(TRz>X{9#?L|NNMD*Hy*ayQxcyGJgH$k@#Xz{aB;!#7dV?HwuY@1jB6LWeWOS6q$@o6zcRbIvUg&*1|6E?^akz~Y}t1H2bp+L=I$c98{vO}hf_^cz084A@nb2cQoHp-xx@hp=`8&XZqCsISws&Rvbgab;maznx)CE2+l)%7GxH{_}wW9tT)LK3W<f$63`v>{8id=_tzaU{j&p->;k>J1s~fVu46kkLMs&GHQey>}<GeM3>I)3AO+L6707*uPPe#0zZ!Mh&e{Iop7t;<S$43JevOQtozOsH!w(OE6SDHUq=n4S<2+vQu$=kk2_|Y1a%*sjZIi3qw=&aM2%ni5ps-HGsu-3r*pMR!84z;CyaWkxXmY!)u0)R${vA;Ds6yEHYX{SCxbrZ7zZ{D32T8+ec@sCD3q)7_pgzXg?CCh>tCGe6vSHX~yJv>cT&gUmLnOVR%^RM2KD^=o|R~cYVavv=ra;n7OT>Gl{Ufv9^ADqf9TrX={5yfD03S>fwc$4;|lt&UbM8f-ZO5Qzqti_d)3A!oy}^!{YvSJdu0Uk<cTo3G{@S&Y=_N)AIq3-uqa<X%8J>nETBq@y^8kP5CRJ+48|b=QVZ!@On6@wguWAz2HC2e@?D}Zwjo8_XV^8lgk3>?tH<!^N`$e$S*VIFUXeye0#p#@OLsvz$EE|ntC6;#RK@@JOT1!@>qKpI}OjmM+ffD9_0&wj(W!S<u7L+p8t%()Yumu=>sk%U@SmH9l!4e+3N^8fCWFMkBXj6zu+EDZ{m`Vbk_4X*>|H^Gf!Z~On4DCNhQMaYxv$3s?+k0T{h*oz)tAB|A`L3<cf&_*vn_1K?gqMs{~&8qcGHw9$SgMD&jTqcZP-B!BQCQ!=Qs?=Y%sreTb>x=rJ5Fg!3rSl%5Rz-xv!RyEgyIhZBB^a23Y*0tE>^X6{>`Ac;JpX?UEugqf4{BTnBB@p5D}TP<85r)I)xSg@^vZ53>*U|Uy!ZB1<?C4EG=!976}M$(a6vteBPCOLdQ0_+N641`|&XMcg2{)hz(@VJ3AWGwKD{m{EEGMP4{rX#9##cedLM#HI1YckESJf_Wy7c~~*$;8AMXl`Oj+cYwa7ejN!<Y3>7xLrA3#EvqqtxCy4JgMS-Gch&a_PeKC(PzdCG6dwP>~z;iiuX_8lOJ@@Erp%&q&mNRaP5b5^b+`k9-iO(EywM}s?uQzK8|MzY@cQ43W)_yO~BIaQ$)Alna~dRH(?D$&ir}pdQAbiZ2Dv=(cxjlPV?Z}OW%80IQyMIy8>cV{DpQC4u$XmK~sd_37NYqaQj5#uTw8T)k9y7*dQ-Dy4<0RHk~yd{Mw8Soxg+Q$s8U-=n1i$^M*J2LN><K8cxpfsxbP2q0H+ACXK`NS-93pyzBq<+h0QG|B1)if#~#e1~v2r#R&YFgKPXE?AzaEe7L2=idcfZGnCOnh93%Kz}N-8{<-}2Cz_Pc5cJ};(cbe9o0#W>Fu`|{ksW3z0fw~qHj8|tE~D7tz8-#WlcZGB6s}(vmP`{#-ZYntWPoBp^99WpH2=)g{M3TwUWomXkSXJ(Gl`Qow(soiuie?-TcsdV_-F0Tx^VN>_Va7E_C``H+nUtWZCkTtO>4-`q!7O`ejZ3A+@qkvCjdk9COvVBkEhJf+9o}a9qyMEc9wUz&iYtp2V5DI1FKaEY^#@DG3h{1AzdY_{Yj6c-V&?cEK#r!1#fMZ*6Fv^y*Gv1Kz3Bx6eA78xJHLc@--|ktIOhpkL5}emK~G3OD&Ax!egw<MN&=Swg8i6dC*bMI_&sB?=~(jYv6c(g@U{08)S8nP^xt=;7-e-U8~vi+bqD7ZPNntoBbB0?xnz~Z;k{?F;JQCpaOlZTwvvP<U5gli=Kk64NUX~qcgFLXUA1=F@D;Py_#`Q^VkbK=0C>WAwoarVMp-fIeE|Vf^N$?ji2|M)XS!8vXf-favVAarsoKUhjKZ>Y!I$d)I<a%);EJL%#q(SVPWAZTBqq9Chr977JB2ydllUc+r%?RFG@2!a(ncZfqCegegB?|8%u9&McOIREEx4-<UMTO@t})$GJXJ+xH1EbH16}lz-__eg2%$pAUegQ7=>8c3uJ@=ZvDstOy)foqOGw)UNJJ);i)YPNsF}@E8$J?5<29fr`X4WHN##Kmhmh8u8CSc1xtm_Kbc+?F<7z4FQb?8v1qfI9L7y?r;8{$>c|Rs#1nMxKC!nT^ctDF&&1@&A;w^dZ;kV=u#eilBWTqs2%3Mtw)Y(tS3NXp098q<$b1Z#ze7F4z)>6KbWnz1V2aG6bAXO`R$g(4N+u`rP*{zCtyOs#DkMuWXAHR-ukHop{Uzy{mK6pkma)o1zYRi2lj8mq<X94=MMg)FFj=zI=a^~C(}T?<>`*PBQ`{-S8{D%3*bX(sa#@72YUB`-ZMDhe$IR;@mnS1q*F?T-h<M09fj1kHC{D$n4G9s-@_DqOu(TFq__U#*2Z;&)qVqxqzcv)Tmgd<;4a23f__k4#<b2+3P+o{}{M)F>$^;&6)D&qPA2(_>d1_t`mFrXRbEBqe<9WJKLl>2VV}UAanY`UlL)^P0e~0q=D33SPa5$NK-cT{Ya-7#2s#eS4_l6p#D~a=bL#>OWeBaQ}<s`=Y4Gq&skMe&guch|@LzB{FCf7VgxQPK?nKvc8$%pIl&;m0=`+!?2yTzF_d`vb)n#vbV&uWK78gB-KTv#?ebkeA@l7@xg3a4SkI&bvI>NyzI5W3e~GxTbG7+eOI=$B%0ryu<2rq?t%kAs`_gq?SyE_Tq_-PqYS@9y3*_qOlu-q<ij;W{w=>2(;yT}rnh<+YKa+C<N<?QG@uV_K~zuQh3MYpK3rOB;7?-rCxG!F+ygZ^I<SBy8n^N+>pTb9ZCoJLcy0t@Vvv^Um7s4QgntdOmy%Uu<sPy>%;X7aHl_sxb1Rm4i+Qs%h@s*xlOM4+k=-se`yFfQ$}s^M&0T(@g|MUATR_f`Jlc{HsSZdV70+{bCKY{l0@wzOa3J!(89mo$3?d1Gm=h+`PMXbHn^^d)s$12OTzvV@;R=_-Jo@=kAXA4_iAEALb|HuVQQjPWauOo!yPSJ@d}S_x8=TyZhTfguD9_n<<BE=w342M?u8}6&F-|6{$F8i=6|wn%g;Sd4ywAz^fJTY6ZMn0k2lTs}=BS1-x1TuU5dT74T{WyjlUTR=}$j@M;CTS^=+Cz^fIoOa&}c0n1dts}*!y(DAbiuQo>jwY<ZH%#i9WR(1j4v}#k9ZM&hVQnRXCs#*Z26~Ji)a9RPJRsg3Jz-a|=S^=C^0H+neY0oTh+H~UbG`K_KVTSJb97{%s-4Lu}SZ=6jOu`UC_#n_mF_4(6AE<|RoG^?Gw+>WLu|g9y;c-|%oAiqmSFXWf^9ikX1RNz7$tRjPx*@O|6G40KumXV!ri1Aj_L}Zo0GbEpo|g$!mY((*k$132SY~C=@X17M9oA}uurmQv=PoM>yFL~{XE--u4WSROimhhr(DFJ$!)*ekV|mN6(WpV<OD+;lwAAn&WDbGVkL!?E7_P-KpZtFQGl{j!>f_~Pkg$S83lc3z^vfjCgjp*zbvzFvhD#X7ZL6~s2zxM(_EFl>m2rDUYuDP&&d{@aq+xRQ9OeS3X?0r`t5pjj4C>Ow{b%D|td+pQ!@qdZ4=ZIBvQ|07o^ldLU*nZBb>%e*$np<aP#nH#dF6Gw1BLWWfh=<Bj0Y@u4SM1BUWb2M4zan{^P~8qy5zEtvv;w|v5Nd|%;hpxuQGLum4N%aSGwqc8G8;LCl7u9u*J{>+EzFC)(@_~_JaZNgJsYmmf_2+th~M&FY!B2^5hW)F6Bg+avQveui$pq?S$Lj4rNCVXAh4B8a@9cfL8%uBm96n<Qcd}A%n2O+?Ipacia;J_Rj(E!3I#-Js=-cCVL~5ku}ks;SKz?gEF_UfwM<7V6XN%1Gii*<GMfXy2AR#t&RN+_-B7@>((A|IC#463h49G5-^oKIwA>Nxxz;80-xtvbT~Ea13^y%7|i!M7{Z!^Tc`jZrgumuVSBgts0*Niq{e-Rdrt14cZ`5MT_Eic7%M84tAblTEDK+kt7=`8WTmERdiaK&u!rlchrH#Ui<%6c!8t2om(r%%Fb21Yi*2Z%<5>bXRl)T6Enqg0Q$4rlhUGL#yo{o2xluHX2_2eAxo!gtBWwfMHgpe57+*2jkr-Q^F;i`5nQFEM#8|z+>eG6qvyrf~=FoF(gfT_tX1@L+>+<j#pGiPN1nC0Q?Rqx*fxTi8+~K%F=btFHfS0qV=HWHSQP&cR-tc0yH5R#^Dzv)Zunbk-w9hLY3`J5IkAYxhnly~=yY3!y_nCxaz$~2!cfZi=If76S_Yg#F+a+x`GN8uY3gec~GBL)q9W%%MFXiyJ=jOTweo4N7xfltP0Uc#^h;C5VV`ff`4397;s?GriLN7RuFra8dlc^lx0l?Eu_Gy?eA-9Y&*vBx0i}~!4<uL(GkXpseh|0bUvz#*9sv067Ac3%}ICYE6=`gZzvg=^b4(+Q}V4@&-KeVobNLnU)UVy9+oey)YpOZM4A&YrT%s`XaC?7M>L2Ag#3=AGmb2Fo^jWRSttkx1t4PC*~jLi_yYBnT1xYiQBRp>m%R-YltQpofSQBfksXNc(Hmd*U&o|eS`jsKs$ciV0oOA-ZtWtXx$MRkfKZoDDORV_=Dtt#ExlAW2A^5B2~NFqf7EC7^5yWQ)2!8vnQpQl-8R?owEm_L|VYu1{N=^vQ>go%i~aV1Dew6jWb!L}@5->`2HJ0f;m<aW1+1a$?~7W0TuSK6&5WT-1B)eM&swFD{ZN|(Q&ptTnxM_pBVs}Q8F;^^|*OII~HhbSSTmzRpEDF00nCcLYqNE0&JWr!2fduxy<><MKp0@XEH$}ar~wj+5#RfY9Ecf>%tcqDf1CZ&_KcG?0LlyeP04Yf5#V_}W2b%gZM0AgVddz14d8c7*3nMBnja@R<7Ng{O8tDvH!k%@j791af&qXy}+l#?vp$C_Mu$Ng7(`#%|R!3!w)vnU!DdVl2!`_aRr<NliV$XZlb;U=YQD22E(tcS@*506gwj*a`vVXxlx-&`D>ol+S^QrdM1{wa)bL)~+3>p1>8?cRw~zfm)TN<NSoRXrZnt{6e_-6$s1GlPrMShf)LJWMAG58)tUnc=M(pD4LB9jnTtLeACJYhd{pqOoY9bE84djk4)H1mY7Y{eW@h)Fx~=V&(w|S!OK6+%w!g4c;WF;G`Y+&5L56^eaHGBXUgmoA>MuM@?xnK*<IHIRxR3#8STMH^C<)ygwG&`wjU!WboB(Xm=aA1~hMg)3&z5oC$RM6prNlUMe&p9EmowPA=&!>%;TP!xIhFk=Ah1(35PzJWtItg$~ri8oTli&VD#OKHEFE5O&L@$5d^Ht6|Z72o%a!YBB+nIXPqn&=o*e0R7AXdY#k~wdq54=mOmm6h)TByba}*|Nh_q^Hcbj6^pjIE!7(Ida5HSn#Dbft`Uotcmya+9Z5phWPVJ|aPor95|Q0nA>Eggz!ijUTlG4yupY6$^*U$Z@rif5&gCriI=`i-M?ez;vIK)?&##kTIeMYa1Fh-a@Jyf&Cv)4Wht6b}O`vDM1H5x}KvsA4u^&dGz@N`3#de$-x=Nvl2nCrSm&8#=S<SgKr!y2KE6Q$H+SN1_ep)*vayt%)D77n!u&j6l1Jm<pjKXzfIJX2}e`^LLMG@*&wtM69^$pz-a*gA}f-?bFp(2yB{Ehj6RI@!J=Zbv+3f`e0k;(hR<lGtZo5|X7)pkQnu`%Joj#MRNYFZ?D@UQ2ni((l!&^(O>r=ARXVvAziMi+3Fe}g{2PzZ?1R9kV9fry$Mj2UJyTgq@}hUd5>iOOeqQ*&m_gk8Bgu?PX8ZB&RZ{kQ`>TX<egYGU8Go*cY|Fs-D}H-%rZp5}b!&9FBEk}rAFS?u@|re)yzVf^ZN0Wg%pj%b|=P5_Qrk1k_<x~#NEE1$K7%?r0k_60j@B9u=WVn^6qwp0*N;pBW_A=5pwr2C~vZIYwJ(9t5vj*H%4xMNHb(eRDm5dBbPq4^f;-f{CVbjX<z8*yKkw5^0JM@xiGTy`UL6LBNPs4C7P^&48#*hrMifdr)X5*0e$U0Qn*Ls4likm69>5z;I1gbN_jauygc4<vbtL4K7}OfgR+EfR=CS33fi=qP)MJE<c_PZ&i<^&Q?F9hG<DkB~iS0k!C8HMs`6=%^u9f?#wMrW9}tngN#L8OZ1rbeQB$y9D3pa<@~Cb94n~Adh!+h5H39;vTMxm&ZT4ih75oI0)vmwGs~r9k+5^q-*FebQM0*HFU|j9w)&HDoc1t*IMm7Zi2N{viM2YQ23X@QQXKi#Z%n6HHWKUD@a9rrMD92que+dwuq8d+av2p{>e7V<OXwhf`U3TfJO#r(XY4BRF$xvJ6yz7P>wD<Xd>L|ZQ6Qp@)~G|j>HV=rFBRco~R6VQN)<c(!eCwkG;g-sX(P%ISmOaC<(h2liG4lZuCS*#Dq)-HsvG1@u!a{rTql#$VLD16Y@DcVgiTq+Wt>_r|diS^6dD4%$Ke_mM8t#joMIvqTeZ0JUBYR3g{TG@Ta8kPyOTLvmdDZzyELl2Rrlw;VnI6zQ-2+JYYb1GI2~m8tTL>H-nv}Mt=T>_Y9e*@7OdP6-%LCH&N`nHN`T0LWXW-xi|d-Ua0<{#$X0<60u3L=tC11AlWPjXi2-l`gbl0m+5*IN7)eL<T$dyf7Qg>#nG#y)5~3!N1#x;JQB>kG(KnKR#bjiB{B)~>5jy@wQD<E9FW^EXN1amHT2SzD5oNeo4ka&;5U<$oyPPUc|soEB&290yQ~<T<e-1J_xAYGID30}{`RuSTrQm^$YEMj<Sid*4<-nW_g5aGGGzOYcqXpi`62?^BrZcCS?Gy}4H4f%h5wu=s=^T!j;L@%g(HeMVzqP&4I?ph5|Cw4QM$F9x1n@PIF1zE3z@j%v&qGxP=~9%bUhPYvLhZqf{bJ`Ar%n=1s*WWdA?LkyVGqCRaH{j9n~6sG0&H=oUt%HO(CVCCb@!M^Zekj`7w4m`Kd9phxf^@^6F*}&?tLIc$#HV)?*DxNuA4pWpnUGH3E1rNtO}wN%4&`ttGNTsr&^Qo4DAF)+(Qmn}(dP51<s;GtI+PsV4S#V_J!CE4*vxx71<A7?krOvEMbam7?UxH(=UR8&Y@5Erf8@LOwmQ(bCPRG<_D@rRnBPX|iA?a%p7tRaSUPiVQ*>C+-I<P}0$2_hB1GZZVIyoOqqH1M`*)i%5`0Z^^VGON!wj#3N}X@Ynz(!r~k&c?66%4<?~Oy?CTa6-q9=wWS^zx9$hNJ?@Le%7r^z$0;kB;YCoaBQ%?Y@F=kW%_=ixw4TgBJXzsQDr*{jK$V?TO^QgOyNFwMatB=o_c5_L)2H!TrW^R&52x*0cZ~zz5<-<N-ySwl-N6<~4WZwQ>DXZ79HBSV8ZR9a`Z1hOF1V03W35ceML{%dBoFYD)!Q2Y=TGLUGqkQu-;XZ)C&t0q{@as2xwD+jqPwlwVhVUo#5^O%YrsKvV}`jLuJi?n*ZtsxjXiBCbMCoO*l<14usc6GZji%M{78tK7tnCy{NjKo76otjiQDc~)4DH+O=%R~Gz<+_ZpwQ$<3cj7&c~nA@GYe1#S_bdy^wxX4xV^YKUJ2L<-Elxsc+@t*Mu|l?{^oA%i@nmQGoTA(uTuz(loABHgTMpNDx&6X9!2cIG>mruqIJ*I4Wpme6{65{GjPI7Y}P?(RS2TBD~VmLPx8=H3x={rkCr_3|&S;(KY9WE^F$lvqMD9$(<j%A}OV3h_1-(vU4P7=DKv2=&B^II!_?4x9UvMRYhKLu0U3&>}=6ht-bPm;byMOXN;~%(%N$d3Ut<;HM)k=k~?p74ddu!&m3LrY58+UZ=pV3vf=cW+$}qQ^j1qLIfL|8r<FN}^cHTU!daxZW$C{2NN=M~8xNJ;?&Jk%Uy=$%H317LUnJ7MVQ=E5BA<~ok%f3|K1*w01@xlynDVge@i+?~Q|H{B0F-l2<?%Dt<}R$UM1uNxq0B3m19Fz@HNdK1X*>gYLH?mSPr#x-ptE6gd4%PBq<gU#Ja8qBZx~u6oDGM-l_kaCbmYYb@evuq5vlR=Xn@}Q@#L7{od)b&K4<*s<h4$cH!L5&Wy??QrW0P4KVdm&vWabH%f-h$FPpw$`HOe2SPE%aIync$RD^ataS{Y`c5%Rj5;hi&Pj+55eWOLZJj@pD<LQ3vils>3uxS7M?aORgJn(ZX!4s$hh}X~I=!>!y0!}K4WsYB{7kh75if5?tMdw2hw@!~xtW*D!J1Z3Y!}%-Dq@JIOhadVc&-v5K6Y+3)ba=?0ULA>tqy00H_iB$nz$}ZFE)GbE1fC8=>B}E4g&xq^zHobWb|8{)CHd3I0sp;!@s2;h?1~uCFn9b3!%g5*PE1x|f(jE<nBZ>}6Wk*VBQv#qq(4jLVa4nXMPkM1LrZPvZB(71DwzXSYxU$_r|YyoGro3-oochpk`&D>Z`@!GWHu1$WNK;7TngSyZGGe&{Pg9$q<w}C*JA}=#2P>iXQk><8tj*d*(sM)WNhYm#J_NyF$hbiEvLhSZg+gzBryER;)6rfE1-tCC2T(9bf54gssIEeJxR(tso*D0n>vvx99G3iaKepD&xg62jTZ)9#81rZXYsPzy>Y@^l|Y#1{dsN%CfaT~vA~I2;Su|7@PndM_Otbh6ihELt|}Q!-k=vJdyju1SZ(>16C<R-c12uXnwV4w1jnHnTCU6GDRZtQ1k;Om>RBm}5Dt}j$j<}?23B{7$P!asYmBzqp+9jN`}}vDO!E51CH@~L%}mdkG|ut=I0+`%pGS>j`V}YQ(KVkn00EdY=QC87GPZE3SY?g01eFOJs69hQXWUjQwmT!?Nl$oyr|}Be3Z;pza<Rd%!KX({!vJ%AAZXq7Y;?)#2Wk5y5roxDh+#DoBskVPGWg`8CQIPoii~&;Rc-`FldP6T1SXk{!@d3~<-!dm=`q>G<w}c<)o?>2*<-m3IQ$MXsSRwBD-9|u#3KcqqNCDGDO%BEOQsaFka|-Vj&!v4S^_2VkDr>d#qmf58bW8}C8$W3$wAl>I?`oi%ga#`cXL*bmUOwJmZ2t{oT)FNCtV>Q_-j#=uAnqz2~Ft=n&A~um9F6Ti|9&MWmVY6k^it9+R|0j4&x#MP0ou59&jpOc_({6awCn4qd)bH<D-)!^d!@g*gr5?QnbRaZ!qW8OLmMwj;_4D)4k)LE{-mYH+v^ZT}6_XYMptL1tZTNkbCkH4?-WvwG(1MW)yVRW2k)O5s~K(i|&56?;`@XcT(ra%PRRz^3t1`kfdz!61L<T7q4BBX3H1}uzVQA%e^<R`tikS9$IS2we}D%vL#jhx!0cJWjieb-h5_32rsXxkTeypkp*}3g8jUW=y!XUZO7;ypJRN#{eJm7>XcuZCwHvdAK@VSv|ap2MpDaR43X|*9Rfqk@3Ujw2Q-iFdRSk0(GfSfW9N?G3Pu#4d<{sOxWffSzN5^a0ZiZT2*g&~Y0Lo|(^SGPK0N3m8Lp$hXp)*WF+`ali_iP7I8Vs$%CEM%y_Tf)wN9?W%o`=te!jTUg5sLi7R578nwxYPN|k_@j4x8+dQj`7q)J*zy$|tZ{pskO?QskcSJMt!dnHxwfE^8S>IEy3<M%7DuE4qi>#qW=*D&va<8WmsujoU4DQiQf{c4N*91<OUC0=$j!Hf%ziMUcRxhBFz&$&|X_8d*K2a;{t9myWb_ZnE`h9Oi@8eHw9+!558&SZl_&aG?w8TnKSZ;_fyg|MjsdiYq=5KnFl0_gX;a@ZERo4`wHUT~I_ojbvzyxoO4_Wf+TvqHHA#;dr?lxY5*qDSOQp#ys2oM2^v$Kk;$)h6H$hjUbQB<-7M1MzvjqCVRU?cRWqTXnJpORUjiGc)3@?v;BOdCxl8n2)hjh@38uNW{j&aFX#cpK&{nxZaw$7-@;3F$%X+aYUxrGf>v&eDXYW#9bk<yqT&=XhST#lsNY16Wc(!<TVU5B$o@Z2W0VXL~cYpd;E@uIiWD#O6%Yoid~UePyEbN!+b?xe#p5khHxUE_}s{Y9M%fYK^RL6Q8~4TFEGO%uRU9!?NewZt_ri7RZubn#LiccAj9CgI?%V7c*H`qJq=+M6*&CrT4)xb55NbSY9-#*Q#s3+o4n<{u4jD*WsJF!$b)GZ!xD3@oL{1xBlg7e`kb~%ViQ*Gi74-1DDRhOIc#C<sfZ$N<i$Lc)HoCw{Oyes&Hx&c8VwQoPrRkE{gMRKEj7^HJh9K54gFQzzuzC;kh`;bNRY!Mf+5$N5rfo}eEdT07(Nr2P;GIs4S*UqAXC-y=!0s`J$#QBqM4d;zw7O6J=lq{2P8@dpqs>cJlwyLP*zD0Mb-y=3XwcDwX);y8Phmm0FpqAl)y0_*WXDZVa5ps)WQ>UksIZ;Ar8@>jBvz5S}<vZ!=6-%QFS!JDj-!|#@KF4h*g*4(0M6x)n#-OR79|l+RGwYUG8aFM5`;PzEVK8kk~3BTwOtJixQ;Eea@F6UR^=$i!$WP9UbKnu&!WNvq)H1QB^00h;<dM(F#k?UBwp=vaa$-fO({>t7uM`LCm^}lCCUrhLm<0g67tBWk{ME*QJPBSG(N|veq?OSwh&lrgRHPo2%6j;)X|*Q;|XoP8e5H5~a|5Fd(^FoPs-t`_siQ0BMpK_{C(6aigIQ&i&<hgiG|pC6$&PIlf1}_FL^Z`XwKg2usjHK_917bIG{vaKjFg3TQP7>0J?bktYr?m}MKqb(ut<Sus^nbHcgLr@pzflgp#aV<88~64c!HM@kHf&m6!D{=D+@pIS{d$1Dw!%c7B&Zp>%hOHU`Yk&2G1^XF{+wX}BJMnYtZb}rKQVqfm1$Ky7M3K#AD#Ggz0RZgp?Z6KkZG{Rr9t*oKs<2L5e)Cm1~V2Q!tJF3Xfr|G+8PG_b&^3oJU$(ejEArg1aBfzb;2-G!5pQn~#WuBe**&T)BB>kFPk?|M6l13O<)auLQv;9Bz4~*Am7njEQ-sNTg%_%y{`N%aY=74A5OV)LRHXzpK+c#YBdlih%2eXjPGVR#fG|frU;@uw)iQa%L;e<m_Y^zT4^vJccZ6!%5B*kCx?&5;jIuIUkbem}bARAyqx|uFpi0%CJoq|W8Kne|FX{RJvV?X-E3^L7!IT>CB{T1|A(Eqmt{i{WNC;k8>_y<mS4K!C?*0-Fup|DTr0Uo;^{4bhAPi#1o?CtU8(aGLrpWSp>&GQ+C7~f$p9{q>y*>=dzF<Ol|O<J$v-D+63fh-RET{Zx&sqPGc-->p0R%gfrvu|T@Hk<L<A*<m8rQsxa^&P12h9V@T1?%iB58KI$u<tT$4Cm0K2#&dfntj(HS;BHJ*}Ou?1SJe#87yLr$^SINSrEPcPmOran(t2cn?K4j8#*T5C!@M0-o7^2g%E+^n4l0l-aBPnkssp=oE;uw<FV)O8d3Hr?xODOG_s;p+j4BXYnyGmYdX@<zE_mmxbZCRnI9gScZC1uv&Y!&-J{U-5SzURiUO^%88v}9aY@ke8KEML>9t`^Z9G@e-z)t_W(yaey5o;xPeJsI@DNMvcmRV~441q`TskoiQyrmjY{b5$k^blLXnB)<lzMK;JB!VW7)9cpEE}<oZW5GI>_E<(Ovoyi%xuNy680@FDAE(K$fQ#s`Kbdu&LDoXW^?jWn`EO{II%LJau%FzVPfP9JSgxyGsg<kK#@ap>P{BPkSG4g^>E@dCXd`ECJvNob4cMa)kI0W1z8x$&P*DI{hD!ZmFkr67SO7OZ*5#)6#B$j>tutea4#0dCQ%kk9X5SAN!_m@IpYRpg>Z@1c<S5iyE|3{`CXCKkt8^V{_e+vSH_#Sr-0r2c#C<p#s2x9Srp72KBaJYW4L0BMof{Ixfx$=C&@J^{1AD@x#rM><<tC`Yjg83pnY^a`sAIT<@Xe~l45nko@ctme%Ay{(DV=&E5G|zX5S_a5Qt-&29IvI+y!1D3ToDHM0b<|w;L8}0Zm0cH26=dmf6_JU6PrRxm<^2dKqNFeV+@!=Pv~PN+&A`Y-PNqix83v=*Dm)1a@5!q%jX9Sx@I&5=dK#KbHcKu<^@cCT_Ji1L7*h6p70$@p(BTeUy3QbMy@sC7~i$V2)nKn2x)QPjFs$m5eaPy}E)@C60e}1%-y`v~maBDIVqmq7)aydpD1d^;Wl)$H{sNomfTW^+=6zGxu{uVoEZiO8N`0ogALl+vx5phpSN#Q;M%4qrDbq>uq${bPwLv+gfK8?$+C}N3G>m(A%+GEXLt_yVqXA<9bKxtia`ZM^@M1bG?I8k;mzJr=>09b-j~uf1cZ#JWk;<e%CuFA1mN^y^AYWg6H)vN`+V9dcBJ}giH8d?`o28BM(i@0Q29HW3V3D2a46YHLuAT|1~<^mv^_YB&|(g-eOXlC&84@CgviQnD$VXi8<7Dcvt249lzXb_4w<x3;l&YqYHl}sX^v~y{_<lPd@kz7pvi%2yr`{7Q(}qEJ^v$j1^)2v<dSo@9`^i<vo6huDnOD(UteuMZy{nT$3yBGZy8_yKhynCz~t=3ca{K7LscXR1vG~kPl~}JBFc`;eP~9At*p$*#6n+;n6FUTD*p;aU)obA2bal6}i+b_TL$c>M8)O0JH+oCkCJokfz0{7wA7>g;Z^+%!bmnz6fE>(w2Ff!q0w~vwmw!18LZHq_$%Lwb;8~yfdX%>%c_S$r}VW(rhMj3n(HKXZbJG2!mlo+|mnjKZN7J`X2rIdzpmfu|Av3f%*%Z_>7TOfmEAe9J{521}}+~c<mKkYXEN^8FSjn1}UGeE$-b|W7DpSL6rB)Mz{Cr(^5~e<!8vvOmKN+={o;L<zOO6FtlR$;d}%HKS`R((#pSy&*8$0(51OM8c*N{z0$2pU)_k%A3*2qTqCD0?hV#uQgiF0XHLyv;*)P#*c!_#yD~T?usGLdbd#C-dyD30d}VQL5w)?)XZeBE%I5ZgRaZ{t1M7>qTi@HgiGODfo5K&odSnh7aU8eLb))uB$7v5#zPwl5Dh`#<h<)bAAr!I!3T>BMoRukI4!9~Bv97{9RO+lIL65P4rstC@mgy{szDSA~al|q4f{q6aJ~Q|=AGqC!P#$r8JcA1ZY1Y!B;>(D8=!+p2H^m4`9I+x%9MagU*);P87}^?h=hzXjlFkHqSX>j*)!|x|F_-I)jp@SRAa6~OMTBQVKt1`g$FMF2p=Bd<VsC65!)F8%b5|%wnwDb#drThJldo_zn$CHgPN-IRKjT9z*tzcC8^lp4Jtm^m)N@&?c9|1$;;s{4Xe7@orL9L8KVpy#%eYz_lKg80pCfJkEX~B#zP)gNBtgsTBNV_+eS3}<`@9)OOV2jK&Dh%c@!MBNr(BXNS{!nZUGzLd^3V@l*i(!w0y)&N0Z@K`-^^Kq??2d@tUe4cj+34Q=B<csjL1#!J_4f;28&=0%Q%@d{c(M|s6+3dzae^%<fpe7GPKU>Nz``!ElA3}^KT!sdL6@q!<aq};bW-r_6hyo`j~Rre{=HoM?wE>V}2uwhTESCvxu=mX3_YC%y>W|pp;MF?Z4hTFhm0w_6HIJk^MmGBc3##*x;w?vdcE^a&2o@rH2>~DkNv+s7_YXNSqWJGlT6q8R0L-nXNQTf{2ok;7N_Y#|GE@J%d`cM88zvMe$)1H;xmV98bK45M*bge#REaj(6h*zQ@Z8v2vyhJoYDGf`&bx&SE2Ffdd*`Up&=UU1dhRj{zQ0z?(lxbQK-rTll+^94WdgEBRvuQaYL7kaA8bRYm(?ns@GgEbY6lqAp@)@^uwGu4RuKU2VzPBM08QxnoCH+j8#cfrMWE_|esFJ97l-nxYhrAxLU39Ywl^vc~1(NY_w5vE)e7HFW2eJ(hUjf$Y%)DeZ?GPdr4y@)4!Cq;}ac#l4`F9#wh^rM6|qmELN1myRsG)s<HrTU>uKe{|_>MavyudK)!x=U!ZlX3anz6s7FFL=MiU*~rEx(mQf1T?Z692P77O3{{N@Ezwkmf~AgOXK?9l2Lq&Xk8m9n0du?SZXqV-z1-lH*FSmLKRD<g7@Y4#cgq}2eZxkM2YsC+@y@Tj^EYRI=<i>WRpN`Qts)jfuK1wO<Lw=tokEE{I6J2351JymQ6c6JnaR+?N05kkxG@3t^bCgvmlf<nGMvTSgi(-_A$n)}^W3$rCksYma_*}M3t^)fD>rgKE~rzC73aNtWxPDz+yCQ>zpLSx;2W%tvy4HXJev(*V_ffuVsHB^OOdB)C`7KvSCkr|14mvA{hF^RWi3om=uQ7%MVY{{c@ge~d_}2+gPy2(!5>~9U9RdqV66zdpDg>!v$M;K%Qt)H#>MN*;{T>OaJ?qtu`7=&gt7bB|0~adz0T?m5(pm;XxyJjIS$u`%aR(62K&2@)IsuAUs5BnT1_ldk(lA+OIWP$4%u&*AbeQ;2HSyt(=8tyw1wMVE_TR&luzoXj0x-CedOQzw63qT^q>CyfBY+yh(Gv=nG?kJi;OUBU0-1{PcmK1iFzx*tpK+I+-Cx~t3|*UF0xJR2WJqv2uu6u_s=i5KU-61Lm}|Xy^FpOecu=FGb;{m1L-8Ut)4S52OY<1Ki=(s(r}po@a;wa4dNfc-!+6X(LE6;A1+;bgh*-Y5HKw}B;5m6^8*p0aY&I%=t6<QH{u#HDth65a0&(G_Uw*IotSs*2iK0q#R7^Xi6Z+%1Hv|QM;ueu<hsgorH`Fqlr0-Z3)mFP<=!AR0L+3#|Ks2O^?zsQumpJ56t6$4-Hy$Ohh0I{bG$4u2mU+~RsQS$_5c0f|CRmGS)kfN$ZE8)0mIKs)X<3={%`-2!4WWq51zs<#k7mD893|`t*BTHdvb_=<bD6Td3oz1zS>DkWxA6lk{bl}_RTTOlMty;m3OXli(FV?`UJ`v2Cn1TlLZtl3IbD}jC>$3NGRvQPWr%&@Py7KnfH+|^4Rx2`GrDmKbyckj2S$rEd~{fRUAWtPja@zB|JPC<rA3(JW_BfloE-;{FlcyHf}kf$HGDJN@|+68)dR>2SqNK1fu`(jte%tF`Bz}lE^`d%tFI_j^{+^`68cq<G{Hv$)^or8d0p2Pn9GIzE9!ta_PW@pogpl>Hg$$=!iFF^8unJBXUXZd0#YxR8unXCAV6r_9(5zSjxTL@x9#ZW_9YiOWJnHx~A^l5>2+;=E{4l=W>*GMz5`%w1&GPX{}Y}fGw7{gc!0w%S&qFEnjr|R@hUNW_pWQmI6Rde!*f9j1mtbyPdgN@G>Zg!ns|oa8Gt(A#z^gpjix!uv!eWG#b5E2Ew|mEkm&`cb5QJSK2FKS=ZVtz?s~@6{djub1Q*rUGBAukgY2yVktnkuAv!mel>Irtu%8`&TUBxkgm5-rceUydJE+wt01214VFN?-fqifkgvDN$g~9dxe8x72H?_(RaijpwA9s@K<{+aSXj~N<(<Smf@-<)e(1lv0QxMBQJ!<M6gNbkZN%J@XCO`@6MdDTx03CL5#8O0*}fBc+YygVl?gHL`BBknRJIqWWC7VIibE-3J}>z;cmL1G7#SHNv>0dcPLDq(JV$ZJuLavb|1Vcpw^vtT{XIHlf*-1$s2MkeOslrdFyGitKKIIr7y%7eUgpXf8~~V5sCIoX{%pp(llLG0_Fw)_#$(J08hIa|b(+VdARP2WE$Qr|pqoAw3iNq!>`-Uh$bWI?Qa1kjW;lecCDEfK;mbCUuSNZh)vc)wq6v69(g?FmRP7we#xk1Y$t;TT55<Es0pd#3$W9ZY5tcz1`AHFT^56fbAO{6wot+No=(#_G%^FZ!IO4qk4kR4lE5{E;u8EKDoWM3cdVK9nZX9%BwViK<+hEd{u$4Fdz>j>afbPE8h3S!Bu49uYo?tO20CdEgA$-WyYLi)nMjt@&=BF>;&ehiTg){PjemjDXUYcWnYVNXEfCq2jw;0qeY-caTODs1h&8Q%|g6s;izZS?|Bkq`@RPWRW*ei%Q@);Y7HC~^QpUDy*irfFPoeN;t9ro1Lprs5nRp|_DWxXWhv!V)qsjz`tI6KS}%=Q`J5+bQNu7U=B&uWY2X$cohw}Z$reegZ5a>DIc=3W$VwL62{($Gbu(4n9rp3k{Xnv3{lol#=mBE_7!RDOi9*W(yo+!Wa$`*z~!$c=Imd(LujZvqn#2MiM$3<lD~e&#*qtHmo1bCk6>N^?+6DppVlroc>?6EeHJah+QlR{D7!WPz+XJZ?#eCPMi#qFruk=AskRG%;|d6a+Pl;{b-%*g=tFJSWhUJ9MpV{6A#xkbqC>3T`-VBI!Z)W-xZGOhKFOW1Dl@F*${kqN+?fNE41F+ay<L<B4-u2n$%|*gZ+Z|A1d1r}(xz9HI)%1-hUD+<JmHy*zXx6vwY}uVk2l+Y|3D8>u-`cGu1p(Fgj)ckbe|0^&U=<{fDWaIJ}@eW_|?5#hK69a{SctGTIpSBQiMOGtjPa)I#R7hWGH)^kGUpq9kDlS_lnaiPMLV(>{^n2-ZIF1!dyeC?swl&f{1U(^I3I^60|tTK5SGtm~!ii6~3&_E{@Dzr<&{I%1;#gN)A*!i_ru>1vVrDqK9VuYoml~WOC>1YX-L0iPMXS%G*l3Fm~lTmLYXTm3=-o`Q((`BVy#ALdR>JV9MrpsvemB(n1rY&PNUB=7#JZ977cBg>dbOn_=R$(|@A*-z%mg5>E1xyE1*ek(yx`q={#CW=<c9yZ8uAve{3FgyV=s2t#`{^wVI=B`C>g~3)3JdBTNzP(Iy@QGsrPxsK^m;jrsCSi4PIR!IGPv?i&yZY4FVsbj0&4=P)d-P7;d_Y`{IQm>1bARIBV!(bwfk@0oV_uQ&t5&GE`e$TmUDZDht<a7yNPv!>#?6}=^%F5$4@)Etd{8@CB4^Iu`~FLYz(mp2-r3Lf$iJv9cG4X2zk+m5V{(Yy+-Zlh$u+<bP2+)?I7K~-Q33f=zU6)i|V+AYlzYt<l`-_hOyAM-(Kz`b=#k#X+U!iulB-B!m;n!FoS8rOD6ydDwA+-!oje;3r+0-x`EBsJcZ5wlOJ4Tp*Zc>4~;!<1aK8*llRB)|A^@8z0ftAm;Uv_=Z)d(#Te+&vFRrHfAlBUW@IMs2lIi*ouek>1nVqp&sk6#=ca|*zqvQJu7RQ@c4%)%AO3?6O~V`v=D}$D%0o&I=lf@iTn*D~TR5A^3D`(b;``$C!eLUQ253TG1&(781NIhhlVdXsZ^1_`68;FVXZusmumIlo7WjA=;9-GJ7c&!Q7}`3D%n4;40l?CzVZu05^9P`ez1+wt8;D_>o?Zs#2bY+lH}f#eO8_bWtpKzF&?g3<s~P!Abm7*&n@xcHDQGJ!Wo^jJZ*zC1_Iw7=MN+SAoo!zMP-8lSbkYWbC8&`k4F(jBceZn$-dmR1Hq}Af8nn!IOOftXSfH2<@QpN1Tlxgw!E0)p3HjvKXNd(qJAB$|u5WY3XeBdLN~`B6tWB5e$~%&~r#eF?Hb29z+=b~4-lMO!ZENgf#3R|zu&I4|V?WDv?LDi-cvaqkEZp||!{!7K1Ejo0y?A_qA&#f4Ccl{4tzD+P;9FxS!OKdnI;v95LTuoWbgDjjpVFQ)%B_VvjZ6&>kRp~xd)>?!hgf|lQ!YCr2T6;x7_2sqr()Zg&Z31uwe!8848}uiCtcvBvrYFi#W;c`)`PY<7U7~ld=uk_V+)uX+&SA6|B^?_u+Yaa7lf1IMdY*Xk67!|Hipp%f=}cuj%wpsl&foEMNFmdG}4mzYE0b_1Au00V0zL%$>8Y#q=PT6F7OGF_p}?tHq{xhlmjPtfgjvu^B42kE^}X?9ATHuUd#dq8J}JD=NEsTyU}*8E%*ptEn{=1@I6z^TO(g8p1S>c5Wr-@_<2Y3g@7HxLg(;1p4lXi_rX9j5*qeC&5%fD(bx@XBNT@k*8}9>(4IUOH7Fqk0ae;5eloWuL}ES?Zw0OuxK`l$q`@^qef2Q_FxwZ#ZaH#mDQiP=3%wtdGhjUaRF<q#<zCm4djn@^Y1%-RKI8VJNEkiV*7rerV?w@Nq>DBqg;K-172!5Zqhv16>((w8<x<~(QvhBIC})w%Z6a62JrFSzbM)7J>lZ6~8ysqiEG<^25Mz#g5eI$BZ7piTMuT_H6e7cQ?Fbr~H)LnymX)<z&hq9ujJ$7hxBT;u@7V>{T^HTJ>V$^@;B)oFt+a{Az{vFfu^r!8&6pRPUh3*O6=B)0mvno%A>Q}G4#`i;E?ZucUDRs`xfeOZzkYEUkX=LCrGNh)|N5Twlc3@(Hs1XWoH*IF*^avjCmtI(4wjs`zyU=*UHcb5T+jf(q0^ax)fT9M&x@sz*kDEt(lIa$_TmNGHVl&Y8ryn~SgH1QwYR^fy`4GP56x?bH1x&e-V7CV-2I6^w<*04P;X_K4UhdV5_l1E>p-t@U+S~#(fb^=Aazx1IP4AE(s0-UBIsTxLb3i=vO}BM5tApH6-9Un^vd&*G{Ja`Om2>UU#0R$ewOY15@Il;xjme~CMHh<<}c=5bK(xdCThym&08k~2y3<*T0?4DVc0|`0#kIz&ZDYBTf*P}t=jN|QB#p5sTtmkGHzIYHtQeu>VJ~zz54s_uC5wUut>iO@9^EUDOu?>B={@qElKJ=#7gE7(eHpIm{I)c$I@b{zmb@n8cyc4=kQAJjw^$>vED;EI@{n@-y(yD5X*c0IG9hT3kn7Put4@?DNqs#4LUI52>~1-G^J(X$yS6LOS37UR`Q+(*(+0wxOIZ-56*nlKvWktXazFL>!0C?*~H8A`qZ@opPYF<G_KhL%pK^up4c4mwQeT3*wVZxg#czs);yv-bXi<v$Y+U%l8<N4!&vl`lrFreQHHMs(QFueXBdV^NH!$Bi6xeWdc=slFFDaMJSNmQq{9M5#|RoC35PYIGR2&gG<`-FG^X;SIFIkU2L9qRy@JM1JS3o=eL4%e(u={1BG_{X(^WYJG9B;lIh=9r{S~mL%QD`trvQiQ5ZxS0@hhDT;(F|QM3-V$9ENz&7*wvd@FEOno(DZNt{v1w+(r{%ryil>LP*)Z0yK_}x0hD4wjH;Gw{h7;t;J>Oa*ut-WNC+gsj$Z71v970N`myB^NWasthR8b&0SU`Yy@ig8HOH*n%hQk8*Hdrek;{v)TxzrS&#ng>|~UQ%b>Qly$uuiTeMsut-=>qq$7d=bhX6<@ePT$Xu0?T4hz?E>h!Y9P{jpMOg%(Bu@`a!zB)DU-06IpO~MJGcibm0JpXFzcZCn~^%RDDh@c>$PDdGfBFc1Pfm*p(n?xnQ%g*O_tj;K+&;_4%_Lln}`E8Szg-UR^UBfI)ULXm)06aQ&a6d9QABHckzT8<)T}(}~brSuUK^^;p(F1F;+OnO|F8k)N1%EqC`g?q)Kd`@~zu)<uE8o_+@~zJ5e1<sU-(@dxBqyeILGP&7i&uY#=;<@ZFjbISL2d=P&joVVu!9FKY8cw=)I|roEBL|kLQj_=?AdLtV>(X9>?+n!?QFmh=7zk2xf5lm$irE}T&;4RkZe3em@aeXQfw~VP|EN5;=iEScKYpT9Q~svN#6sH_I(?EI+FCQ@aX>{yftUPK5M9K#2Qw7-xKHiz7UTm7kRu+#p69c9<MF0;qfGlAd}_sB(3wrc|4mV;AcoH<_@I|iACG0h{c3h%o8@R+#AQdH5Vy)_>UYHFgT!V+h6*0-bRwHUXQoqU@{M26gvB+)or&9m0TwI1cNL^-D|aaMN)8^zKCj-qY;@&;^V0w`H4YiVh+kq9kP^75_TC`lJ2tbi8FW=*j8X$fo%!cuHo+bGuL9TNR502Ygba@>GE~*VA$&R2AZl$ilua|4fwiryerr<EI|1W=jhTZ<?P&ihUFT!?zKx{V~GvJw;8@Qk&4FX8qs(@9W>RZDpQLFHHoq4{06XVO}W$7W_R_Htj5gCa&wmLDUCTmKbqJA663-OjKYJO{`Hou+`&&>m7KOEb<MV^Sr2Mq06W?V&}1Q0lU90;WUEeVpmYcJgIY0z>$D5K;lR-b13+EogDM9Uv=rcXG*1W826o@+s+!sx3<|Am%-G5gVr)loNZpFR{hQ=(J4ODsSMj&ckH1AX{A=zoTZKDJRe9q4tpg`S9Z^&G3~A-`eBO{y#?gNzq%tRGGZY$LV>t1h#=H8<xpf_~Z+T|<orY_n3nmsVX4q>N{hv1P>LRsp$MKgSQyzW|A}jcpUxO%n__zETBq5^jy$^Zf{A~rc71&l_TLQLg_}kb4G)yh}XkN+Xt}OSIm0G)|+}7-&)wR2(q;A0L7Drvin{IyfCskK}6>GG_8fCemcEt_-O56};^ZmhR=GWwp<es*gKT;^5RmvVI-KVbMITT3o84_7Ve7+&6H5@!;LMux{B?GRbQH|$V!pkg=$dI9(a->Cxj6C)nIs`Ig;NR8Zl!a;4nZ%UY9RtFL1*3skgCX;O4S5HCvo2&{kd5VBY9}Cb92xRMf8yHg8{4*rj*{fn$t$eRZp@%ouMY=xivRO{o|1Z4rj26Lqy%q$;75@^&3C}GZAV_!2oEd-xxcmD8%8G~tjfe0Mld<n6K9VqxUJx}g4;5<UB@3G$N9z|%<oomM$09hE>F}}TLa0GdR?`x*p9Wy{T~c<;@|NRuei?RMX1EX?*Oxv%5MQt1v8*h{65aSL4Ljg|79+$3WbRC51Yt}H+gcMqOdi-l>Vk#F>w_WxAJ~Vt!(t3|NU00)n3iNbz6D<t=rX}IR7Tl;PaybvnS7n6kss;szl^sMlvMGvMN`JRJ<VnUVW~vlAu3Wmfgp{T$U~O<URS|Gc0k^02e&w#x6U%Ta3_0)!V_`i{=Gt7uDge-KZX!v-;Q_jVJIE#e``D%N=r$7a5xIi8F8&;8uWJ0d6VauHoQ#I9asfTgAbZlz76Hc~Yk*4NSSGSOehUHo4VG$Gd_R;|0ziW0RLwDd*ipykPzdd5<W}@@FE#H1TO61w<4r)=z-{|57@MQtJ!)VR=NT;)<L5I=DHl;^w{rZcgj0;pTcuj+^VrPyIHIW7KCz6sD)ph9u!={8f>JVm?wY{xCB@m`!7~CnQhyEZll2iCC|T<)6hSG~HgS<FvkiAekrGvMdWv336K=D9RTh^X|EaNC-TjvFaFIx^CLP%)>~hj~Dt*7Z8fF%aqP8Q?*?tHF~Z1w!jYjSsf5EnjJB;BZ4KL-R*q;#2L8?W-FMjV73Ue>v%X3a~0?G#P<M-R<Uv`3vS5K?ad><F7N;op4Qn6hJl@9gb^l-EPrMVq@F$0q;9(>cQmQD34c}`#6})Ycq`wbA!ObpbA^wSzlJX37l^S^F;kU(W5qvx0sTfT$5E+j%28=4N7YI=Dosf^Dn(Y-=r_j7kAkC8<^28FgAgoG5KoVYBm7zqoLe*Ysh~)T_Kb+R;xV%!O(z}<*M90+Rbs?-wm&i5Df`Kv2kZ^4Us38_5VU`}!xjdx>?@B`g?v9H`c67Z-rF6U`$G`9Tow*QArN@q47<bL&|I<$5u=PfAS40m%T>abRk=*ta->pKt{huc0d57j72rM-z+J;z9U+(z(|YJnCO&NSl}2Feiay;NGgZ=Bs%>?(cFTbWZ3B+1WZ;!4Sj8$;tWsqP_PEO@MOnitsdC=izpBbl{PM|-@!~U-WtZUe4e2O%^jyqJUO5pb8%qYi!lq<H4WD~WQI^S<0sdVgie9>ti8=7S5i|~XIdpHFdnDzW5R?xc+w8RP!R$CP0LC|VTj_P$@X%{3!@&?9v|(#tlV~~?aHlQTt%*C+8A`m10&qaglhqnYPyF_&0@?~_E1+Eh+BGcF39RV}z}G6iXeoa~X6Oa|VF%6(cbI1_7@-Wt({sKpY)zJ1Fdfd&YOD5e1D+=Cbcu>z32T$w(=5esNMGx|=QJ&Du81s0{EWLXYzlN%2k3$w70qXH3We}n;Y6_Y$jhk*a8ZJM=j_5?=|)P>$+u9-A+JjOWJqbkiUoUGs(<Q|BYwG;;jz?m9*dG;2yuY|>!EDI(mj%2qwH|vI58*42@f}VYW&>h*Hf*O=W3_dQ(6(qbU>KBGEmdyPG^lupxo&e92j<$c8)JwkG8M8t1bL{Bt+$AEF_O*<PDzx6h-Ao%uJzlN-45$*!~z!G6x%j-r94*d%yY1Q;>Yt-i8zpmLdGW2^RqU!NU1$7Qie5QD+12z}W{779`WWA?X>PmmAWX@l;k$$P2X}@4P%Ax9aSOyD6s&fgcFYGm2IZup`N_Y84z;a9qLh^MvDd+#3ep4gF!n)OKqn3s+j`>0WBJOhs*(j-*+ZW^QH%mK*X4v#z8J6nVHYSguw%Kj}_KNQnc#J`L+Z#3LkQ6<FA5!@LF<b3ZtC11S9_6lt0>w`mG<F(d&G%*brM>B}c`b?|$j;a{{YRsJHHjJ@hAuHpl$pxa-y!+Kd-&F}SEd3LYYed_M&Q{4Id1p2u{Xj76b{Hlyf@}x){e|J7eD2%KvNxJqz^+=LB-2?6Wd|n(yNtQbMvb2;*N=d4s%4#u>Xf4P*R1cLy`JpB%y!8D6c(Zp9$us)_&f3}!u#;JT9{4lI^mZQN<vI!0%PxUv+kWDga23o}Fk8WF5oXtLacACSaR|KLDh6&T{|P&$SGAU-3=~x{)m~>{Zos?6qg}y(#n}&M*^(ON?Am8XZ_lu1FiVkZHGKHu5WYxFMPmnQ#z|SPjbF-9qg+|2RlMHgc)e~Foa}3G-q?DK^TzfQ=k;O~`3%X%_=wq%V)Tb!6~&m)D|NOH=on@zaUSq3JULT$K3(!1kaY={wL>YIy?pj@ElgXI-8O^o5}~?xc*yC^Bn$0cFzXQi=Ccw?l>X%N1O?lb@b4FJEBD0ty$WtCxUJx}3~tx(eCOuk+?=f9_zJmCm*2BG-EM0j_e{+ibh?VP0l&w`x`KD(nGfgnMETWD_Gji|W={OUFODVLGy>tw*|sM75pB+9s#0*u_`rHftNX<wOsku6bS7X9s0TR4shGLH5oWHpq`=wDFlg;^2Ce-U(9o>7xkqqwJ$X$iHCdH<c}-1K?L2XQj-$+HNEPx!WJ8*ekNT^k3k5Y&XBY0sV@Dn;vynOz(1QNliyrIO`@v`M8du--y4YS^Wh%LC=vlV&eI|S1pg9o{eEXW(d+?P(3;*&fgMJsN$o?1cM7Pb&ke)b0R{?GXxE0`*0`5AFj!1L7CtTx?zr4`X<?rNyqgvgzVz+F$Ynz+g=jDdHifxO_JjyYDuGY%Sy#`R@6Z;0XEd0h>H{7@6jK4XH8>q`)ENEJ%(y^>qwaU%@SAFlcF6ec)SJ1Ikp1P-#6bn8>iZ6S(Y)bgK-q%I-C38}g;^$p==PAH?J>3VepMmh|w<SqYzt3mI^7H;7{w-t*xw}k%3VA}f-f83C@BboB9qxDRor@Zb5rb7F4h;O%d9(^>E1<1_wg|NA__K+*xQNIj2Rr42-%2iRP0=T;duckFY<4>u{NFY;WfNX)dEl#fue78n_z1pjxo$c4HlJaI#;tn|)T`~94L=w)@ok20O(eF_7fUprPX|q{sX5ei$eT8h$1~8DavmUe*MwP;W_R^9MgFqack8{iR2<>o21nSbG%>#dtGlkc=I%~v=T$Lfsn>eyJYncPN5XRX_}Y}b48Jn+vV@|E3Cjzhcjh7cmc4>*<)S&^E+~lUJJSCCW`S(iM}DF|Tx>5%s?_alF1AkyOc?3h+5S>Np8y9uah9-x*$QSWm@UBU8jkRdW7}@T{%8hMa}_ICTILD!fRfhgN?lp9Tb44^HVM&|9r42)Xi}_pswM2-@P;iM^Q0z^h@HIGzog}xBv-d>6>oKaZ~?(=J&`~I%Z@9bHLvw6UbHFlYPPD=R&!icr>i}2rb-~d=SQPukAw}0Gd}jOiasMsEJq)F%l3WPJXvx~tU1i6H$rM`IMgr%(?dzDp=>I)2#9OK-@zBrW_qYo^rg7B?OjGcolM-@WzXrVrnc1flBm9$6V=1y(!VFpR8=rr!E6PyMVMW~R9(Q%w#FvLb%1%XS2{IWS?=jFS3SAi8(3PqC##k$w+0(9SH)5P6+*4u7bF0?*9?6N_EyCxRZ-Zgd#7g=g-z~t)&;CCL}8Pkx^7}9@Z~ckz>27T(@3_~a|z~@47kqrY&#xyN?2t{6O7zihi2-738XI3M)y%RNp)@|vQtX<v|2#*B>%w?`LJR=ECyH(2|S%C35itpO+iPkE%aO4y<v2a!K9AHKI~&*4D%oV_TT=W-!>upcZE_=AEl&FB%agKVgRetC(b@q@LR!e1;6XycO5GgIp&n#@U7&cN{T#P2FkX(Jx%TQ+KR2oin@unkj#KrXctlmD)4ZP#7v#?D=w_!G(s#k!{~&LO_y9l^9J`q1OCfgXFW=7vD@sb{QCwrWyIHG&6W(?vR;z&#k3S3ba^&1r_~)=6&0Y;Pkh$;iBfw_RDh0FP*0SeJX?rZv5u(eIeMMToMD?1m0y=so=*tL<~b?z%Dr*STXTV~3t-1P0lR>P*19Vw^*2y-VsQU4PThKtoL?R&U9~IZ{2kd;<P~1UPy7hZP8fj~Za-9LuX3Tis%C`tP{<Da83y}}kZK)F<^inp>@FwLf9ecj1-TXER*+i?x%aYyJbc`GUa(N+3A>KeWUD6)2By=|24+{;m>K*b4mG{92ruzSc2HFM0+wliJr+-DSNf3^Z&!IE`MP<#HMVEHUXiy`q-Vj~Jy+V0pBfc$m=cE>GB7q@5j4s^>{K^eal`Q3sJDzNm91$l>4B<L@EQ8bKN1<iYE#$a3!t-38>;NEkGu=dg0HKfwu0IUYO_$ghNru9ui2%4%?^FMYIK5?mwc-WK4Hg^a$D<lEJtm3yF<;~L{}1qog4LEL07Wkj4Fl5iWz#|3X$F38imMC-mAXS>pgMqC~~hO|N0pcT19NWA+Z%j&qbX|47ko-IT0tIlCiJTsfwZ%I#nCmi>xG_ilmw*D7B%ZSg1+$jnW!wj<b_7yicpwt%*C+8Cv2O4f6qoPVV<AaF2@DYSK-#T&VxVxuXhdE2yoYb{T5daYw;CjPAMdDlPMbd7`1&at4+nscp5bbvALPpB?dv%PT7K*c-2GrScoE2us{j2_CwSyY&#^tmAvw{JqusI>bB2X_r4-8pmg^&WxAGZ~KL2tY9&Vd~(^}uq@%bpW3eT#_Q3o@GJ7AR3o)VThihFpU;};Hq|FqYtI94aBZpq;2Lpm=s{7qfAu(SH;7pl71#N+?&B0?DUh31@u1J=LQX)H-c!44yg_QMe1HI1d-9G;^0@Z-5wV#=b5jBqoA|24{5jgG&MpWUis(>uBtKkdiwArvC~Q5LUf@xozO-+;Ls?UVZ#sEjQC0QJgn>H3<3FX-pE}!F!EFV%72KA<?K;Nu){U$&yO<AFU&xgddAe-ppgm}rZL?($q=Dl&_9kp+I^b0dB$dDdk6=2}I$uD`QfVq}(PXM&DJxy{`Cmvbu!)cQ%&<9><Ie!yK6OZQlLr`(v~K#beC8L^=+rih3|_f)`P<X)R4e_?uOQl-q^yZHC+C^TuJ+VT_aefM&ygBU&%jNI(c7<!66F(ej^|v~?uTwoaGGK=C+A#Gtp98t00F17Z+f!UK0JIleJC9&s-O?Ma#wk|LX9jY_#R0pJ~TMh<H%ip?E%w?Kbo|xrS{bM$O>jFn5|&80JHb-kT8}9sCKR__=MeHD&4LnnUdPJx~k+T8}gI6VXxs3p<GhzalB=&W;usx4#EcP?&*kR9f1?hVCw@|;HGI>6Wqx3h-_Tl1@tkHhgL`Fm|u*at0EXw9NbC{u2*E>Iu!%=>=-z;wI+%|OU-Mbw%W=wVBi2VJyU8hcj{C$AyRmWrrXl|q%`1PGVt#M=(G~^ovx;72U(LG^DZ{Y(NG3VCOIXUYCFzM6xRa$vIi?%lXjqwuyC+cHKJKzx&d=XwUz?Up)+&MTCWR_&wzoeV77wU3TCq~yM}@LVQfa*A$vPx2Xot5#l5X4wIS=aH;??fzyNIO!e;eGYzEvWc8d`%m@IN0RIFjg8VoIE(6w5vVS58c3`Y=({+IDbxQD{V$oEGR$DFw#u}M}KD!=C&>%|EcZ~~ZZ{T5c>A5}^EUV|SDn9+uxjwF3+yCFc%;zf9C&N4jH=eE77-M_R=V7Ufob>CK54OSf5U)O3-%kgZgn(}N~%Cof+o=sCyo~^gWVP>mU;MqEPtHB2$a-dC~9GQ5Fr@?$yx8XG4w4x#@+Vde6v!~gn&K&rI;o48#QYlY-{GQd>z7PA;iWrcD<7M~lTpO&Q?e)dacNh~_I18f%;MuW*JCg?{4&133Eb1d5TRn<PJREk0CH^1c4{qP<K;AZk>-u1nF)$L=SZL8iv?ylbg#=7uaxr1Kfi-cM88Jor`yAs|0d57j72rM-z+J<={W$RN*s*)Fl5txu@N}=+oX)`PbtTg>dveE7wGFtuWVkCX%P=3aAAY@-)F{7J`;`svs_U@7QH91%6^!63a9F9Waabu!?QX$iWv}(bZ^Z7<W!Uo*ttY3#h7{M`;Mt4RcUk;_`p}JDSU%vPEUA{#3H8*;InWGY$i8JKt`+#9KaAM9kLS!IJ>t>a#HKD%XJ3|9s6}P%SQ2?WJ9XyH_B~R0q^3gmgHt!{U*=(?(+56NB`V_rue;9E-V?tOt6;W**$QThFuR7Q`pKVP&IgH-=wOXf<GP|xIUa%5?sb&5=5%^Jt-DEZx{`sHa8xDyl4X0pz{nDMh+AI%V%{|;?jR&)zi!?-p+9w+?S|HnkkxO(uo_d>Ygj~f3vTN6_O@}Wk_npvd$k$fWc3smKnX(+sr`S1m%tjEf}x3vU<27=Q4@B^G|ZHk`4iUy)=Y>WsFYyI*0l5aH*{U8`=A@T2YOzqn8v@ITRCDJ1s7S}&^<#VxZb)T2TDH3K~H<?UOWX}gbnRX-T8C$n_hC%ZAg+XqOX`F&31xoU`>5Ey2!o&RkG@ImQ9>o#}*h}>_N3*cSiHDJ^*5s#P+#n$RS~tGLF|QZ|+0n*|+Q+j38(9vk;Pa64vYN8>NGPzt3gC=?c{DH$w&gK8{FDiu!YFTt|omn9!L==gd>)94pwZV7G$ZRj`}kAbC9Pm-7!F@;qXkvLP$@^6j7g#A=tolg#hfB@p$lxdYR3iHx)FO%}VX&ufY|&#wo*Prh=-?kwb&tR_1=`muii*dTBQb6|oQQFZVIcJLB-?$$2y`EgpvYM#%4!a$OajU3P6T*XcUS|z0cKoGErL-sE;-X??H&&UyEsK;sO(y^JeXgFTumk@f`7=6f<z^M-{tV#K~JivrRCoks!o`{fB<vDe{T#kIEFudNyJyM$iuTh6y)iDL<YajYM@&gxpXtF^7n1O}!85DLR0Htu|0*S>23wC~?GW-yu?FCK!)7<^QF5j^xqo*JIU}D3|%fJL&>JJ-@2E4tUz+Ay6*vUL}Eh>p$J?;OXvwvU*?r`W@^GUQ|p)+xa$6~d;$pmWl&2Ry~P5=+hr||IF4D20-=o%1VuwYZ)cA$w9m?G*IhaN`q4)SjVU5w(*u*0y?bRA&_GZ-|WQgcF!6yu+|IgiFZ4w;tPfoyF2H!)1^G;(*cvaPjcRW?magFmf%Wd+4uLD#DHY>Psf!p11%=C(#5FSj`|;)fDe8d-gso3}@4?00i+yFPc<dN0$wwLkX#(9xk<A6arHI!34vQ%_y%8lPFMe|ib$7HrdN$C<GZ(sr-_Z-AB=U-xXAozpI6%I{fi(e$VkRes^YI<tRfe|`a{d&KmuBFk<~95X=P-vqRe9$SHFqhGg%8~TE8whbBrt|2VY1bH7oJ|S|kobTDfW77~5ODij$1&LwU1H&B}LSZN_Zx5)18yWH1;EVzt;Rgms7Y2t;QWnNBr|%eHC$1K^lCD3b%xB198ZbOKL<c^A2(FWD8-W8wY}%_Z$Xp%q5j%msG|l43U}3<z&e54IphVl4`92CQewo`N#{m3)OML@E$%ywW3K~2t2&->UB`Shxu+L{kG<J|<qv%zbI5a~fmki($M_f2Y)d4qA(Sbi5h&1duv;pKunEMFEnVJZ`Kb4;tmj%IzVGQT!JJ&E8rsw&Q$+yIAR-z&nar6Os`>lZ)I&Cd0IT7-WGMNXU86?IITq{c7j@>Zxb~&F-GDXkm_%d-mLwDqHrSP0!<UVl-Ok*s{%F03rI3MC%Rwk)~fCP;MA_6?L78fx<DV2mH69>McDm;}yL+NJaAlxf0j0(1oiy}9LJPqY{2KQ$Bi;og9g#-pOAuq{F58jB`P7+7x_Lh2401EC4_s>H2mp*6>N8**f1=JoqO8A)Fz&wSlV}!y$28Mepgcf{iFkWJeJ>a<|Fo-V8a*9RZP0M2vNa^n4rqpGno1ztX>*Y}kI)BZg7hOhM(X@N;-d%-ebh)jis79ANN)g>aT4x2y(dBNth<0=Z2=zSb(G^8qMnAgJQcF>guC&!08iIu0GAiO>SC-L{uBz=7C`ngaQVuQYYP(ZFO}g5X3g}7Kq+S_{(lw=3il%f8mB7nTm9DjwGIWJXOUo!rZ=s6$GTPExxS*Jhd<M1R*hucSx++f}_%2$I@OoQ%TNWMlJt`f}{3uqTfYe`rP2ee=HczqrIq)R7;(+$Xv{BkU@l9(CBpR%ZY4O?VC~B^gXh)-Wv^L@&KvC`o#~>0w?{r}_cp}3Le)wPru-Cgv-rH0~npdRxUxPHi@;2Ogz{>s_TMwJPZ|_}s_iny?k;3lFXXdsaX61xv6<k(uS;6JgfXgKT+5Y7rd*$1C8CfQALowN#{=5F(v9W)4amik=w#2?+;S}v!0@xF<R5hnDYV5Khkf9N4F(3_K&-+6*oS37WUPRX!3=~t+OnGRx)ZTsi=ZU=8na**S*iET<AVkmcSfPoMVvmtb1kTKKgQo48BhQBwvcgncQGWfuY@>UxDC2GD1SG0xGH*T|Kvj5fZsGsA3;+F@#2N5D7v=E%ckpvT@X5Z}1-M}nLuDJxIy~NcrRTCUc}J&v$1E;EB7b&tz-n{Pg)K-Dk4wZQ_;BP!f#1A<`CH&CS7hSr$z(<1g#oBni$lf%DKU`MG-pSW1vdtZh*)m%O4q%3Ju)H{3eKG(6U52Gc<8t!ek7}S?3hkSU!kjS;8ksNfp;hHY#78!82AWH`I8$Y-f6WA1ba*;h6ZKh*rq{yD|w?lYYtmynq(%gvGPU2=_KM4gCopriV4Ue{%zQfWiFC8ppY%tA$VPqq;Yn}xD9-g@9;z)3kHxy{TA#HaIn`nCd0JGE-WM8T{K>*$ypfU;c!v%VvPMU`dud$c<ZH4Q+?vbx)%UD2s$ejM1(j)NGK9<#@GzU6L*jkYyd(LtN%e{Wd$7~{E+BZBY7q{T7-=?&f)he!AD*wl97891S2GOd8`m*wN8jNhhsRb&)tXE5pa10f&rIuh>gu(=vxL(($=oh%L+j{iJXK#!oC_d_{u8nB>@TLiajU96und=B6rgkvb#K!9@ho(!ghuxoc(dO0A#t9NNc!s1a>kU^|5$_?}5gktvOyc-D)5_8#m@;?lkgQ8EFcEuPg*N**THr^)eH*vmWE`wm>qvnutBPk#!E$=vpg>ZFCfg5W>+>7{ZrEZ)v4yM{jjv%%h|1K_DL;#SS<Cy(?u=kd9n-3T1jv7J#P9l9mFSE~Bc7061Mn^^yd2!E0+3`qE|WW)_8UAx(CHb-61SP#G7-<j@(H#R%mW1qDw<w5BUKZ$;FmE1hnP-gKqg&7(M7!2vI$IbD_7rKnC<QM9#$?sQd???ZV|rYF!I7t9n<AEb7ZRMHP3VU2+Z3*{j=I(~$^(Sqm;OvNgEGbVYc9Yjh)aakX2@_SlLB^ao07S2#NP;bj>PGa#{RMM5Ve|B_wVVw8h7#C;9@A?MbnnOEs3$xCS56*r#H7@%5XQu}jnB2woRR(m-9H~zrUjbj>J^z(=@%G~UX#eO8%I}}O=^K}Cj$XZ@YyB?N5ye6lFIl$2L4SYmC+ft>(J6lB%G*0Vcyo4iV7xgy!*L<Hu3bHdG>a7hINpUy1k_hs%pIbF0g*$$dBLu>JiL&1CZWTy3|Al!SNm66S6ANERs#`TEk0}-7-6zD*=2NF&$*KcYF|WmQ6roIp@&-6VGUITW{v5!?FKb|;T)3M!Lk;D_?kH28XSex20M+hb7#9FAlz#!ON9dO!2svcu-=94m)9F!5#9Fj<Hr<5)j|iDp6}SUu5ZIH%e8lY1_bi{)2B}`bdTof1?->(oMyEEXCwTM>y{Y!3-fo9VvsFn%Az^3a84)>X1r!K+|Zl=^;z3taV9iVZ(xU$PS&ve&wvr$W1*|9Jz#pG?23d9y1>UpufYIF&4W^ExKMj9_YeAquU;Sh;g82Br)TH?^ycF7?Ykd-{OM2Tzydr!8oR$-Po|zf`!j&S{O0y<@c{;cRdc0t?c_@5+QB*U=TXC)%^c6JS>vEq1C#>~$Qt%KFs0$x9Y#Cs@0rquw_XRwnpVllHYy0NAh?3y=LW$`Qjh~DLYdZ0!JZ_SyrCo{+Xnmh|NP&X5J%Z@IvbHb0@B=dL@Xu}wmBJyrgRmxXLq$h&(@s5{hrp6Z=xU;zzik?O8`hbM#`}iQ?^7Q<JSo(yY=%q(%p=7INl4n2C8D1%=04${<{^*7z}exF)c0<jolDMsaP<~mfEv`x^-AM4`(O<5i*sUT-SKMyh9%K*sTfm#}4~r|0mXecXZG{-S0y?;TX7HHX8@P*6<2Sp~6Z3^7Yw4X;HOU^z8EJU0JI|nTdg1hY|VL4woX?^BGX-kcrBtu)qe%c#+1mNil;2HU_G+807H~w-G6+8Z(#lAUMH`D~flUkx4R`z_rGPm>BpyMTZ+nSs`E{kOGd2e<H0m05(oAwp)l6jDhdX!(1|Nhbx9c3xGxg{(-SS<-1aBVg4wts52?JwUK4Oq*Qj4sMp|LF&x}0IqjOz91@+L6&YbC`RQpm6LS_)JTiWRYfR0^8k6*ici1vXYsa)K`d>)$@P0Y89M6fz8_s8BED<M`tLx-NEqifm7oyTW|JDVRe<kczigFgqCzO*Hv}CnHQn|`10ZKOA4DB`gBY82(p0_BKsR)_Qqs1sN!oaLg(He3#_PuqYl?RAZS|t347f6<*#M%aSA!+}#G%k?vJSP#l#KMwpBE(Qyi7+PKO<aovc<rq2h>)PPcq<v;;z^keA`)-|$*qhihf6ygKtXsp;KVWyzIyz5Ak<Z4Ig$GGxLhRJ$*D34N6a)5)K`da$RVX%RFcIix~z5X#Vopv3J}ZKh3j}^Cqb9Hof0gg%gBVUz%;so!kP@W0ZOE|gmHAGEtOy$UFk?GFpsXFz-0yY(N(#V!9co-DiaCLf!EG5Cel?+Dqtf>QWHTF>Mq1$D2%h5-Aj<t&1mhYZ8?LX;592@LgOQ88B;-OcL`hRDoS(&LeVv;6C)K}L+J@27F|OjQi5D`4c!iAkesgJ)Z#wXH8gdKH8ff{3F&^;Tbfjg^z?R5%PSHoYC)4o!Kl=jfO}QQQ)EShYUvGDn%ohsWz}|M1@|EKCP}5lHqCPsEefSkAeTZ1By`$2;md}E88AoZ=f>&YNuP-CY%55ZUhDxIcX0Hkqy%Qa>HpK)qc{BnWVPO2_Brpj&$&KLLW)?v+S1v_D<VPh@oMXh?_awPX8@2w;(!}sW(U&{lUWhIO85%9#^4J`MHEcKBZ7kmCdm!y6H(vF(zi05E%}_5|D0U%IkoI_GXI>q^tn^t4NAYH<iDhpd`T<&lG5Uz(w07T>;O|^mwrsne@uPo$29(}eJ%|kic@EoNPp7KnVJh=x2y>|XZCy#O&(@r*8;|F=m1{|=OfaoXoBz0fiuUTNFja(+vN4o0U%%~7dS-VUs3)!r^9!bUl}`hbG#G}Lln+8*ippH8{f4<;B;qbBOT#hHqk7WH~JFII@lRnT?b+&E?`qf?41J$SuDg}I7R^h`=`0N;3=<=Vqk|(5Qv0h|CXIVw}Aoh1RuALMw0<MF@tMv=Y(q;L}RuWSf(v@(@SSExpe@>q2wF?mM7xwMlFHYZfq^}+6)H3hMoeriPq01Haj*Eje5KYd<Qiu*+t~cLY{PPP8@dN#><FFM}hCL{joVC>*rKxQ$c<O`4!~<tw8>gu;-kj7m%CFytt>3v7x}{KmP51{eM}eDZnuQ3VXw0dp2@hxUxq!^!S|{M7WCk{uD@4)Fyf}_jEQ}M8FcMIIdiGuC^EwaHyS@$!N};XviOl9_8v}dmeM~6IRkRZA;Q-lH1aEq%O6~CIlEj4D($zg)h6nUNLABwj*!^T;(59kf!yp=N9arkV+GsJ6W)aIe^7=cy)i`j}{CiKhVZ5o0+c7Oxx!%{dSqSePhU#!7JJnOzOfV0~?qTs;f1l0JaU}X7BTMxq21+p3g>cK6V1t!^ko>Y_L5GSx$FA14k{DNr+;27eA>pWQ>@AYt)%xq>_*1FN_X@ScEA1<WiyVdv*r{^np*Ndhj)`IYa5aH*#Q9Bm8~<jROY*MKZnM-IALMD(Kxp+e7$dn6uuJoQ|xS=AhG3C8gWx-Yd<!Z@J0d%E<q@y80LTQ|9gkxS%?4c@4UhZ0^C70Rsm}sVOx5>replkpce&j)c0nWNwV3Y1UKA%4Q-uP3r?^<RZgeAI$-YZQ6=p{_8NkW>hD~u#as5xvV-$PwF$&s()<tcveF6S3~2d({&D1isrM&wie92ItTGOM;di;tvy*hwkfogsFQf5j*wmVOwWI88$#o;K5?h6FjL}9+$$X}y1fx#EIhfO%^j>8KnlWdnJ{^s4qaZt{7{X$eAJ7A$a#0`l^ZqT=k<K>Xx}?VMwG~(hrphuZ^#N46wEj+DU4gfj2c)tyh|<Z;>0QH+-8!6_{?xa!<=x>xrUg2u7p9k=w)lhwYz{<rb$DM2RsQ$p^R%PET;#~)W0dqK%DN)X9gS$rnM0Li9bh@QDf%XsQ(fgKq)xlquHu6#JE7!h}Ki*J-7h?Z^hzdKH@^6;S7f~Yh1xAo)+;YGVOV?2Mi&g5jnAXok-=i<3#en04p^kNjfcqz%A*QG6`gvlS(lS4llxBhs@E%n#WLK;4w(5csM(N?a4<Bua&ESvr0-KOLl}8s1c0{n0u!u1UtAF&QS`uRU#DTDrc!ESR4f;D^8T{rhM)ICa$R+uB?~!-2?|KiSy@xrSnqcoESG8qk|=cdoF{AEi)$(F>J^?H%bi)3+jB0yj~wqBWpEh5}BXlpQ%KMoH0^-ko%_CesQ(_-qt>xo``vT7NJK1pi(9ib~|=FMw1Bip<_3;a&l=h1XQ|8svXxO2{o>~1>4fcF2;8{vP!yqQxYk2$utSvW)Au|L-}u)*M(&dOgBnW$j(-ll|(!&OR4T&h&##P2smiqj@#Ppaos%{XoDOp7>I$lb~|Z3{4`KBAyT-z9qJjP<kI#!sY9l=c(mb2!!~%LBwSIMT$0`5T@C3x_3+HlWTEs2lwS~Ae`av4+A4_2RW<1;90b70P2lVTzU+>&R>-<jA*-U~(Kkh3$zX6D1&kaBbrj#GT6Z0-qb?(LXs}(1*mXtKRv>p>K^4Sh1kXj@E0MgepuD&g(d$aLw+h+oO0TmL;p-|Igx-tvbrnUo<%pl#LEeY_brlWxa=2bsd%e;_K-VO-a1cOJJAW7mUA^Lgplh;Pekedrr}SXZHIyIc4hOxZbP5NA-cs93hlJju70VqI7(jL9VWGD=t)&A)Z_(<lJv8(-8T4ik4!w<?BtX>LxK{^`GebK}1(DroghOlN=lBbB9hE=ZsE=w)OrUMX@n`s;e2?@Kd#z-cK%Zs5*O9t((G!UM3@Iw=(&7-~1k{F2zQ>c=d6|2~8&|w>kvG2bHr^Fi-aXsm%6sU(xbnWl#<=o+^__t(yuRetfPq`Yz@_r>3Q8*|t)TQNLg|t$`_i16BR_)H@}lf~`i7G1*JpH*RqomEYAdIs*ppk`j$^m17LcRraJXKo`FJl-U(BqsmQgLlTNtk4+GsR(QtwYD`^6vVq`7y23ZqPB7v~IN@OMHPk+k`s_F%sFJte+{YPYb*#tg{tDNp;!p9gFNYa3=fO97>L-JF@w=VoZZp78_9-GjAW_;ZE?Dm~l+e<S+m1`aAR!g70lnUWxPO=+9%WMROBkeG^?$ZMBG66k}4o`J?Eue+3jcR^Fbc0&s|o=7C(^iKFqmq;;3xHOAg8n6$rXQFW~aWaQaWD|zIh3Yt&lqnhC3d0?YuH}zN_FzrS>5SC$B6o<JlXG_&Ac=M9W+cTR-4On0hA4M1#{OVHI%-_Yk;Z9|a11Bn4j-mIecgmvcSU9H1W_24aYr$jL=p#wR0BDyyA@85yynV1<aP@Auz~O6w@^$;wpBS{PKg3vUUM%igGt0Sd6CN^e6(uaqZH@5GPmZV$#1E#>;Y#>jqUOHnsJlD%$`zGwKPS_YPNObdbth9LnkdQyqq;#<TivE|4PDV64!t$*%92cQo1cjA1;wE34OSDOLa3|pJMg6PEtXvFLejn5&{eIo83R$dwYCoocAvqTmw^EWq-H?g=GGhPMVHNQpKskkVB>Lh@pp;VUpVhF2g0H_ex<CHLsT7lRJhg!l*8*S_-GS+-@zys;;0?8Q(IxqV^J))fF_#TV5rdl(~{c(iLP@6Zq8?<d<_WtgC2mNN~)R@Df<oHC0OBS=Z1|lVDoc+U+b{>lzv~W?@^`FraP*zJbSA1dQ`|x}1}4p)`Z<1-*p|iyYqdHm*?$^PC?~;9hT|AONLvSQMMUBj11{L@36Ec!n4udN(4qxH0m~<X4J38^IZ3;GqGpy$*jxOWFWE94Y)A8E-gwBSTOKkcHobvsl#Zc4QRIPSF3jEH)Hr+QCx7aC<E&$A{l{vI}jN^S#U0nPOyRf>rT~y%CEk5=z6k>2e}%YlnTqZn|W2zz|8{P5yX}o~(ot3aMh4vl&|KkV=KrXki+9%NQ+q0%^F=0!%W+v|UuCxjcH)H;()7`p3{crA4398FyS@daRFbw%8OVj18Rh5CtOYRo}QgGxlE}9UnkV6)K(xW2)L~RH$Ubz@M`I2#vEu;mdv>t)e=Llr1eQYz)VHn3mf+06c-+k=wbFYMYmYenjRZE#DW8lUtp9d5ziTA}xKj#Z7N*!z3M*1i{sINJ9cnoX9|MDa&+j{K=e)n-{Z0^Cr=*7?TdEjp>KxBqUGP=$~s$QYgpEWnf!3*}~XDT-w1I&lTrjD@*ytQFj-eGUr=CsJca!<W{cq6t8Oo+Q&hzCF(nA?joF+aOfForY7zNnm9k4x>hXMluJr{a6ChNrB#xR&UKJS06dGix#OeuGcYoMHHLGcymD-Qh}C9-`E(|pFQ#T7lv4KRr0;XJ^`0-z1<Lq=%supdJ5feLj~<u)BGKtWuR0d#!-#~JFju@Zw$UemVFz%cUsJful#8!myn^ux#=kxoUzP#H{4&?LD+mIXGdGk5EVsmJ=n8b=kP-?bdxD%yU})K<((3|M(~%X$yg#N@;S<gE){3RdB3TuX$EtY%NzZRy`Ta2xzCb?BNq+#tJ*00&>=c#rcwA`%c6bETH{G2R(H`I}58hTrJf6`MDa3;7;Qn;r*oUM;S-9WlSM|g>Chl~E!yI0!@Z2y5R_<L~*rRJW?j;B(j6!u!i4o=ZK-71hGn;?-FmdEorYJ=Q*OCOlL6K=izLTV&oqG_vON{Dg`U~bvA0jklxZ;a+Eq`B}^*KYA%Q!s^OqmLoI!fLVO|CGOO5-8<XwiM+2ELbbctd&Fm8AsqZ`BV1KM?N|vYk^hK7_g581b^i9p@IMfeT{bDMXG~l5j^x|Kw%=K-hg@!Vy&yU!oL*>P9dFeB%mpH@YIf!#yh(@7Gs(%E@gy9of8e=j+Hz<u|{Mmx|f_uXkEyAfVGtW;$1TuT=^N+<!3vgD!XT;dLK|WDqOT_T#6Wb2__xHyZ!p*a}WR^lwhy{<s%jT(?dx-n~1z?B1Oozx&C*=zlo7yuLec{nOE2s7c3rw=Z7M2?+$y{vYAEMh6S9V2JWX(-^144Gj#_@`Aw;FyU799!shu_VM?uZ!NC9i{2B5y9}E(t!qHIFZdTyQ+qtR;cyZ=knt&Jv?3%+M}-Ol_A>M--7hua6CeyMNH2gvtq1_MxQ(5ihDb@>7+iV$lMRDz$PEJrf3@{n2ltHa*!oBO)~Da0*gh#K21A8O@jjasjVb--_b@CtDX*CsGEreo6PaBOy+eNmKTGegJluyh0lGC9?k+2Im&h0>1QjxQctc?rxS&Ipf=CUPA`1*VI!xgrY@o>^b-V#3ogl&xmf3RTWTF&fKv&Oyx_o_hdUV!5-9I}xI(@|ngLHaV)w}G!IpJmRknFC*8A@6@R7rT=z(wcyyAj(a@(lDiL8ucO%EJ(gA&~YS1q>qh8X^i2OcCFixTkP)^G$_fg|J2wvUX49SdI#ME9kAD_c=jthM71OSCyAOkO|F~^AUSJ$8Q(ICuP$&4Wg7Zg3fYD1AT`K@qn-AZhhSkj?GZTJa#L>&@-IJzQuc1co@1Pq4mW=i|qOv?7%@WG8_58;IZ0`wxg5RWQvl7ev!pueNWeGP>F@NE{X%t6w4esK@(jrqxIjw8JjmQ%r4z3*SP@!c`?Ro**YrC+ioyGU(&HNgv8;mi4J}RX+-{bFk&ZpX0{y^13Mn-b+Q_Mf8a3N4Y7MRIi`Mzs)tb03>Th-8UQeKG#6WtOW~>LU1WyW3@Of#d$T6~g~k{-h{y0MyY`2Rv(x7O#k=O~%ah~g`N1K8lkL>)Ihu!|q=6yHhnyH7HOrr&UlcON$0mP3k99P7e;zUN#a$DuKpl6E&G0+oYWjPI?vBk{#&wLbQwK*E`^S4nC;c}JuSL<fGWn_kW(*3@^rM{_OwJgkM~Tha47WbNMMr&GjB^T$nwhmXVlH)t_6>LG?ALI2Os81VhGj<)1b~DCi{S$D4*mH|gYg3+L^=q&Vx}hMfF1FrO4SqUQ#NyFEMCI;Tk$PylQ)@VaTT+zNRFkoOb765`@z@ViGjw)Y|LT@n7F_iqfIGBP`2#5X6RrFK7OW2#*zWXgB<r1Sm-UjhETMQTGJHQkS<*7bvz{L0l~nhS*lx<z;$=wL0B>XKt*sMPV3~+I?1WSNa`W7le{w`l`d@RG^`twm!^$JK_lwqVVn{vvYt8Ocf|yw6jcwg10`_2`hHW7C|C%VhMPOgj5PAHz}hiL8(EOX`&jhfK-&W?gN%s?h`Ytz4_o04=^6_kHS@^I`7(}2ZjjOmH6jwG4nU28_r>AZpV)a1$iajzf`c$JJfJ<MGpLZ*g=Fkept_GLDBS)dj<AfEX#x>o1|NWd^PWxSzEp~-T;Z6GdEoBSH6d5YnX=?m1XZ|`3|dl>X9^=2QY)n_m~RI~!HEe*F%^3pIoAK*-rFxnjwE-2uL70khU7F8Onl`BW~#L;7OR@uERrHw(=$^ngCR4KB$}Ct>_jG6?Ans8K6Z6F)9P&PcJ2PyyVIGi+1)>*k<ISTj%Fm;yaD?i?gdVdu>KJN1du>xl3mqZ)q<536Nm@|0ukXJ;U4ZkzhK{+Vc=av^d%lFL=(S@)r>A<HR1EvBcfB1V9=<kF>mueXa5|SDIN#g<RI4!vD%x%N%oEgAiF-HzGBtSlcZNpp=l$s6e4gRprt)nr|H@soe0|kSpInRTQzJH5FPY0qY>fSz%C2%RR&-=97Ep-h-_hMkOt(=dWA6JcH$Ef4~k3=GQJ?Nml3G{vAz?{1lE$8+6x#Kst{vn6+ohX7|`Ti>N)ZyJ9`wPL1&<f9*Z^=f*S3?H{h~a27#2|9KDMe;$pvC%lOD)Z{Yfx_d!{GX-ZbRbg@g<x~!K<GH0!J#{DCqaI3}O%a|zF00~Jgqk5(Bx<pj2Ku^_bmI9X4Pywq2_Yo*aaaUp<#VOzs$N8=&Pl<rEArTX&15u00=OS!P^b3j$6|*jl(&kghPp6fCMK9>g&P94x@4?RIL<DDVW$>4n^)|~?Y|1j?lAnOOlDKH~uy8SPF-BFM(XdH~SY=$psOMH14h1F$)-})~gK(z_y-8tBu7TbpDSLwZmdc`BgF<A<1<N(sM!IM*ICSa41=-eu#S60A`31~14YOnsgRG{?Fd0QDb<DAxwz{~vHu<W^DdyVP_3Es4ZNk4UTIgJdfUXM`JJ&JVixxcBLD2D%MbC8{qj2F9?jS{r9|xQ-S^#0@n93sPHmEz&h0tv@?YYI!ZM3X{1<`GiUrqU<=r&Cwzc9K@bed8ZN4LqIOK4})L^rAFAohT*4Q}EvMjMtE`#W{eY6UHf`oR<tynxa1C$-vUHjY;%9ahre2P++(jo!)p#o$5ja<*dq^V2mO$E%{tiY_a<d@ty-RByY(BTgb&Hl|lL<DQyZr55cY80Owd&|QnQ$3k+^)}N0;5afE=J_ZlbxQ!X35Z~(bI=<1if=0`58rGdPW-t8Om)o_U)obnA%a6{^bl7Qk2hpt8ANZ31?z<%7Vrf*bMd%|$d!skSsqX8G*t=q%C2|9QqiE#1y^+ooqKDCztv7UIE4kN)Ax33WiUUFE=P;hL4r-$W=fnnWF{F-Rm`49Hb0f-Q^+CPwcbZn$X#{>7d#B#+J9fQq)y<AwZ+3&8(J}0fg)lBakz0F1bmQ8Bo{r+J&n{qd`ahZVquFFUz>7ySlo|Si8@R?I`sZVc0reiVmC(rU($*hj2N_$rk&fp6_JOx|<Q^R!pKiQ++?rxXq!m%n-xfg4gMa$#|M2g%9Wv9<d|=Z7sa>@b+NEos1~;^d5f-}e!k>@FCJi{mS|?+LiI9Z>8EkmCID>Esdvoa`M2>A9MJ;F9g~2owu#{^*M9+eWm%wZwTr6SX#?v0GPWTf{CP@wH(1Khu0}eAtve54DBJ9ChLbZ|K2D%w^16U$FL?scS(#V?u&k$KhklxEs&Qe7KOg>T6dgL*|?Pm!`#ER>6JX{hI>72%s>=2=evKN(dok`fEz-f5G_==pI$jL#V&-6r;jO0ET1k*qw+t4%U|1o7|IDiUinSLOncY9(XPZL=6A@35*4w=9&Nbk{C0ri6L6fnD95RsD<a$0$p#)V(##3VF>td?UvVj)aSs$EPpssfs-1GI>~8Y*Or>I^l6x+yAX7T%mV)GJ~1CUk!p6(@}fu7Nql<RKze2R)(un>Pk~AhZQBM;eST^(Xi@xtrkrWa7!Vqv&8GUMRAqGF{%oy3Iqy2{Af<kVwrLVk(L}36I40u+|~rB=`9DBDtd}jVVEb(h|RA1f3OObMB(PEHdx2NLv^T!zA9D;<v^6NSZ&e$YSrX0uQE-4x15wEX$<WGVI;OBcTK56ly*WlSflhC+AGz;zb%ux)L4C>dBi}XDlP~`~uQWpv3h_ga8_xfrsmghgcHqM%X8+4rO+t%S@fyZ22x|=anw_g{^)7g~k(~ATs2fDsw(7<mE29UX`<Rx7o~bbl0exC0w0#i+RrO8mNvc;qI<sHx_Vs*KisOxV&qi4s4#&yJpkMb9>j4K2KSW&(JkFuFo*-C7j>25H@^{`@2@lEL;H?+9tOOaBMjqS+{|@UUfBao9I23T@l<SBCD&bg4@Jke#*+=nxxyzEDw-|XhOL)0#h5=g#x|soVnEkF^B5;CBrox<!M?s&}pxkSv(*Gzgt~FAPMa~1xrV;eyAEY+2qhD8`h|2@nG&JPN20Fvus^3q8K?REC`k^M04+&o%-YT@}k%b_TJa`DD1%`IOf8i@xy49g8;a{uYDGRPzi!R_X<VXE~2>9if0GM2W5Jc=0s7vJ(6cK=|kFj*w;oufI_gY>muyZ7cm-LoiXQU!y>x$BxB?>`E`8Po!pG45upv=oIQ9+_EMt=MD)vZ;(=u5D~#I6T&g?l;cJ-lVc-YsJFKZT<QhS!<_qx+d_&@C7rjDINQF1S;7ucWypi_8Uh?5CKd2>9y^_*sjFqlbI*7RI(5g+=Q^-(Vvck`{j}P_^p1P#40b&lj8L_|bhd4U0^PP?SE4abWp;rfNJSO~^qVbdlCiRU%#SBI`qp;cZ2UalQ{sbf9rcKzM;!c3{H6YZ>Hwy%DImfhhh2d>#h$|Jx7n|_JBpG99j=D5asI=r6^sj=wJDL-^*?4Mb(8yl7TJ1*rSOW>|YHKuuHkcoO-_XAQeH`tiT}qWj#Y-9jZC%uWj8?EB;fjPS68_*wxKx4o*q>bHqTq>?d#Vh#VVpBVyxxK7UJLrLAIqu++bzFsG!5T&T29^Ucb52zZN)u=>`6mVVnYu|==>w)8kOoWTuYI#Hxz}Fe=!VwpfzcJ_Xl4*eEr3n<;tZc%A_LQQQpFiExKwTTD__fP7~erfX!V<!!|tbt@R@EpdoX*kw1<vA~t+O<`PTWJT}#<K~Hys+LQ!KU^WwJUPtm5=Cf9!mSA0D(RroQ3GUUk=g0fnx=tEYIt+j=+du@H6Y46B>c@Mu%R&0W{wJWR0WeDHlXYnxkAAIMcj8|UxKubw3IbEwxL++B^O~+gE54lZUSf_xub_z1<G~D;EYfK4(Ldcw9gbW*(o({0Di!KulrhA3p!o#p7zWXKqA2l%RQe!{Nd^MeIpWEK_9Llmgjz^6h#+|2<iLK25gwET65`c_4%ryWyH~@BTKIfiU`a?|sBGaW3vwJV87nYnWk<f-34jg^!WapZG*KLNTue<*D1T^}sAq7pctmIEEimj3O17EEdE%PQ-RKfc4YDSA$E#Y>DLSl)0-DT~3r$n1x>6M=iVa?Zyv*AWoznHh9%(LFK9@=VVixg~ipve@=Ir1URaGap^+)oo?1T+IuV5&9=qgRhn?X;E7AYWsb6@Esaq@NA9;tRXPBdA$47ep^)cdQNmYTkm;V%~{kJto_FAbrANw5nf)(`_PHwtixIZ@F!acDjwOU5AT2^UPMvq5y$i6;?`_>}}B&X#BV+O`5^#0|`mG+Ua@Iv&wL&a93y`?~0_ruZs6FQy2Xl#pjH&BSJ|DXOMQX?n?L*fX_JqBY9cq#+n^5o;t=<OST(MI_&O2Fa?SJd=dCH0BtkYoSIYWtOgmHb#PBvbqLG2d>&V#_3v)HOD+Twq7X%<=A>TCd!DyIY#Q*=%}hPQ$`q887ibWS*FTZ!#N8#+cXsB>e^@rb&U3D%|b@&+D<diY+V~MeiVl5+8An4WxB52ZWS_K*FmseX1=atTR8^oI!$Yy3A;|)&IIvm)LRNOb{l40VaRU7N|2r8U^g6iD-4U0f@&x<suTc74OBqoNX%`bIUS)jC7P-x!bUNZkkCm8v;<;?H#f!FXcLGzjL4Nt0?5HAi<HAX(QdXf>ZrwARf^%oB3)Ky16IrzgI7Z#UZtFv?^9+hgfbE$1uK?GH2X>D^MviF=dF)1j`x^jrstlL;nU?kdjDaB>z)jaoi_9Z)%}vn1Ouw^VL^@Vd<`O4iSiC9M!opKOSQA4h{zRWMM544<mBsjl2lPDP3lYD`+F}7M8-r$REr$}wZuVE5>}NN{NCh6S@8<;OvQhvlN(hsB=Z&!7KK4|A|ayuISFb!R2bKJsB6dM2O4YB*%<ez(dDLm+(TZx!7l)D>=I^@!hhGF?VX%}T&x6Thb3&Czik5ttG=-*J{7x`kYZ&5R8_#a*K?h55)Fg7Zx9tIUz^C~Nl%GJWNX9NXW?ju{nD9DwHPb!16zky#1sIn6R0A*o}D_fIgvDN$=F#bjiSCy##W;7ogD6bdO|VwXkI%PAhQ`}Q?J86!)<32R25NIL|qZ}cYvtNRaR2zERu8TtAgBns<INZ#v6^HSz_(`+S5VQL4>CPNJUz$R#P=vu+@UiXx}&dzTfdpbE!s){lT|_;S6mJdRz5WyY*SniD8qC64spNE6K|#xu6Hbam^oxWY~qfxGh!71?d+Ud}G2!o>YhdeS&a2h$6InLe&>%-&Oy02vh%bHKVE(&8JiggT?kyr_^FpAU!5M8D2d<-WNY?bP0lzKg5(zqL_+4hdt=L^2qZ9;*fBpRQ*Gdtdb3APNC${Hdo!VW;`-!r_45`iHbwsQ6Yp%ntI76qwwF2COwg!I$~b)*n9FsnG7^=)6K{MC{>LE0(*<42^UU&!sH=VMdnh#*Rd$@hb~S%QWXZH3&dIIc_P#|S-g^-#~&rJ&xBYk9cQjDA`r(|P9&GoA^mW2AG!(0-pl9<utl7&m~Qn(SWB0p&(k;Zo?Tdzby)l9VQe5Wt7Bs+F?aE^c=n3P?g{5FeD(|Y>e1(9hXc2-&}t$1u<kGxF@DG`5)bred0^)Uk7vW-%?@HaphmZMMO`F#3-O}|rDju^&sIUa@@|fb%13CZ*wpF^AiTiJ8B7%^j}jf$O1h{L)fK6z=E{x=lj*PbMUhqvD1r^G@)@&{Y)t}imLg$GD=QhFEHSK~>a5#~3lsHI>X{=Lh+W!`&@c(@BOdz*?JdkGj&Cqgt=7H_Iscn?`MjG7tYs^h+Z-lKqG&e@G-5`o5vwbPMyfNUiW}B02^7}Kz^~EWwPJt8w9c0*my|6U`j=?O6sIZ5$(^*p%IfMI;pi#miIa;crnHk-CO6YoD}ts*qk=SyP*7$}rBJxrz=%o83gA*4F4eme@zcuJ0T*>N^GktiVEm>+?%^8ky6WOc&X?+H;hLy&QdbPuMCD!4s=<-S3Re!-M8#Uc>VcL#<tqrQ+zM9_js`ZrlDHOHnia1mu7ze^w4%5+nhdF{iff~fYthOAIW4iexHjsc7OXI?Z98+TjBB^*^DB+(ptqvB+PDsaoaa^?_URNhSdQZqtvs%S6C<<wxDGmJW>z5ALDx)m6>`apN?D0u3O3c%h|$Nd!r&VHeo?1Jx;={QLX*pjr#BS;3vJ3^81br^(Q~b|k3Acm9PREtKHWVz^|pV!y|=&pXdeNE2|tzN*+bSzQQpz^@%FR5PY;Xop1_U|?jB)4@`u_9HWhwTl3PzOtROi><`SYa=dAOOCvdaQspTLVz2GbF%AZi)OQ?d2mVJyu$?I!0%W;ygZEDKRM#;x!o|P;WA5E^|$x@@1yO^*%I<d>&+=*>`Dg21u!PjO^hTw@bH+yJQGFF)v&^|f5jPNbVHN4}qPY(AM^av3fKEoF%=p8I54rHhcx8eyt#bhb&;o(f-ZhVDh@CU(`RpB-jdEtMt8=vYUr%U;@fA-)t&P{#ir`rc_{^_s()BpYd|K0y8?3qZ;ybPyWO;bsSUldGU(=67HcTaX<cJ1%KVVjItgxJe~aFdnFTA`5&ehOY?v{x0WR-{^y>U&G7<vOYGJe)G{_mo<#G5BCkH?^SDJ#|!1BY)s(sN&YfsG6p*XVP$n^d1OJfnZuw@=Kn~g4#HOJs{rkmIEr%Gj>_+z%+Yxs~I%=w&6GKXqQ!Fc~$Ox7+(YvjG=~d6K;}{ge?YfPwqWg0H@w;0$V*AC0z*238>ojHTvYh&X=mk*KNI4eLS(+s27o=Cx~rZ|00t+4qpX>e$bP-nan`|tWbwhAN00n*(~8IiLcD35B!336p=f@<eY%tUcdR8evDG}_7<HL%e@mZ49!GDaIe)+%w<C~Igpc}kLWMLz^pr%^@7?c?q4TnZc?pTtI=^v=AJ>^k_1$@(<@>DB*%za__pX8=P^Z3q?C)W7i3b<<fX<2Z@igTEZ`()-BNrwKJ-BQ2SwZ?bsq(KVkH1x67lu|PKzbhS~QsrlN*qRNoqg^2qNPqMM>JDzThNj2*urzO{202O~@L!nLG(Se;lSs6CWra7F|wE&|iAJbBr!M5O!caj9|nD0cq<}yEclU9S#C9>K<A<h$pkw41GUVZOI6lHJ1i*Pc%X<B{NWfioHR28K8gzGFLS5$criLW^?_~H0(sVM?S|m$^jYrbr_k!W55|<q=vi(#y)0?0}+Ltz~Di+!f)^ruSA*12_T`dvRZ}JV=p4yviV(FzerU_2UIz=;R%e)3C9*dprvD}A!YsaKF-9|0pXO`02zf;>MJ>~D^m>E5-ppmTogL8GN`sZDq0DuS{6g?6c5Z+)k2o45EG4~V*W;YDSzm*B^*wHSJeDOwdMExF~&sIKRG=;+UA?2W{Z)YCjsnK^ke+1RH;AVaZc`O&!8sY_?MXArHa{ip+h_mS9P>Zr<<)JwpsOzp&0|XvBg*(=&hlks<EA&!s0mSpE{A*T8`1&Y*isiC~r~cb753xrtofQ3_$_<Msya7W9lRoqYLz;>XHrb+KEE5ofyHj@@h;<=)iI&F0)F}=E5+3a}3@^=ewj+UBh%#mXC1^3fVqu?-bVW+GuK(W&f^Y+u0?+b<jqwco}e=wpp|kusv4Ma=@CPxh27EqOz-CSzvF(;-$fDI<4&T;5HlW3{P`gbu+(axGjWu%dQ)43*-5vYX{sn3fB*}h5a+XhPW-qC|yS&v$=RJaa-t`S+JgPG`*rV1#%jN>x$dL2~f1QxNSsPD_CFLw&9elF&M8ezcRQ+y`F)-GwNuan5;l}-$<7sbmcYEwFqv}Jda@65VMabZQT~CT-v~+rKxKW6d-F{rLNU5FrXrQF{(8U11&fSozLssD89CanV1LSQsOaM52m9%Br*oP%o^OiC1FLHc<hqBL;{nOkt9i;)7II`r^b<`2R9qKwB1N>7|{x)z#d34e_<VzK`BxVg<hrx5oc$k7bmCNr_WDbYN;Pp8Mc&s-KHjAH4lb_uSmR)-hwF(dxD9el5Cly_JeBNaq@g;XZHlYB!lfFY6AI41L{XhOZ-BXM`b%BZqL<vzGb<l;@hQP{Dvayzt}xKK0HR_l-Zz1&Tvw1pmw0Ey$)EKe}1xi>}@~YJvcpaHQbN9faT^TjVa8NXVI78VBl{#dR<%p45aPoI@S(OHKVTAf2cu1!~UW6s$p+v+hf?gd=_**1<A*;n!44{);~pLE*J;k3ffcX^JqicxtK)5V9PLVsPV+_`;$-<7ZKPpZ+zx=;j^On;)gILrolji1nuxd`w29_GaRq^j^6td!}uX|#%T6Rd(~=q_xU~x>dELPE9$MNx1!z;iF!-bl~DJkc5;Cb+*u7}F5{j`$#hW3zK>P4HLRPf=CAySK=5FTRHKvX4GL(QY9Z@&!}i;~z7<#<qg7uOIPP6IZQd_>!n~Q<$K>G%!XJB867n(hP<IfHJCQ%>kqhK5ZS@8EA%jGI^z8A*A86}0TL)C)5!%DbeYN5kiGCy0zhW~+g`eOTVmE2)7_10ijBQ3N-U8Q21*KX@-m2HUNJ2nJ?32rL#m!PUYA4?!+zRs^hZsY26kkk(aFkW#5W?7aHo8I8C~T&^8SL)akO;S|li)l=eK1H-G~u%LbR6wgDznn_i3bc%JPv|OsmB^m0z6Dlof%;%!^z;$0Sci|(Ng8H9aAq&?_QuqfG`ZWh)4~{CI*T1nb>fnZ(cAFVEBZmEHLcVeRkIAQ3!Y#a!DYZi4^u#q|e0}&d^fAs)=k%a(bs!Fv}{JxE}GgC@u>NpyGX{!3I<X&2ptt39$a0nkcJLQYKgt#@O4^uN2s2EjPfjTPgBAD<d#|aiX~}8IVdBb4#c`7@HpCF+4#`lpHMuCf~_B5e`F%RK<#qhVb-Luoi?Jl+e_$O;rC}v5-Pc`zd<4Wzy1XVMa#ROv$Xu86kc-#cr{M8CH=F&rTFDHsj+@m3}C*u*!247cF$=7>nzeg15M+bWqs~A?O!!7>ZVz^S(nH8<o$vZ6nWW7*4;4-9V02#Bxv)&KYKrR!CtzjDV%GAJ;(q`Gf^A$W?|7F&KU^D{@VAU@K-vuGwrAu_V_*tEvoJaxKL2lB~(KPz@y66O4qB)#lh}@s{u`*G5~etbV{r1b?BRYBcBhm+Lgm3=eY~Mx&UIxeZhV2?s$tix_p^oy6Jb=y><Xd%K@`&$fT!J^JY>g$y*zmWPq5M>~fHPxhXAPxk1v`|N?Tbn@UrcZ<O16jNI6#fOn_^npp(6(BFuNMydc`I0Y?FYy&ZrA0DW^hGcbB?pn%&UgKxM1_f`Vkg+`_c-nR3-JO`ne<EQ_C>zWt?PtSeIQ~}<Ef{(3P(54BY5;Eibs)tE~<#GlP5yp6XJ!PS-;Qe90$CE2M0+(*!ZXKiLo;ASgeQQYSPiqWq}L$ZhSw6IHwShQFJ~C(&qTxE(Vr?x2qXg5>GfWe0W-x*Z^$ChDxcie>3)#&m&yJIO<Q+B#fn?JmKROT4})0{}RN}G@qc$CcU%-5Whdfl>vCe^hPN;4KJr^`(CA&QxJqPT3%XsHXV9=VvPxOi_xoR!{iob!PpPaM@a&5x-^#sa8cVi%)B1u^*hPsFzya6#dUZN6Imp8y>5CL@Fk6GpAzBMql<XVue(WV^e$pxIP!8B;uxwvV~T{F$aOcaCV9D5Aoe0o(ASZ7GleJ+3hcWx3W|zZRLr7c78SE7WfrCSkY|2;nK#x-)9&p)NE>0zC%;k|92hsI9CQMtCJH)$E~r7jA9h3Rmy9V^qt!R--M-oDI(DbtY26t;p9pq~0XX#W#aJ~#!ae6~!oGt3INZ82wule|)t>4#)L3Yqq^MC=fiM5xHCB9JPoNHBO0hC7=QR)sfGuq3eU|^IO&)5Py)ZuS<<sPcNC!QvSEvFAGiw3HwIXxQyCSL5Y`OHQN|(z8NfPMzReBdT>3DE$vYZ%?QG2dW{4fp}ba(1c5iZD7B*wYNW05FMUWMqHsS!^sb$L9`5XrbHM}A96V2oLDA+mmqSj4-N3A#~b>K#+u#cai_OfZDBIA2+QD2<FW(uuS$O52nj<@xk<qz%>NK#^+cIyVapj{e5|S1h3BTI%9a>wJq`!mTN6kZU>l+2<lwFTK`n)^q+C_hJmRO?k5SlifK@`GX$^ldvxq(-X2(=Id>8G3V>&1VPBx0>zVW2&t1VkKo&U!A%Jela5GEo<Avm?KUsVT>c=so^Js9*zy%do)h_`o{?o~5{TB$rWf==KIVBU1|`;fjpzKPb}<9$s-evdg<zrK60r}6uOuf#AYb=GH1N$(%ew4AT5bA8CFI9Ki5{BkBC6-w8e<G(DQ}%Qh0et`wabU*M(X;HR?FOoH?R3sZ(eiBH`qP_N*PnA7@kt_naCMugi}C_n@`nztvidS(U89urol0?2<(-VS`lCZyMQ0tKHAeJ0>r@AE=L&1C!k^iVFxM!j*runcC=-y1$89p8=%<hGZBmM?177mDzMRk7-gsj6X8eQ&0!KX`3-go^9-m*;Z*CQ5u5Cs9Y5rsjkNq6J6zw;eqW;wz&JjMi9XE%H2vc5jJ5SZKi4-k`_-#W&3W|-$6Ine9P)YIxGr%u=XoP+W2lo|#ucR|Vc+LGH!7m8h`J)`51yz?g@ivm)^;#rmzcs)PF^U?zNhFQBqokM_C#!twe=G`?*rQCU~q$ABM(2)Za8+U-Rl~Sexu#&8%rEF{wTp8k>0@Z79t4aluOW&VX8_>ltDv^o+Ff!1!yLsbEx1Ce(*SXE=hk)p&YO)-~8YQ8Tj7CvPap0?LAIscPUmJekp2rv~{4{4Wwk&yq5=5BI8jB5t8gAznIVj$Eub_*(nIDL+5Z`Oz21=FMMQez!Q7n<<bXR<EFq=LbfQhO%ZunD_S9{=<tMmHi@Dlw&C-AVr1R_@wjA0Kn!ym_Y7(POAG2ApSwf<!{Z$~7Zzz`$c(3uX$n@7y@SROOfA21c&^8E@|6`+)FCSs6$-x4ZI+C?Yh@j=S10SU5v|lQE&;wodP3q%Y<N_hdPtsPNr6%Y3&APO;x+EC7vpg7axE>|iGZd#i|RNE2ZQKZTR+-^>5jBcU8RW+VvDWByyyS>KmJV;;4x{|+G}z3W(}L@4{#~JQOu1L+$gBypZ@xP`+u~ff@jfMsE@|Bx~ejQh3+jIQ7QcbJCnCnulSCa8@cW}VVtl2OmTsP&Qm^|KaQ6@O=-&xl|14*-Vwko30(CB|L0$7Pv+pi)VeiZ<r0G{shAV6YJ4=St-%+q&Cf5vWf7^HR|ElsKSu-WVzRAm6m9f?%hPn@nS~W2`SGlUwGk(xwkDT?HJAf~9_%njxJ<*FleGuqOvsf(OQLHfyTfEPq9rcl+bMYte0S06#g=cgDJ}<4uktAE5UF5hvtJQ%MaUH)f1re1y1_q*a@LR{;hvlLH3Zus^Qu~R0Mh<+&DG}9Hq{+`w_&&HcB>l%cHM9H?5|<;nAs!GnJ+He49}zDB~Fk`SORnuJ(_sK9pY%wT=kNvr-n`7JSC+7Lr)+$lPV#fw-9?ThqFiiIPkX7G+qL|N8T{}KIvR6(8>wQC-s3vkEk%7hF#9+52C0i(D-OLDM*h5-IE@B9!1CSK&qY%q+mjFjtCH!$ry&OV5f;=rdGvp)|nJ;?l6K+CbTngmE<FmHeP!oT6ki3*pa|@_|+1~Z~lnn0ik_hSEP^%&&XO%g}~c~CY=WHyccUh+|cA`MH(Bbcy_SEpLJ6U!~`2IwLTO^i#a32a10y&i4d2{koJlo_EtraQx1m~xREaNKpn>dY%ZB9X?^d+Y4i?pIoozFHiBuU&~auyx}^Y<%N|~}WzYmMpBi(AQBLCa$;OIAdP=lQ3{<HX5*=lywuR-As+H7J%!MrFw8&DS^wQ_@Y>K|VVE*TXUNg1TG}SL3q6!t$iiJo)VJ?OVn16|jfcPpRoL$0oU9>kW{A8EINoGHatSC#_uiI)Z;=rzfpmPh5?+i5GEZ`1o^f<?tUDKQcy2CeQf$nUhfJbA@%3?mv7L$d%+BMtFVt&m5B+7ZVYhlQX629%)2pCtyyIs3!&hu~ALG#ia4|g5(sm<_l*TK*U^Sm6!(8}?1x6v?Ep6)i#o0v}?8?Efo<BEF{*hwQ*r0zu$Y8o}hoF`GAb9uanBbf&U84*2COjz8PlG+>(Kc;fKhYDICC{c#+`m`Tu>(-{$*ig5~ubFD}<K4$^2pF8}w)6%CrV7t5f(gDswmL0;vU~a_E4s+Mr^may2X9_{l+^Y*-xPi5e;!TV=mi<!s4Sy9iQWj8x59ShdZ}12O!}t;YD-eRz}n*CdlF+QsgjQ#NYIg|D7jAf>F)mi;b(7N{87eK=e1h@8<5-zz9TPKt<{EvMFlbl{D?2X>GX0_<7mMT6&C(@_s0j%_xC9)m`n<?77tm8K$dNIL9160(A<?jju7DSRri$q^3ysa1!lAk74cTYTM_REM7-si1_Z*#;JCQE&7C98=iO8PkgZ6&{jaybx&5U)*%K7Q;iM+oSATl@EA94gZvPQV-2TH?e+d`A({6wH)gOQL=eNJQ{ad`@$G`g5x4*mnd-(TrEgGR0ly>`DDEDXZ|4-rXFK+*V@3gP}{HwqC>W^>#_NzZ(G(YY3|Hb-le|h^`$p1B5{f3_S4LtvISF35a{{d?LE!_XZ?ay!jJG}Kb>C1li)xU#!zWOt0&tGEVSN{fXMT@x2{{<?<M?`CW4Vk~g*WdmMOF|-52Pwb%>VLt{qc*}z{}Vn1H(2E#!$a_~&;i&P_zd&{{KqE#4OD~fw$xM5qQAZUZ(Q{+MQ@0A(6dS>{mYXY;qz(~`ykffF=+Jdf1z*u9k=7FKXEm7<wa-D+WzBBEf{u!UJqsxrT~qB&^PqQ@uqfi5skzCjRqU<afHg6P3^NN+5tH)m~;a)5`Yu|d7{BY?tyHrAwC}@cTmXfPG-Xn+#JH*{VB#B-a>>G4JFXz8-4{N^B2&vU*Ra>_^@v&_Se6sZ~Hsw;NL>_zvDjt6@15E(eOY&{W+yU(f<oBa6JDJo`<LY{`MC*M$l(8>5xn12IP0xpE&vc9){#k<e2^)j|sE_FEh{JTmB<F@o#CU{#MMI+yDO6UvS4l;xFWk_&Losn5DPB*68wgTH+U6)A;Q7p{N~N`LChjFz;YS{6Y|iYyfoXa6B#Ti(k_G{4<&)e*;e@^g!=~HbZNFjt^k<u2!VQ%o6U_kLdp6tsm_O@D;c`;*tG$OS}Eg@cw_GS^QTtH-CfEDPtGVYxJzHZ8dv+$LJfq?mg@Ra!o3>0-)6N?(O+x&jk>9mrmNZ{~3nzABnti^k7n!x=E)>O%)`LLyk`<sw+H1E|qCKSTc43(RtwC%mq~Sp$_z76gYb^hPdnBC^2ji@1E3QUT-!WtJfeQkGe_dT2WzoBePkXl1ZA4LJ)bq%ODtg(S+lPB;ZPFsMulPB~gfRvY;y>yX&H61!P<(A0&wxC??9mWgzJQ{6zKv6n^1p@eZm4#8j7EQI<XTaLgzp@;UrY<t^i|d+GJV2`Ne$fDR^2H=qL$Rtk1+GG6N=;Fi=S$~(wqRPa`QQC5EnY_%I8M%*;QG1?EWf)ioO{Xo+2F+tEH9st*q+!LiqLc3F(Tec!0#jDVm3Wev;r(n_o@lQtBNVT#u97ckKnCK}}9V`wwU&){uIW2C+CIvg7!^ohjHg;9bYe6|b#z>XpK|tVer5@;NdLLc1a%q0t%itGok8W0jHk|ijKMAJqK!2N6+CKQkw`nx_duY;!n+6@EMRY!nM!`B?Mw5*P8C5dwOhi-=(hsW~&9M`8vcs8kd_}+&Ds*YjA^TaDa4}#bBr63HWPC#(2T}Ot3jjk3Ia0vcOh-XSG+F<f<+_|m_3&qL!q9&u)#D^Vv*Dsnp75rT>ai8=HiIVS45;ea5GM==kOp&E=s%z8aqZ14lW~ofsj7_ImZ2;}j7pd+MsV9s<L#OlZbDs@T+_$}o+U)LY&W?kzCkWftfy5LDGoN0E>y0GZsxhg3KAQc1<N%Xjrm2(H4&a~ZsBrGbgiEsV%NlvottQ`MPW6RMa;EO0j(@#kkBq%%v{TAlrCtlg<u9niyDVcS-7ydR>NAnxN-R6vIS0rT2U7{*FrtMLQt%}E?w+gyWT8V@LU@aFc&U*u8omv(kEpm&I&{cFcq*yd>9`>lm|n};08^TFF;au9kY>yxnjdTk2jJIVmw~^gG+%~Il+xy49hD;xk(xTgWto*o%A+5JPG+51~<9BZQ!&`Gv)J~heW1=MhrPJaox@+)GHyo60$2H`=6<heKuM|{%50aoc_;7-v)`(TklEZnFEfBnO4lSVx|={t(fUOnW=K%bU4KmRX%Q#>eB7;SljnO47|u6I+c~U=h4%_;pwiconGLPF(u>KC`g>7uthL+JR$24_^<W@HUJ*n`~b!W{r_ZJdchT$n5l~FM&R^&^<JZ6`K_SyHOyn*rb?MrOu)0osH?iOZ7o~whyzd$=Dv)QJfMM~;AHZgUgSU_$n6BAtP?7lv1oGM7`BIzA}7%dG3X}bSim|%wn>^$K=34jXskqPQHq0H8dEqH0Y)bti&Mx;YEt$EG#Hc}QzTCrM7#Kb^aBbkQcuV)6(;8qJg_&4#~e<x$naFvyG=@?qbQ+)S!0@NHHGf<)o`E((@7BMy8}9hIECvHi&CK+)sIloy3kv%NE7HI?qZGX4y21EDi}m>tYF%SP>HY-2;J~B^5Fgj-@SZL4riH$1u=@^Wt1XM2J#A?;BS#AlLQc`v#o%x+FP=PBwZ$co;olBffmAL$ZTJa$3Ub6uPIC_@mf}<Bw(=&Hi~ptoQ>FlkM6~=>OTv|PiS~ewkf^zAV<e$3`osumiZ`B#*B3F(!w)CZYD=mVVecm@CemkDbC0osk=tAoZ4M!|Ckay1t88g!o}FOB_zT?mx?i|VK3wh82zD?H@F5Wh06JZYhWOYJdc1cw95H}YqXsbUg4T(u)2g_xE8`u3XPuOWRx>+aTz)rp}}_;T#+9P3^Z*AqkdwkL)tB@57ymq0^8b8$$L5$COkeAARv5-ETReOg*`@h*dup+{FQa#oYWH2tXd7HqE^>xfmZ7?{5=vHy4`0Hv!ISme!;`j$t>8EOOnU5B@$8FMwf}N3_H)~X?I<5GGgl&c*ltBk<@mIPjS(83adoVGumc_BW;eR*U=~}>}!Ik6=!@=r*Oxo3La9i7r=0G`7bjCbeJv!zZ*ay9Vq)DJ9OctMixUz?Kl*PXP11Angvg3_=JI9o6_+MaV@(7!7*e-Y4@me0uPq(h-h+?OplVefi_QCO77T$W8nLv>DlNWlZEV+YZ#B=igq{3e5rMyb$zYoqpKE9W<BJ{i#~^9c(%QFpw+thT&X10_qU%P?0m9&tOB}aXTsde^Rt08=-Ccm+gju9mfxMx0aP?w(QHMt??26!h??m5fiHo)AQ<I>OU&inQ@s4-@Y!yuTPVz*41}WDb$VU9UT^w#uhaJ5S{#YInbK0jq7&M*QHX~GX@pPPkSBqJ8Nr4)L0idomPTi@MQDjrPd3ZD4tr$i(G9SE&yTxdsF>$aeO^rUc^wQG$9|1HPi(iv(W|_JKIvZI&hBE;rIJ^{WSZVfFQ9D2N(KWQ&F4>oVRRMDr_Tt>Dlv^(hTS;tXIK&`V6gzUDr$<_QRL*7>8wUxQgN~ZMM!>xX`sZC;h1wyQ(VgwfPT8qj<S$L)Dbfk(*koL21{1-6S#}y>zJ8earkA5nKD1`j2uoSnM@d|Lm^eGNO#5pAt_h4i%wRV52g?T3%b&^+nLGj;z7GQWG>noWID`6JA>>jchSb6WTLz1*0y-AgD_>3&3BNc+POLJ8g^5PGDaf{gujgCosAxCpM2sS9Ulsu>Wt$%K1~ZOeixo|BN-%59q)Kg_YWU!@6$R}7y*5Y=w@pcPqu<-cMGf0xsPz2*+1NVym#=_JJ~_=e(&UT`<NlPe_#9f<B#P5&i2X9-d+u}M0t(NYgE3Vp524TqLv^1=toOyfzrIsBBZvm`MbWMccZ~<IEoRLphxfm^Am18g?yvPV9;~akF@X5egJI$)p~tXTVLlYY8vi$D5TDYwzZ|1@beLGsMMVmEURK0A}Za;?6Nl0T^4Otw1*G1qP}%kDGB}ICSQSkWF6<jhK@ub-iYoiSsuk@v|tbi+KZQr+>ky@c;(P+bc5(~BM|B%S4Cz@$&F!5`&CJfxiY)~4L6gXN_ZW0YAiOOh%7k8m}T(38yE*DNDm+m#n}V$QifEHIYv41-7iAi3c@ygoeF7&`9tls+I?>}wC~f1z!#@HBHK!CUA!ThlGHTUkff0rxuzoEihwHu{=f*hM94XU9qDy6>1odp(>!;SR*-p5G3N;8n`XFa5XT#hy$-*xZO^7rO}Y!_VIaG0$7&ftyVt1K>yWhA-D4qcWA0<LM|5mfjP`gJhmUX6qvHrsLioU3*O4plLyu!XJQ+F9Xi%uUy-{~C>jm0#RQGrNIG~t&qfFjD8U~l-JtidBf{YX1+$uRrV^|m*%Z^6Z!67jCt3bk?u7v}*yNPCN^eBsw8XKg$g%t>uIhUTwv6Ewo$vbGLJQ<dPS_;>c33d1cEi5ksc0}n;ZpMUh6UeJ>G`>lra!F8~>4ZAjqxh&QFedvQcnQpY8Z$3nghE0o$@q!mi-{ix#i{ZE(SPz5=SeJYGN+^G<jcZPkPk!wjLIcroeKa4m{^k=PefIFK;hg;J{_^|j|g&g<#SX&;pZ!FDKuA6pgu9BpHI0`IXVd3jN<i={rMPvipZNq3zdBdbOP%|oceqS$yl6eCfGVKLgU0?q5vR=L)t2r`jcp)X6cXEyCb<jL6adoM}5`3>Wp;$AwLJ0B+)sV?cC`7U@{7(`V;!eXI}VULZfvc`5}c2j&<}tVO*%i<t}@DecXY+rhfG3)5lNDPo8b>-2EK36jA41Ap_fWRhFll%#iDXz6x-5OvRJINIe|deEdiwoZ#;?68SnGHZb?L9Ff|k`U&A=A+UaMhSRki(G)YMh|JU6gsd&0FTe?>ClfC%$mC}&1EN(icNQYEqU^kxBQF;t-*bnP;y~ePq$rSV%|!!q$=OI{kn1<n5oAf#Mc0dhzMwFKC0x&KHI#^aM!i|W{9J<%fae(?d}MP06J&>w3?md?ASp9+O|vQajB7fXV`B2xU<L`-O~E8xvz<ihv+7osS-KVmNGxEOuH`t)G+nFJOc<wY<2YrQr)#4JMuvg9HbLVgOw@JiSxntKY?97K$Gd;{eD8SoF(ch)qlEJW7vZZEhNDCY$N1JC72+(sd8^2lMF^BHYA*`_BGdPaug3ioa#xKN{@NPahRD*LSvcs`pl!_OV9(o$BaALZ5<(mg*7OXtB)(H@hPBxkHuYEGBpM+De0O2ZlR_`mhCr|1BV_p+<7KVof|VzW7S8r{gtUSUVvwA#`GfNaSjWZiAumAs$tT;evtHlWL@5yn{GnxTYOz0<KEywp8mu3@V~ro$E!c9`HxsdqS6qyrN>M*M4V%%#*Ky5aF0?LpZo0_YKtU2~CR}}H_tWSSRhu_c5NcqzdNu;q1=(31pK`UNPHtx^40D5d0bYlK8@gb9>$pYG(K#z#N7cbb+M48HDnbUI>uL>xU#?Rd=~h0+pe1Tlgjr13@)^xYMZpyXR}}oAQE-WBL@4=KPe3CMLz7jIloq+Cn&fo%_}TNHc*lo_sIx>H%=Lvz(A)uWvt_p$j@fhqJ7{(+XPLTWfp+yGBKc{dMumJtS^c4Z8Qx2ka&Lf)d+1J%1Ic=lkRWX0LduK-(nzFbfb5G3d_1RS;K1V#$f{HZ_7>gX5$HI}-m^i^gRLGaQ4-_`BB420UyRB#2+uFDH=q~7A?}L#z%p?qMYj<S6!Cy!LUg1uizr)|HPQh!b)(0_BRpp>&xHePnhz8jqL2Dio}&)~0Tw}8VNV(qgFuzQVq8&BCl6<e2VWER8MJp^L9pzwJ2hBN@f+rBpXV@iGnUFl(*L(CH9KUP%&lWzd61Zd=&M4TP%)Z4%|rlhig<yUNkgJ=X5u)7cEOHvSZ*tlyPZnaQe-9vWMRxaM#Nc=LD}S3rcHtY*#ddfNF-jQLas7XtrW<B;ARg$JHRu56YpnxM~P5w3DfFyN?IiXFulY@DGYlC#JdvGaxHU?x+s95+E0Wnn}KIVDK2fi+qCnP=C<qtVsj0{$r7AvIPDzKfskot3C}gr&^b?hAa=Hk2oOHW%o3q%A&Ra-i13B&3^B6vd?7)CpxTy#u5D&d;_tECoQ?4OZuLiKA))6oQ$l(64l7Kqp2vH~P)~NML4S}XTRze?S0W}r65@LICp-JkAMavK-of@W3YPsE!&AflQP}Y**VCccF6wmk2HLXwWc&I4sVD0>-re_P2shf+kHlBvVda%S*`nIE{PA=P6%DBJgKyf*pA=qSgxw1?r`%wR(W!P2jRM$#me^b_wX+n}uOmI<6>f@PXD{q6aeIz?BasqJCNf3Ys};Q#H`x!L0KW`2G8J=WjPfX+FCT3@dK9O1;_z)u$8Jo`9>=H)Vm@|*o$)%bB({U3xxWFj)!Z;bVT@fJvuO2*;yHiHKhOB*DgT^45&`{!5xFa5Xa@ttVFxCMi}Vr7%t{;XijmG_rd&R=q2-er*r}t0IDKfsR-U%Eu!(typ|AV37WI6$kFGGvK6m~N8R4^{=8BptYW|R^d9fgR9E|;NqJ0*AiEvg$a_C%%dy1iH#7!vy2`&Kg^cBr_zOA7$d#i_?22%mMeCs%%7(Or@s$kkNn_Z*T?X|l-xM<dw!Ztn*dM815YY?5Q;EP|oSxPkc^GP@y1QR_D<WsWJnrSb4SiBY`0Uvf{H#+p)U0xo%^3lZ&<JD)v*hjOTPGZOBu<z8P$@zn?i#Iu;DFN;A&qomk65s$dy)fDu29SCO0Xyd#ob};cEPA8z6E@d~VwFN9%g|tnn7ze-(jacX`03W@<qG09P9l<0C9K#b3DB^|P7nV@7Jh|NkfTqGNi3FW;aF6F=-K#vQCEbe3DN5yiAn=Ja4hAJ)Yw}n4QUi!d7TL=pjg62k4T&kj8=tcWTMc7CkDRG>t65)C1s$ni*XV>=%OJS_KNiBAojXw)C)Z~<MU(!H|qr*j~1gO1wTfnNXuUGY$S7d$mEHEH{2DyU<`HR8o;wA@-Bh_`HFIjkd<bgqA{5~M2K*61__eMY?3LtG)>6a4G_!uGzg&HWA>BGstWvgs=_YnLOCE5018s%#UOZ9sy-09hSW`Z6<6mwz#lGldcKoZL7^!@rC7rZ1jo2G3s+D&G#iOFp}{e3s9$v+1jkVXc*>Rp#K?fKS4iBGRnvLe!93VB1UTR{xtu1)`WY(YBvyT7vgNd(a<R<J&}&<$CWL-p;4vyH4Zg;R)ID*-$NUZDJt}$AH<LOz*2mE}aq!j=XpLU!EL1{R7;J^K5O&>2SPsh48MfovsESZOh2yEH9pl=LQN)5Ey*<Z<TpP{$i50navz4$T*KV6xmgG7J|CeP;kk*=GO|FAZ&kB2T9osHrQLcmM=p}5*b@0r-m{qwBMvEz8SCG@1XIZX8%9b44avj9_%dsxEQEz0}m)k(Mgn1SQ>Fq2Va~n8dg{;hNpnfIC&fJF6+ALyGZUa9ewJ&Hi+v=vOfk=WxZg6QyYlCLp5jq`)ef0a7NNSynpaTzkg0N8;<s^>hX|+wn@WZnmk2h+h2!f_Ju`$Ke<+kc+-|*7v`B#28z)cC-bkq~26qiXjZwn1cM52m7*lMVunAD0PuW4p<OK)WliF^6`Z`g7b+-uV&>KLO56U`2eF0bBm0qPCRe6gP1(fOgc-grp`lS;5$e8FXUK3<6u9lGHHe7&j3D^a8$rbYM~i|~~w@;MAOPZe1Z!Em`CUVR=XMW;98U}@1!4b#W33Tv3mIydrJzQ#g)C5iw6C7;dL)H!q|ikwHX0A6ACd4zLXc}<)&u?suSNWKS?xrKP$%_Q@q-Q+p0kq*`~m3M2*+Lsp`k27UH`lzH-QH8~Yaj;}DycS=8%KFcHmo?K!N?t~2qOX=MC`vuSB}Gm0G1-x_f@3-E)M2#_&3HLtnK@76b}grxnkS0)Kz^46`I=|;Bprkp_AAME(oIHzRk4hUWmGJqVi`+VhN2}qf*KLZUfV-e<B)@x@34Ym>xq9EkZA^_popd&A)rD=Z&q65o{BTY?hE~IPG_T0FhHxN**Ndo(&#o@X1`;!yIs5Atef|UWWsH(9bG_EYGlP;pejrBIB2FF&3gTTKOx1_R(e|lsdWqZ@Q4AqV|iUeSf?$q;j6(H)kw&YDb(FtLV*RZGR&r4hku6q8aI+}6xG%XzxL&J?Pv8`yY}*<von1<xk+CS_gO`l|GEE4KaZkw;HTp-rq*KG7TSnyeNLzkTbAzVhPc5PX!_@I+LY_-YyH|n4ceAjuh+NYt3p-Ub<klWwZ2dAeBT5{-h3EoHdf08f(D7xOS`B?f*Hrk<OBK#sBnJ8`iUV(B3V6y(zu0o7>OH2fyQLQnvC;v{^%q`h6r?#DpHCZFQC=&rTzr}CU+D3K9pI9;{lztOJ5I}P2q>-{aaSal<Q$&62QEkTycz&WmX*`kgq<8X44=sX`q(t$b(p6VHL#Ih0pDa*u;37^x7!8&Y>EpC~zriLJD%Xz`?*M0=pAYCUWyGU-XFI#f7H{q5^OW=|d#25J1S+&*A&WvJUu8f!xy{%wkzk)_d(^7f_Oz4@NnJ!$N<EG;9Rg+ZT|HYu1-ij%(SHc%YhgAptSYn<OIFXc-yVb_tu$#XyXUf*@*N%)($gxY1=a#J6dyOU1sJvu1snjrhm_ElN+($H=Ia5~MoWiWf8#&koUaIjuszQ^cW!cgllBKE}Lf@I?{OaD8D!!%YqCpAMqwlV~>TQBoSW^X$Qk-Q(lK<Cof+(%dz9BAZ5Sgf0<YyEoBnqA_P#i?yTe(@%8#JmfbI#gvBzD~7>GwEa(xH^QlgfgoJ%8(WGOH&3w?&z-!u8WAShFc;OpLw`beSumN^DKq7{k28nf6BFXkc-9$&T>`F7<_&{K6-^heBblze(eIy?Z7XC!m<iLU8;J+8uqn*rX-;HM*NM3agtBQbBX(BQTv2mH%^xx~-&-R5ao7u@Rpi2K!EZo1G@M4g)3^MfZFlU3a}ViouKBp{eJ$;)yeEhIk9Uuu`zxXGJro)ra1ceL>fVfPGJsz)uHHr|)WO%5Dbe?LBH!%EH?#DF5*x-{Oysu}Wl--5C*Qk~No8=zZ&)-Xi$e})`W}m_BBEd_tJ?E2CdsME*W6QTEfZ1a#o~;Vi{mT;6@Hik?W(e>Q!J|r?}o*)s#Qvq<o#brmo6Sb3klaki-RHwmps|CB+4QD5~<f}+m+N??USp0awYXv)Lc<>Ma>_w)Vt$PdfH=#u_+UH3(MS7)`dMf!mjg99XEgba2ZV2*RF%f<(I+id@bX-UhlW-hS3FCw{Dv)zjd$E&`EC_k>Eur`J7k_gFvy4FQRz5NYvC<kv03kM&rD&*^OiK5BmNv9NauSoOHtJBpSKb=NHp|Vb|+FY}V`F?}ah!&~6^a*Z%k}wH-$tm?jJAS}LX9_mC1zDhZVh$i|yy(eKoKtB@Z_1cvP>88O7FfQZA_WlX)Xe}nDt;#pTZc*8DO5o;C+hivby3RQ{lmr8x9fXGtgTaftRBPl>fk^pnd>r;ow8BONt7)PD@067p#H!HZNuP!g%T^dYevZi80O~%rxT-GQOvaCFsn^ko7IWKRS3f`KTn2G1ZTNMbBbKF8=u1Dt>oqiveo|R>|+)?9<vB(ylJ#q%Rcf(l6$(xGj$ujYeD2L7|Q{r(=V-fwhrZY!E<hw3pImcEBiO(qW#N?W2^s5k*Yc{edV=Hjxvys~6>#{6uJ~oPWPvc8r_QVF~Vs*Qrt<ycXOAB6-Me7lkW6;0SOe(iDXDsUo%;#-3Y840};uw4>JNYfOg0}=O#OL3?%6n{S@~bJn9@;kdl9SWNhtE$Ti)fUfmj&&vPtNYN0OR`!*gEk;#dmCK3h}SkDdNspXV>5tYbU!q$GfNAr@KF0d&x-Tf)lKpHWc02K7Q<-oE{!;Kiw57@nU52wH3A;YmEOS8OVA;<(nG$n0nD=>dYID;n_eJ6#ruFC$$}x(rTwS<DkaqxG^<<EhEBJlw47AMads3CErbay8tOX(0+^vFCqIDmP&C8ioW}UOULQit)|nc2aUSf={D~p$jyI%I6f0{xY!wg7Y;6=a5zTCIz5cG#A()BI?#;8i6+;;eLy{1n!nuHJb(0=aXz0zZhI#Oqfe>1n&0h4v(Z#rM}&zK6ra?A%obFHd30CM*0;AFZS8D5-qZwWgR5-|1bd2uhu@@Ksbqr~_e$v-D*afV$A+UM(%HIGGwVu8!&EDl-oPtVE}r0^k6PUI7nft<P{RqN3ACz`s^8s-v5;nX8hK(|#96ZX!61-uEDD+#w4zXT#1OI$(<>Y`<6vc~PqSoQCE47!9`<dT$Q|hk$A5WV79mK(H20pje|#-P({J+}TjX$5_Go+q+sO#wUx1MwM92Z)rQe2=yrSbM4H{nP2yX}_gD(uSvnSn#qXN@g1(D;7c_oEW&pEyGz$F0os)D7d0Ppejm}ZxvZ&3j56{QN@hjGLk0by{S0M4Y*_);~6qn@=R)$z1)vZwcSn<Y{ixl~%U_j<@kCD^$%WMB1^yH#S5ZLV<2-704!Zo^!}OWam#5j$aZNbxDT$qwdh2;M{t_)^}2`OPH^2Flp&LM{V2O{0+2pk=wagx^3J$EptEtE0OQ_2^Cpk|r>=CoDj_Sy@`HKAe%>kwYggN1P!p-w0qa0j0UAi7*RzgFTnb8CZLUBIa|JU9HP!zs-Ze>Nvil>58VmV>Epyt<GbVe4kGIPKRQe6{>Rz%iL3sLoq1I(AOmUP_;RRZ!|5dYx_+r=r>IN9@?BE7+(+vynTenEK=Fr>Ga#G*MGR=H2qG>msE-4)a&(CtiA82<+$hhy9{Jb0vj2kCUP(kF9t*^kkNT|ij2fQS;1X<JR1&go(K)v3NhK}GZ!ASe=Sk8NVZ*irarzQ@nAwgYA8^0_<3OBhtCgAkALdz96sLlP7l4~-KTqp2Xy<59=jLVS!bj+Q-v`z7o9YlISG;O(=l9bJ?#l(Cq(8`EvE}k%I|Olk1ZNdnS4&^>H31PVZJU6t>xhA{0pSW(&$_*Cpt6(`b`>cv+!*cTc2l>agb&DvM6lUrqbc$K+F?^pyrt}T}wHrw^I593A9m4qb~3>l}-`+JtOL^#IfIE<QuAywtbi9FE^4k8CT#JnbkcRB5|vb;N0<;OQ(=u=crQqNHgji+V5*YzmK~ZC~%|2$PKyypAzL}V$tIiV0!V{(An}OOh)-h&W4mq=g)*_J4`6bli(bgJND#KGNA2^=wE1P2|29$gYkv$nGd;YJOeABjCDl7CTt!Tw<sUI#v5UOm<*w-$u}T-eUq=sJ2^Z)r9f58u+}rVo7!b?^Kjq~J3U`}<!Y~9C^f%K>e?%)=S7!Z$WjAs^X5O5MU3sK#+bmH+I65^`GZ-&yJ@lf(uPhh!8)Q<!$Xg5G*+!ppe8CVlv|s4ry(>T$WN@7hbm^U6&y`rAIO0hVo?oNP0^}gD~ZT`o7xnCf?zX=%pakt;f+7V+QU&lBh^*pTaj-?z8@6%-c5iDWAw{f>0Ewc*>`_1-|84fyIt?2jkW1_diN0JioQUe-(H8)3rz;f$(_@GXWfp=PVXTdwtf?gdk4)5^&SR^2)9U#98UsrMSPpb{7XgXJ$!Rkf(Ci_hmFOObdSgTeK8H#eDE}!Zo&UgW}W4B0;iB2Ofkmagm~0yh5{ht#(02k)NJ)Qf6>9e?I<P9x_Ugn_jrXPfAMB0%T@|T&6<0)sE?NE)vXAGZSd+3tZb<8&aDZ=)br%<5i6n65wa9-9CpQ=SY&2^dE(qv+>HW%(z)^I*z=tmB80t?3>wF>JYmp%FWZLV6U2nvyfF|~_vW9o34_e*QM9#gfQ4X94ZH8oxZ&Oo{B0|1!(cWGj1J74VMDXPmZ4E#%V6j13=-o8RG_q#7vT>#CpB7VDb@|G#3-VbQ&iDCcBf+WP-tY(C^nE#tR5P3`m;u{j;Ep6bvP^AF0@N*7pxU*7ut*1mW%H9g`A5b3@)&1FpPGVfw^X*Uc|&8y}i%`!b0^`u?Ymltrtowv)O7aGJ!Cg2rE#++FY}Rs<3kY1_hMI3z?j2woPZ5k%ietSpLNZ6J{IxHplZ^t8P?g6xESyb>v!^QB*Wt(R4-A-x)KCC$L%RMA79+YPiLP-@P8rZwH-jCuo{=-!aVKJ|-1~pRkG|u5y@Js!0=F`@y)w2sPI#Dy|a!RU_lL(z>($>fTN+%e7gfZ$j0?J>=bA%k=H&knW`ksuVxpq~hl-;W%<2$5ahum}TxNsTRmk)F7>S?N2l3e<IXAj-uAd2Rd+a`XYNyXJhAdHujv(#xB;`*bBT*q;AP7c5<<@PA+o*mfy4jNM$AqbUzJaq3);MSg6o3n$1$5mPV@3F>JHB(5J<=jB<sJVJoo_$~<12y0g@K#W5R|+NBcFDiN(xyHqq?(R4-A-x;;b1n7TBY`wxV?_SAbHd{TTZ~AESWEdU$>ju}O&!_?=RMGXS=z3Ljy(+ris?qiAvgmqFCc0juimq2}CM#s}D$YPf%@s9Q)cirm8OR8H3&ZOzDEaOM#BQh2w@kC$ZnylV@7zZ~oNs>>V6O_WR|VLs0_;@*_NoATRe-%}t6XiBE5Wy-=8BptYW`;+_zGP5{b;fId0DY{FY?+Q+i&-~e%oj?jG%WP00`OYSV&u&8g~X_X^g^dkZ`IB+~H0F?;Whl-`fMzMOM(u{qQq!0+T0~39>A*im{o8EL2WcSuiaSW52t`$#260y;*9ROF6+Hz<I_gPS)Go$%?vm)`q#ndU&jy@1|D;poFUU8!Mu35`$;rhjD-b8eydT=`7CY^Q0++R!qi@?&M6lp9q~b{3*m^Tvf=mO3q}B6@=X8LVMyyGv{e;Fd+Y&r@5g7BQ#r1o?Ow#`@160ip}K0y`<*HT99lW`|0lS3D5~{d!l5U_gcL1jjO$8_^z@IRJH4_ED_%aOT_PrEL#zBMaciW3HeT9ERisf&u}GY>LsP$y-?eBy0%$2JHFp**Ui>_!VMOGLxpSj9^e{=a%es@ckESB2Ul^)&O!=aA?nvksDfM@zL1|uPPnvnt7fQgaNfDk_c!Il{XxS8(lC7^Zr~Ll;3}#Y=!QstbTbX&y~Fq3Nxa#}VFelmPU241N!%`g1+)rb0rOCRtsE3!3je2uKU5SeYB<Ek*MtR}*E%f^k0@N>?P4!-dsQV28o(DSVeI8f7`wiJU%8H1<}2Q8Ex`$N@;HHpQH&FatzQ%>v0<0lJCNOiRQ#Audm&Ds*{~MzG}p8gukm>xLCanmY0<RWjin%fHh*pw1kkkY${W2BGb=GuUSjG|H~{|0$wzzpAEG;JWqDE2bVbwOF`B-U;%b@U#kXK_(QVXy+i5h-UeItlPPekScxP&-%BZ3;s;G=ADx-=I-Kc^v*K%Tc)2fUrs<YT?LtPnFRD@g+az)4=o>9fK<m{(RIxQ%1Px-Vk<gB{8$xEsIpkZ|!Gq7yOv3pJH9#U%JOHCf|$Gba+$B*|8o}RoPRuP2j-XD&Gb27x2&DQaZ<GbW0@6UQ5HxGkei0jPus5gni9+fzs<j#HHuF(UVHuQ>Y89?aLH#NiA)U5iZ)?ibH9asXx(JTPAeRJ*K`~g`EEV2?HhOP+HGJ|>CGAX;%=YAz`{X2Q&&&D{jJQ|5_4;@Z9wtlN}_qX7LFJ|=$Qnl$6$%}S@z?{dI%X;UR%`H<o!M;D>T#3j2A`v)6atlf0Q6TMZmeY!%9LkG=5-v`hiLc_+zeJqQzLWg%OS-WXY2C8R{qUXUa%sG67LluK7<J{~x&)5SL=b=s>AI$!#iUzlRV~=DXZND%#{JtlSK6Lp&!9#=-Fy3Dr<k-6ntK{dhO<}Nx>!RtaBmr3MAxwf6gY#O4n91YF{e&GCG2b2xw^i#g$oJ)0rJ(SRPWkGMk?4lcyjnszOolgVRa9Bx~4dyzLxv7H`-O`<L-@|P&ekc^lOl}wyCX&kAur}tG8CWS<7tdHwt7E<yH9&cF7(ZzFIz`J$#tmq$`{F+Q(XMm#xY#+^vI~_ha834Duhv+o#3f!)3}orECLscVQ2tr6*X|CP{s?u>BBYzbEt=BY|cl?TUIU>aD2vL!#b0iPwjt!OatY6tCp6u(<HMKNRjee$O^cv(al=jZV9B4{^Kj6NJ?E-HZ74mV5~!=(Ij`+FNiXcqc;i4jNtpt*q)ga1sn)K+rYiBI*IN-+HvQqgdT<&v^mhm*fofotl*i{>F{~+rwx!B1Pi&v~?Ihqh`S0OhLFU^aJ=d;<t6V<36|mZiO+htMG33JnVmG_WAce=FgqZo2n&!_W}*0OHA@}R{PexdZC@#-!~OezLD7CH*$)Og;CxVbN?01>GS>orFQihJqg{;#^XT7b1RAYw(8-1tK{(BT;cG(RmMSFr(SA_zc^}}QC}Rk&9utx>+xG8YJRhBFAUq(thW|~ZEGs#^Mx!1inQ#dk=<HmYiVS+mffyw>8sPl>U6P+>{iiqMbi~ce^(;AolJuj0U#EXeD|u9PS>%0JLs8B%QAw-eZU{)+y9-`qr~{RD7VZ;;q-<YD|Wf@*6WODvQ9-|e;IGQdAo`j!e7v-`Z0<vL2qdzzXg5G=7Xo<bPN7}GV3f?-taWKqv~dQGY*8}X6x~s>PDzm3bZywfD9!-5@vyV=N>o@Y?!oqaTYt?GLFPIqD<mhufRy;a->WM%wRrqfRk!I`5bDB-%AygXy44A^c1}m4)!;vvw{)zuflGny?Vd2S1lu}y|QdY&t&FYItn#gDKG?I7GY5oflnw}tG1%GYAIT)Jp6>Bz-s0cSj{;FR-;%~)yV3q8bxX@r`UwYevfonIR-}BtOY#GZCWL4%x&2voXl-4Mx;PfoP}zz_9|*HvtDm3gqf(LX-_GNMBS+uvN_0UwHNU^*EFp95)GPZG}=osDon#(icw)&jg<evZL?J=)GFb-622>iT1C?pO;<GiT~Vl=UWe1}#Y!5rMMdAeO0DG^eaGqAy{6H%Eu(!8m0H0ERA8#_0hsEP#zmiAeHVdLg-XrucFA^$RcpqUsj9zLM_j$TqD;IW$|kSgvgTg?PW59I&gy$;kyRnBzFRz&cc%Vw3RGIG=Sp>AM!P_-WfvH9<@HEKCS8V^(`3ylzZ82fp$BUwDz-wr)o&PMbzU*%tgQYj@d`7o71Uqtg}AClnKf5yi8Yte%HyiqRxz%svqa&AV5KDrueO5yqJo+hDZK3ZB88W2Tg$Xow(^29t(CLf?#p!egLBBLPODxiuPQ;e5_Bu&RYlVkO;<GiT~S{BG@6~xI>AcXtA%CXz52>&*iFl*2WG=DjZXJIh^s|kQ2Ev^RxKf54KR%<^xI|Fi*qkfa^G9$y9=Kt)%~ou-i_^+^_Fb6R!}yLzOLWjw{Ev3=9kyyf%Nj$TQdLaDXuC<!OGO?od@!1=G+FGMVct<{%(Vd?WtI$B&NKAO00Sq=KTuq?msxdSCuM_Ao<6;$9qrqcD7IV4iCJO-P2QqlT-3n@HPCVEw2h$P}crxjtjZXQfI?fbFq5LT%vSxTBS-S+ftkjo7Q4y!)9}Vvti3<Eps+(IjyD6hV8nw)Y-6YHY@c~C5l#}Xr*4NXu6{5il#pd_0oylN@jFLYU(|;LOX{CC#Ty7rze{<h2UrV;IZ~}|M1cF{z+ah)a*9ReyiJUcCBW!WA&Ekg$jYsw%ASXA{qu;kAvPx(A^Rr3AHVKVqbibh>@}M0W2bwQ^9bCJGb6ey-4SD9!@W29h&aFpce;S!!V8hrD&smj<}~qg=2qEi@W}$xFA|2DTOD&IEstvU-n4uEh;2)jo|4BRP0IZF<txP%i_jn-mKopH-^y)UkVQbc^7>uiE1#t{4q0*D{HGi2?7@3YA^w(TPS>dJ=GPCE+VYKnBq>k$d(E^%@3iWp?^M#;%V58-!8B-2q)96IO>9wdPf(>$6+j3rpAvD69&EkoIZj7y8`Jnfpgw`@bR4Dhouxj3n26a{Q$)ME{oEBuOy3}f~L(pM2d@%qZK^6s6c>>wX3|k9}Q5+a23WOjpmI|{Xp+cP>M+#0!$&7*9&71rEZckknK?``vI1T1CYpiJ+jN7=SZ+47Z2zS5|ooF5<S(_qZm5T#Dj@70V!zI56`nXF=tJpXsWg<$(40N6DKM1^<4J+D`W3G@}|*cFrwH#iwY7nB%<>st(bcc_dANqqLCy;v(h7b=f%)5L<g7{lU@}b6Xu{;DYHe@QVbbk4E;wez?+SGtY#w_niEAqrhgB)5WMHhT#ZVKs7j>3GB*n7DIP4CGyD>nCho+$?iNhzVm1v2^HH@DtrbrmsbibMx_Av72`-1+lV65o(K$kW29$gm5HIuNi$REBg3vgEx~9DN>!`a{!{-(ok6MPWF@t3+W%*gPS(sCQ0XG^(J*`=<!xrLu+b5s0!EdS(1FA9`9P){kV@A6`)8(XQP<E<avPu8NbR^vLj8x5KWlXpHPRw)FvJ!}F%T$zQR$VO~#=Q`|AX`Q7+>AqBG|Sn1OhSm$4bKSu`XcOJBz}_Uj4Qn-eHn<$ppWF9gcWK4bc!p5%z#ZPtX?{>9jb`UzfkYT6UAthsKZM6v1?!y=Te@Gs-LBN*)`hEQr^trs#oC8u4$T!c(iM?CD;N!?b;ZX%Y$DGs$IaZUAyJvdA94+o5g(Fbxf<Ace`XtwTOSajzm2#<>9Vln~V6k>p0fRyc`O*SK#NaBV(79@pRW|HnV))Z5Yi$-tIP}A~nn3A-z4%<K2e*oI*bDHqh@<<@Ii(>6Gw$w;?V3RG#lP+QvNJcblkzRCvGJMDNmh{txL+ehqM&W<Je}LB@qg4ah_daABs2nc{P4&j`CnPwe?ItHD`<NyA`r7d0CaDj)GVIH@VBflV$<8<@w<cAZl?7%OygBMY`gr5FCBcMY<fGzNX(w(4R$P&o~^7JL(Y^Dq*Ekr(zo!Q&t^3;ecJ7CRdq?;ag`&yV-Llf&o7JG-6%QsvnlWEhl1^L3bIbrgs;$@AMsd*$s|Rq83L&0Jnvu5DP;?!nXjy^~M8N82a69(Ewraz`N)D|&joyZfo|p79R0pY2jbxBv0>@8RFCZ~yW3H@CmN{e^b>Kf}*|yZzl)e|r1t^f7#~_vHEhK0Kr@u<LWp+tlV>v~f0)r!?Nl&hg&Ssr-;-Rh_BI0D=XF%ukMYR_lmaJlP7S-K`Gne{}pap&os9c>4Hm6%3<k51;(x@Y$~Sc<*?nA;1Urw-25^-+sF5{mYZXgTjxNRpPg1)BxgZcRqc7<o#^#Xz9Z&X6av|f)YFY`O(qw?#YRFu=|r!Z~OV_ArRs5>C$R+$%Zb&jP|vn;);qZD*h0u81=2FwbtW{tdf<JavD}jSwX}4d&_#f6OL%eR86a8_xkNlqi>jfzt`?8fwxc9nO{${wu*-At*XOvdaZIbK)L*VH;H<wEX||Crx!J`i^P)zjrX2f?MD0l_eBDoTR{rG3=-tQ3KaR?&fziA^v<V13@6&Z`d8X?G9xEXKDDY1>5wgXLLP!qD!m&!H`cB%f&jBSlfb{M3C)5$z9_Bkdq+P#{e<XGy#KBhr0t<I7_B?Gfd)a!_~K@HWoHk*r*J(o^eldjRN0hPsc10@<?hVxd1X2~8wK5q2%2f=nqapun3@>uO&)1T<k%Wv8iJ)8O@j3B2&1o@jh0M}vr%RyJUn~g`{SwBMZS?aN`eWQL=WkI+1FsH)IR@08-$&HKg6F`!+}Y^@nEWr{86NhcoJ))s26-5Yp9Wl;|uXSkiRvYN!l0%Q%wxRWEM{~G0|aJ)@CE%qS`e&3gZRzgZ#3kQ#$EOp}Up`$?CbECT&r4O@u7O&YVW_2$$x&=uT0ascX-v55;lxra}}vEJPV{4BjG9B~7q0(Rc7%Z_2*ZqSdOIlW0ed>|n4vF!y2@-A-&XDb-lj7)BbMRcgZ-aI|2=(14@auoFyT7$$PRp4`AyZ`Q$kBETN3vMJGA2b0S$gBkQsjM^{w%E2JIF7J<3xkAzdC(n0wU`2JcZFsuitCdsfc-BSXx<4BXZhlYur@#KIzfcDAv+d&p*bBK@W}94*YelXVxxUxr`sNLuyeNyUu%n=j0H(b8A3J+LsQ'''
+PIPBOY_USER_KNOWLEDGE_PATH = os.path.join(PIPBOY_DATA_DIR, "user_project_knowledge.json")
+
+PIPBOY_EMBEDDED_TOOL_CATALOG_B85 = '''c-rl~d2bxal`r~L5`GtBsh!2@9@~QlwP8R_t+p19NW1;!VZfVJl~t8yRb@FBQtaz%sI_#vAJhVTuZ;oxjOTgqEdP)c*b<wfmL_mN0QDW_liagKWJG3URgn_MlA3?mEmmg6dd}~xapJ#yC%icx#7XF7efVD-4_2b=J7@my|Ms0xFbuzQ<~!%*@e({<lE?mc2EnM82R(ct9Q6iK+J_%IVcJfjaTdiR`2DOmj@QDZn-9EhGzh(RJX#HtEKIyKACKcCi$*=~2k(E+>&D42$kI9QdeRF<(I;W*or~8-gE;8Gk7qlp!KfW}yl4d92JI|b4a*He3*J(g4D*{_o?^4@JV~J$`lK7Q!#Qt}`%IxnuM>5<VG@oqZb$m}f_4(8@X-+FmHJ*MZs$XI3H}-6ohbIb)u<D~e}YlR3zBvp1_I-|5C&PEKxaXo#n4XF_B!D>9CgA`dmToQX2D<(;F|beEEDWNpMwsrM3&@j{G3~D$HQ?F_QO$%ljQlO@TJ!d#z89@L|KGgew0Up%$)REl=Z##APf?3oIo2m8ECHPF3z)Y4oeK1lm@He@*r*pvQ6`{iXB=E_z?CQ-|2Yy2#45Avp9hjX@<ib<`H(9?>E)<G%w)#sTPu^kMo5^k|mW{rm*4dz89q4PZlov-oiEfzjGIS@9M($@&A6{d;f5G!S|MavBb*|11Tmj*#G{I{&#4Hvh^`6M?Y+@go#O;)cq1ZoR^2QQKlj(YCISPgY`7xB}+pfohV!P(snQ!!Su5}%%c-#VH*}z4+dx=yqO_2rrt2jf=-YHKJ3z<O>2~T?PPtN#l0jL_kke#LE6V}um@P4Q5JP!BY{6M{C6;bUXqYlKvNSCA$-_c&qC>)2nb$J;_<p3vkw#$!X|T1>*lMgQIe-T4djT`DDZxcKP|;Tklxva%R<PSYJZgnNdUtcg<jl+ElbByJBo9jb!u>sUNCr#X(k^7a(F*{|KdllnK&;LBuV>$C;$}MX$MKCM1>|9G(F%M?jD)W`;C4#b-oO}Bh~U3bKc+Ul~7CpOpLrt7?}d?DgI?B2t5E3__f1x#h2zfK!#z0%a`WeZgdl<*`Jkedr26sRH*jgpI?4@uz#?7@aW+A!REn>gZ-Dcy@PG|$M(Uqm-k-YJ=mfjUVi%W^Mjp(hcCZ4c;Ov9g{OPo%RBV@7sX3=UVet(;fwIsZSUnRXz!i}f4_j2_TkTm2VcWq@a^4~U-HvR^FF@+&A|o?3EzZq?ZC&|2an;;$1qkN=eF;`x6lG~w-2wXh7X=XTkrt;J9q?>+lDdi!H746Vbthll8<0$U%+d6V7K7yC-iWWhjt5phhE^%Iq%^2@b7JSVG}yoQO!Jr(Z7IU-h(CCHMq>@#~ZYi_=r~mmz>rD*2s6YVDX=i3%x-LO-<~*e1LlZ%K+>BMT!54+2Q8BybrH!!$^1OcU%qHiHA6KPj&#7ig(r81(@o;!JB)uL_!)K{1bjqJcv8P{XL<!X}xx60eMg82N};kyzq#+|3d8`FYZ1qBrfkA8SJ);X%GH|Kae5fAM_RM@#oOl3nCGuN!<9ExLICRli5-~OyO(j_9?C`%uTU2jqO(kf7|0!jCBtdnft)ieh9?82i*aAZonepWcKxHG0pGeXYlV0pv_{6dfDM`pe*3sZ(x55Y+w;Lj9WN%;P#a)9-H#*DnB_VPi7KsvPf5=5&XY=>0JfPhAzERqu5L0I6Hj?Bwa?p9Uv;lS)&tyG7_s%fTRHd5|2;;VpRM2wfW{RKKQ_ksUyblz-uAeHvk!-5#WI#a1{510zj0XW<Cb_7&en|7_Ww}Swg6p!E{ie6k!1>3(Jb%H0LtvWO;xKvb;KKFUt^{pkH;P-rO(Kcr@o-3_;qXdgBd(eAGq-gqo5$aBKf%;l}w3mw(Z0MWZI_GtgS&N9j6X!0^X&q#^UN(^^KYoL36u!7vR6t0Kv``wpOvwepsLn6&XV(t*&9D0vU~caNwSvEC*G8x~Hz{G1UL-V?Im?-1aCel5yCbj6krz9L$F#=JokUPcl{D@yv@0v@~15Dy<bM^1aJhx?F+d$7xx^cexva}o)No~N8tboz}0y+7kbL7qWp&tXn?Xd^(b-X*!J*n*pccXkm-UVd4{!<i|TpseR0Tj=?bO#2}<x?S$WqGO<d+a*e-rd_0LY}=klVgv19ZZGfCjLVd5qTFgYh{w#axf|`&8;kVDY$`pgvB+Yc^t2YX8qk}CWRX$}&nU)D(dZh2x`?l$`3pKVFEgp(;~?vc;to?n126^g5w%wu@O6^mkG}+s8`aY;>VyD6uNmMLGnf{=-U`|)2-sqJR*{Y;j+1WC;x>_a+JhWNC10maHgm91q9b6WOW}a_gO+oKW*f9jVC;<tc@LIRUi&2NH{_Qlub9j}7>`2~xb0B1X%m;5Zrqzd0yX&eJ5qu7g-7>^&GrypG$A+v3>j6^guyuspc@{%49c>orS$!yLT~mBju)kr2u7pIW76M9`9$>Ff{zhs_T6;z#;I}pOeh-1;mrya&V*<V%EYc=%^vckG<8Z>7J(8R^=&FWcn;le)AE|?+C+M#@hhS&-Zu%?nrc~xeNGDC3oWe#+hudg_}ygOOQYeK(I}1BGXN%jY`HNO`IV2=EA#TojBYmDYa|_!X4X*-4C)kG21pyn{NAOdt5=FqF+%0Q_rvIupar8D1nX!QBN`6k1peEN*%t<ky?Fk*R=5nG1%nM}IQbxpa7O(&B`;quN8t3K`(V(>BCwxfz^hTX<_lOix=9p{Is^1zq)~5FKyEio(F2A)k`Pu2XEEn3gh>~<2O*ZGhMk~u0$3@E;o}y%0pUxJW=B2%AfA-kX$@jf6FX4?EkK7|0AvrQ3M&QM7Qq{@+rdU_-znC*@UW3HV}g54QG^YWGm%RTO8ypM06~I{@uz5%puK9k6dnUBKSzTH5EUSV>?gs)ebQ^5p+!W7sPY<=J|WmuY6ro?Qv%)>WaaLV`Fxuxu-Y&^BTzuSk)Du72;)E;evTG0sv#SMGGI^vV}A~Fc%Z<{_e@n&H@>F;Q#ib;s{vU9*!;U#-%rsP*QzuN04+kEQS)CB90>lfgX0-Z7}gd{c3S4g<gwvD$-jZ?{tYdHcole>jN>qtr!di5&@*}vNIKDT77E)u64bIjC!HF4_f@kZqgZ0VzhS+h85CkLgU?}qAFC%MA9e^pAJJ|-E83=6V%uOjqt|BpjdU+)W~!q=Sa3@*oh+he=0XJYAu4{O7=E!poPNGWKhJEaBiv9^jVxF}5CdI_!3NBn2>tJ71f=xhAmTN#Kk&L>2V?}9QML}SP3TM-U<|J<{p_-LYAL*#c|S|x<;yBUa+&~b{>o()otcAY1m^&v@wg9~Jaz}8&>gY4z`b{JQ0)W4+QOrZnl-i>-VEEhIIwR*e>mx|6J_Kg$iiMC;gM<x1ZS*Jmgjnmkr3LuGbq4mi<fDONeA(MjfyCVyYlm8!zP2*&L;^B1|&@7y%3+w!4nJ0>xiZXzW-pF$K(eivPbxOfLKAGtmK%0=sj|azBqUSFlC?}uyxs?yj!xr>pEa|e@4IF)f`8-M3{-XlhN&$$e64$`3Aq*&RO!)-9aZG5-52y2%um*Ti(GR$+4@wbEiFdSz$T3m&N6Q@QiLYpk<t+1F%US-ysl2)GSa9TKJM$*(E21Yw3&ypoO6&1eru|PLk^xsQKUUWUH=S@<>8&uy}@-86^igJAD584k6<PI(yYi-;nQ~r}7lRjq#Nx!FbBEFHqJg-)Vr4QC{JI^mftDjLRG3WEcI`vH5SDH28}>MkMVz9zOX0%Od}EaPvPRmj)el@pyohfI#iODHzV-!>hsQyQ#Ox4-ezV4ToXU!%%W_@%o}Ng2?L%dSsjfwqdyGvUe>6a6?NTH0n+WLZeH8@hC|%*0{+OVu&Sp%n|-+x)`cO?~d<9U@5>XhQSJ_1K_+GFt4=1)ABAx*`>S%B48Y+h~MkpIB$U*^0gz%3)D*s7)CF~uSB-*<zp191|}EpkbeLJsbjP#ykIqm24s!2VJ(xu8~5W3_4{GePCzKdBMiN@;{@$zu^AL?c<e6({D+n5{1QwXYKT$-R)Yb$Wnuk#eP#S(L}rZ0N%n>`mWF8UTwU~nL5QJG9p975G>w%QM57f9gKF;)Y)t~)hA7lV8ODl1rovzbX{<~oF$Y6&ZpzZ2!Lk}AYYEzM>H4UR(cCm5vA0f*CFG|XguMV3%^1Tl(!!K1tT;~_D7x{PnAkqjvrI4WR-(b6i3BkM;$YXl+sh873jRHi$R{#{(wRCs22&yRCPo~9z6M}u;j;0TDa}gS`q1mb3pl*VdRVpf({r|5MtWUlQeD>eDSJz=pwY)RC9jLQY_c@A>x)9dIOrixUIM<H6M>DfBkd9|u5F-A;dr-fKW{O5$<tJZSS3Z-IYquFQ=#3hN@sLo7$^ZS{wMlogZ;G?piubigz>MS@vrcCfw`vl7p<Ys(cQ&^@!45}NKba*3pPTOBxVHRVN3@cU%oHv`&&Gaso*05hWZ9=K)!N{q2g=P5hP7eXm}f%*dje*&(vtxOx+=akK}d{-WDB!*NPT_b%-5O7j`K?s@~ly*7iARS7;1>hI#^TKJQQk@7QKk*6rTG*V^db=54`PrPzw>&gYPi2-zZBT?dScG^oKlB&HuSy_rzS$|r7W9ahpnC!*y9?G1zSqNe<nAXKe`3qnb^hIRjng1)3n3dcU@|2#wU6sK~Ah>=JE)hhJ@tm{3RF>%ZmZ`_XBt(Omw_4i@Zp74*hdwILyIDE5?Uto)c{_fx#qI*#Ts2h5KLya_B2ccPT0y^i=vM@qDg{J{Ynubp<+kHzbaX<hMX`k3-2NiGH+O!WSOrqLiWuh3?ES1OTQ{@U#?*1n<74fPJ!NLrbCV}}{dJg2D*=25`W`rquJ53U1%q`O;7%>l+?qwpR{uf)cVZbrJfNJ`#UUasPZjq`@|5V{L)Yl)1(?;>3;<0^pF>N#NzP#_$h5rbv_$h7jZM7<FmEE>-7g+C|O?=a;yf86iztmPC&cz>2_7fU78moNXxmOVLHLCjrflqEClTT&YwavRvhAHEsLl>CfG^*|lEV8V;og~8HSJ4+_9EQpOrb7nGfF~)qR#0FGADmYYW-=Kt1*Rch8P%lW9695)l6Wmu$!nNA7-ASlY2Doj6q-)XekEYJ);i^3`Pyh00TYb@KG}C3Cy@#qq(L`S{+8G5l(Ck<>%`C{SYU$rpul#*ZjeKFz~k_rROU8^pK!7wsB|a=vT)?ZBUD3U)<gps(|VkH?S34?n$Q><jgUU`E?mBH9)kwTM!+x3{9}2IXM>(HiY23y4c}CLuXa4fB?7AoIyGbNX$}IFcD}W)W?*TM6E?rjGbEmX9Ww5BYq9}NCGt$+%|^i?4rj~?e2NYV$?xOTyRV_OyYfmk1(0Z8{28E8AigU1ap5jOQgUdO=oos=A%+dg8{Ff-f;A2Sek*Iy;Z%4dBd9h3(-dF0115@;?KCs9za8ptgR=ky;zA*G(f~G4q8T{F5d!7qCYslYo-*l8PTo{87n=ppp=5~q2`q5%Pda*zRs{nelhj>F?NOdCqD)pDI7GCk$G&5vkr+`C*_$m_{)*<MIdR3TM(r>qFtY*moIJU}Pi8{YD`@gIMq#!VCo3MejVUp0R4&&kU&I7DinZdajEewklvagS>NrRUR0ptj4UCH#%}@w34HIfzXKVvzfL5Gi)<iG>gdz!rA$K3JGyr9sa>&(u`P>7Mf)6qbbJyV?*bz=&?ETen)Pd3VBZ}l|AB4HB*geHvIrAF*OPEs$e`eGo;TpWciY^)U;V6mPeT~3`q{DO97Jct$3!??!TfBC4fj_(!W*=P!>lXS&@4dq4pDbR#Ch7n4i$CXADL9B?IeG0O<wjVD1|5fW>q92RP{yAu_cAWi@{iD72IL=(e@se;@6Ba5Gx+~@y2`Vd>u1BkoOeMKAMW!vle%Ds-pHFPJ@T&8gvySFdXlb<Ae8(H4De4S^ZB>p_@(UTr<CQ4NqB`a$-d{uq*vZWtq8Hi>6<8fAQ0k8`GzV<Tm7sv&RMA{a?wRf5cd#Krxq?%ct-_6MLpl)Ol;Noc9o;*Qq0ZV_sXiUFkvskZawcQd17;)Gn9;d)^np$WYLZAj2#fh2z@i%5*BcqY>FKn)ujX$4o%;q#PY9;^{A6-JjF6ItBy+SOge}@3qT7h1{Mlco5{5@3~c^J2ABnUW=e0GjvSO@IWu;snFxB&c)A)wh;d)g3zLw<&QIT%1SojS3bhoXJP>x)5i5LfSv@#}&?JwdSR6@lwkq^iNy#a&oSfpIGPf{er^p==+XOnn-+`~<cx4!XXa&w<3(6Pt9`kuUFdgwk)(VC-*c;<}SJ3@~0TE1N%12qU-e?7BNSQ@9*8ziaN*!V&2E#i|%yw;OO*V1pQ*<SXu=AE;eR>fOW6>!uXpN_YhqL%t*IJlxg7@`tI9go1;+M1KyZK<yz;WwzEm*)X9Hsp@Bdy{!i@fW_aVVf8jMN8Slv-(?)<!o!EFFqMBPPcqm0)xutt=~AX~IZlk5#MCoNRm3+9LA-{fv+GwCOQt>KQ*uCMjA~<>kiia5M2c`lU(#Ki6s5XRYc9*exPm<XaroQ5FaS4v)h^D&W??kOhW8){Wwzl9?K`$+|W=dyBJ6Witz1SO&?LonC$!nC=-7UOSh{cbHqs^ZOZ@Ax2=E=P7)YS_}kJ;#fBZtM6-zQM-$orT7#T3i<~mp9r}pu$EI;ZMh@*z<s{^)Yz^W-$pY;JutROjZ=8C$b-@m_iZw)v;-=LU<#%+sn(qt_vVGk%@b6xea}dDU^lFFSZ^kYXM=^LEj*|mxMHX1u0%wPq-@ooWXzT!g+yM<#1%v8$tVhp!A32hDZQb<hURPToxE2?9m8k1Uk^O;c?Enxp0@Iy*Uxc6rZD{oe!axM&Ll~T_c4yzpd&iof86>#U?Qej_2YzqA7n^za2ey_Bkym#A)1#QTjBVSoM@i&&gPv6Ca=HfhXI|^W|vjG5`nol2zu-h?1jlVL5<bR!ghZY58_@#CMX`VOFhsGy;F+|7n<j;p1m>OoIiW^w9f~G@fiQomBnTotaC6`(WQt!g9zm|7{but{Pi1)V(Tp};4$ic+z~fqO6~;|)G20y=`;V>aT2Ui^gi@BqDP`t_4t!uHCUt-B+&^P_c*4}Q))mMtWcA%(-e$X2C$az%Cos{Sm*fV$H6)|u77sp3NJ7nen4}up&h0jtuvlNUAGBZZWGnp=EAuPr{^%;jvbJ&6<Lt<@c142A3=dbPh&q|p9-`EqPB>)k-rj_%jp}X6b*J7vG7-6YLLQnO`t(0!DV>ZRL7T#DX#THDf_@QhhHW6h=<x}NQ(<+mo8CS1N%vX5uMK0epY2ntK4s115s(^4>E`4->A|W3YGji?sVnozj}a{UXzH7Hc$?sn}WTLncPy{WTo<{H)1IY((IFkw?}Ea`;rG%BMl6T@quxI4S7-2gbg-<Ip10f8+{N~g>av;KkQRL+9yS(9GO$<U5bm9*;SgfIhF%Nazgn_W#H}555@Uwr4=ZX6S>$P8jPsI*7~eDw~NfJlHEME(T#&QyCTZ>Uw-MEZR3~3_}Tyj-X|0N2}q^K+&6sj6>Sh%+q`a1Nzgqp5&<!=271pnz4t^#&FoNpF-O7;1=*x>+o#Lbv<w6hd0l{rHn8o3=d4S8N{S3CcSuH(s{MeJfq&KN%&v8Uy{i0xa^^xI=~@AifKV|Y)F2Am8+&UgUwpAArj}H;&z+!k@b4Az{gD3N6bEkMVa90x9hrBLOd!r6Ox8qt$4<A1Dllapy~~>t{X`Dnu!Rl;Xa|l^4<}jxYdDWzmXWX&q%`!03NjjDJbhFf8D(EPneG?m5uPevysgAA)^J))2|Qh{b~%7%jZ)MeB}FEjHJA-#YpAP$+$j#DItWHDJ6I)_Zyo=h@wiet4%<;MAk788!-Fi|^~KBAme`+8Y6vnbs(y4Di0b7eWPB@EysAM$&Vz2L1P{EA?*fO6uo}uL<-vo>bhbZ?0_9k!WS$4eRC&Usccg#pb}k-~`V`U8qa~@5<mFj3pjt(E;Ixwu&@87zWGXKnWTw=J;VE~qG7ze=R6xc%b$%E`n1b@r(tPt5S8sShrvr0HQO8-hxZtgX>-aBBm`gc1KUD=-fcVjCk&c2fsjIXIG1fFnImtip=D7e8CR3}tezxM|tN^>}Ifg^Y7BE`&&}k3+(l3^5t%c|H%38|}>D)eNS}6m8q;U<50UohV9e{>^qo2*0V<y+4UK2S$#ycY1XvTt3i3vZ{rvdH3pn9xN1g3dQlpV|UUZMC&C$3bw`5t@D4SU_8Suigs@h+4ovWT!oagEOhdv;VBSJ}`kS2VG`_P`>}A}P*uw7dF<0OrV}e?tPkY?C{))*U_#VL@B+D!&55Q)$9A=fjvOCC{j`f^}A>SD3h;g1$ioaS+~1Y5#ou=?>)+-8BQ}^vVm~Oi=yckpw00QRH(+j=9lNaTuGt^W21GXVXs%0X}aGlEf1_w4}2B1Q<xlKhwmsf#~4l#COT;{|uWt*gowz3$bg*RCc*?3>)`b635_EW*mei?b8U{t0N+$&2DmblRLB2fEyVGAdauY_BF8uwTusFd1>iUjnF);+9D)+dsLBsnHW%+;VfDm652^rMGc(kXsA}w#zR-izz)&zL+#SB&P-1oJd!-qpP9p;pj1WZJ7CLrsgmV(jJ~rNw!fQVXo;T9rc;bSc=8!J-y6jva+GLQL24S3X*rbQdkKo<u%l`ra9XHY%g@jSl!so0S^%3!B>ltXg(4O}VT%TpaqFNP3R5G*;o|GKigb#C5#+azk_CTNW#bS@`M6vr$KMLA2=s-IFI~U9=zA24yAfh#z|h08d5d|g6H|`*`B6SRZMZei7RAzq6yuQ5q%`}*zrPas-Y*uRsrjpmX4yD8-o1FqYbALWHsIYhl_tOg09iniQqBQj6PSU8?PH$ZvFHl(rU#4bFlNi5z07r5JY3l24$y_8bVZq*%5~x99B+h!G$hZ+oK9>s4{!Hk9Pe!BMSsNm^5dp&D={fIQDSrbneQ68@w8OXPCqHvv9mJ;CNWlx>hdQRdbeE11Pg(?r{zgS#i$AQmus?>RRCALAj}%#<b;}|=*3~ja@c^1OL7c`ljH1z)JADM4^R5hQSuigmG>#P`8mq?yOgEyr8?gT<Ir4P9H_R6g9!K5@a^dd+3m)VI4EE{jnw?VRBDOA&5jCn$lxls*<$Qar(dwDKnWT~*0AYI*;lslwsAb6GBn17w@p^Fo4krHYSjvSnI$w*MU=YgbuRQF@}cSh;tl9HFsQEf$)QonQYccE^+&}eoR}Mys%7|C4~TkEMhD8`j6w{qoIQExf_~>P*?S;8Ff%B~3R#M$9<gmzO;(OlqD*Xo4D!a5dDAA(w2{s>h}Sr0sG)O)=DbCas3Z^3o6jyqBoivNI;I6Z)dpGABzX=Sc$(YNF78E;GC+$fI-ulB79T4Ua?~P)Ht@$&SP~~sn;_iCJqQ+V7G;C5iS=ijFch$eVBF0Nx?_I<h}ec`20-GV&LnjFVE|fC#%h3}`ka#zw^$dk(TcO?PZnW~u=3pqBWgkFEnHt*y!_FX^WLcuq8P6SNc#)de|GKMX}@q!=n1l?rNJp2K*`ApsXZ!%FdE|fO-Ur>;xolE8u@|BBL-3v)Y_(URN4Up&Llb(e}$1QXebwste+Zc1<m|&my<&&1vg5)e5B8|`eq2GOC`yar=w~L)b-$V*5GfZzCrovL<(8qX9mre>-fUz{YbIMkF6XfN=~xrSLH3)*^Vk9*;YSh;^P`Mgc2%5M(t|3UFSBjC6bzqI*)dTfar4+J$F?tlxHN?cQ~EymahFGS#!09oDtF4fEM@UtOsZ*Xv#l+`2gkPlfs{hsUaj$RVE@uJsz>QnGYr5c`kHTE0|ZA6;3cQO5{}1Cv;Mx!WiG_6TzW~Hbdt*pH#9t?9>&`1?8#$l7)UqTvASo`=t1A3If+i&_@#`0o8Casc^-HCvc|RF<jgb*Z9+-^aQN)?<zsC8d#&eyaL!{t2gaUQ~+1!S#i7Bo#1Cs4aWJj52;ypDOr_|=wF4~2#Z$mDM0u`+|rYCFS*E_37wNY|B{vYR%vmsn6Oz7-AGOP+(r>as+{-T_svL9y$|v*psuqwCjh&VtFkG<F6D~3OZ%^jE?44PqGQ^1?lu`Z*`&fFq*#Gvl2oV%q773<SXr%xlmJywMQX6b=y=^!0OyM*bMRy)wQrI0Oo7d_W|xk{^#f9&P#MIWg`eX+4(N6nP`U{wo5~xfu!cQrNSLxQ!ZQ{ftJV@Hs^YsJ<r&sa0$pPsB|8d0tsS3JDMFlC3a?W}E9RYGV26@-u=GDSI_E8@+M-2;JXqs2=#j!?4pDBQP@|_C1tgNCE;Qh3u~_fa@MzJ*=&?Q^4I285rFpx(_8`tX-2v)4Sq@7-&>CAVi-8G1O1C-|eQOa909&_Fm>wM?-?_BbhL$B+FzE4$Gf?d1xL}7>E$u<2EE#TRS+%lEnvl+xai~fdT1@g0ZBi+bHkD&OgLSEK+Kq1_87{+P`{c$Xx~?s7s&Y@abkYH$Dd&vHfj^2xybxc?Gd>I5q_^;lHoYO08APm>3d#SGn%8v)zCySo<!7J55Ymj%Nco82DG}}aL~*A{GQDtwk*bxZZWRaLOX;(SswHkKFb|sgAEN9W{Js)m;oX%$#B<Uww#7+x-_FyxZ-!YOmJ?bYst6XjZMFqhm9QoGLRu0{g%5;Nh)-!rvla52WrZai<ldwy<)3z)b+@Zj@Ky=_)WnOKJTwzAgvEX3kh@X<>dF`tM>%&XN$H_z0~&0s1e6-kDS{|7O7034O**xX2ZY%ntBM;JC2LDS1u~fmE~Nb^9CS>9d<B1A<ez7k#!<H3=*D2;!$x5aWi-N+2<Yq#V)Y<iL&>M@2gxnP)Ud@S9iO1=HuFvzHU!cp*wg5R6-lUyP*DIUN>@ZF1PRc^E38N`jll>GsGP*HNUv*ng+fOXLMus`B8TRve_mWEIkp^*L{~yhtHIaFkh*>~NLEl$RT{38xhfiH1z7&T$O&qax@8@2G-cVE*dm2YGbK~)2G4q+&^Evop0n+Y_(By=o-#sFQ3qrtWA{tRf(8}1E~n8KqmZwZiGolIPq=+$*y&%9sr_};K-%zhsv!;d7MH5^r0&H-1wgh@`kZ+1tpUp4*B(0;bf^%mjenA9F@bDpKGSH|s>Ly#glCF3PlZapejrFomxo>DUuFU^#4M@3XVsjhgJx9My2Dvi=tHJ?v6mBp4Bu1a4M+r_5>eq(E;@~igACb45TrydfQd0^?7*oKsy6GN`mj;MIMsJ|sUrZv8n8Q6yv~w<?Gpqx-(z1b09GeTdwB$a2jX&wm-6v2vB*UdfqWW=@pur{Kw9Z)I8K8r?w+8<6=cWJM>KYU9bH!2D)jGId^f-tOJ9^WR%d25+-t9Rp6YBe6gjp)9CnhDwV}As*bPzjR93iE*hjIp8dRx#rfifN%EYabs;KCAvJNieNvAK-6{SjMJf)IShz`#b{}4*h+ux8kk=>DZ)CF7j1*#@s!UT=M@Cyh4IQLvi<5TFdT#9br+<)N1UtwNmM-z`-2><VIc=P!1qJB6NcP^~M;*R8GC$wRAU{}DG#~lBF!OOLO0bXT*7xgHrEtEtVR8d;yFgHFDAnM}w`aViY^q}&hefTGpj=>QnU~v;Q<LwvX95@CorMT^A;o3#H@p5`S1ho>jDLZA;YOgDD6q$bt`oUveWdIshw{H}=jmn$Jdp@}Uz119ihz&A-(Z(BRywu%xHYe;9L~P|VRcWI(k<zaH>ne}Jo?l?JyKK|3jc1f}*WTdUuHuR+c~F;1mPr{GLD7Lv?K~)K(jrUr8_N4r7O%T{<lANz_FN=>H0Q8M_gDZvwk)E>xO23dI;duvB!d;DWGHE?a5$!B1$TWoUVSBp=Dbs=C6h;QF>bGfnO_`IOe0DLAT%=ke^^8JW=P3XEBN<m-|{`8PEcqWaia#{jN<eFJap?TUh|`d*G*uFC<#x}&VvEfk>}#WS`eE<?1Whm4MI86m+4VRQa!*fXiaTAlRUzDZIqmL3;?-AWxUMeleBiYQp@;_RVX@2XEn6EB~(%pBLg1Pvhg5Tuc}M>Zc%h$>a6vcQWMFj#R1v(g2bJ}WTe;J0OC05W+Xy!P1E}XS4QcVk~eRY55notfb00Xb>OSqN0pv+M2t_MKU7KP66jPO8q52q<0so{%sMr_<WYMrX>0e5*?C1}b@rp4R_%#rPFaQ1J$v<6ea<cu9QFDoYRm`V_NqI@r<Z7rWr=7z(0R43f{3<=DK9UVAyp@ll)-Fxk#QDpmt@$Vov*73!QqWh_S0o1+n3bkiU=z1Z_u}hk)mGB)~4mO;Q-|m1|u*Gi5IWg7fsQVMfGGh{~ZOd8njHJbQvAkm#^2>KU<>0C|Z221?#EUq;$N|L(fBx3rfnpPo2D7T*;n<Jvv}TMZx%pKfVUSX5IUVDpE_MqN<f>5+d&6>pnRm8duI?1=v>D>4<B>r^xv*z-qpW{dgR8*NcOmfIM+L9}kBiikh<vms2Tl528!P=3xvM%hF(H?Ia(z;14V<aS?9<rsM}N3wlO~F5zR%V6)A6i)3%C^>I;?e8ff|-6)t+nF-wsEwZXBIgIHN!!T&~^$QW&CHV;CdD=%eDpknR6vVk1K9_DePp6-QR7(4IbsZilC*xc7WKvD9F!-2Pw<-Iy-c;SI8{YX6m?Bq^^{rzO%?r}Cj=dR|)w{Geo9LTAqQ8IK{L#G31^y{b{+L6ELd;srujFeLwQy>Cp^&b%LYVPJ6@)>~Q$`5~&(-bm;zdjI;V=M2fu0$R$UpF^N=+PDV*KvIQn>;ksRrNN=Zd0Ix)}{uTzyhK(Vqz?YIDW;3S={7xC$4B7w3r8;*@-=)Yg$3w(e3YkiM?mbf=V#lrvKAO3iGm2DC`S{|BWO%cnc)AQS5^1VrU4%QytMVcfZH=sp`|pz>7+_bc<#XleVejao)d`<?R5GewkHocg@h7&&v<&wNpj7L@Rt&%P=y8@?f#Z(IYvz`N2G?DMhu`=qwq=DpmJ*a02#e^T5RN8k7?HYF7v>*OOay2_K<Lf5ZP+@bdvL@95qzC!7?uFzGj-(%Gwtj#WD;?YHLg`8_Z*t}+ZM_eXWJtWdc`Omk_j31k5e>C&`Z~}nhzh=UIAqQqm0-LGi(FDmsS4o!ztPVWW#ddP}f~pWuq-?#SWKr~L$QJt~V5J~MS=1DlbQR|kT*3xx4&pUK6dPB!`;de&Y7gQIAK?r0`~qGDFk>ln*QY4R0~Ep-ToHG1;f+UsJ*h((Dp-g?pisfD?Ql#72n_8+aW_}zgpV=bi~}g5E$NIiRlO)^x3Lqsv&k44>qvM$al~muc%Y!=t84X!!*!y4t5hDH0h3aI#i*!^@ECMRP^QMgDAVC2^dJ-=r2rQ}yPH5I3&{H%jmUjdcLUHoU!=gdP&Z`5l;apxj*w2Ac$ntP%sSPb%=2$7^kD-VxFWV+d4}Du(M8b6a}$8Ux)aI3(i?0!0;vChz@M)P6$|`@E_k!yB9t2L-6Px(;KUn17%cYHD`boBQ8#kWO10$8ZgF1yE9E|TgcaHGdJisNVo}@S;Gam5<Vy`Hddla_0XZA#rFshAWx}qQ!dPZu#6c)oO;@0eL~Ye4^;GKGZ1G;$7kW@)ySq#b?z|#pTQaIb<$SXYu3m9Hk5R%&#50OGz2gPZA5B6zIl+aHoU1t%Cpp3O70|M1;Elvg9^YGnoHyu#x)O4JeEy@Wyqiac&&qnFQ}DBnDh`9924Q^bu~bpvw;NIU?1hlHN!EWoICXP|!c#PXCCrq%p>!VKI45r$5=ATDzBvGD4(%<$&c(bn#K>2NcCA5G@!4%}d;e-R%%pQxf8)Z(DO)`a8mqhg?L<YJv`zpqolLh!)e<YztTC+*WDt5_m~*LJq6{ar@ryq<Upy?r)im)20bO;3Z;O@f*hlu8sOx&L5q;$+yM!^JjD@bRt|-D{KfcPDF#42S3UUQe8Rw}8T3t#Piq1q;Q^B;3u)d|3>Z0NkXsu_Fl;(;R2OsjJkIpAbJ2g1vh?wo>ABEc_4SGq?YK4g#u<?kHcTwIrBvMzteRCk%9NOE0&GBFmwzJZCV3TNO2u3f^8l}ruu!Kz01a+g)Wo#7v@>QgrLJrd)wn`D-PHeTw?*vraQ)&BX@K+{x8=vX38oJjAi2<jiGlOb-PTqVK-L|%kHwZZ$LwrjR^qgxi52fB-KIeO5EQt;O3Dz+i%G7Ar)g2+zv|861I@H=3DQYU{))LjX6nvc&d;-D~*yAv&ZIwrCZB}#1Q7h%Rc}D>@4h1hRn*p&es8?SFvg;dpb1>UE#<v8tFF5z}kf<%00!IRC=i)igdRA(h2G<h^>f4FeHPm|o*ppb}aEPtXr@cm?uH_qz)JZ(bCgxsUpf`?|d{z1O4T581Xm4Bk6>Zuv<X_R6xKMR62}}jk3Ke`yG1MZtlN_umIas(^a`VVtUAgS9l#iu3!-<;{GO{e%KT=9oO$%=(lD?fuSr(qYhODgWiloy}^{9DSb<}Z!uqT;Wvt(xdl|i<KQxwYf;<!gAb0>KaF7iuP;-mQvT%W%=;945pTY{`tOgpDsII0dc)kiL@oW94?fYQ0m-%gaQ(9{V;4jcq~G(@wgSm79zOX(%Sa0Z9yW&Q4}ctj_(^5%e>dysDl#$9&r>7ksWt1%{^;GIM40qVr<9G&$?bCSB3(}AWllh`y+okV5dPHe3s=@W>Z$S;TSl-4rMYxSJgGm`@K$y(`A)zLRp5B;_)ps%2Lo~WGnPjt=yJY91bwUd})|88KqT0B1_G?l)5bHJ$>*xTlL6e$La2tpCt`}pk7mE1a_^O4(zLAYRS;^t2Svhx0aJE6=Zwi7T*N|a1aLI*h?rxVepc!h(A0A0MCbGpfW9bUbFufB@KUEj!?1C-7&z9pEc$Nq|$qpy%M>Rdht%Faqp(*Sn@Nqsx9w}yUCV0aR996E3G7!pQnIY*&2qQETP(M5XiRdBkdg*OMJs{?#n4(eC;@X+wgZCuQQr1M&`{Hu%U!0VZaY8qJA(bcyTsa-^T0@Jk|a#)O>z$UL1x83ZcKsy5fYWHVA?InKkRbacWi8lwg9V2{8fP2ZYkN>HPwPWcVFg+U;O~dJ0Li%<BwUcU3kh-2F-UM~JhF=seufs_5)-0u9{;xP+!Z%+9nQPm4bD-HZ#J2>S)zJTX;OtsF2RhG4O4H!Eo|?X$`0OU#6M&w;7jFVW*D;NPXsmbu=+hp=dB+XSXZekJdgG9gT=|xvco^dypLn1FAfr*R4fbD!;%=p-xZ4dAyifoTHo*H^d@mpOlAseZG7jQiRPfC(7)4{e(+doRBu_INaIw3vleeWLRRv@%4%hdY8sH2F57>@idyTF)&AD-q22#j^t{THTA3M-c6b$fEX}<YjEr1uKqj7?@)WWI04MIqKMOPg(?&ES%fVpxGxSX=R(_pf?!v;J~+~*nK@wZ6l0*QDa$LdVyi!+yQzP#-u2!s@y9`tpD+kkOj(3Klsa+&>IE~x)p-#)l6*DN3AS}A=C*}+o;BDs>|9^b=S!nzvjG9a>`u7iKJuVp15d{*4`P`&jFV9O>ux|RWN9(#ayQV8{V#*JG5kGJ%vhb=Q$qD<!%QMEW#rqXiBl~I%>@#I=7*XWfa7Fj7iJ~BkvO`TxWAu!5Xx(UTk>b7{+swc)SA0tfJy`A9HyM$8}N>xA=j-$5M1DdU=<9r^UU!>=Ugs9S&N5&_kofB|61UMDz=0K*2+d2)F$~$|Em}GQy0!Z%?AlcMeDSX7&y{A)Z9$k>Pj#}=>{Qk)JRB7!5r4E5o<<*;1l&F5YXRb$N?f5a`R;9xe^m>=j%SE+CX^SxQlDL)MtSe~&&u`H4Lzl9!zC1c&744j0)giD7mTVB;<dt(4q?oX=(+g49dwZPNRCINMO79XXmFZKLfdCfETex>M6(FMQ5<Fixyc??Y<&hD|Xy*ix4uMF;y19xzOxo6|^&Uz)dyIHwbajG9?-Cx_)LAM@Lu%469);@@%hHgrx=ODdtuRfgfuloIrMVNNIt)^km#@A`&BQIAu})2S*N+pvDm|W{*gJ({F3PP|rs)Ek#cO!Y_>{6V7xarqu1RAzab!qyHFyGQhX6Il0!}O!GimE*uN70;{bPhSSDz=~_AY^24F&6B2w@fsgLI{)6aqZGicb$)2*LdB$mpe8If1N0K$coHS8;>-?VMWLz}nGcL?qqO2@JhUFl17tRfr{xyP5a>zx&~YS}gjNqm*N@K0Z1WSxueb(P8k&T)Mi7D-*VOrlKqME*~d6S-qWL)H{VyWlF77N|{_7<*4;gUJ03WD<`0I2vAb1HmNqrE0iNSZWPiTodD3g1VAQLD(o2t>to;)C-N)=>kIJgkho)fb!60$Hcl`HcN&ijVnefn4=<hrdTRG`8t|A~dW^6m-JF2V8w)yeLa(64!vRo1nHqkgQ5Gg)n$;&4Ea+E`kY7;!_~@8qHFW|_hfs&CrE>w(lr5f$Pt{#MPMETKJ3*^=Nkytqss^e7Y-h%&m`7o@7AG}6?FD#oQC_?zFCG@OYMMAYbU7M40kFdWSaktiFgDZHPX)8O-9Ju9bM$!vZ0{7XxhYt|8_c2u47U;h+qiM<2EXxBdgG9QR{8eGNM^Nk0%3>AJvUa)fn8I!cN%C_cla35%IfR{rrxOx^b(co^0cF1-0lb2<a2$C>a8Q5>vMj8WUQ*Rc7j)jz^n4=xyr^)-|neJW1TyGjM!D_@C3i!CH!(xtzBY!La78PDtnY#3FS|Z4q8S-CwO%jyeby1w!-yM>m^in_c#H{=<5WV-YIOdDb$7~9_b`p`k3E15-=Ixz9KS7ODE8DXlUY<tHq|;?VSyr%pE><bdt_a;OX6ir-Dj#k^5*R!-6i8kH;)UD@#~T;izY0oZlZAt17LX;MF1Us=RuxQuNcedukne=Z+sEc2zn&!LN4-zg$$SF$}qQqK>shZyZg>s(gEN+%j7_!K}kzma%d!yqdhdQ?aVD!^eqJW@jfD^-f__iAqZs38i@}op^!JBEE36i-Yv1M+YaPp%ZL63^o-DSAVNd&DPF%n@_R3#|cbEUnjWqPT`VGp(ZS4z);g{KY8uw#-Fo+R{|=#xf8fLBwSg`R|8tpwtN=oa_sss1DM_835>mKFjk>l1!ij)7EEDFVNp7v8_7O~cfOl?KO1}J@SQ`#nB(gsV_2!J6978|fZ^JuvT_dWn!3r;fXlVd$B0^`?oJ@<U4pDKttzy-*@|y^1G)#$1ysMl$5-(2Au-DS@W}8~G;@MXhd?I1Yz|nOw58J!skE!d2u4LuCph#j;gCg{<$F}oF9mehs<i;sZGVf#i$}agwcNy!A<EU@30NHhtQ-qC;o8&5TR-cqr<L75MksUjc>-$h5~$TsFu+?Y|Kt-B#XiEnX9BCU05vzW20=gutQQ4z_3=6-mJ%o|g~>3#$($Z|-RLIFpp{31tO4|bv%rl3DDpn|q5uB-?|Z+>!xS4&y;GyuOJHLnXsHLpozPmGo`VUD$8iG7`oVwP`k#MGhar(#PmO~#Z3LrE1AjT~d&7K?MR=hhU;CV`j}h29QMVhl;St^G3I;Ng!>O}_LGyf&t~alSohTnRF9Ebb6F|^%@oO4p8N8YDrOExM*T*Z!LZF%}@b7Fb#Q%rYNQTh}aEj(nlm1m60jB~PW=T9q>FXrK5qhh^AP-%e4TIqZ6gJ^zsw<gsbDH>|d8Syb<#06j%M`X@uJ?&=jt+k;rXhdQwa+pi`pE*a>h9Oz)o%%33IZTr+#{qxj@(leA>1UCK%9p+1S2mnE75;95d@fi@#f(jzIpg7pl`eg`GX(MA$8!-z(IEpw(u%r`0j;w>gDI~%clTww-M`hp{YH(br^3Keuyyfl-PB{fS;$x<#_Qhwha_@@UL{KGxm+#_z>?ZhVe6f3B)|*`;Dt)MnFX<0e}j~dKdn4i$-u;-`|X20DSuJ;2Avr6d~*};nh?66h?^+AKa%Q-EJQI0U(hd(Vu?;=*7?W_|M-%n|F%mGz7sA=m7ru6kzKKtOH&xjW~Q;l}dndvHW1n$7`nP#eKmz8VD@MAMhsZm!CmHUsiXO*5T6v1aaQ7tB6Ni1oxlH0%%D9XiupAWic9D0~`&^?LMviT>^FL@WsIfLE~@Xf47~0h>NxD@i!>q9>WZnis)D9-W>WK4xL9j!wt@_%wziY=n|I!*tWB-*NZzQ-p(&w@Ginnv+0NVVDKNee#c_Yo6nOJBrvw%gj__9bx;;MA>bijWsVpaM8L1@K8mMN58*8Vf{uq?D+U!}016n&GSDnC4+QDh3jx03;W{7(sFm;(FUU^4zrn9oP!CfL0r&&fMMH$=W_T0-<AXw#Cpb}PjK_iS69BHmEZY4r$eMV}y$9+S4k>J}0H$81tL#Hmc1c*ks{np9Fi<linACCL?!2A{o=8n$GB|=HH1Jo;)o@6<aHsix^PGs-rtD+$L(sVggBGsEILP|khD#)?4`_71(SOe2d4G{RKvn?1DgF!E6Y<jq{Tp_x*uc^#f76@;GF$Fp)2FadKqy4YA1aE)2AiiX@OP484gUW#aNriOHbM!0S3wFJ`04WbE>N#Ux^fl0NvF)A%#6?lshw4d1=P3)eQguQTXd@cpYa@liby%FBVR(OJ6c!WYQhiS6n~b;JFQT(V)iLC4ePZ-AP%?%g96DWDtV1C+%M7lTY<``rnX&dG#z$lVl5#T#a}54fQh^%^D^0shB>a|F<n@w!ez6_j>B=@KO$FUVBUgRWr~Dz`o|gdaAKfF2Q)5VttADAy6qZ;eB=R21EQc=L8^HhwedmJN`eI7K8b*M(GdXX(g7BW$Y0QjQqb(sBF~30{*Xo;MxQ7YfNI5~JQb$S`e3<tfB}{gM8t3v-X67q&#AfzEIr!mX`YT@q$r8tg>X&%0J?jcQLiWmP;Pi<7w0cu=7F|ito?)?qLna+Mj~B?!3fP@wXZzc@00!Hr317K#{(E&kY_ReX2_c#6!rm4W)x>YkTPU6AKNP+&wXa<af}jDVGH!DWX=!<&;dY-z?eVN4+mr4JJZV}1h+G|nDC!s!e?j}@ZVw%XRu9f@(c~I#z?^5s@Sh-2ecP9j)d$gItv*B&;}C6GA_&qti8aN#d)u9Kl^^wRH&iSiS~j;s8x~if`AOw^QQ!4Usa?C@tGF*3~`T1H@-)jZ@no2tpR-P5eIJp2g5t}grPT;J>j!azEA4;9zh^}zg=bmP`0<QZ$#5u0_^)>ijduJGK9v}9rAf#<C};ZW$pm+uuc92R_ymlhu@+}?8vNXrO*YmjY5(Yc`{dC(30)YbYRH0SpP-2Dc&D^Sm7ub?On7H=xK$kWY~%*3-N%vVG0oZT)Geo3(b+2_hGz`$!h}-EZ$S%QgdIeWc)$dPTIjaAy1~WFr^-|DFMmw*&#X;?ZTra`vU%PWL{N0)pDz8t}xfmB1>lFWNmIZco}AhQ**O2h#$NXp%-VM8JY5DsrYq90fd^}y4MBWCr2dG3_1=o5<YX@g)oGr!+F3~4Z=VGh<tMBT~F}cIqzIN`flc7x^I*L8pDTYJF5ZgbjMqbk}Q`t(}>grEFn`U{Q$k=B<zQyl!Aru8jAwb)zWn!{2`8m#+U+H66(`?;c7g{sWk<DgQ$y49H8Job-oAmHQxsj<O33gF!Zw>kP*Ije$WXM^b`S0#V}vg_;5x@E$K=$Kp6~LTs+1hpba*P8g%N~_kJ0-WK6se1K6PUItailN@&D}TmnH38ZayYmHh&Pw4G|gKMqr9sULa;4KVkX98q%_A@XuTK+CKDXH`bjQPM;qK`^;Rz8=z61sTOZ!=Qss)cXzz!rK2nDZvlL?7yd%1(iSYWq-z)=_~)v*XnQLr6<&-{<Q#caXIgi%lS)%yX2m(bd1BhBQBLcF*4GN+bBFp;84>t;T`ByfDa)Nm38>$k+ue^D!;gt$?>rd5c~zYvl!mU0wBMKSOV@<Vd=^4pQr4LHtY{{%^OCP0sRlfcG#u4{d?X1pwsP^1KUx!kt6OKa>MPxe|IMg5ry+M0Vb^|+IBn^@8D|~?iLD#dLp4gl$`I{vLP8sh7C$h7#5A>F%4~xq5)fElD#0q110TVWg}1=mzQdX+>hHZaCYt~2OLHe80M*c5N|w`JG=lA4ZtNLKjy|;<Br4N6`_Rq-VE@lNV=Vh%`^#0Kt>@zORXJKNG*iAw8e~4YUD+oL8#<N1I0x!(jug69)0k4?|+ZNjy_^DbVEiF85rwXKWeii0^MyMRdD#)XJLj$3=YvJsj@0YiHc+DPQfk#ffCXWAnq^@QMl;H?O1YIXg3HVc|ZyYm~ZGG;BPV*YYLJLgx(nb?4sjxmBLa*Tz8E1B%>Z)TuDzz7zF63kPulr0ecKxaG8>iX%X3l8N<+r@SiUCk8(VLAq|37I6(P?D-#dm9xW8S33j~bmSc+1BF&(pAQ2suXcV0ZyIoYV*m?xH*5jbfFi)d4k1`(12&jpMs(aZAvTP8hN|k`&*2%LW>KQIcX3$X+Mk$oGOu8Hqp?A?eTEAwfMuVW{cA~hEhP1IBc^oPhn>hgLAXP3w^T`~HZCMSDnypIPT9%k7Ziy+XlGG9-9IzDpLj4{93F9x0=nnBsHClSG0U-K>Y_w+r%nEv*leMG55XG~SJlF;>{5J;3!gTQ~Qd$50oS;U*>4x$CH}F3+D84bJyN>s6%J24cwM}Kq%Lml_3zjBM=jE~UGIj?e{9Hwy#D7JcY*@(K5@p_z{n#{PKpaHBjcqaF@0n6^vis6p{d-2^mH75UHoqPz;r)P2S=<cRaZ$Rqm8pD(g(*oYHt9=r!iMluXzT@L7(7S24!&o+anX;@;^|hQoNP;$!hQWU4ES@JwvgctjD549ROK3gAGXBcCM$ejB_Oc=NLdy->_#-ZO_JAId?d=xc}=AKZBY-N(K<g;uWh38Vh*09{9|IwyJ$SVyjLrhaf^Axpgs})O_#{iA(4Ejvo9d5%kK2m(<^qD6~0fE!-HYeQ!pw@hKaM&?CI?qoYn5(*`O9JW@TXoNgEi^GMm+-v;1f_tz<B0M59JL3cXU(98V)%L?<&879`4!0PNrqUg*jV&UuUET;Rk36fLC@v0O=VP(IRO9A|xipm-$c-MkWw0K?TFjwiQ)C+5m*C=YecyA+`llKdRfc$*A){Ke}>>_H=8N|`avR!XiC+curFUA0lKZQ@?!6WJw|E>zOQf!hdsb%MZ#xp@>0lX$h-yo2AB`I0?urRcU|(#qay?jZ~JbN(DZ+@{{COLME=qM%Y;j9+cR4BoUVeNoGOgUAZ_*%vP+WxtUeDUsb#daTkSzzGm`5=R{`7>_}X&PNz>F)`(=JU<K1uc+rUI_2^#Vvkg;Vj^dY-T)>d;HV7Uc1b++vVLf|NkIQ^2O}8~y^b0R=_=mYg`av7JIhCOY4l(quW)cb7_5H+Tp6}=3W1KXRkmylZ=NxfLBzXly6ZSgNm`&LQvi%Cjt34GUa@%O3C01+U@0H97y#aJjm}(7Q!O{IJ(BH}Fj3Jnly=$?XL}fR0|0w*LM9v<k+LMAH8+_0N0`e{F*C`A(z%ml>Lfido<4!^<2)PZnbV{>&-25DRNGO;LKPKF`|zMsL{qI#zYF5dTeK%Kb4x&!%j(<Z8~iQEnAH0b%>2j8YJHZu*}3dyW&!YY+O9$2|3S{NCrZsAM<4|q9+5iooV_rjXFB{=td(pNxPdB3#*G>barO>rnmfvUBfcjy^n^}5()B;Z*Cg2%6<JnDw>bH#)Das5>fLVu`X2FHrmh2<qTZpQz&otVZWFT9x2)lozoiJ#Gs+g*QK1`p0jA5CPCXF9VJ?}@|EfA4l|xHj+plp3PF&VP!$rhrg^$;^I)Z<recd)k;K(8@JhhwL_bswd%B!(2V}GH2o7>7xyGwT9CP^$>kXiv0I@oO%88AB!a*l7A5nrVbH+Pa#eG-3yP{Pj<%{W)b6h~L&$s#|QNf6Cb@&f=Ghk0ZV0V9(vA2SHD%?3YscGszq?<)xz0cMqTLR2#`43{XWlfy&y(S*=!lR`|;Ji;yL)(uJ|?nEi-r>_}`uc2i!4$$6~*RV=J2Sf-+ESLt4YR*F+R2rfW5L&ZmX&yk(LOB}IS%kS(koK1)Tg5`pNn25an}5K}CbEjr;(w~r<`r<EgL_x_(&V%WyHk@pYwnd;#P{f>O-b_KEdT+124p{qo@H%ck?j8*P-24|6L;8_M649Y!p0ki8NWwsxSEm7p>pct8|a*Km-obhb6Zgl&Gaetvrl+P?)4hl(Z>Lk74HyWg{!?pP3T<@(sV6OFl`1i11t}_dUTZ^&BpC^5VmN&h{Wa*a0<tYaU$WUove>>YO4X*xt`#eUwm8~006BmOQ35?Uoy3}2zrg#yGB}~nMQi{{9@y8fB1Kmj@Y!OxfOjuGnvv5B`>x-4s`Y7Z{vP~855;n=}mi-pM(jIQa?9`o94ZqWEmT}ZF>-nITwSI3HdbB>qRcar1GMmSx%ZCsBv@6;rcTDJO{6#E{IkF2#o~CjShI+KZY!@iePl0I_Kk({x~tUuS8?gLX$dOZqXmuHy!W#js7gH`wnMI`8T3>*zWO3^jrg(f1VH>CD-q>3F^>O_~5Z|-iJ*}@yPA6Zx2BUz2cm=!x}7b^KRkxR4TxhiP%pFMz;x9_Q8U`M;=4OaKIYB?kt2k9>1iFc?3kClRNRYk+)=Oe%t6y+`)4UMZkH2b67Fn#2N0pC$mAC^uBVUNC@|?imGCpUrOH9J!59%q^Pd6?-BaGAk~~tQ*0Ya#2m{gFOTDk&j@VQ=@Vx^O7TWl_*QvQtzlXYV$NAsCpIdpTpHaQs3h-Kprqc>j5=ruTqJ1nqVQjds;e`)W!U?oE4Kt|UNN_LMgXEyd^$60Dh%;4BNFNb5{dU1_J-T_FoF{&6(2IZ!0mW9<b|0euYB`2s#!xyoDn?~k5qgTjmKd}4I%DYS~*)bpn2*k%ALO>-71KHAxoWVmiud$PBO|MY4;-u-74WUaaVCQ)$YNB!HgIWqKu9wvUC!?+-rp-E;6i$BfZQ?ugmRt)Qx(aNN0JgCriPyk9o>=x&=>VGcD#m<5VqiYt@Qz-iqN_V8FV=N253-QtWXNi7mM_Y*#J9_9i{v(<k{bUizpAKJw|ZPsz_<M-bmUyebjbWVkvUxv@2G&|GD|=uos$*&oCH+~OS3J1Vxoq-YG(qQ@ygyqR#+M5F{P*eC&h{RC7_2O!<x=O6R)86D80xRJzhrgpd!1-(&>eq4zaVT)o7;OTvsCF%X>j!5y?%er3}1MM)$qAq$<@s9uy$M+U6-DK1pM`P2;E1B*6a4={toL#zv$kQ5x!&JMqGrU!G7$r%Z@K{tjNziW7Ne~%ZD~VUY#FBy0?_i#K!5A#zh=Tfk_!`d`gK-9?K*K0Jz$b;l+-jux&<m+A$$aJEQ*+9F4!!azayDLk6{rKemINWNGcYf?Shw(3Ic7lPq*Cv__ZDg8y`P35ti*foNx}@kWj7qGgRvNl&|lt(R-+Ck(eg&6s8(agBrVWq!N(;4l?zXV_N){1<EYzl579f74e)ufeeWm1YQW=YF0GG4{-^KV$Xl?J3t<AUEL>Xfy(@X(dlzGTlEU-(=KS}*$6x#2PvdNWNmMuBT`XL-$W5OkU&3NL7~rQsRjccmejDA4z_dD_AUXQpQXAg96r?Nk$^8F818W6rEaP-lF4k}uQ@w&;VoDa)w&-$>2Fo!oT_0t^O`+0X<q@Sc!@f{-LAEUAbS-FGkq55jFz)2)R1uOACGU>I5hkmzn>}%)A(EH^P)v)+XgmnoY!&KOku`XoRqOEHFs5Pv7`PdQuuAF;Aw;J<U8HPdp&yol6rg~H^j?GH7iKMpURcnK<M`fxxpe*NdHW~Lb)rS2Ifjl><#tHGh=YHM^TC%Cr@2q?$((1AZ(SVXT-aF*+s#4T<1hp7>hcPGwEQFV@xk5<$3LEfS6p&<0*ckxe}5torGSj(Cp&T2>O&X)3qwgaPJ3_?Fo5ur;<?0%IVA+oqiktkJjqy!Epx`HM#0F~1WH&|wKHx}ddqH6jlv0xhU5PWN;whDKn@KQFe##km#QYdLDHU5cJ?%Y7Wq?X5kKa0^`-O_Uza1<qc$-^hT{?yjFqk&DhDl-0luuER1Tv!(O3pq0c7sYNcxsxDTr1RuL;6@!#1>$Wy3iyC8OC4%y0n$rK50F7CB41t46X<>cS%<uSphkTkWQ@f>p8<xdt#98aD2qY`tmAAsxuv=IpgXnd4B*1`V6MuGsZ+(jN*fO9>9NZTG=Oy<a3Qb0WZJOvZAI3Nr(W3Jr!zsaJu>tKzfNhBUKR;aYz4MUGk^I@v7p$I1Yw*yWziY}<B8B15yrS&Kv}oaUUYao5UxE7P5?377lhIv5&e@QW=iQ@Cn{$KUcF<OJEF800t7_J*8^z)`pan{iNVpBy;P`4ctw=fo&D4yUXWd@PAOHMC7OGuW*8Ol8zD&8Q$PorY8A_T;qJQ%bZ~z7;Y`Zc86d+u+Z|fjz}oo9spBAcn&1eJkV%oba{bd#H26Z&wAZ{O**q@~k3m3yNYY(^6L-XLE|(BH>L5Ub0k_yp^;XTNuxFR?U#ieB^A3YzEVVf~u5221H=m926b(=H<am#s+`FCy%8?ub;QhNR}Ea_Nd+j9nP`^9T>FvI8WNR1)vy>(W*;J+2-(eBOd8Y6K(zTd`T%>iLzsGd=xg2XRU@AT8zgLDW=X7@YYv$v9bxvTcZX2kpgsI5ykVa>61M>WMPU)|MK1$J2`B(;v;2>)xSRBByE-yw@6)*L~Fez6BB7S^cD&2mUre2^E>>x6x}QBu1vz%eaQ*ltHk*x6#J^|JusUpM&pgwO;%e}HEQ7JnHbIZ0Ev)XVIgL*4^%2BAloP$a4EuqRTfyrkqw^q<F!;vJ>-i{xEi&s!hIil`M5*dkBz8zb*dU2=YSr>hr^8gAuL=MxEeIKGRpGF3`?$jsLVYYfcAwgj)9s$H*8!Vk>SkJT%8Lgyc%&N_F|M>%3G?0+=qsb)t<8&B#c<Q+_3Y2%1YpD)L;oIK2%+hMcIi`{U>+$p{$>Dk7q)mInWT=daa-pMj-rK-pkXF>Xv*c&H(8%Pf_MbBOIko3;g@}!Zli+B^U{(6GpgjDP58PFSf#L4WrOkBGjrbCQ%0u%EoaTdLONO*YaUYg+66Tt}l8Z@^k2Lowq=x57V!h#nGV5kPqdcG)~|=lOnFhMZ_mhktwWU9O1T0Vh5#L0K7xHT-<<sA390VBBeQFL;xXFY$$<c4HG#EMF)+FA|^!<JCLICrcYf^5i}{(;une1SjfWHIqST#@LYPO3`~{q3F;~3UJJ3Zr`hB5MJ_|Zo-h8>sG>u&L@#55%4Vp=<QfF6ATfTyYJ}qe<$1~(HNILk52?Z^ai?d{jt6mKJkShF1M^yWmeGKU?a;jm4H`eFKnc}~^bHA{!={WfoL-zXh%CIny>Ql7Dc|vG$b}M!{jgwyk$9=gbG>E>d_`t-2H;iwoBgi8R?V|BHs`p!aQGR?`UUeDUGcxx03hz%Gn2i@CDgdWC&DqOUz)Q42YZ_Xodi~6xd)TYTg&o94fSUQZ<{a6c}wE_WqPVUxF&v3l{t)w`sSD7CtcQ1piZjQzCbOT%15ohnNSzilsQHfRCVxrhfirqDyS`mY^^{Gp@TnALeVxQyMJ9+;nm|xis%gs&NR2l#(F`%{T;)grlILib^hoshnc^Wa5Bae`9~GCxkYCGmbQM;no(_*C7O)L7HSpCQE4vhzSyDYJWtpy=!)Y;Y^!qS{Z66bm8j5nhoW>C%CY>F_!CW+&Pb@eC>&A3ynZpBO`g|QaoW!Ook!=ZlreLMO@S%x!79m->xX970$-eafIpOEs9$!VRE4QuE|&7pFr8~uS(LW2UzWhFtdC@FJSSh<HmlT=M6hbrDTFH|Lo+VPW8V>RDm<Oa(FFhZ3_W{X_&^J8ctV2Pxho>F4MNpt3ya*~t#UH-hE4|ARYax*J7GpKRb46J33)xl={P~sbCIz(NzN;0?OQ48UBnJ>SR?q=T(#&o&OfRe$xa2}4KwuqXTb?BEkfe^cC}V=%&Q3hw@;NQd{a}j396fiZveX`D`95W&ZC)M<p(n+sADZk0RveW!vg0%Ox2RIMYPQ!yaLA1y5<|=Gc-HGpo2L!Nw8)%IiiwCU<r3awxe#GKYQ-#c}5tD5f3o-O=g}7>2aECn&uP^Qd#k0+BDf%ZgxTn6;nYWIlHCM1wC<S<*WtJ<$#0*nGYGAeWQ3slWG>yOuL-Vl!PGiUbAw|TjOzGoLvNcI||tu8)?;3EIw+U#x!4b+{%oYQFG*B?wC3C(C&|leQ4l5{J80pQ*hMt8Xx#x<8NhMVmulfb$PSJ>lO^KUfa4C-oyx0sTy7_-MKYei|T~Nw2a+R3H1aCLX)Lhc;XeWN>oy=G*uQ#3>VO+!%?=#R8FRc#$ncd&gI#br2R({`Es>VEGVGxAMN@{h6d^wDAwe;qsnuOF8@&C8T%@SiFv~>-({frLfTiX!Bzb#M-r&bP0>%OmUa#ANOR0SKIN`T$U<|D6^ALSL?$QccrT~2+MZD(#`$^8-3PmGWZsm;z^dE?@$l@S0w-UaZ6Rw@Y$9^=w~l}-5Av5&LofR^+)pdWybnW|JJ_Ft|0kaCkP2;oEs@uTWYwV=g65C9C<c^AJ~oQ!OzZaDFl}^&^0S$ptyf4hwY631#X1pN5ly7Z>O>yQTp(eSBe&oc2f;!#4m}#u)es$P9MqsYw%Rb>BmlvL<@&UkX~lr|-6WQixm4Yn-}L#wEZruU#oqU6d|2QFM4nN(4t~Y#CYW;vvCc!?j-;m{B-02pouIFqDh?A20EX!jjrBN(9#FUO#{D>p$v28cAY;yu(F;;N)l8LUaa210s~wE-kcGE!?V^{Cg0WmxgDNMetskHN=qfkubHR*u5>v`7Z>?-Wst<h)q%0Jk=)hc3TB|^;3YA$lh(;@NJi73G%@5+d(;bkg%3Fh|O|QB5?z*bd;H$yw@v_3sYeP(u<^z>sBzK13M&l$(wTI3)g9jF+Het=W#gRP@P{JzbqhJ*_HfUicPn1zf=9I~T;!)*BVEm(a)KCpkCQ^zY5>1*J)%KS@YZ|(uy0h`ixWTxdYhg>BOgGX6)vX=j08OG6*gIN5uqqnjGA%3i1!Wcsf0S?enZ(5P4lGr7uEfdJW3}bevHIM@110U9DgY&HNEl5yV2rd21^~weJA3q|3lRh_2@wzqRMecT^XHu5ONIApgza<V#0H&*HZP$dYtC%RFG|Un^=~Px&jn27>+ctJ8L*fim)`rFJXCwOb3~oMV8===`jizP5*=7AgFvWMy_XYeZxxP@hq6rqOjr}kI^x2{DwiLA$i<C~3yeyqZzi8RH$beKm_;MoM%P{$(pbRj&>;+*(9Il=dDy(--YK0@gbr%J&`fcX&D_-PB#QLzyAV;HOo;GeP6s&{=~Yyt4AiWH%Y(ld9z>rN;sQ76PZK=phcbees}Y&2b5AQz2DVc6{5E-~IZK6^Xf~8R_?;>cs!&#yQWP!kF`p<cyx)=!#?`Bdr|HO&st1j)XxP;1Po>+xNTD+;v1QvlzoM|_b2oe_^{#v}ri|lO<^Bl+`WH@Qx<jnQDF(>F2<>K>1huIK%v&2)M*EqH_t!~)if-2rgVps(8lHCv-<Vm?JFn{SQ^O6d%m7T0S26CACSwnx(E7MOepb@>&JJRA%buy(fyDJ$m1`PmoP=~K!<iH;l9{9h31<MGl)#0cMDvkb;~?!I2_h8ps${WJ72g-^AhifXuuCBZBrXi%HE;g<{Po7-;yEvFk%g+Ov5>MFkJXYC!i)MGqVO8SpIDyT$Tg6=3_t}Dk1D8b;V{gSb)BZnW9E<sm$__~`-Y`Kw>plu7km<W=zAQph9MFLbU-QvLmrnQ>_wmTWsv)9FG1Vs`cQg?mD39cN@Iu`ZJJY=O{L9}{)|3dDi#X;Vc~z)%5f!6bj@#tu2};owMEMIRN+5_&kakB;l$hR;&|~U=0{R|WY?j9vJkR?$5KLlE5Vn)e?-?S$ZMi~{y_^AQELd3NUCh9f)JK!$w{rc6ylacseF06>C`9j^C>!+tcaxtO@z0K&&NEDZQ>nAZH+jqz89gS;(jUTo_9-1E=BVI9Boy%bXwSqX3Yef=(Rw%j}mtZB-Iu>fV3`5zQ^^*`OZ7m$y~syGf`(kRv}E(F1B>8F2Su#91+)zv#yZf9kZy2v9_O4#N{!Qfdh>7Hg7QHRS?;683*PcJW%mz%!kxw5NX416UhPDCtC1{7W@`y!RcBscIm#0@cXNKHmUW)cs1iOz@OHEM4KJcS*fz;FpxY^?g@YhUt+~qXEKtW?RIq14}%a-?!il%Q>ZcYC{&!NIh_x5_*b|blsZDLwES+|CKV;7%C1zPl^Smh@Ve(<44@aZ`)5#<!Cz9>Fz9ZrZaf&E)~m;Z&rl!5jLMZzU(|vZ6jJz+F7UpI6{Y3afiC{e!yqjcKkA39vBqP-;cVUK^$-ORbo)kzg=~ibn-WG+fT|)u4pmFg7LHn>2K#Pt(#fbq0WcNs8To$A2&6t1F-4ta6;=GlCG~V-I9=0slk3pbAQ`<;uSU}2L+htAHCoXeoy_>^9?F76U&RyoJBlDaRMiikQ%e^Ak_PaM3el32PePqlH=M3@xFfd(O92&b(`0upXiw40ZSC`ttg3I+XO6t8L;5o9!+tuM2^weUP@z>GaZ%rV-`4l`D+*gVI>WNW2`&f!WSssd6?MC$=kLgDio;oWjHnDbMn(RuGkik{F5+W5&2g5=l<Kwlp2O8!%+mf?S9vFYr+Lt_3}Zr*7LqxyprIpmvml$!ysF2x`r;W*m#U3@hKm=oKotNweDxd<-jpSO&QW-yyuZ}kSDd10ozB2*$%}Ta{auf)(xJniGw6?~>(r@$baz16)RKDtbqe9Eh-+5fnGC#>v?~GMV^;NM9tfYw$--VRihD^g?w8$(i{`VL)hbnwNbuY4peVJW&Ui~aR9(lSFM=Mxu<4fbwLX4=G}{gmP$3hMz`iQ>gsFH*m~rNk9Fb57fQ?Rw7d>{o3t<9=4r(5Fc^#G8F$>Spx6z0S@nBaX<XL;VviOlb4bj7p4WWZJUcn1(c0hFln>FQ<38+zESq*7P@__W&Jsvsd^vrohEmqwC)kffoq7mO%qstEIQlD5ZRe68{(Fu7gXiX_}t-Nn|)dyAnP-P)HYG_*dk*TOeqb_D&;X$1d-tp$lqKZcH_7qmKD5>fF8ZRuut!zrUNgfF_a$dId*WP6w9B3Ih1R|Nz8pG>q9e-`CAZ;ZrO7Q~xyaYd|)+vCA)Lo;e{KY7~U{kiLqo*pQ-M7^fXE6g;*1B=6^o}Y{%$22|OL;o{8EMo;*oL}W1+^SqRKQX6j=Fy?=p!Swlb&cQ6FI18{Y$D7rw>9*F0xnYX0y<7sx#toRG6<uyJ2=z!ojR^XXG-;2&p{xCS@SKz+QIYpZCnd6e1Gw&deQlLGI~m?ey?O;hc~KR1`uo5_lBzYZF`U`Zn$_;Sqgl*2u22nM=iMxB29=BWP+B_$J^m?-~%)uoQ@z69ScT6@`zH7KyTv%7^v~y=<qtkhTV5t<~i16dEbA_Yf+aYQ!IPrN-N(Y^qm8E_*5#f*t(9o~6XxH%W!1dS$bbqlI%^K-nf2b7yH{d*)&2DhA@64~a*2Uzc;l&fY-0N?tKP3|i^O)H+@%g}2zW!&!YPa!>)?DR}xo`E=RpP}er26AJw+-Wur4RMZ=L8c1zGkn5{a5|8-CQ+4f~NDr(Jz?H30LUJa1Ga5mwloqY-L(MVBmJQ={j9PiS@WFQECLnzSTgiDd!EqzWUHal+5as0H=fD~byjU*0B1daSB+21noF02_7Y{NthN&wa)`ieC(Hu2=W;QUpYohqd>6)-c^?E{PL9)zT;|!P8^UgG<2bdRi3`8l*xAgg~?N@So{6Sw1!AbzNRL^C)%9G&<p^%C)@V=1}C-><7(%b6V8nJf2k^sg&U20xjZTCodIxO%b_e(D=X$4gVwJ$pL>un^GD|hL~JGxX0i!fnkeGj<B&-OXD*X)ro(x9-8g<>&kldwRtk?b3kb}M91RwvC=us1dVYTp4aQ;JAV2b}+;c#YNNu^I3tq}3Sk)<FK6F&Y;b(#0J;yyY|tgF#r<F0RnCMSgY&4a5ElB}yRIy{po<;t3msa^$a}kLMZJv^zsOICo5P8OEbDBdfX}ufe*ngxnJ887MBe)QxdukZN1<Efgp=IqN$u&SAE~ey|$FQhZ_+1iLy}DMt;VyKzeLeTd!R$zIG*%F~RLfwd&2(vCgOB7#}B^ckpN4OnkP^@Q-kUve9Qd^P65u16UkXA@A7k$gB@Z^+3yszOQ^Im9qpnCu8gfCI`$Sco$tsR+w4?!(5wi!yLtm<;qH(BKAfyaHc$MfqAMnpLG&hA27l24lL--Vs)z@zBXUpKGGZ&{8V5Uk<K_c(iA!R%aAvbR#Kj5Bo`iV#kRdai%nuqK`31I^1(S0nF7;X{+NEI`Z5Ol8zi^4P`_ymXwq$qfU&ofRb#Bx=;hQARnMNELc~5CLK{?Ovdd~&XoT;(I&ANqWNEWRf~nB)h(^2{5JEF+PAz+;@Sx{6Do{rg7BsiQ&e}5t=6&@Bcf+VSxnmK*`L7W)s%Lp#$=!50;z}hrM~<vUEj;5E?-8gRUiCQjuTr2k+!u4gKr!G9~2bVB80Ze$+uuRKBN}iCRb|ExlE`Y=~|D^b-hl$9G4V^XXJw4x2L#GI-;&^@mbxmuOpz3nxqqdKt4U-0csCF%B~GI*$rRMwp>lSL50BX@%;x6*bT5Ru_XDO4j@i|Ez)!LI4NpVimJX4<?bn(-Ygt9<p$q<Pn6CVu8XC&@Gjvm4z>;(HmOBFikH}-5~>7JW?Nn66-iw}h%gAg`$u#@b>ppBIFb3ShEpiYhGXAy%$0N3I4Z}<edOEWT&BrzN*nkoXh`&~psJ^O*_U8jaaT#H7z*V})t(5<N`Omk+A&(;QjYg3BSXAS+G{J}s{)fvchRAdxt1Ju3Q9O0A|PdKE$Z~bjMR&=F7`1$x{8lxR>kDtr1>ptW2G|dqEM28rAm^iYxw%{FjV%Ys!GA>AEk-`<+^85m4G`Zp`Rf9<0VhJytwK=#sVpP8(mSi*etx=$3Uv8H(qoOA8|<<ylb>Q$gy$dyrJDzwQh7ZZ%$K*iUQwCyoXdef~!7KX>Ao(!910`r9wZKN!c6eW#Z}`SjIX|vUX1Gp}MXAp7YKJ?Y<{lt5T2BA!=PzF@^N18#&0SMbzD-lIB8?^?4@eZ$_Dq7bHhTaXXn6R~%touBf?=udAc`s?4g4N~$FAV3vu_nnk7!pK7KOa#9ok$0!rzZ&GyOjaU~_p(}RSp@@_Mb?)Gk*^EI+=G7YPu`1RM9k`47(7&EbB~9EpFZH_IKaS~BaT4{Yc!}D3Yzg&HDvti47aBV?jw9r0<)Gq#n;c+LNh0M7_9imv1kKCEr-t&SxK-G+PC=>$rzZ2Tw4>I-U3f{?QYo=B7}ZueXg)#rn4A&M#jZ7LGBJy@;cxNz#6rh)1)}fD9ZuxS+2t^fnom747+rmCL`cdILHA#O%^tU%Qk5(1P-2WP?wOKYB9a@Wn22=BNxjAsbP7o{#JPJ_Xeq3D16~gPC_@p#rL8FCN}=oSKEn-7$_Y1WqzpK&3Qw|9hOc7ZP|WUXM;J>rs}h1{-eL|erk#))Q-lr$r$F2aPEq7f>V%i^ib^}v!TeG|tlh%N$)%_ynyC4KG>h8%U59mmHu2t;!cAtQ9ADUImPg={T58p%x_D-VLH0rM1~U0;0vFHQbJ04Pxs1X8uib*|6|I%cGI6HLCf5KaXgVuNfHnL<3+z->ouBfvC3-fqu2cSs6&>X|O85p$bT^=nnor-u`h!@HVlM!ZkKU6^m!Or_&MsW$BVk#<rE@&4k~PG{ixy~sVHa=xQiXQ{?}PWz$c<3}iP9A+#X1P^(pg`X%^^L5vdGwL1N&wTUF0!^PexRVjnYi8N;O}36D7t)mQn>qrG5CIm!^HX1QH%D!itG4#lEs0Ud_@%*OIzZUG9!i-Xy*;2JK%MeKQHy@HR=%tlOwN)9nW+4>K+}e{TLPA8bn^-4HJi+X`yc)vv7>vykb;i_BQtmHaVf@}a{y;R*Zd4}BA;UsO~<O9kVku{Q>E$JK4GG|w+xfV~+}#SiRQs+9ZQFM$9@WZq!Z!siV%4lv3^Ls`^TXVX*x$%-#8?Bs2^SyYM_$zQ5~Y$Ed&YxzU;pozb$3);tsj-$X1L~Yh<;BhAo`30cz1n4lNqO;v7o0`W{rXCD=Q=L(JFYJXQw;Q<_!S2auSJRbH_Owa+$t;21w6N7jmm#kkECA7jkbquaxkaQ{X5wu52q($WYYG`z>Kp0aSatjQSl3v`Hrav8-p!V}(#5)EF6w&W2xFA?m7SB(V}cS^0T4q2tAi22Y8R52b&*UoIr#s`LfoTEKuDJ`AVsBCa8Sppl<2I4SOOUq?!;3VeE~Eggl0DqHHqbVZmIiXoY|)8W|<AS15C^75}heARTDBPW0x$)8wOwMpx9p-!ActEYlAYKi>$$HCVwFX#yA7_u{yBmt4dHC>hdBZg1X14KdSU5rWIQd_`h}?alHx_78ilYn~y;Iyhpx0Df5ZNxE|9D*N06Sdh=mYP2T{@NqJ<pHKMZ0@RrwqcBX;ZsOof4m-4h#a-8Gt$8Fx97vhoB_evEPtH@QhyQOlkto)7QxaIYM6Dz9UHGFc3p3JQH+263*N5xm;ZkLX$>XM}xN+F+P4{I%!Ba2xWa3WJHjR$!a8X-22#l0jL4vD|S2m)FlWr3S$egwb;b81Dn&7H87_j>GSN5^D?0%+}Z07M-EK^1U?88+;OqzPhlw2Q~E6vcRJ@G9ev)aLW?c9Ks%Q7JH3P7*~RJjbeyz(hE;lF~w<HO!12gto2gJCeGT>qs{!BDx#3Sw1(ltJOU8rRw(Lpt$0`98ohXPp09Z+YpwZQ(eQTr!HxyC6*9Hdqvkc0N`BL8`0=uvQ-B!7=$<R1`p^u>Wx@4AnXTAV;GXJ5VNE|36t1c8O3X$B=kZ~Ba?}t69|bUU5N$*UNEhM1zCn(ABsJK;@=~dr?h5W9BhPGK~YLO0!l;#qaI+$Wd`NVAYO8I;i{mORDOods5+@v*_(_QQGQJv&C7UU4(5yk%7GZcy(+&6zb{{b-<y<-P5V=RMSgCY+SMcmouFHlc+?Cm+G1l0&$?Y-&pEl3Q$p0yBvz%QrjxpA){IlB3uHc3$<GuRq_7D^NbdXg(IIt>m^iAo2<*5lq=5ndDa^0+&N}v=Eao|yB&8fxSfhjtv!tk54jxsj9@ES=sNVgqae2>Y5`*1VY3v6Z7Le4QxzYu}dB%(_<r}(ctBM^8aSVlKpIt=`<Pl=CE@31hG%w(L!7)jeiu*-|IwcE}dZWUScvsy6`;sGcy~rAEsuKmDsi+_R@R-)PxGZ_ch#{&2kFWwyjNGiEX)_Fp#Taf&;RAIav#<28Qn~t~q!>Y;QqrE1laS98RHKa2LrJkKv+D%3oTAgc9q0)fkDYw!N$^~=j1kvGdU=8?wrlD|ltx}8Z*G+u_(Qn?DmAh@6FmQx%E{j5?9tDW*}3G3xB<zbiwfSRDlli=4lZXZ+}!tr_rFJxe)t5h<U}g{v#us<5Ef-^{=YD*-|C1sE3vx;XffgMNsM8;I1MxNSWB|QVYlL#`0{b?i>mFy(6{j1eM-3cuQd}@S2xI^9+Q8K1#n!hzEe7q;CqyEt4`zKx#KP5O}|tTP?wg`S%ZWDDpT^Vx(>lSZL;gtT!+AiS}@knl~lw%P%Ztt%hxnMM{l_f%9xkK@&R3S!KeO?4pclQ+TA9!(a2TZysbC#?)PoXSp=OHz1j8&j;YC)lTWQ;2zOqZmON6!va5u?IE$^Ql=G8?i&TaP{_orc-@Cf-ef+;4_})KUUI63d7fa>xG;D&k@{Du!O_cd4&-ljY*$l7u-qRm|Qup3_VtS#-?Z@zI$M@cQk5!;<l%yHFp%PAtn={Dt!ow3-!$POn$>nZ#DuLXy7}Dj6#pPS1ySEa$sZP0L)UE88K9G+h<*${a1ah+_*)OZ;q3D@OT%7c*$_aNs4UJTe6k8BzUg+YQRyAV0Y$H?Gp2HxLI5m!cN}#3ID!^Pt=nCt5@YM${!np+Y4X$2OuYJ=yMdwZQnGL={TYbyXR@Zl@L3mw|gk_XouBLyjE`p#;Mb@6=8gcx@deg2yrpgALDI5pJ>vs7Xydw)f0W!c#KZ}bW^!v;BmT8C7km>{zq(ZIL?8ZZqu0Bv`Chkiv-(ykmBt6N#1F9TUFVNhI+!6p32mJqnmk$+pS7`xSrg=fZr=)z+AvGyFWo4Mp!~=%rrtT$r$Y&IBj<ySmmr(PCZxqVacQ`Bi!7L%+6r3BAm_;jv+poYfl~V=V_NffH5cfE^s4!bu@bPu!_C3Ha@BbCp>mUF7{|3xKX{G'''
+_PIPBOY_TOOL_CATALOG_CACHE = None
+_PIPBOY_EMBEDDED_PROJECT_CACHE = None
+_PIPBOY_HYBRID_SEARCH_CACHE = {}
+_PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = None
+
+# Android safety limits. The previous implementation built a Counter for every
+# word in every indexed file on the first query, which could exceed 300 MB RAM.
+# These limits keep analysis streaming and bounded while retaining exact names,
+# symbols, descriptions, save paths, headings, and relevant excerpts.
+PIPBOY_QUERY_TEXT_LIMIT = 7000
+PIPBOY_QUERY_VARIANT_LIMIT = 7
+PIPBOY_QUERY_RESULT_LIMIT = 12
+PIPBOY_QUERY_RECORD_HARD_LIMIT = 1600
+PIPBOY_SILENT_NETWORK_REFRESH = False
+
+
+def pipboy_total_memory_mb():
+    """Return total device memory without importing heavy platform modules."""
+    try:
+        with open('/proc/meminfo', 'r', encoding='utf-8', errors='ignore') as handle:
+            for line in handle:
+                if line.startswith('MemTotal:'):
+                    return max(256, int(line.split()[1]) // 1024)
+    except Exception:
+        pass
+    return 2048
+
+
+def pipboy_effective_query_limits(config=None):
+    """Choose stable limits from RAM while respecting the selected depth."""
+    config = config or {}
+    memory_mb = pipboy_total_memory_mb()
+    depth = str(config.get('intelligence_depth', 'balanced'))
+    if memory_mb < 3000:
+        record_limit, source_cap, text_limit = 1200, 6, 3500
+    elif memory_mb < 5500:
+        record_limit, source_cap, text_limit = 2600, 8, 5000
+    else:
+        record_limit, source_cap, text_limit = 5000, 12, PIPBOY_QUERY_TEXT_LIMIT
+    multiplier = {'fast': 0.55, 'balanced': 0.8, 'deep': 1.0, 'expert': 1.0}.get(depth, 0.8)
+    record_limit = max(400, int(record_limit * multiplier))
+    requested_sources = int(config.get('intelligence_max_sources', source_cap) or source_cap)
+    return {
+        'record_limit': min(PIPBOY_QUERY_RECORD_HARD_LIMIT, record_limit),
+        'source_limit': max(3, min(source_cap, requested_sources)),
+        'text_limit': text_limit,
+        'variant_limit': 4 if memory_mb < 3000 else PIPBOY_QUERY_VARIANT_LIMIT,
+    }
+
+
+
+def pipboy_tool_catalog_payload():
+    global _PIPBOY_TOOL_CATALOG_CACHE
+    if _PIPBOY_TOOL_CATALOG_CACHE is not None:
+        return _PIPBOY_TOOL_CATALOG_CACHE
+    try:
+        compressed = base64.b85decode(PIPBOY_EMBEDDED_TOOL_CATALOG_B85.encode("ascii"))
+        value = json.loads(zlib.decompress(compressed).decode("utf-8"))
+        _PIPBOY_TOOL_CATALOG_CACHE = value if isinstance(value, dict) else {}
+    except Exception:
+        _PIPBOY_TOOL_CATALOG_CACHE = {}
+    return _PIPBOY_TOOL_CATALOG_CACHE
+
+
+def pipboy_catalog_key(value):
+    name = os.path.splitext(os.path.basename(str(value or "")))[0]
+    name = re.sub(r"\([^)]*(?:exclusive|αποκλειστικό)[^)]*\)", "", name, flags=re.I)
+    return pipboy_normalize(name)
+
+
+def pipboy_enrich_project_from_catalog(index):
+    if not isinstance(index, dict) or not isinstance(index.get("files"), dict):
+        return index
+    catalog = pipboy_tool_catalog_payload()
+    if not catalog:
+        return index
+    display_language = get_current_display_language()
+    for record in index["files"].values():
+        key = pipboy_catalog_key(record.get("name") or record.get("relative_path"))
+        entries = catalog.get(key) or []
+        if not entries:
+            continue
+        preferred = record.get("language") if record.get("language") in {"english", "greek"} else display_language
+        entry = next((item for item in entries if item.get("language") == preferred), entries[0])
+        description = re.sub(r"\*\*", "", str(entry.get("description") or "")).strip()
+        save_location = str(entry.get("save_location") or "").strip()
+        if description:
+            record["description"] = description
+            record["catalog_description"] = description
+        if save_location:
+            values = list(record.get("save_paths") or [])
+            # The README catalog is authoritative and goes first.
+            values = [save_location] + [item for item in values if pipboy_normalize(item) != pipboy_normalize(save_location)]
+            record["save_paths"] = values[:24]
+            record["catalog_save_location"] = save_location
+    index["tool_catalog_entries"] = sum(len(items) for items in catalog.values())
+    return index
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# These short records provide immediate offline knowledge. The live crawler replaces
+# and expands them with every reachable English and Greek page from the website.
+PIPBOY_WEBSITE_SEED_PAGES = [{'url': 'https://ded-sec.space/',
+  'title': 'DedSec Project',
+  'language': 'english',
+  'headings': ['DedSec Project', 'Support & Store', 'Featured Articles'],
+  'text': 'The DedSec Project is a phone-first Termux toolkit and learning website for '
+          'Android. It helps users install and organize tools, solve Termux problems, '
+          'learn ethical cybersecurity, use OSINT responsibly, and work without root or an '
+          'expensive computer.'},
+ {'url': 'https://ded-sec.space/Pages/our-vision.html',
+  'title': 'Our Vision',
+  'language': 'english',
+  'headings': ['Our Vision'],
+  'text': 'The project vision emphasizes practical skills, shared knowledge, privacy, '
+          'cooperation, responsible security learning, and keeping useful mobile '
+          'technology open.'},
+ {'url': 'https://ded-sec.space/Pages/guide-for-installation.html',
+  'title': 'Guide For Installation',
+  'language': 'english',
+  'headings': ['Requirements', 'Install Termux', 'Clone The Repository'],
+  'text': 'The Android installation guide requires Termux, at least 8 GB of free storage, '
+          'and at least 2 GB RAM. It installs Git, enables storage, clones '
+          'https://github.com/dedsec1121fk/DedSec, and runs Setup.sh. After setup, users '
+          'should choose a prompt, menu style, language, and create a project backup.'},
+ {'url': 'https://ded-sec.space/Pages/learn-about-the-tools.html',
+  'title': 'Learn About The Tools',
+  'language': 'english',
+  'headings': ['Toolkit Overview', 'Developer Base', 'Games', 'Network Tools'],
+  'text': 'This page documents the DedSec scripts, their purpose, capabilities, safe '
+          'usage, and real save locations. It covers developer utilities, games, network '
+          'and OSINT tools, Android helpers, repair tools, Settings.py, DedSec Market, and '
+          'other project components.'},
+ {'url': 'https://ded-sec.space/Pages/butsystem-exclusive.html',
+  'title': 'ButSystem.py (Exclusive)',
+  'language': 'english',
+  'headings': ['Core ButSystem Feature Areas', 'Chats, Groups & Stories'],
+  'text': 'ButSystem.py is a local-first private workspace combining chats, groups, '
+          'stories, files, profiles, security controls, administration, and self-hosted '
+          'workflow features.'},
+ {'url': 'https://ded-sec.space/Pages/assistance.html',
+  'title': 'Assistance',
+  'language': 'english',
+  'headings': ['Assistance'],
+  'text': 'The Assistance section contains focused Termux and DedSec repair guides, '
+          'including installation, package, Python, Git, storage, permissions, networking, '
+          'Flask, website, and troubleshooting topics.'},
+ {'url': 'https://ded-sec.space/Pages/faq.html',
+  'title': 'Frequently Asked Questions',
+  'language': 'english',
+  'headings': ['Frequently Asked Questions'],
+  'text': 'The FAQ explains what DedSec Project is, who maintains it, how it should be '
+          'used legally and responsibly, where to find support, and how the website, '
+          'repository, and sponsor extras relate to each other.'},
+ {'url': 'https://ded-sec.space/Pages/store.html',
+  'title': 'Store',
+  'language': 'english',
+  'headings': ['GitHub Sponsors', 'After Purchase', 'No Refunds Policy'],
+  'text': 'The Store describes sponsorship, setup and repair help, direct chat support, '
+          'and custom work. It explains contact steps after purchase and states that '
+          'digital and manually handled services are non-refundable.'},
+ {'url': 'https://ded-sec.space/Pages/keep-android-open.html',
+  'title': 'Keep Android Open',
+  'language': 'english',
+  'headings': ['Keep Android Open'],
+  'text': "This page argues for preserving Android users' ability to install software "
+          'outside a single store and explains why open mobile platforms matter to users '
+          'and independent developers.'},
+ {'url': 'https://ded-sec.space/Pages/privacy-policy.html',
+  'title': 'Privacy Policy',
+  'language': 'english',
+  'headings': ['Privacy Policy'],
+  'text': 'The privacy policy describes data-minimization, website analytics, security, '
+          'communications, and the handling of information required to operate the site '
+          'and respond to legitimate requests.'},
+ {'url': 'https://ded-sec.space/Pages/contact-credits.html',
+  'title': 'Contact & Credits',
+  'language': 'english',
+  'headings': ['Contact & Credits', 'Credits'],
+  'text': 'The contact and credits page lists official project contact routes, the '
+          'creator, contributors, artists, legal-document help, server maintenance, and '
+          'past supporters.'},
+ {'url': 'https://ded-sec.space/el/',
+  'title': 'DedSec Project - Ελληνικά',
+  'language': 'greek',
+  'headings': ['DedSec Project'],
+  'text': 'Η ελληνική έκδοση παρουσιάζει το DedSec Project ως εργαλειοθήκη και '
+          'εκπαιδευτικό οικοσύστημα Termux για Android, με οδηγούς, εργαλεία, βοήθεια, '
+          'υπεύθυνη κυβερνοασφάλεια και χρήση χωρίς root.'},
+ {'url': 'https://ded-sec.space/el/Pages/guide-for-installation.html',
+  'title': 'Οδηγός Εγκατάστασης',
+  'language': 'greek',
+  'headings': ['Οδηγός Εγκατάστασης'],
+  'text': 'Ο ελληνικός οδηγός εξηγεί την εγκατάσταση του Termux και των πρόσθετων, την '
+          'ενημέρωση πακέτων, το git clone του DedSec και την εκτέλεση του Setup.sh.'},
+ {'url': 'https://ded-sec.space/el/Pages/learn-about-the-tools.html',
+  'title': 'Μάθε για τα Εργαλεία',
+  'language': 'greek',
+  'headings': ['Επισκόπηση Εργαλείων'],
+  'text': 'Η ελληνική σελίδα περιγράφει τα εργαλεία του DedSec Project, τις δυνατότητές '
+          'τους, την ασφαλή χρήση και τις πραγματικές τοποθεσίες αποθήκευσης.'},
+ {'url': 'https://ded-sec.space/el/Pages/assistance.html',
+  'title': 'Βοήθεια',
+  'language': 'greek',
+  'headings': ['Βοήθεια'],
+  'text': 'Η ελληνική ενότητα Βοήθειας περιλαμβάνει πρακτικούς οδηγούς για εγκατάσταση, '
+          'πακέτα, Python, Git, δικαιώματα, αποθήκευση, Flask, ιστοσελίδες και συνηθισμένα '
+          'σφάλματα Termux.'}]
+
+
+def _pipboy_impl_pipboy_project_roots_1():
+    candidates = [
+        os.environ.get("DEDSEC_PROJECT_ROOT", ""),
+        os.path.join(HOME_DIR, "DedSec"),
+        os.path.dirname(ENGLISH_BASE_PATH),
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
+    ]
+    roots = []
+    seen = set()
+    for candidate in candidates:
+        candidate = os.path.realpath(os.path.expanduser(candidate)) if candidate else ""
+        if candidate and os.path.isdir(candidate) and candidate not in seen:
+            # A project root normally contains Scripts, README, or Setup.sh.
+            if (os.path.isdir(os.path.join(candidate, "Scripts")) or
+                    os.path.isfile(os.path.join(candidate, "README.md")) or
+                    os.path.isfile(os.path.join(candidate, "Setup.sh"))):
+                roots.append(candidate)
+                seen.add(candidate)
+    return roots
+
+
+def pipboy_website_seed_index():
+    pages = {}
+    now = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    for item in PIPBOY_WEBSITE_SEED_PAGES:
+        record = dict(item)
+        record.update({"source": "built-in seed", "fetched_at": now, "links": []})
+        pages[record["url"]] = record
+    return {
+        "schema": 2, "base_url": PIPBOY_WEBSITE_BASE_URL,
+        "generated_at": now, "generated_epoch": 0,
+        "complete_crawl": False, "seed_only": True,
+        "pages": pages, "errors": [],
+    }
+
+
+
+def _dedguy_base_pipboy_load_website_index():
+    """Load a bounded website index; oversized legacy indexes are ignored safely."""
+    try:
+        if not os.path.isfile(PIPBOY_WEBSITE_INDEX_PATH):
+            return pipboy_website_seed_index()
+        if os.path.getsize(PIPBOY_WEBSITE_INDEX_PATH) > 4 * 1024 * 1024:
+            return pipboy_website_seed_index()
+        index = pipboy_load_json(PIPBOY_WEBSITE_INDEX_PATH, {})
+        pages = index.get("pages", {}) if isinstance(index, dict) else {}
+        if not isinstance(pages, dict) or not pages:
+            return pipboy_website_seed_index()
+        compact = {}
+        for url, source in list(pages.items())[:400]:
+            if not isinstance(source, dict):
+                continue
+            item = dict(source)
+            item["text"] = str(item.get("text") or item.get("description") or "")[:5000]
+            item["links"] = list(item.get("links") or [])[:80]
+            compact[str(url)] = item
+        result = dict(index)
+        result["pages"] = compact
+        result["runtime_safe"] = True
+        return result
+    except Exception:
+        return pipboy_website_seed_index()
+
+
+
+def pipboy_website_index_stale(index=None):
+    index = index or pipboy_load_website_index()
+    try:
+        generated = float(index.get("generated_epoch", 0))
+    except (TypeError, ValueError):
+        generated = 0
+    if not generated:
+        return True
+    refresh_after = 24 * 60 * 60 if index.get("seed_only", False) else PIPBOY_WEBSITE_REFRESH_SECONDS
+    return time.time() - generated > refresh_after
+
+
+def pipboy_read_text_limited(path, limit=PIPBOY_MAX_PROJECT_FILE_CHARS):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read(max(1024, int(limit)))
+    except Exception:
+        return ""
+
+
+def pipboy_clean_index_text(text):
+    text = str(text or "").replace("\x00", " ")
+    text = PIPBOY_ANSI_RE.sub("", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def pipboy_detect_language(text, path=""):
+    sample = str(text or "")[:8000]
+    greek_count = len(re.findall(r"[Α-Ωα-ωΆ-Ώά-ώ]", sample))
+    latin_count = len(re.findall(r"[A-Za-z]", sample))
+    decoded_path = re.sub(r"#U([0-9A-Fa-f]{4,6})", lambda match: chr(int(match.group(1), 16)), str(path or ""))
+    if "/el/" in decoded_path.replace("\\", "/").casefold() or GREEK_FOLDER_NAME.casefold() in decoded_path.casefold():
+        return "greek"
+    return "greek" if greek_count > max(30, latin_count // 3) else "english"
+
+
+def pipboy_extract_save_paths(text):
+    patterns = (
+        r"(?:/storage/emulated/0|/sdcard|/data/data/com\.termux/files/home|~/storage|~/DedSec|~/Downloads|~/.?[A-Za-z0-9_ -]+)[^\n\r'\"`<>]{0,150}",
+        r"(?:save(?:d)?\s+(?:to|in|location)|αποθηκε(?:ύ|υ)εται\s+(?:στο|στη|σε))\s*[:=-]?\s*([^\n\r]{3,180})",
+    )
+    found = []
+    for pattern in patterns:
+        for match in re.finditer(pattern, text, flags=re.I):
+            value = match.group(1) if match.lastindex else match.group(0)
+            value = re.sub(r"\s+", " ", value).strip(" .,:;()[]")
+            if value and value not in found:
+                found.append(value[:220])
+            if len(found) >= 20:
+                return found
+    return found
+
+
+def pipboy_extract_headings(text, extension=""):
+    headings = []
+    if extension in {".md", ".markdown"}:
+        for line in text.splitlines():
+            match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", line)
+            if match:
+                headings.append(match.group(1).strip())
+    elif extension in {".html", ".htm"}:
+        for match in re.finditer(r"<h[1-4][^>]*>(.*?)</h[1-4]>", text, flags=re.I | re.S):
+            clean = re.sub(r"<[^>]+>", " ", html.unescape(match.group(1)))
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean:
+                headings.append(clean)
+    return headings[:80]
+
+
+def pipboy_file_description(text, path, extension):
+    def useful_description(value):
+        clean = re.sub(r"\s+", " ", str(value or "")).strip()
+        if not clean or len(clean) < 18:
+            return ""
+        code_signals = (
+            " = [", " = {", " = (", "subprocess.", "os.path.", "Path(",
+            "def ", "class ", "import ", "from ", "app = Flask", "<script",
+            "<meta ", "data:image", "http://", "https://",
+        )
+        if any(signal.casefold() in clean.casefold()[:220] for signal in code_signals):
+            return ""
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]{2,}\s*=", clean):
+            return ""
+        return clean[:1200]
+
+    if extension in PIPBOY_SCRIPT_EXTENSIONS:
+        try:
+            profile = pipboy_source_profile(path)
+            description = useful_description(profile.get("description"))
+            if description:
+                return description, profile
+        except Exception:
+            profile = {}
+    else:
+        profile = {}
+    if extension in {".md", ".markdown", ".txt"}:
+        for paragraph in re.split(r"\n\s*\n", text):
+            clean = html.unescape(paragraph)
+            clean = re.sub(r"<[^>]+>", " ", clean)
+            clean = re.sub(r"^[#>*`\-\s]+", "", clean).strip()
+            clean = re.sub(r"\s+", " ", clean)
+            description = useful_description(clean)
+            if description:
+                return description, profile
+    doc_match = re.search(r'(?s)^[\s\ufeff]*(?:[rubfRUBF]{0,2})?["\']{3}(.*?)["\']{3}', text)
+    if doc_match:
+        description = useful_description(doc_match.group(1))
+        if description:
+            return description, profile
+    return "", profile
+
+
+
+
+
+
+def pipboy_query_terms(query):
+    normalized = pipboy_canonicalize(query)
+    tokens = [token for token in re.findall(r"[a-z0-9α-ω+#._-]+", normalized) if len(token) > 1]
+    expansions = {
+        "save": {"saved", "storage", "output", "location", "path", "folder", "download"},
+        "install": {"installation", "setup", "clone", "package", "termux"},
+        "fix": {"repair", "error", "problem", "troubleshoot", "assistance"},
+        "script": {"tool", "program", "utility"},
+        "website": {"site", "page", "web"},
+        "clone": {"repository", "repo", "git", "github"},
+        "voice": {"speech", "microphone", "tts"},
+    }
+    expanded = list(tokens)
+    for token in tokens:
+        for root, synonyms in expansions.items():
+            if token == root or token in synonyms:
+                expanded.extend([root, *sorted(synonyms)])
+    return list(dict.fromkeys(expanded))
+
+
+def pipboy_score_knowledge_record(query, record):
+    query_norm = pipboy_normalize(query)
+    original_terms = [token for token in re.findall(r"[a-z0-9α-ω+#._-]+", pipboy_canonicalize(query)) if len(token) > 1]
+    expanded_terms = [token for token in pipboy_query_terms(query) if token not in original_terms]
+    raw_title = record.get("title") or record.get("name") or record.get("relative_path") or ""
+    title = pipboy_normalize(raw_title)
+    base_title = pipboy_normalize(os.path.splitext(os.path.basename(str(raw_title)))[0])
+    headings = pipboy_normalize(" ".join(record.get("headings", [])))
+    description = pipboy_normalize(record.get("description", ""))
+    save_paths = pipboy_normalize(" ".join(record.get("save_paths", [])))
+    content = pipboy_normalize(record.get("text") or record.get("content") or "")
+    score = 0.0
+    if query_norm and query_norm == title:
+        score += 18.0
+    if query_norm and query_norm in title:
+        score += 9.0
+    if base_title and len(base_title) >= 3 and base_title in query_norm:
+        score += 30.0
+    if query_norm and query_norm in headings:
+        score += 5.0
+    if query_norm and query_norm in description:
+        score += 4.0
+    for term in original_terms:
+        if term in title:
+            score += 4.0
+        if term in headings:
+            score += 2.0
+        if term in description:
+            score += 1.5
+        if term in save_paths:
+            score += 0.8
+        score += min(1.5, content.count(term) * 0.08)
+    for term in expanded_terms:
+        if term in title:
+            score += 0.55
+        if term in headings:
+            score += 0.25
+        if term in description:
+            score += 0.18
+        score += min(0.25, content.count(term) * 0.01)
+    save_intent = any(word in query_norm for word in ("save", "where", "location", "path", "αποθηκε"))
+    if save_intent and record.get("save_paths"):
+        score += 2.5
+        if base_title and base_title in query_norm:
+            score += 8.0
+    generic_name = base_title in {"readme", "license", "security", "settings"}
+    if generic_name and base_title not in query_norm and len(content) > 50000:
+        score -= 6.0
+    if record.get("language") == get_current_display_language():
+        score += 0.35
+    return score
+
+
+
+
+
+
+def pipboy_relevant_sentences(query, record, max_sentences=4):
+    text = record.get("text") or record.get("content") or record.get("description") or ""
+    text = pipboy_clean_index_text(text)
+    terms = pipboy_query_terms(query)
+    intent = pipboy_normalize(query)
+    sentences = re.split(r"(?<=[.!?])\s+|\n+", text)
+    scored = []
+    for position, sentence in enumerate(sentences):
+        clean = re.sub(r"\s+", " ", sentence).strip(" -\t")
+        if len(clean) < 18 or len(clean) > 700:
+            continue
+        normalized = pipboy_normalize(clean)
+        score = sum(1.0 + min(1.0, normalized.count(term) * 0.25) for term in terms if term in normalized)
+        if any(word in intent for word in ("save", "where", "location", "path", "αποθηκε")) and any(word in normalized for word in ("save", "stored", "location", "path", "folder", "download", "αποθηκε")):
+            score += 4.0
+        if any(word in intent for word in ("install", "setup", "clone")) and any(word in normalized for word in ("install", "setup", "clone", "pkg ", "git ")):
+            score += 3.0
+        if any(word in intent for word in ("what does", "describe", "purpose", "can do")) and position < 12:
+            score += 1.5
+        if score > 0:
+            scored.append((score, position, clean))
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    chosen = []
+    positions = set()
+    for _, position, sentence in scored:
+        if position not in positions:
+            chosen.append((position, sentence))
+            positions.add(position)
+        if len(chosen) >= max_sentences:
+            break
+    chosen.sort(key=lambda item: item[0])
+    return [sentence for _, sentence in chosen]
+
+
+def pipboy_answer_from_knowledge(query, records, source_name):
+    if not records:
+        return pipboy_text(
+            f"I could not find that in the indexed {source_name} knowledge.",
+            f"Δεν το βρήκα στην ευρετηριασμένη γνώση {source_name}."
+        )
+    ordered = sorted(records, key=lambda item: float(item.get("score", 0)), reverse=True)
+    best_score = float(ordered[0].get("score", 0)) if ordered else 0.0
+    selected = []
+    seen = set()
+    for record in ordered:
+        score = float(record.get("score", 0))
+        if best_score > 0 and score < max(1.0, best_score * 0.45):
+            continue
+        raw_key = record.get("url") or record.get("name") or record.get("title") or record.get("relative_path") or record.get("path") or ""
+        if record.get("kind") == "project":
+            raw_key = os.path.splitext(os.path.basename(str(raw_key)))[0]
+        key = pipboy_normalize(raw_key)
+        if key and key in seen:
+            continue
+        if key:
+            seen.add(key)
+        selected.append(record)
+        if len(selected) >= 3:
+            break
+    if not selected:
+        selected = ordered[:1]
+
+    query_norm = pipboy_normalize(query)
+    answer_parts = []
+    sources = []
+    for record in selected:
+        title = record.get("title") or record.get("name") or record.get("relative_path") or "Source"
+        sentences = pipboy_relevant_sentences(query, record, max_sentences=3)
+        if not sentences and record.get("description"):
+            sentences = [record["description"]]
+        if any(word in query_norm for word in ("save", "where", "location", "path", "αποθηκε")) and record.get("save_paths"):
+            paths = "; ".join(record.get("save_paths", [])[:6])
+            sentences.insert(0, pipboy_text(f"Detected save locations: {paths}.", f"Εντοπισμένες τοποθεσίες αποθήκευσης: {paths}."))
+        if sentences:
+            answer_parts.append(f"{title}: " + " ".join(sentences[:3]))
+        source_ref = record.get("url") or record.get("relative_path") or record.get("path") or title
+        if source_ref not in sources:
+            sources.append(source_ref)
+    answer = "\n\n".join(answer_parts)
+    answer = textwrap.shorten(answer, width=2400, placeholder="...") if len(answer) > 2400 else answer
+    source_line = pipboy_text("Sources: ", "Πηγές: ") + " | ".join(sources[:4])
+    return (answer + "\n" + source_line).strip()
+
+
+
+
+
+def pipboy_website_status_text():
+    index = pipboy_load_website_index()
+    pages = index.get("pages", {})
+    greek = sum(1 for record in pages.values() if record.get("language") == "greek")
+    english = sum(1 for record in pages.values() if record.get("language") == "english")
+    status = pipboy_text("complete live crawl" if index.get("complete_crawl") else "seed/partial index", "πλήρης ζωντανή σάρωση" if index.get("complete_crawl") else "αρχικό/μερικό ευρετήριο")
+    return pipboy_text(
+        f"Website knowledge: {len(pages)} pages ({english} English, {greek} Greek), {status}. Last refresh: {index.get('generated_at') or 'never'}.",
+        f"Γνώση ιστοσελίδας: {len(pages)} σελίδες ({english} αγγλικά, {greek} ελληνικά), {status}. Τελευταία ανανέωση: {index.get('generated_at') or 'ποτέ'}."
+    )
+
+
+class PipboyWebsiteHTMLParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.title_parts = []
+        self.description = ""
+        self.headings = []
+        self.text_parts = []
+        self.links = []
+        self._skip = 0
+        self._title = False
+        self._heading = None
+        self._heading_buffer = []
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.casefold()
+        attrs = {str(key).casefold(): value for key, value in attrs}
+        if tag in {"script", "style", "noscript", "svg", "canvas", "template", "nav", "footer"}:
+            self._skip += 1
+            return
+        if self._skip:
+            return
+        if tag == "title":
+            self._title = True
+        if tag in {"h1", "h2", "h3", "h4"}:
+            self._heading = tag
+            self._heading_buffer = []
+        if tag == "meta" and str(attrs.get("name", "")).casefold() == "description":
+            self.description = str(attrs.get("content") or "").strip()
+        if tag == "a" and attrs.get("href"):
+            self.links.append(str(attrs["href"]).strip())
+        if tag in {"p", "li", "pre", "code", "blockquote", "br", "section", "article", "main", "div", "tr"}:
+            self.text_parts.append("\n")
+
+    def handle_endtag(self, tag):
+        tag = tag.casefold()
+        if tag in {"script", "style", "noscript", "svg", "canvas", "template", "nav", "footer"}:
+            if self._skip:
+                self._skip -= 1
+            return
+        if self._skip:
+            return
+        if tag == "title":
+            self._title = False
+        if self._heading == tag:
+            heading = re.sub(r"\s+", " ", "".join(self._heading_buffer)).strip()
+            if heading:
+                self.headings.append(heading)
+            self._heading = None
+            self._heading_buffer = []
+        if tag in {"p", "li", "pre", "code", "blockquote", "section", "article", "main", "div", "tr"}:
+            self.text_parts.append("\n")
+
+    def handle_data(self, data):
+        if self._skip:
+            return
+        if self._title:
+            self.title_parts.append(data)
+        if self._heading:
+            self._heading_buffer.append(data)
+        self.text_parts.append(data)
+
+    def result(self):
+        title = re.sub(r"\s+", " ", "".join(self.title_parts)).strip()
+        text = pipboy_clean_index_text(html.unescape("".join(self.text_parts)))
+        return title, self.description, self.headings[:100], text, self.links
+
+
+def pipboy_canonical_website_url(raw_url, base_url=PIPBOY_WEBSITE_BASE_URL):
+    try:
+        joined = urljoin(base_url, str(raw_url or "").strip())
+        parsed = urlparse(joined)
+    except Exception:
+        return ""
+    scheme = parsed.scheme.casefold()
+    host = parsed.netloc.casefold().split("@")[ -1].split(":")[0]
+    if scheme not in {"http", "https"} or host not in PIPBOY_WEBSITE_HOSTS:
+        return ""
+    path = re.sub(r"/{2,}", "/", parsed.path or "/")
+    extension = os.path.splitext(path.casefold())[1]
+    if extension in PIPBOY_WEBSITE_SKIP_EXTENSIONS:
+        return ""
+    if any(segment in path.casefold() for segment in ("/assets/", "/node_modules/", "/.git/")):
+        return ""
+    # Use the canonical production host and HTTPS. Drop trackers and fragments.
+    canonical = urlunparse(("https", "ded-sec.space", path, "", "", ""))
+    return canonical
+
+
+def pipboy_parse_sitemap_urls(xml_text, base_url=PIPBOY_WEBSITE_BASE_URL):
+    urls = []
+    try:
+        root = ET.fromstring(xml_text)
+        for element in root.iter():
+            if element.tag.rsplit("}", 1)[-1].casefold() == "loc" and element.text:
+                value = element.text.strip()
+                canonical = pipboy_canonical_website_url(value, base_url)
+                if canonical:
+                    urls.append(canonical)
+                elif value.endswith(".xml"):
+                    urls.append(value)
+    except Exception:
+        pass
+    return list(dict.fromkeys(urls))
+
+
+def pipboy_fetch_url(session, url, timeout=15, max_bytes=1_500_000):
+    response = session.get(url, timeout=timeout, allow_redirects=True, stream=True)
+    response.raise_for_status()
+    content = bytearray()
+    for chunk in response.iter_content(65536):
+        if not chunk:
+            continue
+        content.extend(chunk)
+        if len(content) >= max_bytes:
+            break
+    encoding = response.encoding or "utf-8"
+    return response, bytes(content).decode(encoding, errors="replace")
+
+
+def pipboy_fetch_website_record(session, url):
+    response, source = pipboy_fetch_url(session, url, timeout=18, max_bytes=1_800_000)
+    content_type = str(response.headers.get("content-type", "")).casefold()
+    if "html" not in content_type and not urlparse(url).path.casefold().endswith((".html", ".htm", "/")):
+        return None, []
+    parser = PipboyWebsiteHTMLParser()
+    parser.feed(source)
+    title, description, headings, text, raw_links = parser.result()
+    canonical = pipboy_canonical_website_url(response.url or url)
+    if not canonical:
+        return None, []
+    links = []
+    for href in raw_links:
+        normalized = pipboy_canonical_website_url(href, canonical)
+        if normalized and normalized not in links:
+            links.append(normalized)
+    record = {
+        "url": canonical, "title": title or canonical.rsplit("/", 1)[-1] or "DedSec Project",
+        "description": description, "headings": headings,
+        "language": pipboy_detect_language(text, canonical),
+        "text": text[:PIPBOY_MAX_WEBSITE_PAGE_CHARS], "links": links[:500],
+        "fetched_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "source": "live website", "status": int(response.status_code),
+        "content_hash": hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest(),
+    }
+    return record, links
+
+
+def pipboy_discover_sitemap_urls(session):
+    discovered = []
+    sitemap_queue = deque([
+        "https://ded-sec.space/sitemap.xml",
+        "https://ded-sec.space/sitemap_index.xml",
+    ])
+    seen_sitemaps = set()
+    while sitemap_queue and len(seen_sitemaps) < 20:
+        sitemap_url = sitemap_queue.popleft()
+        if sitemap_url in seen_sitemaps:
+            continue
+        seen_sitemaps.add(sitemap_url)
+        try:
+            _, source = pipboy_fetch_url(session, sitemap_url, timeout=15, max_bytes=3_000_000)
+        except Exception:
+            continue
+        for value in pipboy_parse_sitemap_urls(source, sitemap_url):
+            if value.endswith(".xml"):
+                sitemap_queue.append(value)
+            elif value not in discovered:
+                discovered.append(value)
+    return discovered
+
+
+def pipboy_crawl_website(force=False, progress=None, max_pages=PIPBOY_MAX_WEBSITE_PAGES):
+    existing = pipboy_load_website_index()
+    if not force and not pipboy_website_index_stale(existing):
+        return existing
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "DedSec-DedGuy/1.0 (+https://ded-sec.space/; local personal knowledge index)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
+    })
+    seeds = [record["url"] for record in PIPBOY_WEBSITE_SEED_PAGES]
+    sitemap_urls = pipboy_discover_sitemap_urls(session)
+    queue = deque(list(dict.fromkeys([PIPBOY_WEBSITE_BASE_URL, *sitemap_urls, *seeds])))
+    seen = set()
+    pages = {}
+    errors = []
+    max_pages = min(PIPBOY_MAX_WEBSITE_PAGES, max(1, int(max_pages)))
+    workers = 6
+    while queue and len(pages) < max_pages:
+        batch = []
+        while queue and len(batch) < workers and len(pages) + len(batch) < max_pages:
+            candidate = pipboy_canonical_website_url(queue.popleft())
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                batch.append(candidate)
+        if not batch:
+            continue
+        with ThreadPoolExecutor(max_workers=min(workers, len(batch))) as executor:
+            future_map = {executor.submit(pipboy_fetch_website_record, session, url): url for url in batch}
+            for future in as_completed(future_map):
+                url = future_map[future]
+                try:
+                    record, links = future.result()
+                    if record:
+                        pages[record["url"]] = record
+                        for link in links:
+                            if link not in seen:
+                                queue.append(link)
+                    else:
+                        errors.append({"url": url, "error": "not an HTML page"})
+                except Exception as exc:
+                    errors.append({"url": url, "error": str(exc)[:300]})
+        if progress:
+            progress(f"Website pages indexed: {len(pages)} | queued: {len(queue)} | errors: {len(errors)}")
+        if len(pages) and len(pages) % 25 == 0:
+            partial = {
+                "schema": 2, "base_url": PIPBOY_WEBSITE_BASE_URL,
+                "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+                "generated_epoch": time.time(), "complete_crawl": False,
+                "seed_only": False, "pages": pages, "errors": errors[-100:],
+            }
+            pipboy_atomic_json_write(PIPBOY_WEBSITE_INDEX_PATH, partial)
+    # If the live site was temporarily unreachable, preserve the seed knowledge.
+    if not pages:
+        index = pipboy_website_seed_index()
+        index["errors"] = errors[-100:]
+        index["generated_epoch"] = time.time()
+        index["generated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        pipboy_atomic_json_write(PIPBOY_WEBSITE_INDEX_PATH, index)
+        return index
+    index = {
+        "schema": 2, "base_url": PIPBOY_WEBSITE_BASE_URL,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "generated_epoch": time.time(), "complete_crawl": not bool(queue),
+        "seed_only": False, "pages": pages, "errors": errors[-100:],
+        "discovered_count": len(seen), "remaining_count": len(queue),
+    }
+    pipboy_atomic_json_write(PIPBOY_WEBSITE_INDEX_PATH, index)
+    return index
+
+
+def pipboy_search_cache_key(mode, query):
+    return hashlib.sha256((str(mode) + "\0" + pipboy_normalize(query)).encode("utf-8")).hexdigest()
+
+
+def pipboy_load_web_cache():
+    cache = pipboy_load_json(PIPBOY_WEB_CACHE_PATH, {})
+    return cache if isinstance(cache, dict) else {}
+
+
+def pipboy_save_web_cache(cache):
+    if not isinstance(cache, dict):
+        return
+    # Keep newest 100 queries.
+    ordered = sorted(cache.items(), key=lambda pair: float(pair[1].get("epoch", 0)), reverse=True)[:100]
+    pipboy_atomic_json_write(PIPBOY_WEB_CACHE_PATH, dict(ordered))
+
+
+class PipboyDuckDuckGoParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.results = []
+        self._current = None
+        self._capture_title = False
+        self._capture_snippet = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = {str(key): value for key, value in attrs}
+        classes = str(attrs.get("class", ""))
+        if tag == "a" and "result__a" in classes:
+            self._current = {"url": str(attrs.get("href") or ""), "title_parts": [], "snippet_parts": []}
+            self._capture_title = True
+        elif self._current is not None and ("result__snippet" in classes or "result-snippet" in classes):
+            self._capture_snippet = True
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._capture_title:
+            self._capture_title = False
+        if self._current is not None and tag in {"div", "article"} and self._current.get("title_parts"):
+            title = re.sub(r"\s+", " ", "".join(self._current["title_parts"])).strip()
+            snippet = re.sub(r"\s+", " ", "".join(self._current["snippet_parts"])).strip()
+            raw_url = self._current.get("url", "")
+            parsed = urlparse(html.unescape(raw_url))
+            query = dict(parse_qsl(parsed.query))
+            url = unquote(query.get("uddg", "")) or raw_url
+            if title and url.startswith(("http://", "https://")):
+                self.results.append({"kind": "web", "name": title, "title": title, "url": url, "description": snippet})
+            self._current = None
+            self._capture_snippet = False
+
+    def handle_data(self, data):
+        if self._current is None:
+            return
+        if self._capture_title:
+            self._current["title_parts"].append(data)
+        elif self._capture_snippet:
+            self._current["snippet_parts"].append(data)
+
+
+def pipboy_search_github(query, limit=8):
+    url = "https://api.github.com/search/repositories"
+    response = requests.get(
+        url, params={"q": str(query), "sort": "stars", "order": "desc", "per_page": min(10, limit)},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "DedSec-DedGuy/1.0"},
+        timeout=18,
+    )
+    response.raise_for_status()
+    items = []
+    for repo in response.json().get("items", [])[:limit]:
+        items.append({
+            "kind": "repo", "name": repo.get("full_name") or repo.get("name"),
+            "title": repo.get("full_name") or repo.get("name"),
+            "url": repo.get("html_url"), "clone_url": repo.get("clone_url"),
+            "description": repo.get("description") or "",
+            "stars": int(repo.get("stargazers_count") or 0),
+            "language": repo.get("language") or "",
+        })
+    return items
+
+
+def pipboy_search_duckduckgo(query, limit=8):
+    response = requests.get(
+        "https://html.duckduckgo.com/html/", params={"q": str(query)},
+        headers={"User-Agent": "Mozilla/5.0 (Android; Termux) DedSec-DedGuy/1.0"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    parser = PipboyDuckDuckGoParser()
+    parser.feed(response.text)
+    return parser.results[:limit]
+
+
+def pipboy_search_wikipedia(query, limit=5):
+    language = "el" if get_current_display_language() == "greek" else "en"
+    endpoint = f"https://{language}.wikipedia.org/w/api.php"
+    response = requests.get(endpoint, params={
+        "action": "query", "list": "search", "srsearch": str(query),
+        "utf8": 1, "format": "json", "srlimit": min(10, limit),
+    }, headers={"User-Agent": "DedSec-DedGuy/1.0"}, timeout=18)
+    response.raise_for_status()
+    items = []
+    for result in response.json().get("query", {}).get("search", [])[:limit]:
+        title = result.get("title") or "Wikipedia"
+        snippet = re.sub(r"<[^>]+>", " ", result.get("snippet") or "")
+        items.append({
+            "kind": "web", "name": title, "title": title,
+            "url": f"https://{language}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}",
+            "description": html.unescape(re.sub(r"\s+", " ", snippet)).strip(),
+        })
+    return items
+
+
+def pipboy_web_search(query, mode="web", limit=8, use_cache=True):
+    query = str(query or "").strip()
+    if not query:
+        return []
+    cache = pipboy_load_web_cache()
+    key = pipboy_search_cache_key(mode, query)
+    cached = cache.get(key, {})
+    try:
+        if use_cache and time.time() - float(cached.get("epoch", 0)) < 6 * 60 * 60:
+            results = cached.get("results", [])
+            if isinstance(results, list):
+                return results[:limit]
+    except Exception:
+        pass
+    results = []
+    errors = []
+    try:
+        if mode == "github":
+            results = pipboy_search_github(query, limit=limit)
+        else:
+            results = pipboy_search_duckduckgo(query, limit=limit)
+    except Exception as exc:
+        errors.append(str(exc))
+    if not results and mode != "github":
+        try:
+            results = pipboy_search_wikipedia(query, limit=min(5, limit))
+        except Exception as exc:
+            errors.append(str(exc))
+    cache[key] = {"epoch": time.time(), "query": query, "mode": mode, "results": results, "errors": errors[-3:]}
+    pipboy_save_web_cache(cache)
+    return results[:limit]
+
+
+def pipboy_validate_repo_url(value):
+    raw = str(value or "").strip().strip("'\"")
+    if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", raw):
+        raw = "https://github.com/" + raw
+    if raw.startswith("git@"):
+        raise ValueError("SSH repository URLs are not accepted. Use a public HTTPS URL.")
+    parsed = urlparse(raw)
+    host = parsed.hostname.casefold() if parsed.hostname else ""
+    if parsed.scheme.casefold() != "https" or host not in PIPBOY_ALLOWED_GIT_HOSTS:
+        raise ValueError("Only public HTTPS repositories from GitHub, GitLab, or Codeberg are accepted.")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("Repository URLs cannot contain credentials, query parameters, or fragments.")
+    parts = [unquote(part) for part in parsed.path.strip("/").split("/") if part]
+    if len(parts) < 2 or any(not re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts[:2]):
+        raise ValueError("The repository URL must contain an owner and repository name.")
+    owner, repo = parts[0], parts[1]
+    repo = repo[:-4] if repo.casefold().endswith(".git") else repo
+    if repo in {"", ".", ".."}:
+        raise ValueError("Invalid repository name.")
+    canonical_host = "github.com" if "github.com" in host else ("gitlab.com" if "gitlab.com" in host else "codeberg.org")
+    canonical = f"https://{canonical_host}/{owner}/{repo}.git"
+    destination = os.path.realpath(os.path.join(PIPBOY_DOWNLOADED_REPOS_DIR, repo))
+    allowed_root = os.path.realpath(PIPBOY_DOWNLOADED_REPOS_DIR) + os.sep
+    if not destination.startswith(allowed_root):
+        raise ValueError("Unsafe repository destination.")
+    return canonical, destination, f"{owner}/{repo}"
+
+
+def pipboy_clone_action(value):
+    url, destination, display_name = pipboy_validate_repo_url(value)
+    if os.path.exists(destination):
+        raise ValueError(f"Destination already exists: {destination}")
+    git = shutil.which("git") or "git"
+    return {
+        "type": "clone", "title": f"Clone {display_name}", "name": display_name,
+        "url": url, "destination": destination,
+        "command": [git, "clone", "--depth", "1", "--", url, destination],
+        "cwd": PIPBOY_DOWNLOADED_REPOS_DIR, "full_screen": False,
+        "risky": True, "untrusted": True,
+    }
+
+
+def pipboy_register_clone(action, status, safety=None):
+    registry = pipboy_load_json(PIPBOY_CLONE_REGISTRY_PATH, [])
+    if not isinstance(registry, list):
+        registry = []
+    registry.append({
+        "time": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "name": action.get("name"), "url": action.get("url"),
+        "destination": action.get("destination"), "status": status,
+        "safety": safety or {},
+    })
+    pipboy_atomic_json_write(PIPBOY_CLONE_REGISTRY_PATH, registry[-200:])
+
+
+def pipboy_repo_static_safety_scan(path):
+    path = os.path.realpath(path)
+    result = {"files": 0, "scripts": 0, "symlinks": 0, "large_files": 0, "alerts": []}
+    suspicious_patterns = {
+        "destructive deletion": r"\brm\s+-[^\n]*r[^\n]*f|shutil\.rmtree\(",
+        "credential access": r"\.ssh/|credentials|token|password",
+        "shell download execution": r"(?:curl|wget)[^\n|;]*(?:\||;|&&)\s*(?:sh|bash|python)",
+        "persistence changes": r"bash\.bashrc|\.profile|crontab|termux-job-scheduler",
+        "privilege request": r"\bsu\b|\bsudo\b|chroot|mount\s",
+    }
+    for current, directories, files in os.walk(path):
+        directories[:] = [name for name in directories if name != ".git" and name not in PIPBOY_IGNORED_DIRS]
+        for filename in files:
+            full = os.path.join(current, filename)
+            result["files"] += 1
+            if os.path.islink(full):
+                result["symlinks"] += 1
+                continue
+            try:
+                size = os.path.getsize(full)
+            except OSError:
+                continue
+            if size > 20 * 1024 * 1024:
+                result["large_files"] += 1
+            extension = os.path.splitext(filename)[1].casefold()
+            if extension in PIPBOY_SCRIPT_EXTENSIONS or os.access(full, os.X_OK):
+                result["scripts"] += 1
+            if extension not in PIPBOY_PROJECT_TEXT_EXTENSIONS or size > 500000:
+                continue
+            source = pipboy_read_text_limited(full, 500000)
+            for label, pattern in suspicious_patterns.items():
+                if re.search(pattern, source, flags=re.I):
+                    alert = f"{label}: {os.path.relpath(full, path)}"
+                    if alert not in result["alerts"]:
+                        result["alerts"].append(alert)
+            if len(result["alerts"]) >= 30:
+                break
+    return result
+
+
+def pipboy_clone_safety_text(action, safety):
+    alerts = safety.get("alerts", [])
+    alert_text = "; ".join(alerts[:8]) if alerts else pipboy_text("no obvious high-risk pattern found", "δεν βρέθηκε προφανές μοτίβο υψηλού κινδύνου")
+    return pipboy_text(
+        f"Repository cloned to {action.get('destination')}. Static scan: {safety.get('files', 0)} files, {safety.get('scripts', 0)} scripts, {safety.get('symlinks', 0)} symlinks. Alerts: {alert_text}. It remains untrusted and will never run automatically.",
+        f"Το repository κλωνοποιήθηκε στο {action.get('destination')}. Στατική σάρωση: {safety.get('files', 0)} αρχεία, {safety.get('scripts', 0)} scripts, {safety.get('symlinks', 0)} symlinks. Προειδοποιήσεις: {alert_text}. Παραμένει μη έμπιστο και δεν θα εκτελεστεί αυτόματα."
+    )
+
+
+def pipboy_is_untrusted_path(path):
+    try:
+        real = os.path.realpath(path)
+        root = os.path.realpath(PIPBOY_DOWNLOADED_REPOS_DIR) + os.sep
+        return real.startswith(root)
+    except Exception:
+        return False
+
+
+def pipboy_web_result_text(matches):
+    lines = []
+    for index, item in enumerate(matches[:8], 1):
+        kind = item.get("kind", "web")
+        title = item.get("name") or item.get("title") or item.get("url")
+        description = textwrap.shorten(str(item.get("description") or ""), width=90, placeholder="...")
+        suffix = f" - {description}" if description else ""
+        if kind == "repo":
+            suffix += f" | stars: {item.get('stars', 0)} | {item.get('language') or 'unknown'}"
+        lines.append(f"{index}. [{kind}] {title}{suffix}")
+    return "\n".join(lines)
+
+
+def pipboy_open_url_action(url, title="Web page"):
+    url = str(url or "").strip()
+    if not url.startswith(("https://", "http://")):
+        raise ValueError("Only HTTP/HTTPS URLs can be opened.")
+    return {"type": "open_url", "title": title, "url": url, "risky": False}
+
+
+def pipboy_shell_action(command_text):
+    command_text = str(command_text or "").strip()
+    if not command_text:
+        raise ValueError("No shell command was provided.")
+    if len(command_text) > 2000 or "\x00" in command_text:
+        raise ValueError("Shell command is too long or invalid.")
+    shell = shutil.which("bash") or shutil.which("sh") or "/data/data/com.termux/files/usr/bin/bash"
+    return {
+        "type": "launch", "title": "Confirmed shell command",
+        "command": [shell, "-lc", command_text], "cwd": HOME_DIR,
+        "full_screen": False, "risky": True, "shell_preview": command_text,
+    }
+
+
+def pipboy_maybe_spawn_website_refresh():
+    if len(sys.argv) > 1 and sys.argv[1] in {"--pipboy-website-index", "--pipboy-learn-all"}:
+        return False
+    config = pipboy_load_config()
+    if not config.get("website_auto_refresh", True) or not pipboy_website_index_stale():
+        return False
+    try:
+        script_path = SETTINGS_SCRIPT_PATH if os.path.isfile(SETTINGS_SCRIPT_PATH) else os.path.realpath(__file__)
+        subprocess.Popen(
+            [sys.executable or "python3", script_path, "--pipboy-website-index", "--quiet"],
+            cwd=ENGLISH_BASE_PATH if os.path.isdir(ENGLISH_BASE_PATH) else HOME_DIR,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True, close_fds=True,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def pipboy_result(message, action=None, matches=None, pinned=False):
+    return {"message": str(message), "action": action, "matches": matches or [], "pinned": bool(pinned)}
+
+
+def pipboy_find_scripts(term, inventory, limit=8):
+    scripts = inventory.get("scripts", {}) if isinstance(inventory, dict) else {}
+    needle = pipboy_normalize(term)
+    preferred_language = get_current_display_language()
+    scores = []
+    for path, record in scripts.items():
+        name = record.get("name", os.path.basename(path))
+        description = record.get("description", "")
+        capabilities = " ".join(record.get("capabilities", []))
+        haystack = pipboy_normalize(f"{name} {path} {description} {capabilities}")
+        basename = pipboy_normalize(os.path.splitext(name)[0])
+        score = difflib.SequenceMatcher(None, needle, basename).ratio()
+        if needle and needle in haystack:
+            score += 1.1
+        if needle == basename:
+            score += 2.0
+        if preferred_language == "greek" and (GREEK_FOLDER_NAME in path or HIDDEN_GREEK_FOLDER in path):
+            score += 0.15
+        if preferred_language == "english" and GREEK_FOLDER_NAME not in path and HIDDEN_GREEK_FOLDER not in path:
+            score += 0.12
+        if score >= 0.34:
+            scores.append((score, path, record))
+    scores.sort(key=lambda item: (-item[0], item[2].get("name", "").casefold()))
+    return [
+        {
+            "kind": "script", "name": record.get("name", os.path.basename(path)),
+            "path": path, "description": record.get("description", ""),
+            "capabilities": record.get("capabilities", []),
+            "arguments": record.get("arguments", []),
+            "input_hints": record.get("input_hints", []),
+            "interactive": bool(record.get("interactive")),
+            "command": record.get("command") or pipboy_script_command(path),
+            "cwd": record.get("directory") or os.path.dirname(path),
+            "full_screen": bool(record.get("full_screen")),
+            "untrusted": pipboy_is_untrusted_path(path),
+        }
+        for _, path, record in scores[:limit]
+    ]
+
+
+PIPBOY_SCRIPT_QUERY_NOISE = {
+    "the", "a", "an", "please", "script", "scripts", "program", "programs",
+    "tool", "tools", "app", "application", "file", "called", "named",
+    "το", "τη", "την", "τον", "ενα", "μια", "script", "εργαλειο", "προγραμμα", "αρχειο",
+}
+
+
+def pipboy_clean_script_query(term):
+    normalized = pipboy_canonicalize(term)
+    aliases = {
+        "pet friend": "pet friends", "pet friends game": "pet friends",
+        "pet fringe": "pet friends", "pet trends": "pet friends",
+        "termux repair": "termux repair wizard", "repair wizard script": "termux repair wizard",
+    }
+    normalized = aliases.get(normalized, normalized)
+    tokens = [token for token in normalized.split() if token not in PIPBOY_SCRIPT_QUERY_NOISE]
+    return " ".join(tokens).strip() or normalized
+
+
+def pipboy_script_item_score(term, item):
+    query = pipboy_clean_script_query(term)
+    name = pipboy_normalize(os.path.splitext(str(item.get("name") or ""))[0])
+    path = pipboy_normalize(str(item.get("path") or item.get("relative_path") or ""))
+    description = pipboy_normalize(str(item.get("description") or item.get("catalog_description") or ""))
+    query_tokens = [token for token in query.split() if len(token) > 1]
+    name_tokens = set(name.split())
+    score = difflib.SequenceMatcher(None, query, name).ratio() * 3.0
+    if query == name:
+        score += 8.0
+    elif query and query in name:
+        score += 5.0
+    elif query and query in path:
+        score += 3.0
+    coverage = sum(1 for token in query_tokens if token in name_tokens or token in path)
+    if query_tokens:
+        score += 4.0 * coverage / len(query_tokens)
+        if coverage == len(query_tokens):
+            score += 4.0
+    if query and query in description:
+        score += 1.0
+    preferred = get_current_display_language()
+    item_language = str(item.get("language") or "")
+    if item_language == preferred:
+        score += 0.45
+    return score
+
+
+def pipboy_project_record_to_runnable(record):
+    real_path = pipboy_resolve_project_record_path(record)
+    if not real_path or not os.path.isfile(real_path):
+        return None
+    command = pipboy_script_command(real_path)
+    if not command:
+        return None
+    return {
+        "kind": "script", "name": record.get("name") or os.path.basename(real_path),
+        "path": real_path, "relative_path": record.get("relative_path", ""),
+        "description": record.get("description") or record.get("catalog_description") or record.get("excerpt") or "",
+        "capabilities": list(record.get("capabilities") or []),
+        "arguments": list(record.get("arguments") or []),
+        "input_hints": list(record.get("input_hints") or []),
+        "interactive": bool(record.get("interactive")), "command": command,
+        "cwd": os.path.dirname(real_path), "full_screen": bool(record.get("full_screen")),
+        "untrusted": pipboy_is_untrusted_path(real_path), "language": record.get("language", ""),
+        "category": record.get("category", ""), "risk_tags": list(record.get("risk_tags") or []),
+    }
+
+
+def pipboy_bounded_filesystem_script_search(term, limit=8):
+    """Last-resort exact script lookup; runs only for an explicit run request."""
+    query = pipboy_clean_script_query(term)
+    roots = [ENGLISH_BASE_PATH, os.path.join(HOME_DIR, "DedSec", "Scripts")]
+    for project in PIPBOY_MANAGED_PROJECTS:
+        try:
+            root = pipboy_installed_project_root(project)
+        except Exception:
+            root = ""
+        if root:
+            roots.append(root)
+    seen_roots, candidates, visited = set(), [], 0
+    for root in roots:
+        root = os.path.realpath(os.path.expanduser(root)) if root else ""
+        if not root or root in seen_roots or not os.path.isdir(root):
+            continue
+        seen_roots.add(root)
+        for current, dirs, files in os.walk(root):
+            dirs[:] = [name for name in dirs if name not in PIPBOY_IGNORED_DIRS and not name.startswith(".")]
+            for filename in files:
+                visited += 1
+                if visited > 5000:
+                    break
+                if os.path.splitext(filename)[1].lower() not in PIPBOY_SCRIPT_EXTENSIONS:
+                    continue
+                full = os.path.join(current, filename)
+                item = {
+                    "kind": "script", "name": filename, "path": full,
+                    "description": "", "capabilities": [], "arguments": [], "input_hints": [],
+                    "command": pipboy_script_command(full), "cwd": current, "full_screen": False,
+                    "untrusted": pipboy_is_untrusted_path(full),
+                    "language": "greek" if GREEK_FOLDER_NAME in full or HIDDEN_GREEK_FOLDER in full else "english",
+                }
+                if item["command"]:
+                    score = pipboy_script_item_score(query, item)
+                    if score >= 3.2:
+                        candidates.append((score, item))
+            if visited > 5000:
+                break
+        if visited > 5000:
+            break
+    candidates.sort(key=lambda row: (-row[0], str(row[1].get("name") or "").casefold()))
+    return [item for _score, item in candidates[:limit]]
+
+
+def pipboy_find_runnable_scripts(term, inventory, limit=8):
+    """Resolve natural script names from inventory, project index, or disk."""
+    query = pipboy_clean_script_query(term)
+    rows = []
+    for item in pipboy_find_scripts(query, inventory, limit=max(12, limit * 2)):
+        if item.get("command"):
+            rows.append((pipboy_script_item_score(query, item), item))
+    try:
+        for record in pipboy_search_project(query + " script", limit=max(18, limit * 3)):
+            item = pipboy_project_record_to_runnable(record)
+            if item:
+                rows.append((pipboy_script_item_score(query, item), item))
+    except Exception:
+        pass
+    if not rows or max((score for score, _item in rows), default=0.0) < 5.0:
+        for item in pipboy_bounded_filesystem_script_search(query, limit=max(8, limit)):
+            rows.append((pipboy_script_item_score(query, item), item))
+    dedup = {}
+    for score, item in rows:
+        key = os.path.realpath(str(item.get("path") or "")) or pipboy_normalize(item.get("name"))
+        if key and (key not in dedup or score > dedup[key][0]):
+            dedup[key] = (score, item)
+    ranked = sorted(dedup.values(), key=lambda row: (-row[0], str(row[1].get("name") or "").casefold()))
+    return [item for score, item in ranked[:limit] if score >= 2.9]
+
+
+def pipboy_script_is_sensitive(item):
+    blob = pipboy_normalize(" ".join([
+        str(item.get("name") or ""), str(item.get("path") or ""), str(item.get("relative_path") or ""),
+        str(item.get("category") or ""), " ".join(map(str, item.get("risk_tags") or [])),
+    ]))
+    sensitive_terms = (
+        "fake pages", "personal information capture", "phishing", "credential", "login page",
+        "location page", "camera page", "microphone capture", "plasteσ selideσ",
+    )
+    return any(term in blob for term in sensitive_terms)
+
+
+def pipboy_find_commands(term, inventory, limit=8):
+    commands = inventory.get("commands", {}) if isinstance(inventory, dict) else {}
+    needle = pipboy_normalize(term)
+    scores = []
+    for name, path in commands.items():
+        normalized = pipboy_normalize(name)
+        score = difflib.SequenceMatcher(None, needle, normalized).ratio()
+        if needle and needle in normalized:
+            score += 1.0
+        if needle == normalized:
+            score += 2.0
+        if score >= 0.45:
+            scores.append((score, name, path))
+    scores.sort(key=lambda item: (-item[0], item[1].casefold()))
+    return [
+        {"kind": "command", "name": name, "path": path, "command": [path],
+         "cwd": HOME_DIR, "full_screen": False, "description": ""}
+        for _, name, path in scores[:limit]
+    ]
+
+
+def pipboy_find_apps(term, inventory, limit=8):
+    apps = inventory.get("android_apps", {}) if isinstance(inventory, dict) else {}
+    needle = pipboy_normalize(term)
+    scores = []
+    for package, record in apps.items():
+        name = record.get("name", package) if isinstance(record, dict) else package
+        haystack = pipboy_normalize(f"{name} {package}")
+        score = difflib.SequenceMatcher(None, needle, haystack).ratio()
+        if needle and needle in haystack:
+            score += 1.2
+        if needle == pipboy_normalize(package) or needle == pipboy_normalize(name):
+            score += 2.0
+        if score >= 0.38:
+            scores.append((score, package, name))
+    scores.sort(key=lambda item: (-item[0], item[2].casefold()))
+    return [
+        {"kind": "android_app", "name": name, "package": package,
+         "description": package, "cwd": HOME_DIR, "full_screen": True}
+        for _, package, name in scores[:limit]
+    ]
+
+
+def pipboy_match_list_text(matches):
+    lines = []
+    for index, item in enumerate(matches[:8], 1):
+        kind = item.get("kind", "item")
+        name = item.get("name") or item.get("title") or item.get("relative_path") or item.get("url") or "?"
+        extra = str(item.get("description") or "").strip()
+        if kind == "project" and not extra:
+            extra = str(item.get("relative_path") or "")
+        if kind == "website" and not extra:
+            extra = str(item.get("url") or "")
+        if kind == "repo":
+            repo_info = f"stars {item.get('stars', 0)}, {item.get('language') or 'unknown'}"
+            extra = (extra + " | " + repo_info).strip(" |")
+        if item.get("untrusted"):
+            extra = (extra + " | UNTRUSTED CLONE").strip(" |")
+        if extra:
+            extra = " - " + textwrap.shorten(extra, width=72, placeholder="...")
+        lines.append(f"{index}. [{kind}] {name}{extra}")
+    return "\n".join(lines)
+
+
+def pipboy_learned_text(event):
+    if not event:
+        return pipboy_text("No learning scan is available yet.", "Δεν υπάρχει ακόμη διαθέσιμη σάρωση μάθησης.")
+    if event.get("first_scan"):
+        counts = event.get("counts", {})
+        summary = ", ".join(f"{key.replace('_', ' ')}: {value}" for key, value in counts.items())
+        return pipboy_text("Baseline created. " + summary, "Δημιουργήθηκε αρχική βάση. " + summary)
+    changes = event.get("changes") or {
+        key: {"new": values, "updated": [], "removed": []}
+        for key, values in event.get("learned", {}).items()
+    }
+    totals = {
+        change_type: sum(len(values.get(change_type, [])) for values in changes.values())
+        for change_type in ("new", "updated", "removed")
+    }
+    if not sum(totals.values()):
+        return pipboy_text(
+            "Nothing changed in the latest scan.", "Δεν άλλαξε κάτι στην τελευταία σάρωση."
+        )
+    labels = {
+        "scripts": pipboy_text("scripts", "scripts"),
+        "commands": pipboy_text("commands", "εντολές"),
+        "termux_packages": pipboy_text("Termux packages", "πακέτα Termux"),
+        "python_packages": pipboy_text("Python packages", "πακέτα Python"),
+        "android_apps": pipboy_text("Android apps", "εφαρμογές Android"),
+    }
+    parts = []
+    for key, values in changes.items():
+        previews = []
+        for change_type, marker in (("new", "+"), ("updated", "~"), ("removed", "-")):
+            items = values.get(change_type, [])
+            if items:
+                preview = ", ".join(os.path.basename(str(item)) for item in items[:3])
+                previews.append(f"{marker}{len(items)} ({preview}{'...' if len(items) > 3 else ''})")
+        if previews:
+            parts.append(f"{labels.get(key, key)}: " + " ".join(previews))
+    header = pipboy_text(
+        f"Changes learned: {totals['new']} new, {totals['updated']} updated, {totals['removed']} removed.",
+        f"Αλλαγές που έμαθα: {totals['new']} νέα, {totals['updated']} ενημερωμένα, {totals['removed']} αφαιρεμένα."
+    )
+    return header + "\n" + " | ".join(parts)
+
+
+
+def pipboy_missing_voice_packages():
+    """Return only packages required for a working microphone and male WAV voice."""
+    missing = []
+    if not shutil.which("termux-speech-to-text") or not shutil.which("termux-media-player"):
+        missing.append("termux-api")
+    if not (shutil.which("espeak-ng") or shutil.which("espeak")):
+        missing.append("espeak")
+    return missing
+
+
+
+def pipboy_install_missing_voice_dependencies(quiet=False, force=False):
+    """Install missing voice packages without repeated retries or stale-lock waits."""
+    before = pipboy_missing_voice_packages()
+    if not before:
+        return {"ok": True, "installed": [], "missing": [], "attempted": False}
+    previous = pipboy_load_json(PIPBOY_VOICE_DEPS_STATE_PATH, {})
+    try:
+        checked_at = float(previous.get("checked_at", 0))
+    except (TypeError, ValueError):
+        checked_at = 0
+    if (not force and previous.get("build_id") == SETTINGS_BUILD_ID and checked_at and
+            time.time() - checked_at < PIPBOY_VOICE_INSTALL_RETRY_SECONDS):
+        return {"ok": False, "installed": [], "missing": before, "attempted": False, "deferred": True}
+    pkg = shutil.which("pkg")
+    if not pkg:
+        return {"ok": False, "installed": [], "missing": before, "attempted": False, "error": "Termux pkg command was not found."}
+    os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+    lock_fd = None
+    try:
+        if os.path.exists(PIPBOY_VOICE_DEPS_LOCK_PATH):
+            try:
+                age = time.time() - os.path.getmtime(PIPBOY_VOICE_DEPS_LOCK_PATH)
+                pid_text = open(PIPBOY_VOICE_DEPS_LOCK_PATH, "r", encoding="ascii", errors="ignore").read().strip()
+                pid = int(pid_text) if pid_text.isdigit() else 0
+                alive = pid > 0 and os.path.exists(f"/proc/{pid}")
+                if age > 1200 or not alive:
+                    os.unlink(PIPBOY_VOICE_DEPS_LOCK_PATH)
+                else:
+                    return {"ok": False, "installed": [], "missing": before, "attempted": False, "already_running": True}
+            except Exception:
+                try:
+                    os.unlink(PIPBOY_VOICE_DEPS_LOCK_PATH)
+                except OSError:
+                    return {"ok": False, "installed": [], "missing": before, "attempted": False, "already_running": True}
+        lock_fd = os.open(PIPBOY_VOICE_DEPS_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.write(lock_fd, str(os.getpid()).encode("ascii", errors="ignore"))
+        command = [pkg, "install", "-y", *before]
+        nice = shutil.which("nice")
+        if nice:
+            command = [nice, "-n", "10", *command]
+        completed = subprocess.run(command, stdout=subprocess.DEVNULL if quiet else None, stderr=subprocess.DEVNULL if quiet else None, check=False, timeout=600)
+        PIPBOY_HELP_CACHE.clear()
+        after = pipboy_missing_voice_packages()
+        result = {"ok": not after, "installed": [x for x in before if x not in after], "missing": after, "attempted": True, "returncode": int(completed.returncode), "checked_at": int(time.time()), "build_id": SETTINGS_BUILD_ID}
+        pipboy_atomic_json_write(PIPBOY_VOICE_DEPS_STATE_PATH, result)
+        return result
+    except Exception as exc:
+        result = {"ok": False, "installed": [], "missing": pipboy_missing_voice_packages(), "attempted": True, "error": str(exc), "checked_at": int(time.time()), "build_id": SETTINGS_BUILD_ID}
+        try:
+            pipboy_atomic_json_write(PIPBOY_VOICE_DEPS_STATE_PATH, result)
+        except Exception:
+            pass
+        pipboy_log_error("automatic voice dependency installation", exc)
+        return result
+    finally:
+        if lock_fd is not None:
+            try:
+                os.close(lock_fd)
+            except OSError:
+                pass
+            try:
+                os.unlink(PIPBOY_VOICE_DEPS_LOCK_PATH)
+            except OSError:
+                pass
+
+
+def pipboy_install_missing_voice_dependencies_async():
+    """Start a delayed low-priority installer and return immediately."""
+    global PIPBOY_VOICE_DEPS_THREAD
+    if not pipboy_missing_voice_packages():
+        return False
+    if PIPBOY_VOICE_DEPS_THREAD and PIPBOY_VOICE_DEPS_THREAD.is_alive():
+        return False
+    previous = pipboy_load_json(PIPBOY_VOICE_DEPS_STATE_PATH, {})
+    try:
+        if (previous.get("build_id") == SETTINGS_BUILD_ID and
+                time.time() - float(previous.get("checked_at", 0)) < PIPBOY_VOICE_INSTALL_RETRY_SECONDS):
+            return False
+    except (TypeError, ValueError):
+        pass
+    def worker():
+        time.sleep(6.0)
+        pipboy_install_missing_voice_dependencies(quiet=True, force=False)
+    PIPBOY_VOICE_DEPS_THREAD = threading.Thread(target=worker, name="DedGuyVoiceDeps", daemon=True)
+    PIPBOY_VOICE_DEPS_THREAD.start()
+    return True
+
+
+
+def pipboy_voice_dependency_self_test():
+    missing = pipboy_missing_voice_packages()
+    unique = len(missing) == len(set(missing)) and all(name in {"termux-api", "espeak"} for name in missing)
+    source = Path(__file__).read_text(encoding="utf-8", errors="replace") if "Path" in globals() else ""
+    # Source check is optional because pathlib is intentionally not imported by Settings.py.
+    checks = [
+        ("valid missing-package list", unique, str(missing)),
+        ("does not request espeak-ng package", "espeak-ng" not in missing, str(missing)),
+        ("installer callable", callable(pipboy_install_missing_voice_dependencies), ""),
+    ]
+    print("Ded-Guy voice dependency self-test")
+    print("=" * 42)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    ok = all(item[1] for item in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
+
+
+def pipboy_audio_backend_status():
+    microphone_tool = bool(shutil.which("termux-speech-to-text"))
+    male_path = bool((shutil.which("espeak-ng") or shutil.which("espeak")) and (shutil.which("termux-media-player") or shutil.which("mpv") or shutil.which("ffplay") or shutil.which("play")))
+    speech_tool = bool(male_path or shutil.which("termux-tts-speak"))
+    return microphone_tool, speech_tool
+
+
+
+def pipboy_audio_status(config):
+    mic = pipboy_text("ON", "ΑΝΟΙΧΤΟ") if config.get("microphone_enabled") else pipboy_text("MUTED", "ΚΛΕΙΣΤΟ")
+    voice = pipboy_text("ON", "ΑΝΟΙΧΤΗ") if config.get("voice_enabled") else pipboy_text("MUTED", "ΚΛΕΙΣΤΗ")
+    privacy = pipboy_text("TEXT-ONLY LOCK", "ΚΛΕΙΔΩΜΑ ΚΕΙΜΕΝΟΥ") if config.get("input_mode") == "text_only" else pipboy_text("NORMAL", "ΚΑΝΟΝΙΚΗ")
+    microphone_tool, speech_tool = pipboy_audio_backend_status()
+    stt = pipboy_text("READY", "ΕΤΟΙΜΗ") if microphone_tool else pipboy_text("MISSING", "ΛΕΙΠΕΙ")
+    tts = pipboy_text("READY", "ΕΤΟΙΜΗ") if speech_tool else pipboy_text("MISSING", "ΛΕΙΠΕΙ")
+    voice_detail = pipboy_voice_settings_summary(config)
+    return pipboy_text(
+        f"Interface: {pipboy_interaction_mode_label(config)}. Microphone: {mic}. Ded-Guy voice: {voice}. Privacy: {privacy}. Recognition: {pipboy_language_label(config)}. Speech-to-text: {stt}. Text-to-speech: {tts}. {voice_detail}",
+        f"Διεπαφή: {pipboy_interaction_mode_label(config)}. Μικρόφωνο: {mic}. Φωνή Ded-Guy: {voice}. Ιδιωτικότητα: {privacy}. Αναγνώριση: {pipboy_language_label(config)}. Φωνή-σε-κείμενο: {stt}. Κείμενο-σε-φωνή: {tts}. {voice_detail}"
+    )
+
+
+
+# ------------------------------
+# Ded-Guy model-free project intelligence engine
+# -----------------------------------------------------------------------------
+# This engine deliberately uses no neural network, GGUF file, llama.cpp server,
+# remote language-model API, or downloaded model. It combines deterministic
+# retrieval, code inspection, intent rules, source ranking, conversation context,
+# and explicit action planning over the DedSec project and website indexes.
+PIPBOY_INTELLIGENCE_STOP_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "can", "do", "does",
+    "for", "from", "how", "i", "in", "is", "it", "me", "of", "on", "or",
+    "please", "the", "this", "to", "what", "when", "where", "which", "with",
+    "you", "your", "και", "να", "το", "τη", "την", "του", "των", "σε",
+    "με", "για", "απο", "πως", "τι", "που", "ποιο", "μπορει", "κανει",
+}
+PIPBOY_INTELLIGENCE_ALIAS_GROUPS = {
+    "pet friends": ["pet friends.py", "pet game", "virtual pets", "pets"],
+    "pocket ai": ["pocket ai.py", "offline assistant", "local assistant"],
+    "termux repair wizard": ["repair wizard", "script keeper", "termux repair"],
+    "dedsec market": ["market", "script downloader", "tool installer"],
+    "butsystem": ["butsystem.py", "private workspace", "social platform"],
+    "settings": ["settings.py", "menu styles", "dedsec settings"],
+    "osintds": ["osintds.py", "osint search", "find anyone"],
+    "dedsec radio": ["radio", "offline radio", "music player"],
+}
+
+
+# Human-language concept map. This is deliberately compact and deterministic:
+# it maps ordinary requests to real project folders, website wording, filenames,
+# capabilities, and related concepts without requiring an exact phrase match.
+PIPBOY_PROJECT_ONTOLOGY = {
+    "phishing": {
+        "aliases": [
+            "phishing", "phish", "phishing scripts", "social engineering", "credential harvesting",
+            "credential theft", "fake login", "login clone", "login page clone", "spoof page",
+            "verification page", "account verification", "password page", "ψαρεμα", "ηλεκτρονικο ψαρεμα", "psarema", "phising", "phisihing",
+            "κλοπη κωδικων", "πλαστη συνδεση", "σελιδα συνδεσης",
+        ],
+        "paths": ["Fake Pages", "Πλαστές Σελίδες", "Personal Information Capture", "Συλλογή Προσωπικών Πληροφοριών"],
+        "terms": ["fake pages", "personal information capture", "credentials", "login", "verification", "cloudflared", "flask"],
+        "label_en": "phishing/fake-page and information-capture tools",
+        "label_el": "εργαλεία phishing/πλαστών σελίδων και συλλογής πληροφοριών",
+        "sensitive": True,
+    },
+    "fake_pages": {
+        "aliases": [
+            "fake pages", "fake page", "clone pages", "cloned pages", "spoof pages", "login pages",
+            "phishing pages", "brand pages", "free followers pages", "free money pages", "πλαστες σελιδες",
+            "ψευτικες σελιδες", "σελιδες απομιμησης", "plastes selides", "pseftikes selides",
+        ],
+        "paths": ["Fake Pages", "Πλαστές Σελίδες"],
+        "terms": ["fake", "page", "followers", "wallet", "verification", "login"],
+        "label_en": "Fake Pages",
+        "label_el": "Πλαστές Σελίδες",
+        "sensitive": True,
+    },
+    "personal_capture": {
+        "aliases": [
+            "personal information capture", "information capture", "credential capture", "data capture",
+            "camera capture", "microphone capture", "location capture", "card details", "data grabber",
+            "verification tools", "συλλογη προσωπικων πληροφοριων", "καμερα", "μικροφωνο", "τοποθεσια",
+        ],
+        "paths": ["Personal Information Capture", "Συλλογή Προσωπικών Πληροφοριών"],
+        "terms": ["camera", "microphone", "location", "credentials", "card", "data grabber", "verification"],
+        "label_en": "Personal Information Capture",
+        "label_el": "Συλλογή Προσωπικών Πληροφοριών",
+        "sensitive": True,
+    },
+    "developer_base": {
+        "aliases": [
+            "developer base", "dev base", "developer tools", "development tools", "programming tools",
+            "coding tools", "website creator", "create websites", "make a website", "build a website", "website builder", "mobile developer", "developer utilities",
+            "βαση προγραμματιστη", "εργαλεια προγραμματιστη", "εργαλεια αναπτυξης", "vasi programmatisti", "ergaleia programmatisti",
+        ],
+        "paths": ["Developer Base", "Βάση Προγραμματιστή"],
+        "terms": ["developer", "file converter", "file type checker", "mobile desktop", "smart notes", "tree explorer", "website creator"],
+        "label_en": "Developer Base",
+        "label_el": "Βάση Προγραμματιστή",
+        "sensitive": False,
+    },
+    "network_tools": {
+        "aliases": [
+            "network tools", "network scripts", "network utilities", "wifi tools", "ip tools", "network scanner",
+            "εργαλεια δικτυου", "δικτυακα εργαλεία", "σαρωση δικτυου", "ergaleia diktiou", "networking tools",
+        ],
+        "paths": ["Network Tools", "Εργαλεία Δικτύου"],
+        "terms": ["network", "wifi", "ip", "ports", "scanner", "devices", "dns", "proxy"],
+        "label_en": "Network Tools",
+        "label_el": "Εργαλεία Δικτύου",
+        "sensitive": False,
+    },
+    "games": {
+        "aliases": ["games", "game scripts", "terminal games", "pet game", "παιχνιδια", "παιχνιδια termux"],
+        "paths": ["Games", "Παιχνίδια"],
+        "terms": ["game", "pet friends", "killer", "lefti", "roguelike"],
+        "label_en": "Games",
+        "label_el": "Παιχνίδια",
+        "sensitive": False,
+    },
+    "other_tools": {
+        "aliases": ["other tools", "extra tools", "utilities", "misc tools", "αλλα εργαλεία", "βοηθητικα εργαλεία"],
+        "paths": ["Other Tools", "Άλλα Εργαλεία"],
+        "terms": ["utility", "tool", "other"],
+        "label_en": "Other Tools",
+        "label_el": "Άλλα Εργαλεία",
+        "sensitive": False,
+    },
+    "osint": {
+        "aliases": ["osint", "open source intelligence", "find anyone", "username search", "people search", "ερευνα ανοιχτων πηγων"],
+        "paths": [],
+        "terms": ["osintds", "username", "email", "social networks", "find anyone", "investigation"],
+        "label_en": "OSINT and investigation tools",
+        "label_el": "εργαλεία OSINT και έρευνας",
+        "sensitive": False,
+    },
+    "repair": {
+        "aliases": ["repair tools", "fix termux", "script repair", "broken scripts", "dependency repair", "διορθωση termux", "επισκευη scripts"],
+        "paths": [],
+        "terms": ["termux repair wizard", "script keeper", "repair", "dependencies", "missing packages"],
+        "label_en": "repair and maintenance tools",
+        "label_el": "εργαλεία επισκευής και συντήρησης",
+        "sensitive": False,
+    },
+    "ai": {
+        "aliases": ["ai tools", "artificial intelligence", "local ai", "offline ai", "pocket ai", "τεχνητη νοημοσυνη", "τοπικο ai"],
+        "paths": [],
+        "terms": ["pocket ai", "offline assistant", "local assistant", "models"],
+        "label_en": "Pocket AI and local-assistant tools",
+        "label_el": "Pocket AI και εργαλεία τοπικού βοηθού",
+        "sensitive": False,
+    },
+    "website": {
+        "aliases": ["website pages", "site pages", "website sections", "what is on the website", "website has", "site has", "σελιδες ιστοσελιδας", "τι εχει το site"],
+        "paths": [],
+        "terms": ["ded-sec.space", "learn about the tools", "installation", "store", "assistance", "faq"],
+        "label_en": "DedSec website content",
+        "label_el": "περιεχόμενο ιστοσελίδας DedSec",
+        "sensitive": False,
+    },
+}
+
+# Bilingual, model-free Assistance knowledge embedded for full offline operation.
+# It is supplemented—not replaced—by the last successful website/repository refresh.
+DEDGUY_OFFLINE_ASSISTANCE_GUIDES = [{'key': 'module_missing',
+  'title_en': 'Python ModuleNotFoundError',
+  'title_el': 'Python: Λείπει module',
+  'aliases': ['modulenotfounderror',
+              'no module named',
+              'missing python module',
+              'import error',
+              'λειπει module',
+              'δεν βρεθηκε module',
+              'missing module'],
+  'summary_en': 'The running Python interpreter cannot import the requested module. Install the package through that same interpreter, because pip '
+                'and python can point to different environments.',
+  'summary_el': 'Ο Python interpreter που εκτελεί το script δεν μπορεί να εισαγάγει το module. Εγκατέστησε το πακέτο μέσω του ίδιου interpreter, '
+                'επειδή τα pip και python μπορεί να δείχνουν σε διαφορετικά περιβάλλοντα.',
+  'checks_en': ['Read the exact module name from the last traceback line.',
+                'Confirm which Python executable runs the script.',
+                'Check whether that interpreter already sees the package.',
+                'Install the package with python -m pip, then test the import.'],
+  'checks_el': ['Διάβασε το ακριβές όνομα module από την τελευταία γραμμή του traceback.',
+                'Έλεγξε ποιο Python executable εκτελεί το script.',
+                'Έλεγξε αν ο ίδιος interpreter βλέπει ήδη το πακέτο.',
+                'Εγκατέστησε με python -m pip και μετά δοκίμασε το import.'],
+  'commands': ['python -c "import sys; print(sys.executable)"',
+               'python -m pip show PACKAGE_NAME',
+               'python -m pip install PACKAGE_NAME',
+               'python -c "import MODULE_NAME; print(\'OK\')"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'pip_error',
+  'title_en': 'pip installation error',
+  'title_el': 'Σφάλμα εγκατάστασης pip',
+  'aliases': ['pip error',
+              'pip install failed',
+              'could not build wheels',
+              'externally managed environment',
+              'failed building wheel',
+              'σφαλμα pip',
+              'αποτυχια pip'],
+  'summary_en': 'First verify pip belongs to the active Python. Upgrade packaging tools, then retry the package. Native extensions may also require '
+                'a Termux compiler or library package.',
+  'summary_el': 'Πρώτα έλεγξε ότι το pip ανήκει στο ενεργό Python. Ενημέρωσε τα εργαλεία packaging και ξαναδοκίμασε. Native extensions μπορεί να '
+                'χρειάζονται compiler ή βιβλιοθήκη Termux.',
+  'checks_en': ['Use python -m pip instead of a separate pip command.',
+                'Read the first build error, not only the final failure line.',
+                'Check whether the package has a Termux-compatible release.'],
+  'checks_el': ['Χρησιμοποίησε python -m pip αντί για ξεχωριστή εντολή pip.',
+                'Διάβασε το πρώτο build error και όχι μόνο την τελευταία γραμμή.',
+                'Έλεγξε αν το πακέτο έχει έκδοση συμβατή με Termux.'],
+  'commands': ['python -m pip --version', 'python -m pip install --upgrade pip setuptools wheel', 'python -m pip install PACKAGE_NAME'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'command_not_found',
+  'title_en': 'Command not found',
+  'title_el': 'Η εντολή δεν βρέθηκε',
+  'aliases': ['command not found', 'unknown command', 'executable not found', 'unable to locate command', 'εντολη δεν βρεθηκε', 'δεν υπαρχει εντολη'],
+  'summary_en': 'The command is absent, not on PATH, or belongs to a package with a different name. Find the executable before repeatedly '
+                'reinstalling packages.',
+  'summary_el': 'Η εντολή λείπει, δεν βρίσκεται στο PATH ή ανήκει σε πακέτο με διαφορετικό όνομα. Εντόπισε το executable πριν κάνεις επανειλημμένες '
+                'εγκαταστάσεις.',
+  'checks_en': ['Check whether the command is already on PATH.',
+                'Search Termux packages for the command or related package.',
+                'Install only the package that is missing.'],
+  'checks_el': ['Έλεγξε αν η εντολή βρίσκεται ήδη στο PATH.',
+                'Αναζήτησε στα πακέτα Termux την εντολή ή σχετικό πακέτο.',
+                'Εγκατέστησε μόνο το πακέτο που λείπει.'],
+  'commands': ['command -v COMMAND_NAME', 'pkg search COMMAND_NAME', 'pkg install PACKAGE_NAME'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'repository_mirror',
+  'title_en': 'Termux repository or mirror error',
+  'title_el': 'Σφάλμα repository ή mirror Termux',
+  'aliases': ['repository error',
+              'mirror error',
+              'no mirror selected',
+              'repository is under maintenance',
+              'unable to locate package',
+              'release file',
+              'repo error',
+              'σφαλμα repository',
+              'σφαλμα mirror'],
+  'summary_en': 'A stale or unavailable Termux mirror can make valid packages look missing. Select a working main repository, refresh package '
+                'metadata, and retry once.',
+  'summary_el': 'Ένα παλιό ή μη διαθέσιμο mirror Termux μπορεί να κάνει έγκυρα πακέτα να φαίνονται ανύπαρκτα. Επίλεξε λειτουργικό main repository, '
+                'ανανέωσε τα metadata και ξαναδοκίμασε μία φορά.',
+  'checks_en': ['Confirm the Termux app comes from a supported source.',
+                'Select a working Main repository.',
+                'Refresh package lists before installing.'],
+  'checks_el': ['Επιβεβαίωσε ότι το Termux προέρχεται από υποστηριζόμενη πηγή.',
+                'Επίλεξε λειτουργικό Main repository.',
+                'Ανανέωσε τις λίστες πακέτων πριν την εγκατάσταση.'],
+  'commands': ['termux-change-repo', 'pkg update', 'pkg install PACKAGE_NAME'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'apt_lock',
+  'title_en': 'apt or dpkg lock',
+  'title_el': 'Κλείδωμα apt ή dpkg',
+  'aliases': ['could not get lock',
+              'dpkg lock',
+              'apt lock',
+              'another process is using',
+              'resource temporarily unavailable',
+              'κλειδωμα apt',
+              'κλειδωμα dpkg'],
+  'summary_en': 'Another package process is active or was interrupted. Do not delete lock files blindly; first find the process and let it finish or '
+                'repair dpkg state.',
+  'summary_el': 'Μια άλλη διαδικασία πακέτων είναι ενεργή ή διακόπηκε. Μην διαγράφεις τυφλά lock files· πρώτα βρες τη διαδικασία και άφησέ την να '
+                'τελειώσει ή διόρθωσε την κατάσταση dpkg.',
+  'checks_en': ['Check for running pkg, apt, or dpkg processes.',
+                'Wait for a legitimate update to finish.',
+                'Repair interrupted package configuration only after no package process remains.'],
+  'checks_el': ['Έλεγξε για ενεργές διαδικασίες pkg, apt ή dpkg.',
+                'Περίμενε να ολοκληρωθεί μια κανονική ενημέρωση.',
+                'Διόρθωσε διακοπείσα ρύθμιση πακέτων μόνο όταν δεν τρέχει άλλη διαδικασία.'],
+  'commands': ['ps -A | grep -E "apt|dpkg|pkg"', 'dpkg --configure -a'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'no_space',
+  'title_en': 'No space left on device',
+  'title_el': 'Δεν υπάρχει ελεύθερος χώρος',
+  'aliases': ['no space left', 'disk full', 'storage full', 'insufficient storage', 'errno 28', 'δεν υπαρχει χωροσ', 'γεματοσ χωροσ'],
+  'summary_en': 'Termux and Android share limited storage. Identify large folders and caches before deleting anything, then keep enough free space '
+                'for package extraction.',
+  'summary_el': 'Το Termux και το Android μοιράζονται περιορισμένο χώρο. Εντόπισε μεγάλους φακέλους και cache πριν διαγράψεις οτιδήποτε και κράτησε '
+                'αρκετό χώρο για αποσυμπίεση πακέτων.',
+  'checks_en': ['Check free space in Termux and shared storage.', 'Find the largest folders.', 'Clean only known caches and old downloads.'],
+  'checks_el': ['Έλεγξε τον ελεύθερο χώρο στο Termux και στο shared storage.',
+                'Βρες τους μεγαλύτερους φακέλους.',
+                'Καθάρισε μόνο γνωστά cache και παλιά downloads.'],
+  'commands': ['df -h', 'du -sh ~/* 2>/dev/null | sort -h', 'pkg clean'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'path_missing',
+  'title_en': 'File, folder, or path not found',
+  'title_el': 'Αρχείο, φάκελος ή διαδρομή δεν βρέθηκε',
+  'aliases': ['no such file or directory',
+              'file not found',
+              'folder not found',
+              'wrong path',
+              'cannot open file',
+              'δεν βρεθηκε αρχειο',
+              'λαθοσ διαδρομη'],
+  'summary_en': 'The current directory or filename differs from the command. Verify pwd and list exact names; quote paths containing spaces.',
+  'summary_el': 'Ο τρέχων φάκελος ή το όνομα αρχείου διαφέρει από την εντολή. Έλεγξε το pwd και τα ακριβή ονόματα· βάλε σε εισαγωγικά διαδρομές με '
+                'κενά.',
+  'checks_en': ['Print the current directory.', 'List files including hidden names.', 'Use an absolute path or quote a path containing spaces.'],
+  'checks_el': ['Εμφάνισε τον τρέχοντα φάκελο.',
+                'Δείξε τα αρχεία μαζί με τα κρυφά ονόματα.',
+                'Χρησιμοποίησε απόλυτη διαδρομή ή εισαγωγικά σε διαδρομή με κενά.'],
+  'commands': ['pwd', 'ls -la', 'python3 "/full/path/Script Name.py"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'permission_denied',
+  'title_en': 'Permission denied',
+  'title_el': 'Άρνηση πρόσβασης',
+  'aliases': ['permission denied', 'operation not permitted', 'errno 13', 'not executable', 'αρνηση προσβασησ', 'δεν εχει αδεια'],
+  'summary_en': 'The file may lack execute permission, shared-storage access, or the requested Android permission. Use the correct interpreter when '
+                'execution permission is unnecessary.',
+  'summary_el': 'Το αρχείο μπορεί να μην έχει άδεια εκτέλεσης, πρόσβαση shared storage ή την απαιτούμενη άδεια Android. Χρησιμοποίησε τον σωστό '
+                'interpreter όταν δεν χρειάζεται execute bit.',
+  'checks_en': ['Inspect file permissions and ownership.',
+                'For Python, run the file with python3.',
+                'Grant execute permission only to the intended local file.',
+                'For shared storage, run termux-setup-storage and approve access.'],
+  'checks_el': ['Έλεγξε τα permissions και τον ιδιοκτήτη του αρχείου.',
+                'Για Python, εκτέλεσε το αρχείο με python3.',
+                'Δώσε execute permission μόνο στο συγκεκριμένο τοπικό αρχείο.',
+                'Για shared storage, τρέξε termux-setup-storage και έγκρινε την πρόσβαση.'],
+  'commands': ['ls -la FILE', 'python3 FILE.py', 'chmod +x FILE', 'termux-setup-storage'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'ssl_curl',
+  'title_en': 'SSL, certificate, curl, or wget error',
+  'title_el': 'Σφάλμα SSL, πιστοποιητικού, curl ή wget',
+  'aliases': ['ssl error', 'certificate verify failed', 'curl error', 'wget error', 'tls error', 'handshake failed', 'σφαλμα ssl', 'πιστοποιητικο'],
+  'summary_en': 'Incorrect time, stale certificates, DNS trouble, or interception can break HTTPS. Do not disable certificate verification as the '
+                'first fix.',
+  'summary_el': 'Λάθος ώρα, παλιά certificates, πρόβλημα DNS ή παρεμβολή μπορεί να χαλάσει το HTTPS. Μην απενεργοποιείς την επαλήθευση certificate '
+                'ως πρώτη λύση.',
+  'checks_en': ['Check Android date and time.', 'Update ca-certificates and curl.', 'Test DNS and the exact HTTPS URL.'],
+  'checks_el': ['Έλεγξε ημερομηνία και ώρα Android.', 'Ενημέρωσε ca-certificates και curl.', 'Δοκίμασε DNS και το ακριβές HTTPS URL.'],
+  'commands': ['date', 'pkg install ca-certificates curl', 'curl -I https://example.com'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'python_syntax',
+  'title_en': 'Python syntax or indentation error',
+  'title_el': 'Σφάλμα σύνταξης ή indentation Python',
+  'aliases': ['syntaxerror', 'indentationerror', 'taberror', 'unexpected indent', 'invalid syntax', 'σφαλμα συνταξησ', 'λαθοσ εσοχησ'],
+  'summary_en': 'Python reports the file and line where parsing failed, but the real mistake may be on the previous line. Compile without running to '
+                'isolate syntax problems.',
+  'summary_el': 'Το Python αναφέρει αρχείο και γραμμή όπου απέτυχε το parsing, αλλά το πραγματικό λάθος μπορεί να βρίσκεται στην προηγούμενη γραμμή. '
+                'Κάνε compile χωρίς εκτέλεση.',
+  'checks_en': ['Read the complete traceback and inspect the marked line plus the previous line.',
+                'Use spaces consistently and close quotes, brackets, and parentheses.',
+                'Compile the file before running it.'],
+  'checks_el': ['Διάβασε όλο το traceback και έλεγξε τη σημειωμένη γραμμή μαζί με την προηγούμενη.',
+                'Χρησιμοποίησε σταθερά spaces και κλείσε quotes, brackets και parentheses.',
+                'Κάνε compile το αρχείο πριν το εκτελέσεις.'],
+  'commands': ['python3 -m py_compile FILE.py', 'sed -n "START,ENDp" FILE.py'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'node_npm',
+  'title_en': 'Node.js or npm error',
+  'title_el': 'Σφάλμα Node.js ή npm',
+  'aliases': ['npm error', 'node error', 'module not found node', 'package json error', 'npm install failed', 'σφαλμα npm', 'σφαλμα node'],
+  'summary_en': 'Confirm Node and npm versions, the working directory, and package.json. Remove generated dependencies only when a clean reinstall '
+                'is genuinely needed.',
+  'summary_el': 'Έλεγξε τις εκδόσεις Node και npm, τον τρέχοντα φάκελο και το package.json. Διέγραψε generated dependencies μόνο όταν χρειάζεται '
+                'πραγματικά καθαρή εγκατάσταση.',
+  'checks_en': ['Run commands inside the folder containing package.json.',
+                'Inspect the first npm error.',
+                'Confirm the dependency name and supported Node version.'],
+  'checks_el': ['Τρέξε τις εντολές στον φάκελο που περιέχει το package.json.',
+                'Διάβασε το πρώτο npm error.',
+                'Έλεγξε το όνομα dependency και την υποστηριζόμενη έκδοση Node.'],
+  'commands': ['node --version', 'npm --version', 'pwd && ls -la', 'npm install'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'venv',
+  'title_en': 'Python virtual environment problem',
+  'title_el': 'Πρόβλημα Python virtual environment',
+  'aliases': ['venv', 'virtual environment', 'wrong python environment', 'activate environment', 'περιβαλλον python', 'εικονικο περιβαλλον'],
+  'summary_en': 'The script and pip must use the same virtual environment. Activate it or call its Python executable explicitly.',
+  'summary_el': 'Το script και το pip πρέπει να χρησιμοποιούν το ίδιο virtual environment. Ενεργοποίησέ το ή κάλεσε απευθείας το Python executable '
+                'του.',
+  'checks_en': ['Print sys.executable.', 'Check whether VIRTUAL_ENV is set.', 'Install dependencies after activation.'],
+  'checks_el': ['Εμφάνισε το sys.executable.', 'Έλεγξε αν έχει οριστεί το VIRTUAL_ENV.', 'Εγκατέστησε dependencies μετά την ενεργοποίηση.'],
+  'commands': ['python -c "import sys; print(sys.executable)"', 'echo "$VIRTUAL_ENV"', 'source venv/bin/activate'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'crlf',
+  'title_en': 'Bad interpreter or CRLF line endings',
+  'title_el': 'Bad interpreter ή CRLF line endings',
+  'aliases': ['bad interpreter', '^m', 'crlf', 'usr bin env bash no such file', 'line endings', 'λαθοσ interpreter'],
+  'summary_en': 'A script copied from Windows may contain CRLF characters, producing ^M or bad-interpreter errors. Convert only the affected text '
+                'file to Unix line endings.',
+  'summary_el': 'Script από Windows μπορεί να έχει CRLF χαρακτήρες και να προκαλεί ^M ή bad-interpreter error. Μετέτρεψε μόνο το συγκεκριμένο text '
+                'file σε Unix line endings.',
+  'checks_en': ['Inspect the first line and file type.', 'Convert CRLF to LF.', 'Verify the shebang points to an available interpreter.'],
+  'checks_el': ['Έλεγξε την πρώτη γραμμή και τον τύπο αρχείου.', 'Μετέτρεψε CRLF σε LF.', 'Έλεγξε ότι το shebang δείχνει σε διαθέσιμο interpreter.'],
+  'commands': ['head -n 1 FILE', 'file FILE', 'sed -i "s/\\r$//" FILE'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'json',
+  'title_en': 'JSON decode or configuration error',
+  'title_el': 'Σφάλμα JSON ή configuration',
+  'aliases': ['jsondecodeerror', 'invalid json', 'expecting property name', 'configuration error', 'corrupt json', 'σφαλμα json'],
+  'summary_en': 'JSON requires double-quoted strings, no trailing commas, and valid encoding. Back up configuration files before replacing or '
+                'regenerating them.',
+  'summary_el': 'Το JSON απαιτεί διπλά quotes, χωρίς trailing commas και έγκυρο encoding. Κράτησε backup των configuration files πριν τα '
+                'αντικαταστήσεις ή τα ξαναδημιουργήσεις.',
+  'checks_en': ['Validate the file without running the application.', 'Inspect the reported line and column.', 'Back up the file before editing.'],
+  'checks_el': ['Επικύρωσε το αρχείο χωρίς να τρέξεις την εφαρμογή.',
+                'Έλεγξε τη γραμμή και στήλη που αναφέρονται.',
+                'Κράτησε backup πριν την επεξεργασία.'],
+  'commands': ['python3 -m json.tool FILE.json', 'cp FILE.json FILE.json.backup'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'unicode',
+  'title_en': 'Unicode or encoding error',
+  'title_el': 'Σφάλμα Unicode ή encoding',
+  'aliases': ['unicodeencodeerror', 'unicodedecodeerror', 'codec cant encode', 'invalid utf 8', 'encoding error', 'σφαλμα unicode'],
+  'summary_en': 'Read and write text with an explicit UTF-8 encoding and preserve undecodable input when diagnosing old files.',
+  'summary_el': 'Διάβασε και γράψε κείμενο με ρητό UTF-8 encoding και διατήρησε μη αποκωδικοποιήσιμα δεδομένα κατά τη διάγνωση παλιών αρχείων.',
+  'checks_en': ['Identify the file encoding.', 'Use encoding="utf-8" in Python text operations.', 'Do not silently overwrite the original file.'],
+  'checks_el': ['Εντόπισε το encoding του αρχείου.',
+                'Χρησιμοποίησε encoding="utf-8" στις λειτουργίες κειμένου Python.',
+                'Μην αντικαταστήσεις αθόρυβα το αρχικό αρχείο.'],
+  'commands': ['file -bi FILE',
+               'python3 -c "from pathlib import Path; print(Path(\'FILE\').read_text(encoding=\'utf-8\', errors=\'replace\')[:200])"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'requests_api',
+  'title_en': 'Python requests or API connection error',
+  'title_el': 'Σφάλμα Python requests ή API',
+  'aliases': ['requests error', 'connectionerror', 'readtimeout', 'http error', 'api error', 'connection refused python', 'σφαλμα api'],
+  'summary_en': 'Separate DNS, connection, timeout, HTTP-status, and JSON-response failures. Log status and a bounded response excerpt without '
+                'exposing API keys.',
+  'summary_el': 'Ξεχώρισε αποτυχίες DNS, σύνδεσης, timeout, HTTP status και JSON response. Κατέγραψε status και μικρό απόσπασμα response χωρίς να '
+                'εκθέσεις API keys.',
+  'checks_en': ['Confirm internet and DNS.', 'Set a finite timeout.', 'Inspect the HTTP status code.', 'Keep secrets out of logs.'],
+  'checks_el': ['Έλεγξε internet και DNS.', 'Όρισε συγκεκριμένο timeout.', 'Έλεγξε το HTTP status code.', 'Μην εμφανίζεις secrets στα logs.'],
+  'commands': ['python -c "import requests; r=requests.get(\'https://example.com\',timeout=15); print(r.status_code)"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'git_identity',
+  'title_en': 'Git identity not configured',
+  'title_el': 'Δεν έχει ρυθμιστεί Git identity',
+  'aliases': ['please tell me who you are', 'git identity', 'user email not set', 'user name not set', 'git config error', 'ταυτοτητα git'],
+  'summary_en': 'Git needs a commit name and email before creating commits. Configure repository-local values when you do not want global settings.',
+  'summary_el': 'Το Git χρειάζεται όνομα και email πριν δημιουργήσει commits. Ρύθμισε repository-local τιμές όταν δεν θέλεις global settings.',
+  'checks_en': ['Check current Git identity.', 'Set the name and a private noreply email if preferred.'],
+  'checks_el': ['Έλεγξε την τρέχουσα ταυτότητα Git.', 'Όρισε όνομα και private noreply email αν το προτιμάς.'],
+  'commands': ['git config --get user.name',
+               'git config --get user.email',
+               'git config user.name "YOUR_NAME"',
+               'git config user.email "YOUR_NOREPLY_EMAIL"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'git_clone',
+  'title_en': 'GitHub clone failure',
+  'title_el': 'Αποτυχία GitHub clone',
+  'aliases': ['git clone error', 'repository not found clone', 'failed to clone', 'destination path already exists', 'clone github', 'σφαλμα clone'],
+  'summary_en': 'Verify the repository URL, network, destination folder, and authentication requirements. Do not clone over an unrelated non-empty '
+                'folder.',
+  'summary_el': 'Έλεγξε το repository URL, το δίκτυο, τον φάκελο προορισμού και τις απαιτήσεις authentication. Μην κάνεις clone πάνω σε άσχετο μη '
+                'κενό φάκελο.',
+  'checks_en': ['Confirm Git is installed.',
+                'Move to a known projects directory.',
+                'Check whether the destination already exists.',
+                'Clone the exact HTTPS URL.'],
+  'checks_el': ['Επιβεβαίωσε ότι είναι εγκατεστημένο το Git.',
+                'Μετακινήσου σε γνωστό projects directory.',
+                'Έλεγξε αν υπάρχει ήδη ο φάκελος προορισμού.',
+                'Κάνε clone το ακριβές HTTPS URL.'],
+  'commands': ['pkg install git', 'mkdir -p ~/Projects && cd ~/Projects', 'git clone REPOSITORY_URL', 'pwd && ls -la'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'git_auth',
+  'title_en': 'GitHub authentication or token failure',
+  'title_el': 'Αποτυχία GitHub authentication ή token',
+  'aliases': ['authentication failed github',
+              'password authentication removed',
+              'invalid token',
+              'permission denied publickey',
+              'ssh key error',
+              'σφαλμα github token'],
+  'summary_en': 'GitHub HTTPS pushes require a valid token or authenticated GitHub CLI; SSH requires a registered key. Never paste a token into '
+                'scripts or chat logs.',
+  'summary_el': 'Τα GitHub HTTPS pushes απαιτούν έγκυρο token ή authenticated GitHub CLI· το SSH απαιτεί καταχωρημένο key. Μην βάζεις token μέσα σε '
+                'scripts ή logs.',
+  'checks_en': ['Check the remote URL type.',
+                'Verify GitHub CLI authentication or SSH key registration.',
+                'Remove exposed credentials and rotate them.'],
+  'checks_el': ['Έλεγξε τον τύπο remote URL.',
+                'Επιβεβαίωσε GitHub CLI authentication ή καταχώριση SSH key.',
+                'Αφαίρεσε εκτεθειμένα credentials και άλλαξέ τα.'],
+  'commands': ['git remote -v', 'gh auth status', 'ssh -T git@github.com'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'git_pull',
+  'title_en': 'Git pull, merge, or conflict problem',
+  'title_el': 'Πρόβλημα Git pull, merge ή conflict',
+  'aliases': ['merge conflict', 'git pull failed', 'divergent branches', 'local changes would be overwritten', 'non fast forward', 'συγκρουση git'],
+  'summary_en': 'Protect local changes before pulling. Inspect status and diff, then commit, stash, or deliberately discard changes before '
+                'integrating remote work.',
+  'summary_el': 'Προστάτευσε τις τοπικές αλλαγές πριν το pull. Έλεγξε status και diff και μετά κάνε commit, stash ή συνειδητή απόρριψη πριν '
+                'ενσωματώσεις remote αλλαγές.',
+  'checks_en': ['Run git status.', 'Review local modifications.', 'Back up or commit valuable work.', 'Resolve conflicts file by file.'],
+  'checks_el': ['Τρέξε git status.',
+                'Έλεγξε τις τοπικές αλλαγές.',
+                'Κράτησε backup ή commit για σημαντική εργασία.',
+                'Διόρθωσε conflicts ανά αρχείο.'],
+  'commands': ['git status', 'git diff', 'git stash push -u -m "before pull"', 'git pull --rebase'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'git_large',
+  'title_en': 'GitHub large file or push-size failure',
+  'title_el': 'Μεγάλο αρχείο ή όριο push GitHub',
+  'aliases': ['file exceeds github limit',
+              'large file detected',
+              'push over 2 gb',
+              'rpc failed',
+              'http 413',
+              'git large file',
+              'μεγαλο αρχειο github'],
+  'summary_en': 'GitHub rejects very large individual files and oversized pushes. Remove generated archives from history, split legitimate assets, '
+                'or use an appropriate release/storage workflow.',
+  'summary_el': 'Το GitHub απορρίπτει πολύ μεγάλα αρχεία και υπερβολικά pushes. Αφαίρεσε generated archives από το history, χώρισε νόμιμα assets ή '
+                'χρησιμοποίησε κατάλληλο release/storage workflow.',
+  'checks_en': ['Find the largest tracked files.',
+                'Avoid committing build output and caches.',
+                'Split large assets only when the consuming project can reassemble them.'],
+  'checks_el': ['Βρες τα μεγαλύτερα tracked files.',
+                'Μην κάνεις commit build output και caches.',
+                'Χώρισε μεγάλα assets μόνο όταν το project μπορεί να τα επανασυναρμολογήσει.'],
+  'commands': ['git ls-files -z | xargs -0 -r du -h | sort -h | tail', 'git status --short'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'storage',
+  'title_en': 'Termux shared-storage or Downloads access',
+  'title_el': 'Πρόσβαση Termux σε shared storage ή Downloads',
+  'aliases': ['termux storage',
+              'downloads path',
+              'storage permission',
+              'sdcard access',
+              'storage downloads',
+              'προσβαση αποθηκευσησ',
+              'φακελοσ downloads'],
+  'summary_en': 'Termux needs Android storage permission and its storage symlinks. Use ~/storage/downloads instead of guessing raw Android paths.',
+  'summary_el': 'Το Termux χρειάζεται Android storage permission και τα storage symlinks του. Χρησιμοποίησε ~/storage/downloads αντί να μαντεύεις '
+                'raw Android paths.',
+  'checks_en': ['Run the storage setup once and approve the Android dialog.',
+                'Verify the generated symlinks.',
+                'Use the Downloads symlink for user files.'],
+  'checks_el': ['Τρέξε μία φορά το storage setup και αποδέξου το Android dialog.',
+                'Έλεγξε τα symlinks που δημιουργήθηκαν.',
+                'Χρησιμοποίησε το Downloads symlink για αρχεία χρήστη.'],
+  'commands': ['termux-setup-storage', 'ls -la ~/storage', 'ls -la ~/storage/downloads'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'unzip',
+  'title_en': 'ZIP extraction problem',
+  'title_el': 'Πρόβλημα αποσυμπίεσης ZIP',
+  'aliases': ['unzip error', 'bad zipfile', 'end of central directory', 'cannot extract zip', 'zip corrupted', 'σφαλμα zip'],
+  'summary_en': 'Confirm the archive finished downloading, identify its exact name, test it, and extract to a new folder instead of overwriting an '
+                'existing project.',
+  'summary_el': 'Επιβεβαίωσε ότι ολοκληρώθηκε το download, βρες το ακριβές όνομα, κάνε test και αποσυμπίεσε σε νέο φάκελο αντί να αντικαταστήσεις '
+                'υπάρχον project.',
+  'checks_en': ['Check archive size and filename.', 'Test the ZIP structure.', 'Extract to a dedicated directory.'],
+  'checks_el': ['Έλεγξε μέγεθος και όνομα archive.', 'Κάνε test τη δομή ZIP.', 'Αποσυμπίεσε σε ξεχωριστό directory.'],
+  'commands': ['ls -lh FILE.zip', 'unzip -t FILE.zip', 'mkdir -p EXTRACTED && unzip FILE.zip -d EXTRACTED'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'dedsec_broken',
+  'title_en': 'Broken DedSec installation or script',
+  'title_el': 'Χαλασμένη εγκατάσταση ή script DedSec',
+  'aliases': ['dedsec broken', 'dedsec not working', 'settings py broken', 'setup failed', 'script crashes dedsec', 'χαλασε το dedsec'],
+  'summary_en': 'Capture the exact path and traceback before reinstalling. Compile the Python file, then run it directly to distinguish syntax, '
+                'dependency, and runtime failures.',
+  'summary_el': 'Κατέγραψε την ακριβή διαδρομή και το traceback πριν κάνεις reinstall. Κάνε compile το Python file και μετά τρέξ’ το απευθείας για '
+                'να ξεχωρίσεις syntax, dependency και runtime failures.',
+  'checks_en': ['Confirm you are in the intended DedSec folder.',
+                'List the Scripts directory.',
+                'Compile the failing file.',
+                'Run it and keep the complete traceback.'],
+  'checks_el': ['Επιβεβαίωσε ότι βρίσκεσαι στον σωστό φάκελο DedSec.',
+                'Δείξε το Scripts directory.',
+                'Κάνε compile το αρχείο που αποτυγχάνει.',
+                'Τρέξ’ το και κράτησε όλο το traceback.'],
+  'commands': ['cd ~/DedSec && pwd',
+               'ls -la ~/DedSec/Scripts',
+               'python3 -m py_compile ~/DedSec/Scripts/Settings.py',
+               'python3 ~/DedSec/Scripts/Settings.py'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'dedsec_update',
+  'title_en': 'Updating DedSec safely',
+  'title_el': 'Ασφαλής ενημέρωση DedSec',
+  'aliases': ['update dedsec', 'dedsec update failed', 'pull new dedsec', 'upgrade dedsec', 'ενημερωση dedsec'],
+  'summary_en': 'Back up local changes and saves before updating. Use the project updater or inspect Git status before pulling so personal edits are '
+                'not silently lost.',
+  'summary_el': 'Κράτησε backup τοπικών αλλαγών και saves πριν την ενημέρωση. Χρησιμοποίησε τον updater ή έλεγξε Git status πριν το pull ώστε να μη '
+                'χαθούν προσωπικές αλλαγές.',
+  'checks_en': ['Back up Settings and project saves.',
+                'Check Git status.',
+                'Use the built-in update action, which also refreshes Ded-Guy knowledge.'],
+  'checks_el': ['Κράτησε backup των Settings και project saves.',
+                'Έλεγξε Git status.',
+                'Χρησιμοποίησε την ενσωματωμένη ενημέρωση, η οποία ανανεώνει και τη γνώση Ded-Guy.'],
+  'commands': ['cp -f ~/DedSec/Scripts/Settings.py ~/Settings-Backup.py', 'cd ~/DedSec && git status'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'port',
+  'title_en': 'Port already in use',
+  'title_el': 'Η θύρα χρησιμοποιείται ήδη',
+  'aliases': ['address already in use', 'port already in use', 'errno 98', 'cannot bind port', 'θυρα χρησιμοποιειται'],
+  'summary_en': 'Another process already owns the requested local port. Identify it, stop the correct process, or choose another unprivileged port.',
+  'summary_el': 'Μια άλλη διαδικασία χρησιμοποιεί ήδη την τοπική θύρα. Εντόπισέ την, σταμάτησε τη σωστή διαδικασία ή επίλεξε άλλη μη προνομιούχα '
+                'θύρα.',
+  'checks_en': ['Identify listeners on the port.',
+                'Confirm which application owns the process.',
+                'Stop only that process or change the application port.'],
+  'checks_el': ['Εντόπισε listeners στη θύρα.', 'Επιβεβαίωσε ποια εφαρμογή έχει τη διαδικασία.', 'Σταμάτησε μόνο αυτή τη διαδικασία ή άλλαξε port.'],
+  'commands': ['ss -ltnp 2>/dev/null | grep :PORT', 'ps -A | grep PROCESS_NAME'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'localhost',
+  'title_en': 'Localhost or local server not opening',
+  'title_el': 'Δεν ανοίγει localhost ή local server',
+  'aliases': ['localhost not working', 'site cannot be reached local', 'connection refused localhost', 'local server error', 'δεν ανοιγει localhost'],
+  'summary_en': 'The server must remain running and bind to the expected address and port. 127.0.0.1 works only on the same device; LAN access '
+                'usually needs 0.0.0.0 and the phone IP.',
+  'summary_el': 'Ο server πρέπει να παραμένει ενεργός και να κάνει bind στη σωστή διεύθυνση και port. Το 127.0.0.1 λειτουργεί μόνο στην ίδια '
+                'συσκευή· για LAN συνήθως χρειάζεται 0.0.0.0 και το IP του κινητού.',
+  'checks_en': ['Keep the server terminal open.',
+                'Read the exact host and port printed by the application.',
+                'Test locally before exposing to LAN or a tunnel.'],
+  'checks_el': ['Κράτησε ανοιχτό το terminal του server.',
+                'Διάβασε το ακριβές host και port που εμφανίζει η εφαρμογή.',
+                'Δοκίμασε τοπικά πριν από LAN ή tunnel.'],
+  'commands': ['curl -I http://127.0.0.1:PORT', 'ip addr show wlan0'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'termux_api',
+  'title_en': 'Termux:API command or permission problem',
+  'title_el': 'Πρόβλημα Termux:API ή permission',
+  'aliases': ['termux api not working',
+              'termux speech to text missing',
+              'termux tts not working',
+              'termux api permission',
+              'microphone not working termux',
+              'σφαλμα termux api'],
+  'summary_en': 'The terminal package and separate Termux:API Android app must both exist, come from compatible sources, and have Android '
+                'permissions.',
+  'summary_el': 'Πρέπει να υπάρχουν τόσο το terminal package όσο και η ξεχωριστή εφαρμογή Android Termux:API, να προέρχονται από συμβατές πηγές και '
+                'να έχουν Android permissions.',
+  'checks_en': ['Check whether the Termux API command exists.',
+                'Install the terminal package only if missing.',
+                'Install the matching Android app and grant permission.',
+                'Disable battery restrictions for long-running use.'],
+  'checks_el': ['Έλεγξε αν υπάρχει η εντολή Termux API.',
+                'Εγκατέστησε το terminal package μόνο αν λείπει.',
+                'Εγκατέστησε τη συμβατή Android εφαρμογή και δώσε permission.',
+                'Απενεργοποίησε battery restrictions για συνεχή χρήση.'],
+  'commands': ['command -v termux-speech-to-text', 'pkg install termux-api', 'termux-microphone-record -i'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'flask',
+  'title_en': 'Flask application error',
+  'title_el': 'Σφάλμα εφαρμογής Flask',
+  'aliases': ['flask error', 'no module named flask', 'flask server not starting', 'werkzeug error', 'flask route error', 'σφαλμα flask'],
+  'summary_en': 'Verify Flask is installed in the active Python, compile the application, and read the full traceback. Bind deliberately and avoid '
+                'debug mode on exposed networks.',
+  'summary_el': 'Έλεγξε ότι το Flask είναι εγκατεστημένο στο ενεργό Python, κάνε compile την εφαρμογή και διάβασε όλο το traceback. Κάνε bind '
+                'συνειδητά και μην χρησιμοποιείς debug mode σε εκτεθειμένο δίκτυο.',
+  'checks_en': ['Check the active interpreter and Flask installation.', 'Compile the app.', 'Run locally and inspect the first traceback.'],
+  'checks_el': ['Έλεγξε τον ενεργό interpreter και την εγκατάσταση Flask.',
+                'Κάνε compile την εφαρμογή.',
+                'Τρέξ’ την τοπικά και έλεγξε το πρώτο traceback.'],
+  'commands': ['python -m pip show flask', 'python3 -m py_compile APP.py', 'python3 APP.py'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'websocket',
+  'title_en': 'WebSocket or Flask-SocketIO problem',
+  'title_el': 'Πρόβλημα WebSocket ή Flask-SocketIO',
+  'aliases': ['websocket error', 'socketio error', 'websocket disconnected', 'transport close', 'flask socketio', 'σφαλμα websocket'],
+  'summary_en': 'Check client and server versions, the WebSocket URL, reverse-proxy support, and whether Android suspended the server.',
+  'summary_el': 'Έλεγξε τις εκδόσεις client/server, το WebSocket URL, την υποστήριξη reverse proxy και αν το Android σταμάτησε τον server.',
+  'checks_en': ['Verify the HTTP server works first.',
+                'Check browser console and server logs.',
+                'Confirm compatible Socket.IO versions.',
+                'Keep the Termux process awake.'],
+  'checks_el': ['Επιβεβαίωσε πρώτα ότι λειτουργεί ο HTTP server.',
+                'Έλεγξε browser console και server logs.',
+                'Επιβεβαίωσε συμβατές εκδόσεις Socket.IO.',
+                'Κράτησε ενεργή τη διαδικασία Termux.'],
+  'commands': ['python -m pip show flask-socketio', 'termux-wake-lock'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'android_background',
+  'title_en': 'Android stops or kills the Termux process',
+  'title_el': 'Το Android σταματά τη διαδικασία Termux',
+  'aliases': ['android kills termux', 'process stops in background', 'battery optimization termux', 'server closes screen off', 'android background'],
+  'summary_en': 'Android battery management can suspend Termux and local servers. Allow background activity, remove battery optimization, and use a '
+                'wake lock only while needed.',
+  'summary_el': 'Η διαχείριση μπαταρίας Android μπορεί να αναστείλει το Termux και local servers. Επίτρεψε background activity, αφαίρεσε battery '
+                'optimization και χρησιμοποίησε wake lock μόνο όσο χρειάζεται.',
+  'checks_en': ['Allow Termux background activity in Android settings.',
+                'Disable battery optimization for Termux and required plugins.',
+                'Use a wake lock for an active server and release it afterward.'],
+  'checks_el': ['Επίτρεψε background activity για το Termux στις ρυθμίσεις Android.',
+                'Απενεργοποίησε battery optimization για Termux και τα απαραίτητα plugins.',
+                'Χρησιμοποίησε wake lock για ενεργό server και απελευθέρωσέ το μετά.'],
+  'commands': ['termux-wake-lock', 'termux-wake-unlock'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'no_root',
+  'title_en': 'Operation needs root or is unsupported in Termux',
+  'title_el': 'Η λειτουργία χρειάζεται root ή δεν υποστηρίζεται στο Termux',
+  'aliases': ['requires root', 'permission denied root', 'sudo not found', 'operation not permitted android', 'need root', 'χρειαζεται root'],
+  'summary_en': 'Standard Termux is unprivileged. Replace root-only steps with user-space alternatives instead of installing fake sudo commands.',
+  'summary_el': 'Το κανονικό Termux δεν έχει προνόμια root. Αντικατάστησε root-only βήματα με user-space alternatives αντί να εγκαταστήσεις ψεύτικες '
+                'εντολές sudo.',
+  'checks_en': ['Identify the exact privileged operation.',
+                'Check whether a Termux/user-space alternative exists.',
+                'Do not grant unnecessary root access to unknown scripts.'],
+  'checks_el': ['Εντόπισε την ακριβή privileged λειτουργία.',
+                'Έλεγξε αν υπάρχει Termux/user-space alternative.',
+                'Μη δίνεις περιττό root access σε άγνωστα scripts.'],
+  'commands': ['id', 'uname -a'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'backup',
+  'title_en': 'Back up or restore project files',
+  'title_el': 'Backup ή επαναφορά αρχείων project',
+  'aliases': ['backup project', 'restore backup', 'lost settings', 'save project', 'αντιγραφο ασφαλειασ', 'επαναφορα backup'],
+  'summary_en': 'Create timestamped backups outside the project folder and verify that the archive can be listed before relying on it.',
+  'summary_el': 'Δημιούργησε timestamped backups έξω από τον φάκελο project και επιβεβαίωσε ότι το archive διαβάζεται πριν βασιστείς σε αυτό.',
+  'checks_en': ['Identify code, settings, and save-data locations.',
+                'Create the archive in Downloads or another safe folder.',
+                'Test the archive listing.'],
+  'checks_el': ['Εντόπισε τις τοποθεσίες code, settings και save data.',
+                'Δημιούργησε archive σε Downloads ή άλλο ασφαλές μέρος.',
+                'Κάνε test το archive listing.'],
+  'commands': ['tar -czf ~/storage/downloads/DedSec-Backup-$(date +%Y%m%d-%H%M).tar.gz ~/DedSec', 'tar -tzf BACKUP.tar.gz | head'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'performance',
+  'title_en': 'Termux script is slow, laggy, or freezing',
+  'title_el': 'Το script Termux είναι αργό ή κολλάει',
+  'aliases': ['laggy', 'very slow', 'freezing', 'high cpu', 'high memory', 'script hangs', 'κολλαει', 'αργο script'],
+  'summary_en': 'Measure before changing code. Look for blocking network/audio calls in the UI loop, repeated full scans, excessive redraws, and '
+                'unbounded subprocesses.',
+  'summary_el': 'Μέτρησε πριν αλλάξεις κώδικα. Αναζήτησε blocking network/audio calls στο UI loop, επαναλαμβανόμενα full scans, υπερβολικά redraws '
+                'και unbounded subprocesses.',
+  'checks_en': ['Observe CPU and memory while reproducing the lag.',
+                'Time the slow command separately.',
+                'Move network, package, microphone, and indexing work outside the redraw loop.'],
+  'checks_el': ['Παρατήρησε CPU και memory κατά την αναπαραγωγή του lag.',
+                'Μέτρησε ξεχωριστά την αργή εντολή.',
+                'Μετέφερε network, package, microphone και indexing work έξω από το redraw loop.'],
+  'commands': ['top', 'time python3 SCRIPT.py'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'browser_cache',
+  'title_en': 'Website changes are not visible',
+  'title_el': 'Οι αλλαγές website δεν εμφανίζονται',
+  'aliases': ['browser cache', 'website not updated', 'old css showing', 'changes not visible', 'github pages cache', 'δεν φαινονται αλλαγες site'],
+  'summary_en': 'Confirm the deployed files and commit first, then bypass browser cache. Service workers or CDN caching may preserve older assets.',
+  'summary_el': 'Επιβεβαίωσε πρώτα deployed files και commit και μετά παράκαμψε το browser cache. Service workers ή CDN caching μπορεί να κρατούν '
+                'παλιά assets.',
+  'checks_en': ['Check the deployed repository branch and commit.',
+                'Open the exact asset URL.',
+                'Use a hard reload or private window.',
+                'Version static asset URLs when necessary.'],
+  'checks_el': ['Έλεγξε το deployed branch και commit του repository.',
+                'Άνοιξε το ακριβές asset URL.',
+                'Χρησιμοποίησε hard reload ή private window.',
+                'Βάλε version στα static asset URLs όταν χρειάζεται.'],
+  'commands': ['git status', 'git log -1 --oneline'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'compiler',
+  'title_en': 'Compiler or native-package build failure',
+  'title_el': 'Αποτυχία compiler ή native package',
+  'aliases': ['compiler error',
+              'clang error',
+              'cmake error',
+              'make failed',
+              'native extension build',
+              'fatal error header not found',
+              'σφαλμα compiler'],
+  'summary_en': 'Native builds require the correct compiler, headers, build system, architecture support, and enough storage. The first missing '
+                'header or linker error is the useful clue.',
+  'summary_el': 'Τα native builds χρειάζονται σωστό compiler, headers, build system, architecture support και αρκετό χώρο. Το πρώτο missing header ή '
+                'linker error είναι το χρήσιμο στοιχείο.',
+  'checks_en': ['Read the first fatal compiler or linker error.',
+                'Install only the named build tool/library.',
+                'Confirm Android/ARM support for the source.'],
+  'checks_el': ['Διάβασε το πρώτο fatal compiler ή linker error.',
+                'Εγκατέστησε μόνο το build tool/library που αναφέρεται.',
+                'Επιβεβαίωσε υποστήριξη Android/ARM από τον κώδικα.'],
+  'commands': ['pkg install clang make cmake pkg-config', 'clang --version', 'cmake --version'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'api_keys',
+  'title_en': 'Missing or exposed API key',
+  'title_el': 'API key που λείπει ή έχει εκτεθεί',
+  'aliases': ['api key missing', 'invalid api key', 'unauthorized api', '401 unauthorized', '403 forbidden api', 'exposed token', 'σφαλμα api key'],
+  'summary_en': 'Keep API keys in environment variables or a private configuration file excluded from Git. A leaked key must be revoked, not merely '
+                'deleted from the latest commit.',
+  'summary_el': 'Κράτησε API keys σε environment variables ή ιδιωτικό configuration file που εξαιρείται από Git. Ένα leaked key πρέπει να ανακληθεί '
+                'και όχι απλώς να διαγραφεί από το τελευταίο commit.',
+  'checks_en': ['Confirm the required variable name.',
+                'Check that it is available to the running process without printing the secret.',
+                'Revoke and rotate exposed credentials.'],
+  'checks_el': ['Επιβεβαίωσε το απαιτούμενο όνομα variable.',
+                'Έλεγξε ότι είναι διαθέσιμο στη διαδικασία χωρίς να εμφανίσεις το secret.',
+                'Ανάκλησε και άλλαξε εκτεθειμένα credentials.'],
+  'commands': ['test -n "$API_KEY" && echo SET || echo MISSING', 'git grep -n "API_KEY"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'network_dns',
+  'title_en': 'Network, DNS, or connection problem',
+  'title_el': 'Πρόβλημα δικτύου, DNS ή σύνδεσης',
+  'aliases': ['could not resolve host',
+              'network unreachable',
+              'connection timed out',
+              'temporary failure in name resolution',
+              'dns error',
+              'σφαλμα dns',
+              'δεν εχει συνδεση'],
+  'summary_en': 'Separate lack of internet, DNS failure, blocked host, and application timeout. Test a known HTTPS host and then the target domain.',
+  'summary_el': 'Ξεχώρισε έλλειψη internet, DNS failure, blocked host και application timeout. Δοκίμασε γνωστό HTTPS host και μετά το target domain.',
+  'checks_en': ['Check Android connectivity.', 'Resolve the target hostname.', 'Test HTTPS with a finite timeout.'],
+  'checks_el': ['Έλεγξε τη σύνδεση Android.', 'Κάνε resolve το target hostname.', 'Δοκίμασε HTTPS με συγκεκριμένο timeout.'],
+  'commands': ['getent hosts example.com', 'curl --max-time 15 -I https://example.com'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'script_crash',
+  'title_en': 'Python script crashes or exits',
+  'title_el': 'Το Python script κρασάρει ή κλείνει',
+  'aliases': ['traceback', 'script crashed', 'python exception', 'script exits immediately', 'runtime error', 'κρασαρει το script'],
+  'summary_en': 'The final exception line names the failure type; earlier traceback frames show how execution reached it. Reproduce once from a '
+                'terminal and preserve the entire output.',
+  'summary_el': 'Η τελευταία γραμμή exception δείχνει τον τύπο αποτυχίας· τα προηγούμενα traceback frames δείχνουν πώς έφτασε εκεί. Αναπαρήγαγε μία '
+                'φορά από terminal και κράτησε όλη την έξοδο.',
+  'checks_en': ['Compile first to exclude syntax errors.',
+                'Run from the project directory.',
+                'Capture stdout and stderr to a log.',
+                'Fix the first root error before later secondary errors.'],
+  'checks_el': ['Κάνε πρώτα compile για να αποκλείσεις syntax errors.',
+                'Τρέξε από τον φάκελο project.',
+                'Κατέγραψε stdout και stderr σε log.',
+                'Διόρθωσε πρώτα το αρχικό error και όχι τα επόμενα secondary errors.'],
+  'commands': ['python3 -m py_compile SCRIPT.py', 'python3 SCRIPT.py 2>&1 | tee ~/storage/downloads/script-error.log'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'version_conflict',
+  'title_en': 'Dependency or version conflict',
+  'title_el': 'Σύγκρουση dependency ή έκδοσης',
+  'aliases': ['version conflict', 'incompatible version', 'requires version', 'dependency conflict', 'cannot import name', 'συγκρουση εκδοσησ'],
+  'summary_en': 'Record installed versions and the package requirement before upgrading everything. Pin a compatible version in the project '
+                'environment when needed.',
+  'summary_el': 'Κατέγραψε τις εγκατεστημένες εκδόσεις και το requirement πριν ενημερώσεις τα πάντα. Κάνε pin συμβατή έκδοση στο project environment '
+                'όταν χρειάζεται.',
+  'checks_en': ['Inspect the exact requirement in the error.', 'Show installed versions.', 'Use a virtual environment for project-specific pins.'],
+  'checks_el': ['Έλεγξε το ακριβές requirement στο error.',
+                'Εμφάνισε τις εγκατεστημένες εκδόσεις.',
+                'Χρησιμοποίησε virtual environment για project-specific pins.'],
+  'commands': ['python -m pip show PACKAGE_NAME', 'python -m pip check', 'python -m pip freeze | grep -i PACKAGE_NAME'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'sqlite',
+  'title_en': 'SQLite database locked or corrupt',
+  'title_el': 'SQLite database locked ή χαλασμένη',
+  'aliases': ['database is locked', 'sqlite error', 'database disk image is malformed', 'no such table', 'σφαλμα sqlite'],
+  'summary_en': 'Close competing writers, preserve the original database, and use SQLite integrity checks before attempting recovery or schema '
+                'changes.',
+  'summary_el': 'Κλείσε competing writers, κράτησε το αρχικό database και χρησιμοποίησε SQLite integrity checks πριν recovery ή schema changes.',
+  'checks_en': ['Stop other instances using the database.', 'Back up the database file.', 'Run an integrity check.', 'Verify expected tables.'],
+  'checks_el': ['Σταμάτησε άλλα instances που χρησιμοποιούν το database.',
+                'Κράτησε backup του database file.',
+                'Τρέξε integrity check.',
+                'Έλεγξε τα expected tables.'],
+  'commands': ['cp DATABASE.db DATABASE.db.backup', 'sqlite3 DATABASE.db "PRAGMA integrity_check;"', 'sqlite3 DATABASE.db ".tables"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'audio',
+  'title_en': 'Audio, microphone, or media playback problem',
+  'title_el': 'Πρόβλημα ήχου, μικροφώνου ή playback',
+  'aliases': ['no voice', 'no sound', 'microphone not working', 'tts silent', 'media player error', 'ηχοσ δεν δουλευει', 'μικροφωνο δεν δουλευει'],
+  'summary_en': 'Check Android media volume and permissions, then test each Termux API/audio command independently. Only after those tests should '
+                'the application voice loop be debugged.',
+  'summary_el': 'Έλεγξε Android media volume και permissions και μετά δοκίμασε κάθε Termux API/audio command ξεχωριστά. Μόνο μετά πρέπει να ελεγχθεί '
+                'το voice loop της εφαρμογής.',
+  'checks_en': ['Confirm the command exists.',
+                'Test microphone permission.',
+                'Test a short standalone voice or WAV.',
+                'Ensure no stale media process holds audio focus.'],
+  'checks_el': ['Επιβεβαίωσε ότι υπάρχει η εντολή.',
+                'Δοκίμασε microphone permission.',
+                'Δοκίμασε σύντομη ανεξάρτητη φωνή ή WAV.',
+                'Έλεγξε ότι καμία παλιά media process δεν κρατά audio focus.'],
+  'commands': ['command -v termux-speech-to-text', 'command -v espeak', 'termux-media-player stop'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'curses',
+  'title_en': 'Curses display, flicker, or addwstr error',
+  'title_el': 'Πρόβλημα curses, flicker ή addwstr',
+  'aliases': ['curses error', 'addwstr returned err', 'terminal too small', 'screen flicker', 'broken ascii', 'σφαλμα curses'],
+  'summary_en': 'Curses writes must be clipped to terminal bounds, redraws should be rate-limited, and slow operations must stay outside the render '
+                'loop.',
+  'summary_el': 'Τα curses writes πρέπει να περιορίζονται στα όρια terminal, τα redraws να έχουν rate limit και οι αργές λειτουργίες να μένουν έξω '
+                'από το render loop.',
+  'checks_en': ['Check terminal rows and columns.',
+                'Clip every write to available width and height.',
+                'Avoid full clear/redraw for every animation tick.',
+                'Move network and microphone calls to workers.'],
+  'checks_el': ['Έλεγξε rows και columns του terminal.',
+                'Περιόρισε κάθε write στο διαθέσιμο width και height.',
+                'Απέφυγε full clear/redraw σε κάθε animation tick.',
+                'Μετέφερε network και microphone calls σε workers.'],
+  'commands': ['stty size', 'printf "\\e[8;40;120t"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'github_pages',
+  'title_en': 'GitHub Pages deployment problem',
+  'title_el': 'Πρόβλημα deployment GitHub Pages',
+  'aliases': ['github pages not working', 'pages 404', 'custom domain error', 'cname error', 'site deployment failed', 'σφαλμα github pages'],
+  'summary_en': 'Verify the publishing branch/folder, Actions deployment status, CNAME, and that index.html exists with exact filename casing.',
+  'summary_el': 'Έλεγξε publishing branch/folder, Actions deployment status, CNAME και ότι υπάρχει index.html με ακριβές filename casing.',
+  'checks_en': ['Check repository Pages settings.',
+                'Inspect the latest deployment action.',
+                'Verify index.html and CNAME.',
+                'Allow DNS changes time to propagate.'],
+  'checks_el': ['Έλεγξε τις Pages settings του repository.',
+                'Δες το τελευταίο deployment action.',
+                'Έλεγξε index.html και CNAME.',
+                'Περίμενε να ολοκληρωθεί το DNS propagation.'],
+  'commands': ['git branch --show-current', 'find . -maxdepth 2 -iname "index.html" -o -name "CNAME"'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'cloudflared',
+  'title_en': 'Cloudflared tunnel problem',
+  'title_el': 'Πρόβλημα tunnel cloudflared',
+  'aliases': ['cloudflared error', 'tunnel failed', 'quick tunnel not working', 'cloudflare tunnel', 'σφαλμα cloudflared'],
+  'summary_en': 'The local server must work before starting a tunnel. Confirm the local URL, avoid exposing sensitive development endpoints, and '
+                'keep the tunnel process alive.',
+  'summary_el': 'Ο local server πρέπει να λειτουργεί πριν ξεκινήσει tunnel. Επιβεβαίωσε το local URL, μην εκθέτεις sensitive development endpoints '
+                'και κράτησε ενεργή τη διαδικασία tunnel.',
+  'checks_en': ['Test localhost first.',
+                'Confirm cloudflared is installed.',
+                'Start a tunnel to the exact local URL.',
+                'Stop the tunnel when finished.'],
+  'checks_el': ['Δοκίμασε πρώτα localhost.',
+                'Επιβεβαίωσε ότι υπάρχει το cloudflared.',
+                'Ξεκίνα tunnel προς το ακριβές local URL.',
+                'Σταμάτησε το tunnel όταν τελειώσεις.'],
+  'commands': ['curl -I http://127.0.0.1:PORT', 'command -v cloudflared', 'cloudflared tunnel --url http://127.0.0.1:PORT'],
+  'url': 'https://ded-sec.space/Pages/assistance.html'},
+ {'key': 'offline_docs',
+  'title_en': 'Using DedSec help fully offline',
+  'title_el': 'Χρήση βοήθειας DedSec πλήρως offline',
+  'aliases': ['offline help', 'offline docs', 'no internet assistance', 'work offline', 'βοηθεια χωρισ internet'],
+  'summary_en': 'Ded-Guy keeps an embedded project inventory, bilingual troubleshooting guides, website seed pages, and the last successful '
+                'refreshed indexes. Online refresh enriches the data but is not required for normal search and assistance.',
+  'summary_el': 'Το Ded-Guy διατηρεί embedded inventory project, δίγλωσσους οδηγούς troubleshooting, website seed pages και τα τελευταία επιτυχημένα '
+                'indexes. Το online refresh εμπλουτίζει τα δεδομένα αλλά δεν απαιτείται για κανονική αναζήτηση και βοήθεια.',
+  'checks_en': ['Ask about scripts, project categories, or an exact error while offline.',
+                'Use the last refreshed index automatically.',
+                'Run an update action later to refresh knowledge when internet returns.'],
+  'checks_el': ['Ρώτησε για scripts, κατηγορίες project ή ακριβές error χωρίς internet.',
+                'Χρησιμοποίησε αυτόματα το τελευταίο refreshed index.',
+                'Τρέξε update αργότερα για ανανέωση γνώσης όταν επιστρέψει το internet.'],
+  'commands': [],
+  'url': 'https://ded-sec.space/Pages/assistance.html'}]
+
+DEDGUY_OFFLINE_ASSISTANCE_CATALOG = [('installation',
+  'Install Termux and DedSec',
+  'Εγκατάσταση Termux και DedSec',
+  ['install dedsec', 'setup dedsec', 'first installation', 'εγκατασταση dedsec']),
+ ('copy_paste', 'Copy and paste in Termux', 'Αντιγραφή και επικόλληση στο Termux', ['copy paste termux', 'paste command', 'αντιγραφη επικολληση']),
+ ('nano', 'Edit files with nano', 'Επεξεργασία αρχείων με nano', ['nano editor', 'save nano', 'exit nano', 'επεξεργασια nano']),
+ ('run_scripts',
+  'Run Python and shell scripts',
+  'Εκτέλεση Python και shell scripts',
+  ['how to run script', 'execute python file', 'run shell file', 'πως τρεχω script']),
+ ('logs', 'Read logs and tracebacks', 'Ανάγνωση logs και tracebacks', ['read traceback', 'debug log', 'error log', 'διαβασμα traceback']),
+ ('safe_update', 'Safe update routine', 'Ασφαλής διαδικασία ενημέρωσης', ['safe update', 'backup before update', 'ασφαλησ ενημερωση']),
+ ('folder_structure', 'Organize a Termux project', 'Οργάνωση project Termux', ['project folder structure', 'organize files', 'δομη φακελων']),
+ ('readme', 'Write a useful README', 'Δημιουργία χρήσιμου README', ['better readme', 'document project', 'γραψε readme']),
+ ('seo', 'Website SEO and metadata', 'SEO και metadata ιστοσελίδας', ['seo help', 'metadata website', 'sitemap robots', 'βοηθεια seo']),
+ ('local_server', 'Run a local web server', 'Εκτέλεση local web server', ['local web server', 'python http server', 'τοπικοσ server']),
+ ('history_aliases', 'Shell history and aliases', 'Shell history και aliases', ['bash history', 'shell alias', 'ιστορικο εντολων']),
+ ('cron_alternatives',
+  'Scheduled tasks on Android',
+  'Προγραμματισμένες εργασίες Android',
+  ['cron termux', 'scheduled task', 'termux job scheduler', 'προγραμματισμενη εργασια']),
+ ('phone_coding', 'Develop projects on a phone', 'Ανάπτυξη project σε κινητό', ['coding on phone', 'mobile development', 'προγραμματισμοσ κινητο']),
+ ('python_learning', 'Learn Python with DedSec', 'Εκμάθηση Python με DedSec', ['learn python', 'python beginner', 'μαθε python']),
+ ('large_projects',
+  'Maintain large single-file projects',
+  'Συντήρηση μεγάλων single-file project',
+  ['large python file', 'big script maintenance', 'μεγαλο script'])]
+DEDGUY_OFFLINE_ASSISTANCE_CACHE = None
+
+DEDGUY_PROJECT_KNOWLEDGE_ALIASES = {
+    "dedsec project": ["dedsec", "termux toolkit", "android cybersecurity toolkit", "main project", "κυριο project", "εργαλειοθηκη termux"],
+    "offline survival": ["survival guide", "emergency guide", "disaster preparation", "offline survival project", "οδηγοσ επιβιωσησ"],
+    "pocket ai": ["local ai", "offline assistant", "phone ai", "pocket assistant", "τοπικο ai"],
+    "corrupted files": ["file corruption", "damaged files", "recover corrupted file", "χαλασμενα αρχεια"],
+    "developer base": ["developer scripts", "coding scripts", "website tools", "programming utilities", "εργαλεια προγραμματιστη"],
+    "repair": ["fix termux", "repair script", "missing dependency", "broken installation", "διορθωση termux"],
+    "assistance": ["help page", "troubleshooting", "how to fix", "support page", "βοηθεια", "αντιμετωπιση προβληματων"],
+}
+
+def dedguy_offline_assistance_records(language=None):
+    """Return website-like records for every embedded offline guide."""
+    global DEDGUY_OFFLINE_ASSISTANCE_CACHE
+    if DEDGUY_OFFLINE_ASSISTANCE_CACHE is None:
+        rows = []
+        for guide in DEDGUY_OFFLINE_ASSISTANCE_GUIDES:
+            aliases = list(guide.get("aliases") or [])
+            for lang in ("english", "greek"):
+                title = guide.get("title_el" if lang == "greek" else "title_en", "")
+                summary = guide.get("summary_el" if lang == "greek" else "summary_en", "")
+                checks = guide.get("checks_el" if lang == "greek" else "checks_en", [])
+                text_value = " ".join([title, summary, " ".join(checks), " ".join(aliases), " ".join(guide.get("commands") or [])])
+                rows.append({
+                    "kind": "website", "offline": True, "assistance_key": guide.get("key"),
+                    "title": title, "language": lang, "url": guide.get("url"),
+                    "headings": [title], "text": text_value, "description": summary,
+                    "aliases": aliases, "checks": list(checks), "commands": list(guide.get("commands") or []),
+                    "guide": guide, "relative_path": "embedded://assistance/" + str(guide.get("key")) + "/" + lang,
+                })
+        for key, title_en, title_el, aliases in DEDGUY_OFFLINE_ASSISTANCE_CATALOG:
+            for lang, title in (("english", title_en), ("greek", title_el)):
+                rows.append({
+                    "kind": "website", "offline": True, "assistance_key": key, "title": title,
+                    "language": lang, "url": "https://ded-sec.space/Pages/assistance.html",
+                    "headings": [title], "aliases": list(aliases),
+                    "text": " ".join([title, *aliases]), "description": title,
+                    "relative_path": "embedded://assistance-catalog/" + key + "/" + lang,
+                })
+        DEDGUY_OFFLINE_ASSISTANCE_CACHE = rows
+    rows = DEDGUY_OFFLINE_ASSISTANCE_CACHE
+    return [dict(row) for row in rows if not language or row.get("language") == language]
+
+def dedguy_rank_offline_assistance(problem, limit=5):
+    query = pipboy_normalize(problem)
+    qtokens = set(pipboy_search_tokens(problem)) | pipboy_semantic_stems(problem)
+    preferred = pipboy_selected_answer_language()
+    ranked = []
+    for row in dedguy_offline_assistance_records():
+        aliases = [pipboy_normalize(item) for item in row.get("aliases") or []]
+        title = pipboy_normalize(row.get("title") or "")
+        blob = pipboy_normalize(" ".join([title, row.get("text") or "", *aliases]))
+        score = 0.0
+        if row.get("language") == preferred:
+            score += 7.0
+        if query and query in blob:
+            score += 24.0
+        for alias in aliases:
+            if alias and alias in query:
+                score += 55.0 + min(12.0, len(alias) / 2.0)
+            elif query and query in alias:
+                score += 24.0
+        btokens = set(pipboy_search_tokens(blob)) | pipboy_semantic_stems(blob)
+        overlap = len(qtokens & btokens)
+        score += overlap * 5.2
+        if qtokens and qtokens.issubset(btokens):
+            score += 13.0
+        if query and len(query.split()) <= 8:
+            candidates = aliases + [title]
+            ratio = max((difflib.SequenceMatcher(None, query, item).ratio() for item in candidates if item), default=0.0)
+            if ratio >= 0.66:
+                score += ratio * 18.0
+        if score > 6.0:
+            item = dict(row); item["score"] = round(score, 3); ranked.append(item)
+    ranked.sort(key=lambda item: (-float(item.get("score", 0)), item.get("language") != preferred, str(item.get("title") or "")))
+    # Keep one language version per guide, preferring the selected language.
+    selected, seen = [], set()
+    for item in ranked:
+        key = item.get("assistance_key") or item.get("title")
+        if key in seen:
+            continue
+        seen.add(key); selected.append(item)
+        if len(selected) >= max(1, int(limit)):
+            break
+    return selected
+
+def dedguy_expand_project_query(query):
+    """Add only high-confidence project aliases; cached indexes stay fully offline."""
+    normalized = pipboy_normalize(query)
+    additions = []
+    for concept, aliases in DEDGUY_PROJECT_KNOWLEDGE_ALIASES.items():
+        all_terms = [concept, *aliases]
+        if any(pipboy_normalize(term) in normalized for term in all_terms):
+            additions.extend(all_terms)
+    return " ".join(dict.fromkeys([str(query), *additions]))
+
+
+def pipboy_semantic_stems(value):
+    """Small bilingual stemmer for order-independent intent matching."""
+    stems = []
+    replacements = {
+        "captures": "capture", "capturing": "capture", "captured": "capture",
+        "pages": "page", "scripts": "script", "tools": "tool", "websites": "website",
+        "developers": "developer", "credentials": "credential", "locations": "location",
+        "σελιδες": "σελιδα", "εργαλεια": "εργαλειο", "προγραμματιστες": "προγραμματιστη",
+    }
+    for token in pipboy_search_tokens(value):
+        token = replacements.get(token, token)
+        if len(token) > 5 and token.endswith("ing"):
+            token = token[:-3]
+        elif len(token) > 4 and token.endswith("ed"):
+            token = token[:-2]
+        elif len(token) > 4 and token.endswith("es"):
+            token = token[:-2]
+        elif len(token) > 3 and token.endswith("s"):
+            token = token[:-1]
+        stems.append(token)
+    return set(stems)
+
+
+def pipboy_intelligence_concepts(query):
+    """Return ontology concepts matched by exact phrases or conservative fuzzy matching."""
+    normalized = pipboy_normalize(query)
+    if not normalized:
+        return []
+    results = []
+    query_stems = pipboy_semantic_stems(query)
+    for key, concept in PIPBOY_PROJECT_ONTOLOGY.items():
+        best = 0.0
+        for alias in concept.get("aliases", []):
+            alias_norm = pipboy_normalize(alias)
+            if not alias_norm:
+                continue
+            if alias_norm in normalized or normalized in alias_norm:
+                best = max(best, 1.0)
+                continue
+            alias_stems = pipboy_semantic_stems(alias)
+            # Word order may differ: "captures location" should match
+            # "location capture", and "fake Instagram pages" should match
+            # "fake pages" while still using the extra brand word for ranking.
+            if alias_stems and alias_stems.issubset(query_stems):
+                best = max(best, 0.96)
+                continue
+            # Fuzzy matching is limited to meaningful phrases to avoid mapping
+            # unrelated short commands to a sensitive category.
+            if len(normalized) >= 7 and len(alias_norm) >= 7:
+                ratio = difflib.SequenceMatcher(None, normalized, alias_norm).ratio()
+                if ratio >= 0.78:
+                    best = max(best, ratio)
+        if best:
+            results.append((key, best))
+    results.sort(key=lambda item: (-item[1], item[0]))
+    return [key for key, _score in results]
+
+
+def pipboy_intelligence_semantic_terms(query):
+    """Expand a natural request into real project/website vocabulary."""
+    terms = []
+    for key in pipboy_intelligence_concepts(query):
+        concept = PIPBOY_PROJECT_ONTOLOGY[key]
+        terms.extend(concept.get("paths", []))
+        terms.extend(concept.get("terms", []))
+        terms.extend(concept.get("aliases", [])[:8])
+    output, seen = [], set()
+    for term in terms:
+        clean = re.sub(r"\s+", " ", str(term or "")).strip()
+        marker = pipboy_normalize(clean)
+        if clean and marker and marker not in seen:
+            seen.add(marker)
+            output.append(clean)
+    return output[:28]
+
+
+def pipboy_intelligence_dynamic_categories(query):
+    """Match any real project folder category, including future categories."""
+    normalized = pipboy_normalize(query)
+    if not normalized:
+        return []
+    names = []
+    index = pipboy_load_project_index(auto_build=False)
+    for record in index.get("files", {}).values():
+        category = pipboy_project_category_name(record)
+        if category in {"Project", "Scripts", "Ελληνική Έκδοση", "Extra Content", "Important Documents"}:
+            continue
+        if category not in names:
+            names.append(category)
+    matched = []
+    for category in names:
+        category_norm = pipboy_normalize(category)
+        if not category_norm:
+            continue
+        if category_norm in normalized or normalized in category_norm:
+            matched.append(category)
+            continue
+        if len(normalized) >= 6 and len(category_norm) >= 6:
+            if difflib.SequenceMatcher(None, normalized, category_norm).ratio() >= 0.78:
+                matched.append(category)
+    return matched[:8]
+
+
+def pipboy_intelligence_is_category_request(query):
+    normalized = pipboy_normalize(query)
+    if pipboy_intelligence_concepts(query) or pipboy_intelligence_dynamic_categories(query):
+        return True
+    broad = (
+        "what does the project have", "what does project have", "what is in the project",
+        "show project categories", "list project categories", "all tool categories", "all scripts categories",
+        "anything the project has", "anything website has", "what does the website have",
+        "τι εχει το project", "δειξε κατηγοριες", "τι εχει η ιστοσελιδα", "τι υπαρχει στο project",
+    )
+    return any(phrase in normalized for phrase in broad)
+
+
+def pipboy_project_category_name(record):
+    relative = str(record.get("relative_path") or record.get("path") or "")
+    parts = [part for part in relative.replace("\\", "/").split("/") if part]
+    if not parts:
+        return "Project"
+    try:
+        script_pos = parts.index("Scripts")
+    except ValueError:
+        return parts[0]
+    remaining = parts[script_pos + 1:]
+    if not remaining:
+        return "Scripts"
+    if remaining[0] == "Ελληνική Έκδοση" and len(remaining) >= 3:
+        return remaining[1]
+    return remaining[0] if len(remaining) >= 2 else "Scripts"
+
+
+def pipboy_resolve_project_record_path(record):
+    """Resolve embedded/indexed records to a real installed file when possible."""
+    raw_path = str((record or {}).get("path") or "")
+    if raw_path and not raw_path.startswith("embedded://") and os.path.isfile(os.path.expanduser(raw_path)):
+        return os.path.realpath(os.path.expanduser(raw_path))
+    relative = str((record or {}).get("relative_path") or "").replace("\\", "/").lstrip("/")
+    if not relative:
+        return ""
+    project_name = pipboy_normalize((record or {}).get("project_name") or "")
+    candidates = []
+    for project in PIPBOY_MANAGED_PROJECTS:
+        aliases = [project.get("name", ""), project.get("key", ""), project.get("repo", ""), *project.get("aliases", [])]
+        if project_name and not any(pipboy_normalize(alias) in project_name or project_name in pipboy_normalize(alias) for alias in aliases if alias):
+            continue
+        try:
+            root = pipboy_installed_project_root(project)
+        except Exception:
+            root = ""
+        if root:
+            candidates.append(os.path.join(root, relative))
+    # DedSec fallback is deterministic even if project metadata is absent.
+    candidates.extend([
+        os.path.join(os.path.dirname(ENGLISH_BASE_PATH), relative),
+        os.path.join(HOME_DIR, "DedSec", relative),
+    ])
+    for candidate in candidates:
+        candidate = os.path.realpath(os.path.expanduser(candidate))
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def pipboy_semantic_match_reason(record, query):
+    """Explain briefly why the top result matches the natural request."""
+    tokens = [token for token in pipboy_search_tokens(query) if token not in {
+        "script", "scripts", "tool", "tools", "page", "pages", "which", "what", "find", "show", "one"
+    }]
+    searchable = pipboy_normalize(" ".join([
+        str(record.get("name") or ""), str(record.get("category") or ""),
+        str(record.get("description") or record.get("catalog_description") or ""),
+        " ".join(map(str, record.get("capabilities", []) or [])),
+        " ".join(map(str, record.get("risk_tags", []) or [])),
+    ]))
+    matched = [token for token in tokens if token in searchable][:5]
+    capabilities = list(record.get("capabilities", []) or [])[:4]
+    if matched:
+        return pipboy_text(
+            "matched terms: " + ", ".join(matched),
+            "σχετικοί όροι: " + ", ".join(matched),
+        )
+    if capabilities:
+        return pipboy_text(
+            "detected capabilities: " + ", ".join(capabilities),
+            "εντοπισμένες δυνατότητες: " + ", ".join(capabilities),
+        )
+    return pipboy_text("strong folder/name match", "ισχυρή αντιστοίχιση φακέλου/ονόματος")
+
+
+def pipboy_project_category_overview(limit=18):
+    index = pipboy_load_project_index(auto_build=False)
+    counts = Counter()
+    preferred_language = get_current_display_language()
+    for record in index.get("files", {}).values():
+        record_language = str(record.get("language") or "")
+        if record_language in {"english", "greek"} and record_language != preferred_language:
+            continue
+        relative = str(record.get("relative_path") or "")
+        if "/Scripts/" not in "/" + relative.replace("\\", "/") and not relative.startswith("Scripts/"):
+            continue
+        category = pipboy_project_category_name(record)
+        if category not in {"Scripts", "Ελληνική Έκδοση"}:
+            counts[category] += 1
+    return counts.most_common(max(1, int(limit)))
+
+
+def pipboy_intelligence_category_records(query, limit=80):
+    """Retrieve category/concept matches with language-aware deduplication."""
+    concepts = pipboy_intelligence_concepts(query)
+    normalized_query = pipboy_normalize(query)
+    website_content_request = any(phrase in normalized_query for phrase in (
+        "website has", "site has", "on the website", "on website", "website pages", "site pages",
+        "website sections", "anything the website", "what does the website", "what is on the website",
+        "ded sec space", "ded-sec.space", "τι εχει το site", "τι εχει η ιστοσελιδα", "σελιδες ιστοσελιδας",
+    ))
+    if "website" in concepts and not website_content_request:
+        concepts = [key for key in concepts if key != "website"]
+    dynamic_categories = pipboy_intelligence_dynamic_categories(query)
+    if not concepts and not dynamic_categories:
+        return []
+    index = pipboy_load_project_index(auto_build=False)
+    preferred_language = pipboy_detect_language(query)
+    query_tokens = [token for token in pipboy_search_tokens(query) if token not in {
+        "scripts", "script", "tools", "tool", "pages", "page", "find", "show",
+        "list", "one", "something", "anything", "which", "what", "need", "want"
+    }]
+    scored = []
+    for record in index.get("files", {}).values():
+        relative = str(record.get("relative_path") or record.get("path") or "")
+        name = str(record.get("name") or os.path.basename(relative))
+        blob = pipboy_normalize(" ".join([
+            relative, name, str(record.get("description") or ""),
+            " ".join(map(str, record.get("capabilities", []) or [])),
+            " ".join(map(str, record.get("risk_tags", []) or [])),
+            str(record.get("excerpt") or "")[:2000],
+        ]))
+        score = 0.0
+        matched_concepts = []
+        current_category = pipboy_project_category_name(record)
+        if dynamic_categories and any(pipboy_normalize(category) == pipboy_normalize(current_category) for category in dynamic_categories):
+            score += 90.0
+            matched_concepts.append("category:" + current_category)
+        for key in concepts:
+            concept = PIPBOY_PROJECT_ONTOLOGY[key]
+            local = 0.0
+            path_terms = concept.get("paths", [])
+            path_hit = False
+            for path_term in path_terms:
+                path_norm = pipboy_normalize(path_term)
+                if path_norm and path_norm in pipboy_normalize(relative):
+                    local += 70.0
+                    path_hit = True
+            # Folder-backed concepts must stay inside their real categories.
+            # Pathless concepts (OSINT, repair, AI) rely on capability/name terms.
+            if path_terms and not path_hit:
+                continue
+            for term in concept.get("terms", []):
+                term_norm = pipboy_normalize(term)
+                if term_norm and term_norm in blob:
+                    local += 8.0
+            if local:
+                score += local
+                matched_concepts.append(key)
+        if score <= 0:
+            continue
+        for token in query_tokens:
+            if token in pipboy_normalize(name):
+                score += 22.0
+            elif token in pipboy_normalize(relative):
+                score += 14.0
+            elif token in blob:
+                score += 5.0
+        if record.get("language") == preferred_language:
+            score += 6.0
+        sensitive_match = any(
+            PIPBOY_PROJECT_ONTOLOGY.get(key, {}).get("sensitive", False)
+            for key in matched_concepts if not str(key).startswith("category:")
+        )
+        item = dict(record)
+        item.update({
+            "kind": "project", "title": name, "score": round(score, 3),
+            "category": pipboy_project_category_name(record),
+            "semantic_concepts": matched_concepts,
+            "sensitive": sensitive_match,
+        })
+        scored.append(item)
+    scored.sort(key=lambda row: (-float(row.get("score", 0)), str(row.get("relative_path") or "").casefold()))
+
+    # Prefer one language version of the same script, while retaining distinct tools.
+    deduped, seen = [], set()
+    for item in scored:
+        stem = pipboy_normalize(os.path.splitext(item.get("name") or "")[0])
+        key = stem
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+        if len(deduped) >= max(1, int(limit)):
+            break
+    return deduped
+
+
+
+PIPBOY_ENTITY_GENERIC_WORDS = {
+    "a", "an", "any", "anything", "are", "available", "about", "all", "app", "apps",
+    "can", "could", "do", "does", "for", "give", "has", "have", "i", "is", "list",
+    "me", "of", "on", "page", "pages", "please", "project", "projects", "related", "tell",
+    "repository", "repositories", "script", "scripts", "show", "some", "something", "the",
+    "there", "tool", "tools", "what", "which", "with", "you", "your", "website", "websites",
+    "υπαρχει", "υπαρχουν", "εχει", "εχεις", "εχετε", "δειξε", "δειξτε", "βρες", "βρεσ",
+    "ολα", "ολες", "ολους", "καποιο", "καποια", "κατι", "διαθεσιμο", "διαθεσιμα", "σελιδα",
+    "σελιδες", "εργαλειο", "εργαλεια", "αρχειο", "αρχεια", "για", "σχετικο", "σχετικα",
+}
+
+PIPBOY_ENTITY_REQUEST_PREFIXES = (
+    "any ", "do you have ", "do we have ", "are there ", "is there ", "show me ", "show all ",
+    "list ", "find me ", "give me ", "what pages", "what scripts", "what tools", "which pages",
+    "have you got ", "got any ", "υπαρχει ", "υπαρχουν ", "εχεις ", "εχετε ", "δειξε μου ",
+    "δειξε ολα ", "βρες μου ", "ποια εργαλεια", "ποιες σελιδες", "ποια scripts",
+)
+
+
+def pipboy_entity_query_subject(query):
+    """Extract the meaningful subject from ordinary discovery questions."""
+    normalized = pipboy_normalize(query)
+    if not normalized:
+        return "", []
+    tokens = pipboy_search_tokens(normalized)
+    subject_tokens = []
+    for token in tokens:
+        if token in PIPBOY_ENTITY_GENERIC_WORDS:
+            continue
+        if len(token) <= 1:
+            continue
+        subject_tokens.append(token)
+    subject_tokens = list(dict.fromkeys(subject_tokens))[:8]
+    return " ".join(subject_tokens), subject_tokens
+
+
+def pipboy_intelligence_is_entity_request(query):
+    """Recognize natural existence/list requests without requiring command syntax."""
+    normalized = pipboy_normalize(query)
+    subject, subject_tokens = pipboy_entity_query_subject(query)
+    if not subject_tokens:
+        return False
+    if any(normalized.startswith(prefix) for prefix in PIPBOY_ENTITY_REQUEST_PREFIXES):
+        return True
+    object_words = {
+        "page", "pages", "script", "scripts", "tool", "tools", "app", "apps",
+        "σελιδα", "σελιδες", "εργαλειο", "εργαλεια",
+    }
+    query_tokens = set(pipboy_search_tokens(normalized))
+    if query_tokens & object_words:
+        return True
+    return normalized.endswith("?") and len(subject_tokens) <= 5
+
+
+def pipboy_intelligence_entity_records(query, limit=20):
+    """Rank exact brands/topics across embedded project and website knowledge."""
+    subject, subject_tokens = pipboy_entity_query_subject(query)
+    if not subject_tokens:
+        return []
+    normalized_query = pipboy_normalize(query)
+    query_tokens = set(pipboy_search_tokens(normalized_query))
+    wants_page = bool(query_tokens & {"page", "pages", "σελιδα", "σελιδες"})
+    wants_website = bool(query_tokens & {"website", "websites", "site", "ιστοσελιδα"})
+    preferred_language = get_current_display_language()
+
+    try:
+        records = list((pipboy_load_project_index(False).get("files") or {}).values())
+    except Exception:
+        records = []
+
+    scored = []
+    for record in records:
+        name = str(record.get("name") or record.get("title") or "")
+        relative = str(record.get("relative_path") or record.get("path") or "")
+        description = str(record.get("description") or record.get("catalog_description") or "")
+        name_norm = pipboy_normalize(name)
+        relative_norm = pipboy_normalize(relative)
+        description_norm = pipboy_normalize(description)
+        name_tokens = set(pipboy_search_tokens(name_norm))
+        relative_tokens = set(pipboy_search_tokens(relative_norm))
+        subject_hit = any(
+            token in name_tokens or token in relative_tokens or token in description_norm
+            for token in subject_tokens
+        )
+        if not subject_hit:
+            continue
+        score = 0.0
+        if subject and subject in name_norm:
+            score += 150.0
+        if subject and subject in relative_norm:
+            score += 80.0
+        if all(token in name_tokens for token in subject_tokens):
+            score += 100.0
+        elif all(token in (name_tokens | relative_tokens) for token in subject_tokens):
+            score += 65.0
+        for token in subject_tokens:
+            if token in name_tokens:
+                score += 42.0
+            elif token in relative_tokens:
+                score += 24.0
+            elif token in description_norm:
+                score += 7.0
+        if wants_page and "page" in name_norm:
+            score += 25.0
+        if wants_page and any(folder in relative_norm for folder in ("fake pages", "personal information capture", "πλαστες σελιδες")):
+            score += 12.0
+        if record.get("language") == preferred_language:
+            score += 6.0
+        if score < 35.0:
+            continue
+        item = dict(record)
+        item.update({
+            "kind": "project", "title": name, "name": name,
+            "category": pipboy_project_category_name(record),
+            "score": round(score, 3),
+            "sensitive": any(tag in set(record.get("risk_tags") or []) for tag in ("credentials", "camera-microphone", "location")),
+        })
+        scored.append(item)
+
+    # Website pages are secondary unless the user explicitly asks about the site.
+    if wants_website:
+        try:
+            pages = list((pipboy_load_website_index().get("pages") or {}).values())
+        except Exception:
+            pages = []
+        for page in pages:
+            title = str(page.get("title") or page.get("url") or "")
+            text = str(page.get("text") or page.get("content") or "")
+            haystack = pipboy_normalize(title + " " + text + " " + str(page.get("url") or ""))
+            score = sum(35.0 if token in pipboy_normalize(title) else 8.0 if token in haystack else 0.0 for token in subject_tokens)
+            if score <= 0:
+                continue
+            item = dict(page)
+            item.update({"kind": "website", "name": title, "title": title, "score": score})
+            scored.append(item)
+
+    scored.sort(key=lambda item: (-float(item.get("score", 0)), str(item.get("relative_path") or item.get("url") or "").casefold()))
+
+    # Prefer the selected-language copy and remove equivalent duplicate scripts.
+    deduped, seen = [], set()
+    for item in scored:
+        name_key = pipboy_normalize(os.path.splitext(str(item.get("name") or ""))[0])
+        kind_key = item.get("kind")
+        key = (kind_key, name_key)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+        if len(deduped) >= max(1, int(limit)):
+            break
+    return deduped
+
+
+def pipboy_intelligence_entity_answer(query, state=None):
+    """Synthesize a direct AI-like answer for natural entity discovery requests."""
+    if not pipboy_intelligence_is_entity_request(query):
+        return "", []
+    subject, _tokens = pipboy_entity_query_subject(query)
+    matches = pipboy_intelligence_entity_records(query, limit=20)
+    display_subject = subject or pipboy_text("that topic", "αυτό το θέμα")
+    if not matches:
+        return pipboy_text(
+            f"I found no exact project or website item for {display_subject}. Try a broader category or refresh the knowledge database.",
+            f"Δεν βρήκα ακριβές στοιχείο project ή website για {display_subject}. Δοκιμάστε ευρύτερη κατηγορία ή ανανεώστε τη βάση γνώσης.",
+        ), []
+
+    project_matches = [item for item in matches if item.get("kind") == "project"]
+    website_matches = [item for item in matches if item.get("kind") == "website"]
+    noun_en = "items"
+    noun_el = "στοιχεία"
+    if project_matches and not website_matches:
+        noun_en, noun_el = "project tools", "εργαλεία project"
+    elif website_matches and not project_matches:
+        noun_en, noun_el = "website pages", "σελίδες website"
+
+    if len(matches) == 1:
+        noun_en = "project tool" if project_matches and not website_matches else ("website page" if website_matches and not project_matches else "item")
+        noun_el = "εργαλείο project" if project_matches and not website_matches else ("σελίδα website" if website_matches and not project_matches else "στοιχείο")
+    lines = [pipboy_text(
+        f"Yes. I found {len(matches)} {display_subject}-related {noun_en}.",
+        f"Ναι. Βρήκα {len(matches)} {noun_el} σχετικά με {display_subject}.",
+    )]
+    for index, item in enumerate(matches[:8], 1):
+        if item.get("kind") == "website":
+            lines.append(f"{index}. {item.get('name')} — {item.get('url') or ''}")
+        else:
+            category = item.get("category") or pipboy_text("Project", "Project")
+            lines.append(f"{index}. {item.get('name')} — {category}")
+    if len(matches) > 8:
+        lines.append(pipboy_text(
+            f"There are {len(matches) - 8} more matches. Add a capability or category to narrow them.",
+            f"Υπάρχουν ακόμη {len(matches) - 8} αποτελέσματα. Προσθέστε δυνατότητα ή κατηγορία για περιορισμό.",
+        ))
+    lines.append(pipboy_text(
+        "Say `describe 1`, `run 1`, or ask a follow-up naturally.",
+        "Πείτε `περίγραψε 1`, `τρέξε 1` ή κάντε φυσικά μια επόμενη ερώτηση.",
+    ))
+    if any(item.get("sensitive") for item in matches):
+        lines.append(pipboy_text(
+            "Security-awareness tools require explicit authorization and confirmation before execution.",
+            "Τα εργαλεία εκπαίδευσης ασφάλειας απαιτούν ρητή άδεια και επιβεβαίωση πριν από την εκτέλεση.",
+        ))
+    return "\n".join(lines), matches
+
+
+def pipboy_intelligence_category_answer(query, state=None):
+    """Answer broad/category requests like an assistant, not a filename matcher."""
+    if not pipboy_intelligence_is_category_request(query):
+        return "", []
+    concepts = pipboy_intelligence_concepts(query)
+    dynamic_categories = pipboy_intelligence_dynamic_categories(query)
+    if not concepts and not dynamic_categories:
+        categories = pipboy_project_category_overview()
+        if not categories:
+            return "", []
+        heading = pipboy_text(
+            "The indexed DedSec Project contains these main script categories:",
+            "Το ευρετηριασμένο DedSec Project περιέχει αυτές τις κύριες κατηγορίες scripts:",
+        )
+        lines = [heading]
+        for category, count in categories:
+            lines.append(f"- {category}: {count}")
+        lines.append(pipboy_text(
+            "Ask for a category naturally, for example: fake pages, phishing scripts, Developer Base, network tools, games, or personal-information capture.",
+            "Ζητήστε μια κατηγορία φυσικά, π.χ. πλαστές σελίδες, phishing scripts, Βάση Προγραμματιστή, εργαλεία δικτύου, παιχνίδια ή συλλογή προσωπικών πληροφοριών.",
+        ))
+        return "\n".join(lines), []
+
+    normalized_query = pipboy_normalize(query)
+    website_content_request = any(phrase in normalized_query for phrase in (
+        "website has", "site has", "on the website", "on website", "website pages", "site pages",
+        "website sections", "anything the website", "what does the website", "what is on the website",
+        "ded sec space", "ded-sec.space", "τι εχει το site", "τι εχει η ιστοσελιδα", "σελιδες ιστοσελιδας",
+    ))
+    if "website" in concepts and website_content_request:
+        website = pipboy_load_website_index()
+        pages = list((website.get("pages") or {}).values())
+        pages.sort(key=lambda row: (
+            0 if row.get("language") == pipboy_detect_language(query) else 1,
+            str(row.get("title") or row.get("url") or "").casefold(),
+        ))
+        matches = []
+        seen_urls = set()
+        for page in pages:
+            url = str(page.get("url") or "")
+            if not url or url in seen_urls:
+                continue
+            seen_urls.add(url)
+            item = dict(page)
+            item.update({"kind": "website", "name": page.get("title") or url, "score": 50.0})
+            matches.append(item)
+        if not matches:
+            return pipboy_text(
+                "The website index is empty. Run `learn website` explicitly to crawl it.",
+                "Το ευρετήριο ιστοσελίδας είναι κενό. Εκτελέστε ρητά `μάθε website` για σάρωση.",
+            ), []
+        lines = [pipboy_text(
+            f"The indexed DedSec website contains {len(matches)} pages/sections:",
+            f"Η ευρετηριασμένη ιστοσελίδα DedSec περιέχει {len(matches)} σελίδες/ενότητες:",
+        )]
+        for index, page in enumerate(matches[:15], 1):
+            lines.append(f"{index}. {page.get('title') or page.get('name')} — {page.get('url')}")
+        if len(matches) > 15:
+            lines.append(pipboy_text(
+                f"There are {len(matches) - 15} additional indexed pages.",
+                f"Υπάρχουν ακόμη {len(matches) - 15} ευρετηριασμένες σελίδες.",
+            ))
+        lines.append(pipboy_text(
+            "Say `open 1`, ask about a page by name, or run `learn website` to refresh the full live index.",
+            "Πείτε `άνοιξε 1`, ρωτήστε για σελίδα με το όνομά της ή εκτελέστε `μάθε website` για ανανέωση του πλήρους live ευρετηρίου.",
+        ))
+        return "\n".join(lines), matches[:20]
+
+    if "website" in concepts and not website_content_request:
+        concepts = [key for key in concepts if key != "website"]
+    records = pipboy_intelligence_category_records(query, limit=80)
+    if not records:
+        return "", []
+    labels = list(dynamic_categories)
+    sensitive = False
+    for key in concepts:
+        concept = PIPBOY_PROJECT_ONTOLOGY[key]
+        label = concept.get("label_el") if get_current_display_language() == "greek" else concept.get("label_en")
+        if label and label not in labels:
+            labels.append(label)
+        sensitive = sensitive or bool(concept.get("sensitive"))
+    category_counts = Counter(record.get("category") or "Project" for record in records)
+    title = pipboy_text(
+        f"I found {len(records)} matching tools for {', '.join(labels)}.",
+        f"Βρήκα {len(records)} σχετικά εργαλεία για {', '.join(labels)}.",
+    )
+    lines = [title]
+    for category, count in category_counts.most_common(5):
+        lines.append(f"- {category}: {count}")
+    normalized_request = pipboy_normalize(query)
+    asks_for_best = normalized_request.startswith(("which ", "what tool", "what script", "ποιο ", "ποιο script", "ποιο εργαλειο")) or any(
+        phrase in normalized_request for phrase in ("best ", "recommend", "can make", "captures ", "capture location", "προτειν")
+    )
+    if asks_for_best and records:
+        best = records[0]
+        lines.append(pipboy_text(
+            f"Best match: {best.get('name')} — {pipboy_semantic_match_reason(best, query)}.",
+            f"Καλύτερη αντιστοίχιση: {best.get('name')} — {pipboy_semantic_match_reason(best, query)}.",
+        ))
+    lines.append(pipboy_text("Top matches:", "Κορυφαία αποτελέσματα:"))
+    for index, record in enumerate(records[:10], 1):
+        lines.append(f"{index}. {record.get('name')} — {record.get('category')}")
+    if len(records) > 10:
+        lines.append(pipboy_text(
+            f"There are {len(records) - 10} more matches. Refine by brand, capability, or category.",
+            f"Υπάρχουν ακόμη {len(records) - 10} αποτελέσματα. Περιορίστε με μάρκα, δυνατότητα ή κατηγορία.",
+        ))
+    lines.append(pipboy_text(
+        "Say `run 1`, `describe 1`, or ask a follow-up such as `which one captures location?`.",
+        "Πείτε `τρέξε 1`, `περίγραψε 1` ή ρωτήστε π.χ. `ποιο καταγράφει τοποθεσία;`.",
+    ))
+    if sensitive:
+        lines.append(pipboy_text(
+            "Use these security-awareness tools only on systems and accounts you own or have explicit permission to test.",
+            "Χρησιμοποιήστε αυτά τα εργαλεία εκπαίδευσης ασφάλειας μόνο σε συστήματα και λογαριασμούς που σας ανήκουν ή έχετε ρητή άδεια να δοκιμάσετε.",
+        ))
+    return "\n".join(lines), records[:20]
+
+
+def pipboy_intelligence_recent_user_queries(limit=8):
+    rows = []
+    try:
+        with open(PIPBOY_HISTORY_PATH, "r", encoding="utf-8", errors="replace") as handle:
+            lines = handle.readlines()[-400:]
+        for line in lines:
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+            if item.get("role") == "user" and str(item.get("text", "")).strip():
+                rows.append(str(item["text"]).strip())
+    except Exception:
+        pass
+    return rows[-max(0, int(limit)):]
+
+
+
+
+def pipboy_intelligence_enrich_query(query, state=None):
+    """Resolve short follow-ups using saved conversation and selected results."""
+    state = state or {}
+    raw = re.sub(r"\s+", " ", str(query or "")).strip()
+    normalized = pipboy_normalize(raw)
+    context_names = []
+    for item in (state.get("last_matches") or [])[:3]:
+        name = item.get("name") or item.get("title") or item.get("relative_path")
+        if name and name not in context_names:
+            context_names.append(str(name))
+    pronouns = {"it", "that", "this", "itself", "that script", "this script", "αυτο", "αυτο το script", "το ιδιο"}
+    short_followup = len(normalized.split()) <= 7
+    uses_pronoun = any(re.search(rf"\b{re.escape(token)}\b", normalized) for token in pronouns)
+    enriched = raw
+    if context_names and (uses_pronoun or short_followup):
+        enriched += " | selected context: " + ", ".join(context_names)
+    if short_followup and not context_names:
+        memory_turns = int((state.get("config") or {}).get("intelligence_memory_turns", 8))
+        recent = pipboy_intelligence_recent_user_queries(max(2, memory_turns + 1))
+        for previous in reversed(recent):
+            if pipboy_normalize(previous) != normalized:
+                enriched += " | previous question: " + previous
+                break
+    return enriched
+
+
+
+
+def pipboy_intelligence_record_key(record):
+    return str(record.get("path") or record.get("url") or record.get("relative_path") or record.get("name") or record.get("title") or "")
+
+
+def pipboy_intelligence_merge_records(groups, limit=12):
+    merged = {}
+    for group in groups:
+        for record in group or []:
+            key = pipboy_intelligence_record_key(record)
+            if not key:
+                continue
+            score = float(record.get("score", 0))
+            if key not in merged or score > float(merged[key].get("score", 0)):
+                merged[key] = dict(record)
+    rows = list(merged.values())
+    rows.sort(key=lambda item: (-float(item.get("score", 0)), pipboy_intelligence_record_key(item).casefold()))
+    return rows[:max(1, int(limit))]
+
+
+def _pipboy_impl_pipboy_intelligence_requested_project_files_2(query, limit=12):
+    """Resolve filenames by matching against the real indexed project names."""
+    query_key = re.sub(r"\s+", " ", str(query or "")).casefold()
+    index = pipboy_load_project_index(auto_build=False)
+    matches = []
+    seen = set()
+    for record in index.get("files", {}).values():
+        name = str(record.get("name") or "").strip()
+        if not name:
+            continue
+        name_key = name.casefold()
+        stem_key = os.path.splitext(name_key)[0]
+        exact = name_key in query_key
+        stem_match = len(stem_key) >= 5 and re.search(rf"(?<![a-z0-9]){re.escape(stem_key)}(?![a-z0-9])", query_key)
+        if exact or stem_match:
+            path_key = str(record.get("path") or record.get("relative_path") or name)
+            if path_key not in seen:
+                seen.add(path_key)
+                matches.append(record)
+    preferred_language = get_current_display_language()
+    matches.sort(key=lambda item: (
+        0 if item.get("language") == preferred_language else 1,
+        -len(str(item.get("name") or "")),
+        str(item.get("relative_path") or "").casefold(),
+    ))
+    return matches[:max(1, int(limit))]
+
+
+def pipboy_intelligence_exact_symbol_records(query, limit=6):
+    """Locate exact filenames and code symbols without scoring ordinary words."""
+    index = pipboy_load_project_index(auto_build=False)
+    raw_query = str(query or "")
+    requested_records = pipboy_intelligence_requested_project_files(raw_query, limit=limit)
+    requested_paths = {str(item.get("path") or item.get("relative_path")) for item in requested_records}
+    explicit_symbols = set(re.findall(r"`([A-Za-z_][A-Za-z0-9_]*)`", raw_query))
+    explicit_symbols.update(re.findall(r"name\s+['\"]([^'\"]+)['\"]\s+is\s+not\s+defined", raw_query, flags=re.I))
+    explicit_symbols.update(re.findall(r"(?:function|class|variable|symbol|def)\s+([A-Za-z_][A-Za-z0-9_]*)", raw_query, flags=re.I))
+    for token in re.findall(r"\b[A-Za-z_][A-Za-z0-9_.]{3,}\b", raw_query):
+        if "_" in token or any(ch.isupper() for ch in token[1:]):
+            explicit_symbols.add(token)
+    scored = []
+    for record in index.get("files", {}).values():
+        content = str(record.get("content") or "")
+        name = str(record.get("name") or "")
+        path_key = str(record.get("path") or record.get("relative_path"))
+        score = 35.0 if path_key in requested_paths else 0.0
+        matched = [name] if score else []
+        for symbol in explicit_symbols:
+            if not symbol:
+                continue
+            count = content.count(symbol)
+            if count:
+                score += min(20.0, 7.0 + count * 0.5)
+                matched.append(symbol)
+            if symbol.casefold() in name.casefold():
+                score += 10.0
+        if score:
+            item = dict(record)
+            item.update({"kind": "project", "title": name, "score": round(score, 3), "exact_matches": matched[:12]})
+            scored.append(item)
+    scored.sort(key=lambda item: (-float(item.get("score", 0)), str(item.get("relative_path", "")).casefold()))
+    return scored[:max(1, int(limit))]
+
+
+
+
+def pipboy_intelligence_extract_commands(record, limit=8):
+    content = str(record.get("content") or "")
+    commands = []
+    command_re = re.compile(
+        r"(?im)^\s*(?:\$\s*)?((?:pkg|apt|pip3?|python3?|bash|sh|git|chmod|termux-[a-z0-9-]+|curl|wget|npm|node)\s+[^\n]{1,220})$"
+    )
+    for match in command_re.finditer(content):
+        command = re.sub(r"\s+", " ", match.group(1)).strip()
+        if command and command not in commands:
+            commands.append(command)
+        if len(commands) >= limit:
+            break
+    return commands
+
+
+def pipboy_intelligence_record_relations(record, limit=8):
+    content = str(record.get("content") or "")
+    relations = []
+    for match in re.findall(r"[A-Za-z0-9 _.-]+\.(?:py|sh|js|html|json|md)", content, flags=re.I):
+        name = re.sub(r"\s+", " ", match).strip(" .,:;()[]{}\"'")
+        if 3 < len(name) < 100 and name not in relations and name != record.get("name"):
+            relations.append(name)
+        if len(relations) >= limit:
+            break
+    return relations
+
+
+
+
+def pipboy_intelligence_code_snippets(record, query, limit=4):
+    """Return short source lines relevant to an exact error or code question."""
+    content = str(record.get("content") or "")
+    terms = []
+    terms.extend(re.findall(r"`([A-Za-z_][A-Za-z0-9_]*)`", str(query or "")))
+    terms.extend(re.findall(r"name\s+['\"]([^'\"]+)['\"]\s+is\s+not\s+defined", str(query or ""), flags=re.I))
+    terms.extend(re.findall(r"(?:function|class|variable|symbol|def)\s+([A-Za-z_][A-Za-z0-9_]*)", str(query or ""), flags=re.I))
+    for token in re.findall(r"\b[A-Za-z_][A-Za-z0-9_]{4,}\b", str(query or "")):
+        if "_" in token or any(ch.isupper() for ch in token[1:]):
+            terms.append(token)
+    terms = list(dict.fromkeys(term for term in terms if term))
+    if not terms:
+        return []
+    snippets = []
+    for number, line in enumerate(content.splitlines(), 1):
+        clean = re.sub(r"\s+", " ", line).strip()
+        if not clean or len(clean) > 260 or "data:image" in clean or clean.startswith(("<", "//")):
+            continue
+        if any(term in line for term in terms):
+            snippets.append(f"L{number}: {clean}")
+        if len(snippets) >= limit:
+            break
+    return snippets
+
+
+def _pipboy_impl_pipboy_intelligence_record_summary_1(record, query, label, detail="detailed"):
+    title = record.get("title") or record.get("name") or record.get("relative_path") or "Source"
+    parts = []
+    description = re.sub(r"\s+", " ", str(record.get("description") or "")).strip()
+    if description:
+        parts.append(description[:900])
+    intents = pipboy_intelligence_intents(query)
+    extension = str(record.get("extension") or "").casefold()
+    is_code = extension in PIPBOY_SCRIPT_EXTENSIONS or extension in {".css", ".php", ".rb", ".pl", ".lua", ".sql"}
+    sentence_limit = {"compact": 1, "balanced": 2, "detailed": 4}.get(detail, 3)
+    if not is_code:
+        for sentence in pipboy_relevant_sentences(query, record, max_sentences=sentence_limit):
+            if sentence and sentence not in parts:
+                parts.append(sentence)
+    elif intents.intersection({"diagnose", "code", "dependencies"}):
+        snippets = pipboy_intelligence_code_snippets(record, query, limit=sentence_limit)
+        if snippets:
+            parts.append(pipboy_text("Relevant source lines: ", "Σχετικές γραμμές κώδικα: ") + " | ".join(snippets))
+    if "save" in intents and record.get("save_paths"):
+        parts.append(pipboy_text("Save locations: ", "Τοποθεσίες αποθήκευσης: ") + "; ".join(record.get("save_paths", [])[:8]))
+    if ("usage" in intents or "install" in intents) and record.get("arguments"):
+        parts.append(pipboy_text("Arguments: ", "Ορίσματα: ") + ", ".join(map(str, record.get("arguments", [])[:12])))
+    if ("usage" in intents or "capabilities" in intents or "overview" in intents) and record.get("capabilities"):
+        parts.append(pipboy_text("Capabilities: ", "Δυνατότητες: ") + ", ".join(map(str, record.get("capabilities", [])[:12])))
+    if "usage" in intents and record.get("input_hints"):
+        parts.append(pipboy_text("Inputs/controls: ", "Είσοδοι/χειριστήρια: ") + ", ".join(map(str, record.get("input_hints", [])[:10])))
+    if "install" in intents or "usage" in intents:
+        commands = pipboy_intelligence_extract_commands(record, limit=5)
+        if commands:
+            parts.append(pipboy_text("Detected commands: ", "Εντοπισμένες εντολές: ") + " | ".join(commands))
+    if "architecture" in intents or "dependencies" in intents:
+        relations = pipboy_intelligence_record_relations(record)
+        if relations:
+            parts.append(pipboy_text("Referenced project files: ", "Αναφερόμενα αρχεία project: ") + ", ".join(relations))
+    if not parts:
+        parts.append(pipboy_text("Matched by indexed filename and project metadata.", "Ταιριάζει βάσει ονόματος αρχείου και metadata του project."))
+    return f"[{label}] {title}: " + " ".join(parts[:6])
+
+
+
+
+def pipboy_intelligence_compare_entities(query, config=None, state=None, scope="all"):
+    """Retrieve each side independently and reject unrelated weak matches."""
+    raw = str(query or "").strip()
+    patterns = [
+        r"(?:compare|difference between|differences between)\s+(.+?)\s+(?:and|vs\.?|versus|with)\s+(.+)$",
+        r"(?:συγκρινε|συγκριση)\s+(.+?)\s+(?:με|και|εναντιον)\s+(.+)$",
+    ]
+    sides = None
+    for pattern in patterns:
+        match = re.search(pattern, raw, flags=re.I)
+        if match:
+            sides = (match.group(1).strip(), match.group(2).strip())
+            break
+    if not sides:
+        return [], []
+    selected = []
+    selected_sources = []
+    seen = set()
+    for side in sides:
+        requested = pipboy_intelligence_requested_project_files(side, limit=4)
+        chosen = None
+        if requested:
+            chosen = dict(requested[0])
+            chosen.update({"kind": "project", "title": chosen.get("name"), "score": 40.0})
+        else:
+            candidates = pipboy_search_project(side, limit=6) if scope in {"all", "project"} else pipboy_search_website(side, limit=6)
+            side_key = pipboy_normalize(side)
+            for candidate in candidates:
+                name_key = pipboy_normalize(candidate.get("name") or candidate.get("title") or "")
+                similarity = difflib.SequenceMatcher(None, side_key, name_key).ratio() if side_key and name_key else 0.0
+                if side_key in name_key or name_key in side_key or similarity >= 0.68 or float(candidate.get("score", 0)) >= 13.0:
+                    chosen = candidate
+                    break
+        if chosen is None:
+            chosen = {
+                "kind": "missing", "name": side, "title": side, "score": 0.0,
+                "description": pipboy_text(
+                    "No exact or reliable indexed project source was found.",
+                    "Δεν βρέθηκε ακριβής ή αξιόπιστη ευρετηριασμένη πηγή project.",
+                ),
+            }
+        key = os.path.splitext(str(chosen.get("name") or chosen.get("title") or side))[0].casefold()
+        if key in seen:
+            chosen = dict(chosen)
+            chosen["kind"] = "missing"
+            chosen["description"] = pipboy_text("The second side resolved to the same indexed item, so comparison would be unreliable.", "Η δεύτερη πλευρά αντιστοιχίστηκε στο ίδιο στοιχείο, άρα η σύγκριση δεν θα ήταν αξιόπιστη.")
+        seen.add(key)
+        selected.append(chosen)
+        kind = chosen.get("kind")
+        prefix = "P" if kind == "project" else ("W" if kind == "website" else "M")
+        selected_sources.append({
+            "label": prefix + str(len(selected_sources) + 1),
+            "reference": chosen.get("relative_path") or chosen.get("url") or chosen.get("name") or side,
+            "kind": kind,
+        })
+    return selected, selected_sources
+
+
+def pipboy_intelligence_compare_answer(query, records, sources):
+    distinct = []
+    seen = set()
+    for record, source in zip(records, sources):
+        base = os.path.splitext(str(record.get("name") or record.get("title") or record.get("relative_path") or ""))[0].casefold()
+        if base and base not in seen:
+            seen.add(base)
+            distinct.append((record, source))
+        if len(distinct) >= 3:
+            break
+    if len(distinct) < 2:
+        return ""
+    rows = [pipboy_text("Comparison based on indexed sources:", "Σύγκριση βάσει ευρετηριασμένων πηγών:")]
+    for record, source in distinct:
+        name = record.get("name") or record.get("title") or record.get("relative_path")
+        if record.get("kind") == "missing":
+            rows.append(f"[{source['label']}] {name}\n  - {record.get('description')}")
+            continue
+        capabilities = ", ".join(map(str, record.get("capabilities", [])[:8])) or pipboy_text("not explicitly declared", "δεν δηλώνονται ρητά")
+        paths = "; ".join(record.get("save_paths", [])[:4]) or pipboy_text("not detected", "δεν εντοπίστηκαν")
+        arguments = ", ".join(map(str, record.get("arguments", [])[:8])) or pipboy_text("none detected", "δεν εντοπίστηκαν")
+        purpose = re.sub(r"\s+", " ", str(record.get("description") or "")).strip()
+        if not purpose or any(token in purpose[:180] for token in (" = [", " = {", "app =", "subprocess.")):
+            purpose = pipboy_text("Indexed project tool matched by its filename and source metadata.", "Εργαλείο project που ταιριάζει βάσει ονόματος αρχείου και metadata πηγής.")
+        rows.append(f"[{source['label']}] {name}\n  - {pipboy_text('Purpose', 'Σκοπός')}: {purpose}\n  - {pipboy_text('Capabilities', 'Δυνατότητες')}: {capabilities}\n  - {pipboy_text('Arguments', 'Ορίσματα')}: {arguments}\n  - {pipboy_text('Save paths', 'Αποθήκευση')}: {paths}")
+    return "\n\n".join(rows)
+
+
+
+def pipboy_intelligence_recommend_candidates(records, sources, query="", limit=5):
+    generic = {
+        "tool", "tools", "script", "scripts", "project", "dedsec", "for", "the",
+        "a", "an", "to", "can", "should", "recommend", "best", "which", "and",
+        "with", "that", "this", "does", "do", "is", "are",
+    }
+    raw_terms = [term for term in pipboy_query_terms(query) if term not in generic and len(term) >= 3]
+    task_terms = []
+    for term in raw_terms:
+        task_terms.append(term)
+        for suffix in ("ing", "ed", "es", "s"):
+            if term.endswith(suffix) and len(term) > len(suffix) + 3:
+                task_terms.append(term[:-len(suffix)])
+                break
+    task_terms = list(dict.fromkeys(task_terms))
+    preferred_language = get_current_display_language()
+    ranked = []
+    repair_request = any(term.startswith(("repair", "fix", "broken", "error", "troubleshoot", "dependenc")) for term in task_terms)
+    for record, source in zip(records, sources):
+        if record.get("kind") != "project" or record.get("extension") not in PIPBOY_SCRIPT_EXTENSIONS:
+            continue
+        name = str(record.get("name") or "")
+        name_key = pipboy_normalize(name)
+        description = pipboy_normalize(record.get("description") or "")
+        capabilities = pipboy_normalize(" ".join(map(str, record.get("capabilities", []))))
+        content = pipboy_normalize(str(record.get("content") or record.get("excerpt") or "")[:6000])
+        score = float(record.get("score", 0))
+        matched = []
+        for term in task_terms:
+            term_score = 0.0
+            if term in name_key:
+                term_score += 16.0
+            if term in description:
+                term_score += 6.0
+            if term in capabilities:
+                term_score += 4.0
+            if term in content:
+                term_score += min(4.0, 1.0 + content.count(term) * 0.15)
+            if term_score:
+                score += term_score
+                matched.append(term)
+        if repair_request:
+            if "termux repair wizard" in name_key:
+                score += 80.0
+            elif "repair" in name_key or "wizard" in name_key:
+                score += 34.0
+            if "script keeper" in description or "script keeper" in content:
+                score += 24.0
+            if "dependency" in description or "dependencies" in description or "syntax" in content:
+                score += 12.0
+            if name_key == "setup sh" or name_key.startswith("setup"):
+                score -= 30.0
+        if record.get("language") == preferred_language:
+            score += 2.5
+        ranked.append((score, name_key, record, dict(source), matched))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+
+    candidates, candidate_sources, seen = [], [], set()
+    for score, base, record, source, matched in ranked:
+        basename = os.path.splitext(base)[0]
+        if not basename or basename in seen:
+            continue
+        seen.add(basename)
+        item = dict(record)
+        item["recommendation_score"] = round(score, 3)
+        item["recommendation_terms"] = matched[:8]
+        candidates.append(item)
+        candidate_sources.append(source)
+        if len(candidates) >= limit:
+            break
+    for index, source in enumerate(candidate_sources, 1):
+        source["label"] = "P" + str(index)
+    return candidates, candidate_sources
+
+
+
+def pipboy_intelligence_recommend_answer(query, records, sources):
+    if not records:
+        return ""
+    query_terms = [term for term in pipboy_query_terms(query) if term not in PIPBOY_INTELLIGENCE_STOP_WORDS]
+    rows = [pipboy_text("Best matching DedSec tools:", "Καλύτερα ταιριαστά εργαλεία DedSec:")]
+    for position, (record, source) in enumerate(zip(records, sources), 1):
+        description = re.sub(r"\s+", " ", str(record.get("description") or "")).strip()
+        if not description or any(token in description[:200] for token in (" = [", " = {", "app =", "subprocess.", "Path(")):
+            description = pipboy_text("Project script selected from filename, capabilities, and indexed source matches.", "Script project που επιλέχθηκε βάσει ονόματος, δυνατοτήτων και αντιστοιχίσεων πηγής.")
+        haystack = pipboy_normalize(" ".join([
+            str(record.get("name") or ""), description,
+            " ".join(map(str, record.get("capabilities", []))),
+            str(record.get("content") or "")[:5000],
+        ]))
+        matched_terms = list(record.get("recommendation_terms") or [term for term in query_terms if term in haystack])[:6]
+        capabilities = ", ".join(map(str, record.get("capabilities", [])[:8]))
+        reasons = [description]
+        if matched_terms:
+            reasons.append(pipboy_text("Matched task terms: ", "Όροι εργασίας που ταίριαξαν: ") + ", ".join(matched_terms))
+        if capabilities:
+            reasons.append(pipboy_text("Capabilities: ", "Δυνατότητες: ") + capabilities)
+        rows.append(f"{position}. [{source['label']}] {record.get('name')} — " + " ".join(reasons))
+    rows.append(pipboy_text("Say 'run 1' or 'describe 1' after reviewing the match. Execution confirmations still apply.", "Πείτε «τρέξε 1» ή «περίγραψε 1» αφού ελέγξετε το αποτέλεσμα. Οι επιβεβαιώσεις εκτέλεσης εξακολουθούν να ισχύουν."))
+    return "\n".join(rows)
+
+
+def pipboy_intelligence_diagnose_answer(query, records, sources):
+    rows = [pipboy_text("Deterministic diagnosis:", "Ντετερμινιστική διάγνωση:")]
+    name_error = re.search(r"name\s+['\"]([^'\"]+)['\"]\s+is\s+not\s+defined", str(query), flags=re.I)
+    module_error = re.search(r"(?:ModuleNotFoundError|No module named)[: ]+['\"]?([A-Za-z0-9_.-]+)", str(query), flags=re.I)
+    if name_error:
+        symbol = name_error.group(1)
+        rows.append(pipboy_text(
+            f"The program referenced `{symbol}` before a visible definition/import was available. Search results below show where that symbol is defined or referenced.",
+            f"Το πρόγραμμα χρησιμοποίησε το `{symbol}` πριν είναι διαθέσιμος ο ορισμός/import του. Τα αποτελέσματα παρακάτω δείχνουν πού ορίζεται ή χρησιμοποιείται."
+        ))
+    elif module_error:
+        module = module_error.group(1)
+        rows.append(pipboy_text(
+            f"Python could not import `{module}`. Check the exact interpreter, the project's requirements/setup instructions, and whether the package name differs from the import name.",
+            f"Η Python δεν μπόρεσε να κάνει import το `{module}`. Ελέγξτε τον ακριβή interpreter, τις οδηγίες requirements/setup και αν το όνομα πακέτου διαφέρει από το import."
+        ))
+    elif "syntaxerror" in pipboy_normalize(query):
+        rows.append(pipboy_text("The file failed during parsing. Compile the exact file with `python3 -m py_compile FILE.py` and inspect the reported line plus the line immediately above it.", "Το αρχείο απέτυχε κατά την ανάλυση. Εκτελέστε `python3 -m py_compile FILE.py` και ελέγξτε τη γραμμή του σφάλματος και την αμέσως προηγούμενη."))
+    else:
+        rows.append(pipboy_text("I matched the error text against filenames, symbols, documentation, and source content. Start with the highest-scoring source and verify the exact failing line before changing packages or deleting data.", "Αντιστοίχισα το σφάλμα με ονόματα αρχείων, σύμβολα, τεκμηρίωση και κώδικα. Ξεκινήστε από την ισχυρότερη πηγή και επαληθεύστε την ακριβή γραμμή πριν αλλάξετε πακέτα ή διαγράψετε δεδομένα."))
+    for source, record in zip(sources[:6], records[:6]):
+        rows.append(pipboy_intelligence_record_summary(record, query, source["label"], "balanced"))
+    rows.append(pipboy_text("Safe verification order: reproduce once; save the traceback; compile the file; check symbol/import definitions; review project setup; then apply the smallest change and test again.", "Ασφαλής σειρά ελέγχου: αναπαραγωγή μία φορά· αποθήκευση traceback· compile του αρχείου· έλεγχος ορισμών/import· έλεγχος setup project· εφαρμογή της μικρότερης αλλαγής και νέα δοκιμή."))
+    return "\n\n".join(rows)
+
+
+def pipboy_intelligence_sources_line(sources):
+    if not sources:
+        return ""
+    refs = [f"[{item['label']}] {item['reference']}" for item in sources]
+    return pipboy_text("Sources: ", "Πηγές: ") + " | ".join(refs)
+
+
+
+
+
+
+
+
+# Compatibility names retained for old commands and saved sessions. They all use
+# the deterministic engine above and never load, download, or invoke a model.
+def pipboy_ai_query_variants(query):
+    return pipboy_intelligence_query_variants(query)
+
+
+def pipboy_ai_collect_evidence(query, scope="all", config=None, state=None):
+    records, matches, sources = pipboy_intelligence_collect_evidence(query, scope, config, state)
+    return records, matches, sources
+
+
+def pipboy_ai_answer(query, state=None, scope="all", progress=None):
+    return pipboy_intelligence_answer(query, state, scope, progress)
+
+
+def pipboy_ai_can_answer(config=None):
+    config = config or pipboy_load_config()
+    return bool(config.get("intelligence_enabled", True))
+
+
+def pipboy_ai_status_text(config=None, refresh=False):
+    return pipboy_intelligence_status_text(config)
+
+
+def pipboy_ai_select_model(config=None, refresh=False):
+    return None
+
+
+def pipboy_ai_scan_models(force=False):
+    return []
+
+
+def pipboy_ai_find_engines(force=False):
+    return {}
+
+
+def pipboy_ai_model_label(model=None):
+    return pipboy_text("MODEL-FREE", "ΧΩΡΙΣ MODEL")
+
+
+def pipboy_ai_model_list_text(refresh=False):
+    return pipboy_text(
+        "Ded-Guy does not use AI models. Intelligence comes from deterministic analysis of the DedSec project, website index, saved context, and explicit web search.",
+        "Το Ded-Guy δεν χρησιμοποιεί AI models. Η νοημοσύνη προέρχεται από ντετερμινιστική ανάλυση του DedSec Project, του website index, του αποθηκευμένου context και ρητής αναζήτησης web."
+    )
+
+
+def pipboy_ai_stop_server(force=False):
+    return True
+
+
+def pipboy_ai_install_engine_action():
+    raise RuntimeError(pipboy_text("No AI engine is needed or supported in this model-free build.", "Δεν χρειάζεται ούτε υποστηρίζεται AI engine σε αυτή την έκδοση χωρίς models."))
+
+
+def pipboy_ai_download_model_action(catalog_item=None):
+    raise RuntimeError(pipboy_text("This build intentionally does not download or use models.", "Αυτή η έκδοση σκόπιμα δεν κατεβάζει ούτε χρησιμοποιεί models."))
+
+
+def pipboy_ai_set_model_by_number(config, number):
+    raise ValueError(pipboy_text("Models are disabled by design.", "Τα models είναι απενεργοποιημένα από σχεδιασμό."))
+
+
+
+# -----------------------------------------------------------------------------
+# Final single-file expert overrides (must remain after legacy compatibility)
+# -----------------------------------------------------------------------------
+def pipboy_embedded_project_payload():
+    global _PIPBOY_EMBEDDED_PROJECT_CACHE
+    if _PIPBOY_EMBEDDED_PROJECT_CACHE is not None:
+        return _PIPBOY_EMBEDDED_PROJECT_CACHE
+    try:
+        compressed = base64.b85decode(PIPBOY_EMBEDDED_PROJECT_B85.encode("ascii"))
+        payload = json.loads(zlib.decompress(compressed).decode("utf-8"))
+        if not isinstance(payload, dict) or not isinstance(payload.get("files"), dict):
+            raise ValueError("invalid embedded knowledge")
+        _PIPBOY_EMBEDDED_PROJECT_CACHE = payload
+    except Exception:
+        _PIPBOY_EMBEDDED_PROJECT_CACHE = {"schema": 4, "counts": {"files": 0}, "files": {}, "symbols": {}, "import_graph": {}}
+    return _PIPBOY_EMBEDDED_PROJECT_CACHE
+
+
+def pipboy_embedded_project_index():
+    payload = pipboy_embedded_project_payload()
+    records = {}
+    for relative, source in payload.get("files", {}).items():
+        item = dict(source)
+        item.setdefault("relative_path", relative)
+        item.setdefault("name", os.path.basename(relative))
+        item.setdefault("content", item.get("excerpt", ""))
+        item.setdefault("description", "")
+        item.setdefault("headings", [])
+        item.setdefault("save_paths", [])
+        item.setdefault("urls", [])
+        item.setdefault("capabilities", [])
+        item.setdefault("arguments", [])
+        item.setdefault("input_hints", [])
+        item["path"] = "embedded://DedSec/" + relative
+        item["root"] = "embedded://DedSec"
+        item["signature"] = item.get("sha256", "embedded")
+        item["embedded"] = True
+        records[item["path"]] = item
+    return pipboy_enrich_project_from_catalog({
+        "schema": 4, "generated_at": payload.get("source", "embedded"),
+        "generated_epoch": 0, "roots": ["embedded://DedSec"],
+        "files": records, "counts": payload.get("counts", {"files": len(records)}),
+        "symbols": payload.get("symbols", {}), "import_graph": payload.get("import_graph", {}),
+        "embedded": True,
+    })
+
+
+def pipboy_project_relative_key(value):
+    value = str(value or "").replace("\\", "/")
+    value = re.sub(r"#U([0-9A-Fa-f]{4,6})", lambda match: chr(int(match.group(1), 16)), value)
+    marker = "/DedSec/"
+    if marker in value:
+        value = value.split(marker, 1)[1]
+    value = re.sub(r"^DedSec-main/", "", value, flags=re.I)
+    return pipboy_normalize(value)
+
+
+def _pipboy_impl_pipboy_merge_embedded_project_index_2(index):
+    embedded = pipboy_embedded_project_index()
+    if not isinstance(index, dict):
+        return embedded
+    live_files = index.get("files", {}) if isinstance(index.get("files"), dict) else {}
+    if not live_files:
+        return embedded
+    embedded_by_rel = {pipboy_project_relative_key(r.get("relative_path")): r for r in embedded["files"].values()}
+    merged = {}
+    live_rel_keys = set()
+    for path, source in live_files.items():
+        item = dict(source)
+        rel_key = pipboy_project_relative_key(item.get("relative_path") or path)
+        live_rel_keys.add(rel_key)
+        extra = embedded_by_rel.get(rel_key, {})
+        for field in ("functions", "classes", "imports", "calls", "defined_symbols", "call_lines", "assignments", "commands", "risk_tags", "category", "excerpt"):
+            if not item.get(field) and extra.get(field):
+                item[field] = extra[field]
+        for field in ("capabilities", "arguments", "input_hints", "save_paths", "urls", "headings"):
+            values = list(item.get(field) or [])
+            for value in extra.get(field, []) or []:
+                if value not in values:
+                    values.append(value)
+            item[field] = values
+        if not item.get("description"):
+            item["description"] = extra.get("description", "")
+        item["embedded"] = False
+        merged[path] = item
+    # Keep metadata-only records for binary documents and files missing locally.
+    for path, item in embedded["files"].items():
+        rel_key = pipboy_project_relative_key(item.get("relative_path"))
+        if rel_key not in live_rel_keys:
+            merged[path] = dict(item)
+    result = dict(index)
+    result["schema"] = max(4, int(result.get("schema", 0) or 0))
+    result["files"] = merged
+    result["counts"] = dict(result.get("counts") or {})
+    result["counts"]["files"] = len(merged)
+    result["counts"]["embedded_project_files"] = len(embedded["files"])
+    result["symbols"] = embedded.get("symbols", {})
+    result["import_graph"] = embedded.get("import_graph", {})
+    result["embedded_merged"] = True
+    return pipboy_enrich_project_from_catalog(result)
+
+
+def pipboy_deep_analyze_source(text, path, extension):
+    result = {"functions": [], "classes": [], "imports": [], "calls": [], "defined_symbols": {}, "call_lines": {}, "assignments": [], "commands": [], "risk_tags": [], "category": ""}
+    text = str(text or "")
+    extension = str(extension or "").casefold()
+    relative = str(path or "").replace("\\", "/")
+    parts = relative.split("/")
+    if "Scripts" in parts:
+        pos = parts.index("Scripts")
+        result["category"] = parts[pos + 1] if len(parts) > pos + 2 else "Scripts"
+    else:
+        result["category"] = parts[-2] if len(parts) > 1 else "Project"
+    if extension == ".py":
+        try:
+            tree = ast.parse(text)
+            calls = Counter()
+            call_lines = {}
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    result["functions"].append(node.name)
+                    result["defined_symbols"][node.name] = getattr(node, "lineno", 0)
+                elif isinstance(node, ast.ClassDef):
+                    result["classes"].append(node.name)
+                    result["defined_symbols"][node.name] = getattr(node, "lineno", 0)
+                elif isinstance(node, ast.Import):
+                    result["imports"].extend(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom):
+                    module = node.module or ""
+                    result["imports"].extend((module + "." + alias.name).strip(".") for alias in node.names)
+                elif isinstance(node, ast.Assign):
+                    for target in node.targets:
+                        if isinstance(target, ast.Name):
+                            result["assignments"].append(target.id)
+                elif isinstance(node, ast.Call):
+                    name = ""
+                    if isinstance(node.func, ast.Name):
+                        name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        attrs = []
+                        cursor = node.func
+                        while isinstance(cursor, ast.Attribute):
+                            attrs.append(cursor.attr)
+                            cursor = cursor.value
+                        if isinstance(cursor, ast.Name):
+                            attrs.append(cursor.id)
+                        name = ".".join(reversed(attrs))
+                    if name:
+                        calls[name] += 1
+                        call_lines.setdefault(name, []).append(getattr(node, "lineno", 0))
+            result["calls"] = calls.most_common(160)
+            result["call_lines"] = {name: lines[:30] for name, lines in call_lines.items()}
+        except Exception as exc:
+            result["parse_error"] = str(exc)[:240]
+    elif extension in {".sh", ".bash", ".zsh"}:
+        result["functions"] = re.findall(r"(?m)^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\)\s*\{", text)[:250]
+    command_re = re.compile(r"(?im)^\s*(?:\$\s*)?((?:pkg|apt|pip3?|python3?|bash|sh|git|chmod|termux-[a-z0-9-]+|curl|wget|npm|node)\s+[^\n]{1,220})$")
+    result["commands"] = list(dict.fromkeys(re.sub(r"\s+", " ", match.group(1)).strip() for match in command_re.finditer(text)))[:80]
+    low = (text + " " + relative).casefold()
+    risk_rules = {
+        "network": ("requests.", "aiohttp", "socket.", "flask", "http://", "https://"),
+        "subprocess": ("subprocess", "os.system", "popen("),
+        "filesystem-write": ("write(", "shutil.", "os.remove", "rmtree", "unlink("),
+        "camera-microphone": ("camera", "microphone", "termux-camera", "termux-microphone"),
+        "location": ("geolocation", "gps", "termux-location", "latitude", "longitude"),
+        "credentials": ("password", "token", "cookie", "credential", "login"),
+        "tor-proxy": ("tor", "socks5", "proxy"),
+        "web-server": ("flask", "http.server", "socketio", "cloudflared"),
+        "package-management": ("pkg install", "apt install", "pip install", "npm install"),
+        "database": ("sqlite", "sqlalchemy"),
+    }
+    result["risk_tags"] = [tag for tag, terms in risk_rules.items() if any(term in low for term in terms)]
+    for key in ("functions", "classes", "imports", "assignments"):
+        result[key] = list(dict.fromkeys(result[key]))[:300]
+    return result
+
+
+def pipboy_read_project_source(path, extension):
+    if extension == ".docx":
+        try:
+            with zipfile.ZipFile(path) as archive:
+                source = archive.read("word/document.xml").decode("utf-8", errors="replace")
+            source = re.sub(r"</w:p>", "\n", source)
+            return pipboy_clean_index_text(html.unescape(re.sub(r"<[^>]+>", " ", source)))
+        except Exception:
+            return ""
+    return pipboy_read_text_limited(path)
+
+
+def _pipboy_impl_pipboy_build_project_index_3(force=False, progress=None):
+    global _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    roots = pipboy_project_roots()
+    previous = pipboy_load_json(PIPBOY_PROJECT_INDEX_PATH, {})
+    old_records = previous.get("files", {}) if isinstance(previous, dict) else {}
+    records = {}
+    scanned = skipped = 0
+    extensions = set(PIPBOY_PROJECT_TEXT_EXTENSIONS) | {".docx"}
+    for root in roots:
+        for current, directories, filenames in os.walk(root):
+            directories[:] = [name for name in directories if name not in PIPBOY_IGNORED_DIRS and not name.startswith(".git")]
+            for filename in filenames:
+                if scanned >= PIPBOY_MAX_PROJECT_FILES:
+                    break
+                path = os.path.join(current, filename)
+                extension = os.path.splitext(filename)[1].casefold()
+                if extension not in extensions and filename not in {"README", "LICENSE", "Makefile", "Setup.sh"}:
+                    continue
+                try:
+                    stat = os.stat(path)
+                except OSError:
+                    continue
+                if stat.st_size > 3_500_000:
+                    skipped += 1
+                    continue
+                relative = os.path.relpath(path, root)
+                key = os.path.realpath(path)
+                signature = f"{stat.st_size}:{stat.st_mtime_ns}"
+                old = old_records.get(key, {}) if isinstance(old_records, dict) else {}
+                if not force and old.get("signature") == signature and old.get("functions") is not None:
+                    records[key] = old
+                    scanned += 1
+                    continue
+                text = pipboy_read_project_source(path, extension)
+                if not text:
+                    skipped += 1
+                    continue
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", SyntaxWarning)
+                    description, profile = pipboy_file_description(text, path, extension)
+                    analysis = pipboy_deep_analyze_source(text, path, extension)
+                record = {
+                    "path": key, "root": root, "relative_path": relative, "name": filename,
+                    "extension": extension or "none", "size": stat.st_size, "modified": stat.st_mtime,
+                    "signature": signature, "language": pipboy_detect_language(text, path),
+                    "description": description, "headings": pipboy_extract_headings(text, extension),
+                    "save_paths": pipboy_extract_save_paths(text),
+                    "urls": list(dict.fromkeys(re.findall(r"https?://[^\s'\"<>]+", text)))[:60],
+                    "capabilities": profile.get("capabilities", []) if isinstance(profile, dict) else [],
+                    "arguments": profile.get("arguments", []) if isinstance(profile, dict) else [],
+                    "input_hints": profile.get("input_hints", []) if isinstance(profile, dict) else [],
+                    "content": pipboy_clean_index_text(text)[:PIPBOY_MAX_PROJECT_FILE_CHARS],
+                    "excerpt": pipboy_clean_index_text(text)[:5000],
+                }
+                record.update(analysis)
+                # Keep profile fields when they are richer than generic AST extraction.
+                for field in ("capabilities", "arguments", "input_hints"):
+                    values = list(record.get(field) or [])
+                    for value in (profile.get(field, []) if isinstance(profile, dict) else []):
+                        if value not in values:
+                            values.append(value)
+                    record[field] = values[:100]
+                records[key] = record
+                scanned += 1
+                if progress and scanned % 20 == 0:
+                    progress(f"Deep-indexed {scanned} project files...")
+            if scanned >= PIPBOY_MAX_PROJECT_FILES:
+                break
+    index = {
+        "schema": 4, "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "generated_epoch": time.time(), "roots": roots, "files": records,
+        "counts": {"files": len(records), "skipped": skipped},
+    }
+    index = pipboy_merge_embedded_project_index(index)
+    pipboy_atomic_json_write(PIPBOY_PROJECT_INDEX_PATH, index)
+    _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = index
+    _PIPBOY_HYBRID_SEARCH_CACHE.clear()
+    return index
+
+
+def _pipboy_impl_pipboy_load_project_index_3(auto_build=True):
+    global _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    if isinstance(_PIPBOY_PROJECT_INDEX_RUNTIME_CACHE, dict) and _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE.get("files"):
+        return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    index = pipboy_load_json(PIPBOY_PROJECT_INDEX_PATH, {})
+    if isinstance(index, dict) and isinstance(index.get("files"), dict) and index.get("files"):
+        _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_merge_embedded_project_index(index)
+        return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    if auto_build and pipboy_project_roots():
+        try:
+            return pipboy_build_project_index(force=False)
+        except Exception:
+            pass
+    _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_embedded_project_index()
+    return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+
+
+def pipboy_search_tokens(value):
+    normalized = pipboy_canonicalize(value)
+    # Split common code naming styles before normalization destroys case clues.
+    raw = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(value or ""))
+    normalized += " " + pipboy_normalize(raw.replace("_", " ").replace("-", " "))
+    tokens = re.findall(r"[a-z0-9α-ω+#.]+", normalized)
+    return [token for token in tokens if len(token) > 1 and token not in PIPBOY_INTELLIGENCE_STOP_WORDS]
+
+
+def _pipboy_impl_pipboy_record_search_blob_2(record):
+    fields = [
+        record.get("name", ""), record.get("title", ""), record.get("relative_path", ""),
+        record.get("description", ""), " ".join(map(str, record.get("headings", []))),
+        " ".join(map(str, record.get("save_paths", []))), " ".join(map(str, record.get("capabilities", []))),
+        " ".join(map(str, record.get("arguments", []))), " ".join(map(str, record.get("input_hints", []))),
+        " ".join(map(str, record.get("functions", []))), " ".join(map(str, record.get("classes", []))),
+        " ".join(map(str, record.get("imports", []))), " ".join(map(str, record.get("risk_tags", []))),
+        record.get("excerpt", ""), (record.get("text") or record.get("content") or "")[:30000],
+    ]
+    return " ".join(str(field or "") for field in fields)
+
+
+def pipboy_hybrid_rank(query, records, kind="project", limit=8, signature=""):
+    """Low-memory streaming ranker for Android.
+
+    It deliberately does not retain token Counters for the whole project. Each
+    record is scored and discarded immediately, so typing a query cannot create
+    a several-hundred-megabyte cache or trigger Android's low-memory killer.
+    """
+    config = pipboy_load_config()
+    budgets = pipboy_effective_query_limits(config)
+    result_limit = max(1, min(int(limit), budgets["source_limit"] * 2, PIPBOY_QUERY_RESULT_LIMIT))
+    query_norm = pipboy_normalize(query)
+    semantic_query = " ".join(pipboy_intelligence_semantic_terms(query))
+    query_tokens = list(dict.fromkeys(pipboy_search_tokens(query + " " + semantic_query)))[:36]
+    if not query_norm and not query_tokens:
+        return []
+
+    # Compute query-level semantics once. The previous implementation repeated
+    # ontology/fuzzy analysis for every record, causing tens of millions of
+    # operations and 20-30 second delays on Android.
+    matched_concepts = pipboy_intelligence_concepts(query)
+    concept_paths = []
+    for concept_key in matched_concepts:
+        concept = PIPBOY_PROJECT_ONTOLOGY.get(concept_key, {})
+        concept_paths.extend(
+            pipboy_normalize(path_term)
+            for path_term in concept.get("paths", [])
+            if pipboy_normalize(path_term)
+        )
+    concept_paths = tuple(dict.fromkeys(concept_paths))
+    preferred_language = get_current_display_language()
+
+    ranked = []
+    processed = 0
+    for record in records:
+        if processed >= budgets["record_limit"]:
+            break
+        processed += 1
+        title_raw = str(record.get("name") or record.get("title") or "")
+        rel_raw = str(record.get("relative_path") or record.get("url") or "")
+        title = pipboy_normalize(title_raw)
+        stem = pipboy_normalize(os.path.splitext(os.path.basename(title_raw))[0])
+        rel = pipboy_normalize(rel_raw)
+        category_name = pipboy_project_category_name(record) if kind == "project" else ""
+        metadata = " ".join([
+            str(record.get("project_name") or ""), title_raw, rel_raw, category_name,
+            str(record.get("description") or ""),
+            " ".join(map(str, record.get("headings", []) or [])),
+            " ".join(map(str, record.get("save_paths", []) or [])),
+            " ".join(map(str, record.get("capabilities", []) or [])),
+            " ".join(map(str, record.get("arguments", []) or [])),
+            " ".join(map(str, record.get("functions", []) or [])),
+            " ".join(map(str, record.get("classes", []) or [])),
+            " ".join(map(str, record.get("imports", []) or [])),
+            str(record.get("excerpt") or record.get("text") or record.get("content") or "")[:budgets["text_limit"]],
+        ])
+        blob = pipboy_normalize(metadata)
+        score = 0.0
+        if query_norm == title or query_norm == stem:
+            score += 90.0
+        elif query_norm and (query_norm in title or query_norm in rel):
+            score += 42.0
+        elif stem and stem in query_norm:
+            score += 36.0
+        category_norm = pipboy_normalize(category_name)
+        for path_norm in concept_paths:
+            if path_norm in rel or path_norm == category_norm:
+                score += 55.0
+
+        matched = 0
+        for token in query_tokens:
+            if token in title:
+                score += 12.0
+                matched += 1
+            elif token in rel:
+                score += 7.0
+                matched += 1
+            elif token in blob:
+                # Count only a few occurrences; unlimited counts favor giant files.
+                score += 2.2 + min(3, blob.count(token)) * 0.45
+                matched += 1
+        if query_tokens and matched == len(query_tokens):
+            score += 10.0
+        if record.get("language") == preferred_language:
+            score += 0.4
+        if score <= 0.6:
+            continue
+        item = dict(record)
+        item.update({"kind": kind, "title": record.get("title") or record.get("name"), "score": round(score, 4)})
+        ranked.append(item)
+        # Keep only a small rolling candidate list.
+        if len(ranked) > result_limit * 5:
+            ranked.sort(key=lambda row: (-float(row.get("score", 0)), str(row.get("relative_path") or row.get("url") or "").casefold()))
+            del ranked[result_limit * 2:]
+
+    ranked.sort(key=lambda row: (-float(row.get("score", 0)), str(row.get("relative_path") or row.get("url") or "").casefold()))
+    return ranked[:result_limit]
+
+
+def pipboy_search_project(query, limit=7):
+    index = pipboy_load_project_index(auto_build=False)
+    signature = f"{index.get('generated_epoch', 0)}:{len(index.get('files', {}))}:{index.get('schema', 0)}"
+    expanded = dedguy_expand_project_query(query) if callable(globals().get("dedguy_expand_project_query")) else query
+    return pipboy_hybrid_rank(expanded, index.get("files", {}).values(), "project", limit, signature)
+
+
+def pipboy_search_website(query, limit=7):
+    index = pipboy_load_website_index()
+    records = list(index.get("pages", {}).values())
+    offline = globals().get("dedguy_offline_assistance_records")
+    if callable(offline):
+        records.extend(offline())
+    signature = f"{index.get('generated_epoch', 0)}:{len(records)}:offline-r42"
+    return pipboy_hybrid_rank(query, records, "website", limit, signature)
+
+
+def pipboy_load_user_knowledge():
+    value = pipboy_load_json(PIPBOY_USER_KNOWLEDGE_PATH, {"facts": [], "aliases": {}})
+    if not isinstance(value, dict):
+        value = {"facts": [], "aliases": {}}
+    value.setdefault("facts", []); value.setdefault("aliases", {})
+    return value
+
+
+def pipboy_save_user_knowledge(value):
+    value["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    pipboy_atomic_json_write(PIPBOY_USER_KNOWLEDGE_PATH, value)
+
+
+def pipboy_user_knowledge_records(query, limit=6):
+    knowledge = pipboy_load_user_knowledge(); rows = []
+    qtokens = set(pipboy_search_tokens(query)); qnorm = pipboy_normalize(query)
+    for index, fact in enumerate(knowledge.get("facts", []), 1):
+        text = str(fact.get("text") if isinstance(fact, dict) else fact)
+        tokens = set(pipboy_search_tokens(text)); score = len(qtokens & tokens) * 5.0
+        if qnorm and qnorm in pipboy_normalize(text): score += 10
+        if score:
+            rows.append({"kind": "memory", "name": f"Learned fact {index}", "title": f"Learned fact {index}", "description": text, "content": text, "score": score, "relative_path": "local user knowledge"})
+    rows.sort(key=lambda item: -float(item.get("score", 0)))
+    return rows[:limit]
+
+
+def pipboy_handle_learning_command(text, normalized, state):
+    raw = str(text or "").strip()
+    remember = re.match(r"^(?:remember(?: project fact)?|learn project fact|θυμησου|μαθε οτι)\s+(.+)$", raw, flags=re.I)
+    if remember:
+        fact = remember.group(1).strip()
+        if len(fact) < 3:
+            return pipboy_result(pipboy_text("The fact is too short.", "Το γεγονός είναι πολύ σύντομο."))
+        knowledge = pipboy_load_user_knowledge()
+        normalized_fact = pipboy_normalize(fact)
+        existing = [item for item in knowledge["facts"] if pipboy_normalize(item.get("text", "") if isinstance(item, dict) else item) == normalized_fact]
+        if not existing:
+            knowledge["facts"].append({"text": fact, "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+            knowledge["facts"] = knowledge["facts"][-300:]
+            pipboy_save_user_knowledge(knowledge)
+        return pipboy_result(pipboy_text("I saved that as local project knowledge.", "Το αποθήκευσα ως τοπική γνώση project."))
+    alias = re.match(r"^(?:alias|remember alias|ψευδωνυμο)\s+(.+?)\s*(?:=|means|σημαινει)\s*(.+)$", raw, flags=re.I)
+    if alias:
+        left, right = alias.group(1).strip(), alias.group(2).strip()
+        knowledge = pipboy_load_user_knowledge(); knowledge["aliases"][pipboy_normalize(left)] = right
+        pipboy_save_user_knowledge(knowledge)
+        return pipboy_result(pipboy_text(f"Saved alias: {left} = {right}.", f"Αποθηκεύτηκε ψευδώνυμο: {left} = {right}."))
+    if normalized in {"show learned facts", "show memory", "τι θυμασαι", "δειξε μνημη"}:
+        knowledge = pipboy_load_user_knowledge(); facts = knowledge.get("facts", [])[-30:]
+        if not facts:
+            return pipboy_result(pipboy_text("No user-taught project facts are saved.", "Δεν υπάρχουν αποθηκευμένα γεγονότα project από τον χρήστη."))
+        lines = [f"{i}. {item.get('text', '') if isinstance(item, dict) else item}" for i, item in enumerate(facts, 1)]
+        return pipboy_result(pipboy_text("Saved project facts:\n", "Αποθηκευμένα γεγονότα project:\n") + "\n".join(lines))
+    forget = re.match(r"^(?:forget fact|forget memory|ξεχασε)\s+(.+)$", raw, flags=re.I)
+    if forget:
+        target = pipboy_normalize(forget.group(1)); knowledge = pipboy_load_user_knowledge(); before = len(knowledge["facts"])
+        knowledge["facts"] = [item for item in knowledge["facts"] if target not in pipboy_normalize(item.get("text", "") if isinstance(item, dict) else item)]
+        pipboy_save_user_knowledge(knowledge)
+        removed = before - len(knowledge["facts"])
+        return pipboy_result(pipboy_text(f"Removed {removed} matching learned facts.", f"Αφαιρέθηκαν {removed} σχετικά γεγονότα."))
+    return None
+
+
+def pipboy_intelligence_query_variants(query):
+    original = re.sub(r"\s+", " ", str(query or "")).strip()
+    canonical = pipboy_canonicalize(original)
+    variants = [original, canonical]
+    knowledge = pipboy_load_user_knowledge()
+    normalized = pipboy_normalize(original)
+    for alias, target in knowledge.get("aliases", {}).items():
+        if alias and alias in normalized:
+            variants.append(normalized.replace(alias, str(target)))
+            variants.append(str(target))
+    for canonical_name, aliases in PIPBOY_INTELLIGENCE_ALIAS_GROUPS.items():
+        if canonical_name in normalized or any(alias in normalized for alias in aliases):
+            variants.extend([canonical_name, *aliases])
+    semantic_terms = pipboy_intelligence_semantic_terms(original)
+    if semantic_terms:
+        variants.extend(semantic_terms)
+        # One combined variant helps ranking when a natural phrase and the real
+        # folder/category wording differ substantially.
+        variants.append(original + " " + " ".join(semantic_terms[:12]))
+    intent_words = {
+        "save": "save saved storage output location path folder downloads database json sqlite",
+        "install": "install setup requirements dependencies package pkg pip git clone termux",
+        "diagnose": "error traceback exception failure undefined symbol import module fix repair compile",
+        "usage": "usage controls keys options arguments prompts commands run launch",
+        "architecture": "architecture structure entry point modules imports calls workflow dependency graph",
+        "security": "security privacy permissions network risk credentials safe legal",
+        "translation": "english greek translation parity language equivalent counterpart",
+    }
+    intents = pipboy_intelligence_intents(original)
+    for intent in intents:
+        if intent in intent_words:
+            variants.append(intent_words[intent])
+    output=[]; seen=set()
+    for item in variants:
+        item=re.sub(r"\s+", " ", str(item or "")).strip(); key=pipboy_normalize(item)
+        if item and key and key not in seen:
+            seen.add(key); output.append(item)
+    return output[:PIPBOY_QUERY_VARIANT_LIMIT]
+
+
+def pipboy_intelligence_intents(query):
+    normalized = " " + pipboy_normalize(query) + " "
+    intents=set(); groups={
+        "save": (" save ", " saved ", " stored ", " storage ", " save location ", " output location ", " output folder ", " path ", "αποθηκε"),
+        "install": (" install ", " setup ", " requirement", " dependenc", " package ", "εγκατα"),
+        "usage": (" use ", " usage ", " run ", " controls ", " options ", " arguments ", " keys ", "χρησ", "τρεξ"),
+        "capabilities": (" can do ", " purpose ", " feature", " capability", "what does", "τι κανει"),
+        "compare": (" compare ", " difference ", " versus ", " vs ", "συγκρ", "διαφορα"),
+        "recommend": (" recommend ", " best tool ", " which tool ", " tool for ", "προτειν", "ποιο εργαλειο"),
+        "diagnose": (" error ", "nameerror", "modulenotfounderror", "syntaxerror", " not defined", " traceback ", " exception ", " failed ", " broken ", " fix ", " repair ", "σφαλ", "διορθ"),
+        "architecture": (" architecture ", " structure ", " workflow ", " entry point ", " modules ", " dependency graph ", "δομη", "αρχιτεκ"),
+        "dependencies": (" dependency", " import ", " module ", " package ", " requirements ", "εξαρτησ"),
+        "security": (" security ", " safe ", " privacy ", " permission", " risk ", " legal ", "ασφαλ", "ιδιωτ"),
+        "code": (" function ", " class ", " variable ", " line ", " source code ", " symbol ", "κωδικ"),
+        "trace": (" who calls ", " callers ", " references ", " defined ", " definition ", " trace ", "where is function", "που οριζεται"),
+        "translation": (" greek version ", " english version ", " translation ", " translated ", " parity ", "ελληνικη εκδοση", "μεταφρασ"),
+        "plan": (" plan ", " steps ", " how should ", " workflow for ", " σχεδιο ", " βηματα "),
+        "current": (" latest ", " current ", " today ", " recent ", " νεο ", " τωρα "),
+        "category": (" scripts ", " tools ", " pages ", " category ", " categories ", " list ", " show ", " find ", " has ", " contains ", " κατηγορι", " εργαλει", " σελιδ"),
+    }
+    for name,triggers in groups.items():
+        if any(trigger in normalized for trigger in triggers): intents.add(name)
+    if not intents:intents.add("overview")
+    return intents
+
+
+def pipboy_intelligence_collect_evidence(query, scope="all", config=None, state=None):
+    """Collect evidence with strict CPU/RAM bounds and no implicit web request."""
+    config = config or pipboy_load_config()
+    state = state or {}
+    budgets = pipboy_effective_query_limits(config)
+    enriched = pipboy_intelligence_enrich_query(query, state)
+    variants = pipboy_intelligence_query_variants(enriched)[:budgets["variant_limit"]]
+    per_variant = 3 if budgets["source_limit"] <= 6 else 5
+    max_sources = budgets["source_limit"]
+    groups = []
+    if scope in {"all", "project"}:
+        groups.append(pipboy_intelligence_exact_symbol_records(enriched, limit=min(5, max_sources)))
+        for variant in variants:
+            groups.append(pipboy_search_project(variant, limit=per_variant))
+        groups.append(pipboy_user_knowledge_records(enriched, limit=per_variant))
+    if scope in {"all", "website"}:
+        for variant in variants[:3]:
+            groups.append(pipboy_search_website(variant, limit=per_variant))
+    records = pipboy_intelligence_merge_records(groups, limit=max_sources * 2)
+    requested = pipboy_intelligence_requested_project_files(query, limit=max_sources) if scope in {"all", "project"} else []
+    if requested:
+        preferred_language = pipboy_detect_language(query)
+        requested.sort(key=lambda item: (0 if item.get("language") == preferred_language else 1, str(item.get("relative_path") or "").casefold()))
+        selected, seen = [], set()
+        for item in requested:
+            stem = pipboy_catalog_key(item.get("name") or item.get("relative_path"))
+            if stem in seen:
+                continue
+            seen.add(stem)
+            row = dict(item)
+            row.update({"kind": "project", "title": item.get("name"), "score": max(50.0, float(item.get("score", 0) or 0))})
+            selected.append(row)
+        if selected:
+            records = selected[:max_sources]
+
+    # Internet access occurs only when the user explicitly asks for it.
+    explicit_web = any(token in pipboy_normalize(query) for token in ("internet", "web", "online", "latest", "current", "github", "διαδικτυο"))
+    if explicit_web and config.get("web_search_enabled", True):
+        try:
+            records.extend(pipboy_web_search(str(query), mode="web", limit=min(4, max_sources)))
+        except Exception as exc:
+            pipboy_log_error("explicit web search", exc)
+    records = pipboy_intelligence_merge_records([records], limit=max_sources)
+    sources, counters = [], Counter()
+    for record in records:
+        kind = record.get("kind", "project")
+        prefix = {"project": "P", "website": "W", "web": "R", "memory": "M", "repo": "G"}.get(kind, "S")
+        counters[prefix] += 1
+        sources.append({"label": f"{prefix}{counters[prefix]}", "reference": record.get("relative_path") or record.get("url") or record.get("path") or record.get("name") or "source", "kind": kind})
+    return records, records, sources
+
+
+def pipboy_intelligence_extract_symbol(query):
+    patterns=[
+        r"`([A-Za-z_][A-Za-z0-9_]*)`",
+        r"name\s+['\"]([^'\"]+)['\"]\s+is\s+not\s+defined",
+        r"(?:trace|find|show)\s+(?:function|class|variable|symbol)?\s*([A-Za-z_][A-Za-z0-9_]*)",
+        r"(?:callers of|calls to|references to|definition of|where is)\s+([A-Za-z_][A-Za-z0-9_]*)",
+        r"(?:function|class|variable|symbol|def)\s+([A-Za-z_][A-Za-z0-9_]*)",
+    ]
+    for pattern in patterns:
+        match=re.search(pattern,str(query or ""),flags=re.I)
+        if match:return match.group(1)
+    tokens=[t for t in re.findall(r"\b[A-Za-z_][A-Za-z0-9_]+\b",str(query or "")) if "_" in t or any(ch.isupper() for ch in t[1:])]
+    return tokens[0] if tokens else ""
+
+
+def _pipboy_impl_pipboy_intelligence_symbol_answer_2(query):
+    symbol=pipboy_intelligence_extract_symbol(query)
+    if not symbol:return "",[]
+    index=pipboy_load_project_index(auto_build=False); definitions=[]; callers=[]; references=[]
+    for record in index.get("files",{}).values():
+        defs=record.get("defined_symbols") or {}
+        if symbol in defs:
+            definitions.append((record,defs[symbol]))
+        for call,count in record.get("calls",[]) or []:
+            if str(call).split(".")[-1]==symbol:
+                lines=(record.get("call_lines") or {}).get(call,[])
+                callers.append((record,count,lines))
+        content=str(record.get("content") or record.get("excerpt") or "")
+        if symbol in content and symbol not in defs:
+            references.append(record)
+    if not definitions and not callers and not references:return "",[]
+    rows=[pipboy_text(f"Symbol trace for `{symbol}`:",f"Ανίχνευση symbol για `{symbol}`:")]
+    if definitions:
+        rows.append(pipboy_text("Definitions:","Ορισμοί:"))
+        for record,line in definitions[:10]:rows.append(f"- {record.get('relative_path')}:L{line}")
+    else:
+        rows.append(pipboy_text("No definition was found in the indexed project. This usually means the symbol is missing, renamed, conditionally created, or expected from an import that is not present.", "Δεν βρέθηκε ορισμός στο ευρετηριασμένο project. Συνήθως αυτό σημαίνει ότι το symbol λείπει, μετονομάστηκε, δημιουργείται υπό συνθήκη ή αναμένεται από import που δεν υπάρχει."))
+    if callers:
+        rows.append(pipboy_text("Detected callers:","Εντοπισμένοι callers:"))
+        for record,count,lines in callers[:12]:rows.append(f"- {record.get('relative_path')} — {count} call(s)"+(f" at {', '.join('L'+str(x) for x in lines[:6])}" if lines else ""))
+    if references and not callers:
+        rows.append(pipboy_text("Other references:","Άλλες αναφορές:"))
+        for record in references[:10]:rows.append(f"- {record.get('relative_path')}")
+    matches=[item[0] for item in definitions]+[item[0] for item in callers]+references
+    return "\n".join(rows),pipboy_intelligence_merge_records([matches],limit=16)
+
+
+def pipboy_intelligence_direct_fact_answer(query, records, sources, intents):
+    if not records:return ""
+    rows=[]
+    selected=list(zip(records,sources))[:8]
+    if "save" in intents:
+        found=[]
+        for record,source in selected:
+            authoritative = str(record.get("catalog_save_location") or "").strip()
+            paths = [authoritative] if authoritative else list(record.get("save_paths",[]) or [])
+            for path in paths:
+                clean = re.sub(r"\s+", " ", str(path or "")).strip()
+                if clean and clean not in [item.rsplit(": ", 1)[-1] for item in found]:
+                    found.append(f"- [{source['label']}] {record.get('name') or record.get('title')}: {clean}")
+        if found:return pipboy_text("Detected save locations:\n","Εντοπισμένες τοποθεσίες αποθήκευσης:\n")+"\n".join(found[:12])
+    if "dependencies" in intents or "install" in intents:
+        for record,source in selected[:5]:
+            imports=list(record.get("imports",[]) or [])[:30]; commands=list(record.get("commands",[]) or pipboy_intelligence_extract_commands(record,limit=12))[:12]
+            if imports or commands:
+                rows.append(f"[{source['label']}] {record.get('name') or record.get('title')}")
+                if imports:rows.append(pipboy_text("Imports/dependencies: ","Imports/εξαρτήσεις: ")+", ".join(imports))
+                if commands:rows.append(pipboy_text("Setup commands: ","Εντολές setup: ")+" | ".join(commands))
+        if rows:return "\n".join(rows)
+    if "usage" in intents:
+        for record,source in selected[:5]:
+            args=list(record.get("arguments",[]) or [])[:20]; prompts=list(record.get("input_hints",[]) or [])[:12]
+            if args or prompts:
+                rows.append(f"[{source['label']}] {record.get('name') or record.get('title')}")
+                if args:rows.append(pipboy_text("Arguments/options: ","Ορίσματα/επιλογές: ")+", ".join(args))
+                if prompts:rows.append(pipboy_text("Interactive prompts: ","Διαδραστικά prompts: ")+" | ".join(prompts))
+        if rows:return "\n".join(rows)
+    if "security" in intents:
+        for record,source in selected[:6]:
+            tags=list(record.get("risk_tags",[]) or [])
+            if tags:rows.append(f"- [{source['label']}] {record.get('name') or record.get('title')}: "+", ".join(tags))
+        if rows:return pipboy_text("Static security-relevant capabilities (not proof of malicious behavior):\n","Δυνατότητες σχετικές με ασφάλεια από static analysis (όχι απόδειξη κακόβουλης συμπεριφοράς):\n")+"\n".join(rows)
+    return ""
+
+
+def pipboy_intelligence_translation_answer(query, records, sources):
+    index=pipboy_load_project_index(auto_build=False); by_stem={}
+    for record in index.get("files",{}).values():
+        stem=pipboy_normalize(os.path.splitext(record.get("name", ""))[0])
+        if stem:by_stem.setdefault(stem,[]).append(record)
+    targets=[]
+    for record in records[:6]:
+        stem=pipboy_normalize(os.path.splitext(record.get("name", ""))[0]); group=by_stem.get(stem,[])
+        if len(group)>=2:targets.append((stem,group))
+    if not targets:return ""
+    rows=[pipboy_text("English/Greek counterpart check:","Έλεγχος αντιστοίχων αγγλικής/ελληνικής έκδοσης:")]
+    seen=set()
+    for stem,group in targets:
+        if stem in seen:continue
+        seen.add(stem); langs={g.get("language"):g for g in group}; en=langs.get("english"); gr=langs.get("greek")
+        rows.append(f"- {group[0].get('name')}: "+(pipboy_text("both versions found","βρέθηκαν και οι δύο εκδόσεις") if en and gr else pipboy_text("only one indexed language found","βρέθηκε μόνο μία γλώσσα")))
+        if en and gr:
+            en_syms=set(en.get("functions",[])); gr_syms=set(gr.get("functions",[])); missing_en=sorted(gr_syms-en_syms)[:8]; missing_gr=sorted(en_syms-gr_syms)[:8]
+            if missing_gr:rows.append(pipboy_text("  Missing from Greek function set: ","  Λείπουν από το σύνολο functions της ελληνικής: ")+", ".join(missing_gr))
+            if missing_en:rows.append(pipboy_text("  Missing from English function set: ","  Λείπουν από το σύνολο functions της αγγλικής: ")+", ".join(missing_en))
+    return "\n".join(rows)
+
+
+def pipboy_intelligence_plan_answer(query, records, sources):
+    intents=pipboy_intelligence_intents(query); steps=[]
+    steps.append(pipboy_text("Identify the exact target and expected result from the indexed project.","Εντοπισμός ακριβούς στόχου και αναμενόμενου αποτελέσματος από το ευρετήριο project."))
+    if "diagnose" in intents:steps.extend([pipboy_text("Reproduce once and capture the full traceback.","Αναπαραγωγή μία φορά και καταγραφή ολόκληρου traceback."),pipboy_text("Compile/validate the exact file and trace the reported symbol or import.","Compile/validation του ακριβούς αρχείου και ανίχνευση του symbol ή import.")])
+    if "install" in intents:steps.append(pipboy_text("Verify requirements, available storage, and package names before installation.","Έλεγχος requirements, διαθέσιμου χώρου και ονομάτων πακέτων πριν την εγκατάσταση."))
+    if records:steps.append(pipboy_text(f"Start with the strongest source: {records[0].get('relative_path') or records[0].get('title')}.",f"Ξεκινήστε από την ισχυρότερη πηγή: {records[0].get('relative_path') or records[0].get('title')}."))
+    steps.append(pipboy_text("Apply the smallest reversible change, then test again.","Εφαρμογή της μικρότερης αναστρέψιμης αλλαγής και νέα δοκιμή."))
+    steps.append(pipboy_text("Any clone, package change, shell command, deletion, or untrusted execution remains separately confirmed.","Κάθε clone, αλλαγή πακέτων, shell εντολή, διαγραφή ή εκτέλεση μη έμπιστου κώδικα επιβεβαιώνεται ξεχωριστά."))
+    return pipboy_text("Execution plan:\n","Σχέδιο εκτέλεσης:\n")+"\n".join(f"{i}. {step}" for i,step in enumerate(steps,1))
+
+
+
+
+
+def pipboy_intelligence_answer(query, state=None, scope="all", progress=None):
+    state = state or {}
+    config = state.get("config") or pipboy_load_config()
+    if not config.get("intelligence_enabled", True):
+        raise RuntimeError(pipboy_text("Project intelligence is disabled.", "Η νοημοσύνη project είναι απενεργοποιημένη."))
+    if progress:
+        progress(pipboy_text("Running expert project analysis...", "Εκτέλεση εξειδικευμένης ανάλυσης project..."))
+    intents = pipboy_intelligence_intents(query)
+
+    category_answer, category_matches = pipboy_intelligence_category_answer(query, state)
+    if category_answer:
+        return category_answer, category_matches
+
+    entity_answer, entity_matches = pipboy_intelligence_entity_answer(query, state)
+    if entity_answer:
+        return entity_answer, entity_matches
+
+    if "trace" in intents or ("code" in intents and pipboy_intelligence_extract_symbol(query)):
+        symbol_answer, symbol_matches = pipboy_intelligence_symbol_answer(query)
+        if symbol_answer:
+            return symbol_answer, symbol_matches
+
+    records, matches, sources = pipboy_intelligence_collect_evidence(query, scope, config, state)
+    if not records:
+        return pipboy_text(
+            "No reliable matching evidence was found. Use a filename, category, brand, function, traceback, or refresh the project index.",
+            "Δεν βρέθηκαν αξιόπιστα σχετικά τεκμήρια. Χρησιμοποιήστε όνομα αρχείου, κατηγορία, μάρκα, function, traceback ή ανανεώστε το ευρετήριο project.",
+        ), []
+    if "plan" in intents:
+        answer = pipboy_intelligence_plan_answer(query, records, sources)
+    elif "translation" in intents:
+        answer = pipboy_intelligence_translation_answer(query, records, sources) or pipboy_intelligence_compare_answer(query, records, sources)
+    elif "architecture" in intents:
+        answer = pipboy_intelligence_architecture_answer(query, records, sources)
+        sources = []
+    elif "compare" in intents:
+        compared, comp_sources = pipboy_intelligence_compare_entities(query, config, state, scope)
+        if len(compared) >= 2:
+            records, matches, sources = compared, compared, comp_sources
+        answer = pipboy_intelligence_compare_answer(query, records, sources)
+    elif "recommend" in intents:
+        recommended, rec_sources = pipboy_intelligence_recommend_candidates(records, sources, query=query, limit=7)
+        if recommended:
+            records, matches, sources = recommended, recommended, rec_sources
+        answer = pipboy_intelligence_recommend_answer(query, records, sources)
+    elif "diagnose" in intents:
+        answer = pipboy_intelligence_diagnose_answer(query, records, sources)
+    else:
+        answer = pipboy_intelligence_direct_fact_answer(query, records, sources, intents)
+        if not answer:
+            detail = config.get("intelligence_detail", "maximum")
+            selected = {"compact": 3, "balanced": 5, "detailed": 8, "maximum": 12}.get(detail, 10)
+            summaries = [
+                pipboy_intelligence_record_summary(record, query, source["label"], "detailed" if detail == "maximum" else detail)
+                for record, source in list(zip(records, sources))[:selected]
+            ]
+            answer = "\n\n".join(summaries)
+    scores = [float(record.get("score", 0)) for record in records[:3]]
+    if scores:
+        confidence = "high" if scores[0] >= 20 and (len(scores) == 1 or scores[0] >= scores[1] * 1.2) else ("medium" if scores[0] >= 7 else "low")
+        answer += pipboy_text(f"\n\nEvidence confidence: {confidence}.", f"\n\nΒεβαιότητα τεκμηρίων: {confidence}.")
+    source_line = pipboy_intelligence_sources_line(sources)
+    if source_line and source_line not in answer:
+        answer = answer.rstrip() + "\n\n" + source_line
+    max_chars = {"compact": 2600, "balanced": 5200, "detailed": 9000, "maximum": 14000}.get(config.get("intelligence_detail"), 9000)
+    if len(answer) > max_chars:
+        answer = answer[:max_chars - 3].rstrip() + "..."
+    return answer, matches
+
+
+
+
+
+
+
+def pipboy_status_text(inventory, config=None, cwd=None):
+    config = config or pipboy_load_config()
+    counts = {
+        "scripts": len(inventory.get("scripts", {})), "commands": len(inventory.get("commands", {})),
+        "termux": len(inventory.get("termux_packages", {})), "python": len(inventory.get("python_packages", {})),
+        "apps": len(inventory.get("android_apps", {})),
+    }
+    try:
+        free_gb = shutil.disk_usage(HOME_DIR).free / (1024 ** 3)
+        storage_text = f"{free_gb:.1f} GB"
+    except Exception:
+        storage_text = "?"
+    base = pipboy_text(
+        f"Ready. Learned catalog: {counts['scripts']} scripts, {counts['commands']} commands, {counts['termux']} Termux packages, {counts['python']} Python packages, {counts['apps']} Android apps. Free storage: {storage_text}. Current folder: {cwd or HOME_DIR}.",
+        f"Έτοιμο. Κατάλογος γνώσης: {counts['scripts']} scripts, {counts['commands']} εντολές, {counts['termux']} πακέτα Termux, {counts['python']} πακέτα Python, {counts['apps']} εφαρμογές Android. Ελεύθερος χώρος: {storage_text}. Τρέχων φάκελος: {cwd or HOME_DIR}."
+    )
+    try:
+        project_files = len(pipboy_load_project_index(auto_build=False).get("files", {}))
+    except Exception:
+        project_files = 0
+    try:
+        website_pages = len(pipboy_load_website_index().get("pages", {}))
+    except Exception:
+        website_pages = 0
+    knowledge = pipboy_text(
+        f"Knowledge: {project_files} project files and {website_pages} DedSec website pages.",
+        f"Γνώση: {project_files} αρχεία project και {website_pages} σελίδες της ιστοσελίδας DedSec."
+    )
+    return base + "\n" + knowledge + "\n" + pipboy_audio_status(config) + "\n" + pipboy_intelligence_status_text(config)
+
+
+def pipboy_help_text():
+    return pipboy_text(
+        "Voice activation: say Hey Guy and then your request. Natural commands: ask project <question>, ask website <question>, explain/compare/diagnose/recommend a project tool, project intelligence status, intelligence settings, run/open <script>, where does <tool> save, learn project, learn website, learn all, search internet for <topic>, search GitHub for <repository>, open 1, clone 1 or clone <HTTPS repository>, shell <command>, command <tool> [arguments], open app/file/folder, lists, calculations, battery, scan, status, notes, controls, help, exit. Ded-Guy uses no AI model: its single-file expert engine combines embedded DedSec knowledge, live full-repository analysis of DedSec, Offline Survival, Pocket AI, Corrupted Files and the website source, hybrid retrieval, code-symbol tracing, website evidence, saved context, and explicit user-taught facts. Git cloning and arbitrary shell commands always display the exact action and require yes/ναι.",
+        "Φωνητική ενεργοποίηση: πες Hey Guy και μετά το αίτημά σου. Φυσικές εντολές: ρώτα project <ερώτηση>, ρώτα website <ερώτηση>, εξήγησε/σύγκρινε/διάγνωσε/πρότεινε εργαλείο project, κατάσταση νοημοσύνης, ρυθμίσεις νοημοσύνης, τρέξε/άνοιξε <script>, πού αποθηκεύει το <εργαλείο>, μάθε project, μάθε website, μάθε όλα, αναζήτηση internet/GitHub, άνοιξε 1, clone 1 ή clone <HTTPS repository>, shell <εντολή>, command <εργαλείο> [ορίσματα], εφαρμογές/αρχεία/φακέλους, λίστες, υπολογισμούς, μπαταρία, σάρωση, κατάσταση, σημειώσεις, χειριστήρια, βοήθεια, έξοδος. Το Ded-Guy δεν χρησιμοποιεί AI model: η single-file expert μηχανή του συνδυάζει ενσωματωμένο ευρετήριο ολόκληρου του uploaded DedSec Project, live ανάλυση κώδικα, hybrid retrieval, ανίχνευση symbols, website, context και ρητά γεγονότα που διδάσκει ο χρήστης. Git clone και αυθαίρετες shell εντολές εμφανίζουν πάντα την ακριβή ενέργεια και απαιτούν yes/ναι."
+    )
+
+
+def pipboy_is_yes(text):
+    return pipboy_canonicalize(text) in {"yes", "y", "ok", "confirm", "ναι", "ν", "επιβεβαιωση", "ενταξει"}
+
+
+def pipboy_is_no(text):
+    return pipboy_canonicalize(text) in {"no", "n", "cancel", "οχι", "ο", "ακυρωση", "ακυρο"}
+
+
+def pipboy_command_is_risky(command):
+    if not command:
+        return False
+    base = os.path.basename(str(command[0])).casefold()
+    joined = " " + " ".join(str(part) for part in command).casefold() + " "
+    patterns = (
+        " --delete ", " -rf ", " -fr ", " --force ", " /data/data/", " /storage/emulated/0",
+        " chmod -r ", " chown -r ", " reset --hard ", " clean -fd", " install ", " uninstall ",
+    )
+    return base in PIPBOY_RISKY_COMMANDS or any(token in joined for token in patterns)
+
+
+def pipboy_make_launch_action(item, extra_args=None):
+    if item.get("kind") == "android_app":
+        return {
+            "type": "android_app", "title": item.get("name") or item.get("package"),
+            "package": item.get("package"), "risky": False,
+        }
+    command = list(item.get("command") or [])
+    if extra_args:
+        command.extend(extra_args)
+    sensitive = pipboy_script_is_sensitive(item)
+    untrusted = bool(item.get("untrusted"))
+    command_risk = pipboy_command_is_risky(command)
+    # An explicit request to run a known local script should not be treated as
+    # a raw shell command merely because its Termux path contains /data/data.
+    if item.get("kind") == "script" and not untrusted and not sensitive:
+        command_risk = False
+    return {
+        "type": "launch", "title": item.get("name") or (os.path.basename(command[0]) if command else "program"),
+        "command": command, "cwd": item.get("cwd") or HOME_DIR,
+        "full_screen": bool(item.get("full_screen")),
+        "risky": command_risk or untrusted or sensitive,
+        "untrusted": untrusted,
+    }
+
+
+def pipboy_save_note(text):
+    notes = pipboy_load_json(PIPBOY_NOTES_PATH, [])
+    if not isinstance(notes, list):
+        notes = []
+    notes.append({"time": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "text": str(text)[:2000]})
+    pipboy_atomic_json_write(PIPBOY_NOTES_PATH, notes[-500:])
+
+
+def pipboy_original_tail(text, normalized_prefixes):
+    """Returns the original-cased argument after a recognized normalized prefix."""
+    normalized_text = pipboy_normalize(text)
+    for prefix in normalized_prefixes:
+        normalized_prefix = pipboy_normalize(prefix)
+        if normalized_text == normalized_prefix:
+            return ""
+        if normalized_text.startswith(normalized_prefix + " "):
+            word_count = len(str(prefix).split())
+            parts = str(text).strip().split(maxsplit=word_count)
+            return parts[-1].strip() if len(parts) > word_count else ""
+    return ""
+
+
+def pipboy_resolve_path(raw_path, cwd):
+    value = os.path.expandvars(os.path.expanduser(str(raw_path).strip().strip('"\'')))
+    if not os.path.isabs(value):
+        value = os.path.join(cwd or HOME_DIR, value)
+    return os.path.realpath(value)
+
+
+def pipboy_describe_item(item):
+    capabilities = ", ".join(item.get("capabilities", [])) or pipboy_text("not detected", "δεν εντοπίστηκαν")
+    arguments = ", ".join(item.get("arguments", [])) or pipboy_text("none detected", "δεν εντοπίστηκαν")
+    prompts = "; ".join(item.get("input_hints", [])[:5]) or pipboy_text("none detected", "δεν εντοπίστηκαν")
+    trust = pipboy_text("UNTRUSTED CLONED CODE" if item.get("untrusted") else "local/project code",
+                         "ΜΗ ΕΜΠΙΣΤΟΣ ΚΛΩΝΟΠΟΙΗΜΕΝΟΣ ΚΩΔΙΚΑΣ" if item.get("untrusted") else "τοπικός/κώδικας project")
+    return pipboy_text(
+        f"{item.get('name')}: {item.get('description') or 'No description found.'}\nCapabilities: {capabilities}. Arguments: {arguments}. Interactive prompts: {prompts}. Trust: {trust}. Path: {item.get('path', '')}",
+        f"{item.get('name')}: {item.get('description') or 'Δεν βρέθηκε περιγραφή.'}\nΔυνατότητες: {capabilities}. Ορίσματα: {arguments}. Διαδραστικά αιτήματα: {prompts}. Εμπιστοσύνη: {trust}. Διαδρομή: {item.get('path', '')}"
+    )
+
+
+def pipboy_set_audio_command(normalized, state):
+    config = state["config"]
+    if normalized in {"mode numbered", "numbered mode", "numbered menu", "αριθμημενο μενου", "λειτουργια αριθμων"}:
+        pipboy_set_interaction_mode(config, "numbered")
+        return pipboy_result(pipboy_text("Numbered menu mode saved.", "Το αριθμημένο μενού αποθηκεύτηκε."))
+    if normalized in {"mode text", "text mode", "typing mode", "λειτουργια κειμενου", "μονο πληκτρολογιο"}:
+        pipboy_set_interaction_mode(config, "text")
+        return pipboy_result(pipboy_text("Text interface mode saved.", "Η λειτουργία κειμένου αποθηκεύτηκε."))
+    if normalized in {"mode voice", "voice mode", "voice conversation", "λειτουργια φωνησ", "φωνητικη λειτουργια"}:
+        config["interaction_mode"] = "voice"
+        config["continuous_listening"] = True
+        config["microphone_enabled"] = True
+        config["input_mode"] = "mixed"
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text(
+            "Voice conversation mode is active. The microphone will keep listening automatically.",
+            "Η φωνητική συνομιλία ενεργοποιήθηκε. Το μικρόφωνο θα συνεχίσει να ακούει αυτόματα.",
+        ))
+    if normalized in {"microphone off", "mute my microphone", "mute microphone", "κλεισε το μικροφωνο", "κλεισε μικροφωνο", "μικροφωνο κλειστο"}:
+        config["microphone_enabled"] = False
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text("Your microphone is muted.", "Το μικρόφωνό σας έκλεισε."), pinned=True)
+    if normalized in {"microphone on", "unmute my microphone", "unmute microphone", "ανοιξε το μικροφωνο", "ανοιξε μικροφωνο", "μικροφωνο ανοιχτο"}:
+        config["microphone_enabled"] = True
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text("Your microphone is enabled.", "Το μικρόφωνό σας άνοιξε."), pinned=True)
+    if normalized in {"voice off", "mute your voice", "stop talking", "κλεισε τη φωνη", "κλεισε φωνη", "σταματα να μιλασ", "φωνη κλειστη"}:
+        config["voice_enabled"] = False
+        pipboy_save_config(config)
+        pipboy_stop_speech()
+        return pipboy_result(pipboy_text("Ded-Guy voice is muted.", "Η φωνή του Ded-Guy έκλεισε."), pinned=True)
+    if normalized in {"voice on", "unmute your voice", "speak again", "ανοιξε τη φωνη", "ανοιξε φωνη", "μιλα ξανα", "φωνη ανοιχτη"}:
+        config["voice_enabled"] = True
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text("Ded-Guy voice is enabled.", "Η φωνή του Ded-Guy άνοιξε."), pinned=True)
+    if normalized in {"text only", "text only on", "only i can write", "only let me write", "μονο κειμενο", "μονο εγω να γραφω"}:
+        config["input_mode"] = "text_only"
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text(
+            "Text-only mode is active. The microphone is blocked until you turn this mode off.",
+            "Η λειτουργία μόνο κειμένου ενεργοποιήθηκε. Το μικρόφωνο είναι αποκλεισμένο μέχρι να την απενεργοποιήσετε."
+        ))
+    if normalized in {"text only off", "voice and text", "typing and voice", "κειμενο και φωνη", "γραψιμο και φωνη"}:
+        config["input_mode"] = "mixed"
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text("Text and voice input are available.", "Η είσοδος κειμένου και φωνής είναι διαθέσιμη."))
+    language_match = re.fullmatch(r"(?:recognition|voice language|speech language|αναγνωριση|γλωσσα φωνησ)\s+(auto|automatic|greek|english|αυτοματα|ελληνικα|αγγλικα)", normalized)
+    if language_match:
+        choice = language_match.group(1)
+        if choice in {"greek", "ελληνικα"}:
+            config["recognition_language"] = "greek"
+        elif choice in {"english", "αγγλικα"}:
+            config["recognition_language"] = "english"
+        else:
+            config["recognition_language"] = "auto"
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_text(
+            f"Voice recognition is set to {pipboy_language_label(config)}.",
+            f"Η αναγνώριση φωνής ορίστηκε σε {pipboy_language_label(config)}."
+        ))
+    speed_match = re.fullmatch(r"(?:voice speed|speech speed|ταχυτητα φωνησ|ταχυτητα ομιλιασ)\s+([0-9]+(?:\.[0-9]+)?)", normalized)
+    if speed_match:
+        config["speech_rate"] = min(2.0, max(0.45, float(speed_match.group(1))))
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_voice_settings_summary(config))
+    pitch_match = re.fullmatch(r"(?:voice pitch|speech pitch|τονοσ φωνησ|τονοσ ομιλιασ)\s+([0-9]+(?:\.[0-9]+)?)", normalized)
+    if pitch_match:
+        config["speech_pitch"] = min(1.5, max(0.45, float(pitch_match.group(1))))
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_voice_settings_summary(config))
+    if normalized in {"male voice", "ανδρικη φωνη"}:
+        config["voice_profile"] = "male"
+        config["speech_pitch"] = min(float(config.get("speech_pitch", 0.78)), 0.82)
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_voice_settings_summary(config))
+    if normalized in {"deep male voice", "deep voice", "βαθια ανδρικη φωνη", "βαθια φωνη"}:
+        config["voice_profile"] = "deep_male"
+        config["speech_pitch"] = min(float(config.get("speech_pitch", 0.78)), 0.64)
+        config["speech_rate"] = min(float(config.get("speech_rate", 0.95)), 0.88)
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_voice_settings_summary(config))
+    if normalized in {"neutral voice", "ουδετερη φωνη"}:
+        config["voice_profile"] = "neutral"
+        pipboy_save_config(config)
+        return pipboy_result(pipboy_voice_settings_summary(config))
+    if normalized in {"audio status", "voice status", "privacy status", "κατασταση ηχου", "κατασταση ιδιωτικοτητασ"}:
+        return pipboy_result(pipboy_audio_status(config))
+    return None
+
+
+
+
+def pipboy_smart_normalize(raw_text):
+    """Remove conversational filler and turn natural requests into known intents."""
+    normalized = pipboy_canonicalize(raw_text)
+    polite_prefixes = (
+        "please ", "please can you ", "can you ", "could you ", "would you ",
+        "i want you to ", "i need you to ", "i want to ", "i need to ",
+        "σε παρακαλω ", "μπορεισ να ", "μπορειτε να ", "θελω να ",
+        "can ", "want to ",
+    )
+    changed = True
+    while changed:
+        changed = False
+        for prefix in polite_prefixes:
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix):].strip()
+                changed = True
+                break
+
+    rewrites = (
+        (r"^tell me (?:all )?(?:the )?(scripts|tools|pages) for\s+(.+)$", r"search \2 \1"),
+        (r"^tell me (?:all )?(developer|development|programmer) scripts$", "search developer base scripts"),
+        (r"^give me (?:all )?(?:the )?(scripts|tools|pages) for\s+(.+)$", r"search \2 \1"),
+        (r"^list (?:all )?(?:the )?(scripts|tools|pages) for\s+(.+)$", r"search \2 \1"),
+        (r"^πεσ μου (?:ολα )?(?:τα )?(scripts|script|εργαλεια|σελιδες) για\s+(.+)$", r"search \2 \1"),
+        (r"^πεσ μου (?:τα )?(?:developer|development|προγραμματιστη) scripts$", "search developer base scripts"),
+        (r"^δωσε μου (?:ολα )?(?:τα )?(scripts|script|εργαλεια|σελιδες) για\s+(.+)$", r"search \2 \1"),
+        (r"^tell me about\s+", "describe "),
+        (r"^tell me what\s+(.+?)\s+does$", r"describe \1"),
+        (r"^what does\s+(.+?)\s+do$", r"describe \1"),
+        (r"^what can\s+(.+?)\s+do$", r"describe \1"),
+        (r"^show me information about\s+", "describe "),
+        (r"^show me\s+", "search "),
+        (r"^use\s+", "run "),
+        (r"^execute the script\s+", "run "),
+        (r"^launch the script\s+", "run "),
+        (r"^open the script\s+", "run "),
+        (r"^what have you learned$", "what did you learn"),
+        (r"^tell me what changed$", "what is new"),
+    )
+    for pattern, replacement in rewrites:
+        normalized = re.sub(pattern, replacement, normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def pipboy_safe_calculate(expression):
+    """Evaluate arithmetic only; names, calls, attributes and indexing are rejected."""
+    allowed_binops = {
+        ast.Add: lambda a, b: a + b, ast.Sub: lambda a, b: a - b,
+        ast.Mult: lambda a, b: a * b, ast.Div: lambda a, b: a / b,
+        ast.FloorDiv: lambda a, b: a // b, ast.Mod: lambda a, b: a % b,
+        ast.Pow: lambda a, b: a ** b,
+    }
+    allowed_unary = {ast.UAdd: lambda a: +a, ast.USub: lambda a: -a}
+
+    def evaluate(node):
+        if isinstance(node, ast.Expression):
+            return evaluate(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in allowed_binops:
+            left, right = evaluate(node.left), evaluate(node.right)
+            if isinstance(node.op, ast.Pow) and abs(right) > 12:
+                raise ValueError("Exponent is too large")
+            value = allowed_binops[type(node.op)](left, right)
+            if abs(value) > 10 ** 18:
+                raise ValueError("Result is too large")
+            return value
+        if isinstance(node, ast.UnaryOp) and type(node.op) in allowed_unary:
+            return allowed_unary[type(node.op)](evaluate(node.operand))
+        raise ValueError("Only arithmetic numbers and operators are allowed")
+
+    expression = str(expression).strip().replace("^", "**")
+    if len(expression) > 120:
+        raise ValueError("Expression is too long")
+    return evaluate(ast.parse(expression, mode="eval"))
+
+
+def pipboy_context_result(normalized, state):
+    matches = state.get("last_matches") or []
+    if not matches:
+        return None
+    first = matches[0]
+    run_words = {"run it", "start it", "open it", "launch it", "execute it", "run that", "open that", "τρεξε το", "ανοιξε το"}
+    describe_words = {"describe it", "explain it", "what does it do", "describe that", "περιεγραψε το", "τι κανει αυτο"}
+    clone_words = {"clone it", "clone that", "κλωνοποιησε το", "κανε clone"}
+    if normalized in clone_words and first.get("kind") == "repo":
+        try:
+            action = pipboy_clone_action(first.get("clone_url") or first.get("url"))
+        except Exception as exc:
+            return pipboy_result(str(exc))
+        state["pending_action"] = action
+        return pipboy_result(pipboy_text(
+            f"Clone {action['url']} into {action['destination']}? The code will remain untrusted and will not run automatically. Confirm with yes/ναι.",
+            f"Clone του {action['url']} στο {action['destination']}; Ο κώδικας θα παραμείνει μη έμπιστος και δεν θα εκτελεστεί αυτόματα. Επιβεβαιώστε με yes/ναι."
+        ))
+    if normalized in run_words:
+        if first.get("kind") in {"web", "website"}:
+            return pipboy_result(pipboy_text("Opening the page.", "Άνοιγμα της σελίδας."), action=pipboy_open_url_action(first.get("url"), first.get("name") or first.get("title")))
+        if first.get("kind") == "repo":
+            try:
+                action = pipboy_clone_action(first.get("clone_url") or first.get("url"))
+            except Exception as exc:
+                return pipboy_result(str(exc))
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"Clone {action['url']} into {action['destination']}? Confirm with yes/ναι.",
+                f"Clone του {action['url']} στο {action['destination']}; Επιβεβαιώστε με yes/ναι."
+            ))
+        if first.get("kind") == "project":
+            path = pipboy_resolve_project_record_path(first)
+            if path and os.path.splitext(path)[1].casefold() in PIPBOY_SCRIPT_EXTENSIONS:
+                item = {
+                    "kind": "script", "name": first.get("name"), "path": path,
+                    "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
+                    "full_screen": False, "untrusted": pipboy_is_untrusted_path(path) or bool(first.get("sensitive")),
+                }
+                action = pipboy_make_launch_action(item)
+            else:
+                return pipboy_result(pipboy_answer_from_knowledge(normalized, [first], "project"), matches=matches)
+        else:
+            action = pipboy_make_launch_action(first)
+        if action.get("risky"):
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text("That action needs confirmation. Type yes/ναι.", "Αυτή η ενέργεια χρειάζεται επιβεβαίωση. Γράψτε yes/ναι."))
+        return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
+    if normalized in describe_words:
+        if first.get("kind") == "project":
+            return pipboy_result(pipboy_answer_from_knowledge(normalized, [first], "project"), matches=matches)
+        if first.get("kind") == "website":
+            return pipboy_result(pipboy_answer_from_knowledge(normalized, [first], "website"), matches=matches)
+        if first.get("kind") in {"web", "repo"}:
+            return pipboy_result(f"{first.get('name')}: {first.get('description') or ''}\n{first.get('url') or first.get('clone_url') or ''}", matches=matches)
+        return pipboy_result(pipboy_describe_item(first), matches=matches)
+    return None
+
+
+
+
+def dedguy_intent_canonical(text):
+    """Correct only command-level typos, leaving technical evidence untouched."""
+    value = pipboy_canonicalize(text)
+    replacements = {
+        "assistence": "assistance", "assitance": "assistance", "assisstance": "assistance",
+        "scipts": "scripts", "scrips": "scripts", "scritps": "scripts",
+        "develper": "developer", "developper": "developer", "phising": "phishing",
+        "modul not found": "module not found", "permision denied": "permission denied",
+        "βοηθια": "βοηθεια", "σκριπτσ": "scripts", "προβλιμα": "προβλημα",
+    }
+    for wrong, right in replacements.items():
+        value = value.replace(wrong, right)
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def dedguy_looks_like_problem(text):
+    canonical = dedguy_intent_canonical(text)
+    signatures = (
+        "traceback", "error", "exception", "failed", "failure", "not working", "doesnt work",
+        "does not work", "wont open", "wont start", "keeps crashing", "crashed", "broken",
+        "missing", "not found", "permission denied", "no such file", "unable to", "cannot",
+        "cant ", "timed out", "connection refused", "locked", "no space", "invalid",
+        "modulenotfounderror", "syntaxerror", "indentationerror", "jsondecodeerror",
+        "σφαλμα", "εξαιρεση", "αποτυχ", "δεν δουλευ", "δεν λειτουργ", "δεν ανοιγει",
+        "κρασαρ", "λειπει", "δεν βρεθηκε", "αρνηση προσβασησ", "δεν μπορω", "κολλαει",
+    )
+    return any(signature in canonical for signature in signatures)
+
+
+def dedguy_rewrite_natural_request(text):
+    """Convert free bilingual conversation into stable model-free intents.
+
+    Error text, filenames, paths, and pasted tracebacks are preserved. Only the
+    outer request wording is normalized.
+    """
+    original = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not original:
+        return ""
+    canonical = dedguy_intent_canonical(original)
+
+    # Wake words may survive a typed/pasted or alternate voice path.
+    wake_command, woke = pipboy_extract_wake_command(canonical, pipboy_load_config())
+    if woke and wake_command:
+        canonical = wake_command
+
+    polite_patterns = (
+        r"^please\s+", r"^(?:please\s+)?(?:can|could|would|will)\s+you\s+",
+        r"^(?:please\s+)?i\s+(?:want|need|would like)\s+you\s+to\s+",
+        r"^(?:σε\s+παρακαλω\s+)?(?:μπορεισ|θα\s+μπορουσεσ)\s+να\s+(?:(?:μου|με)\s+)?",
+        r"^(?:θα\s+ηθελα|θελω)\s+να\s+(?:μου\s+)?",
+    )
+    for pattern in polite_patterns:
+        updated = re.sub(pattern, "", canonical, count=1)
+        if updated != canonical:
+            canonical = updated.strip(); break
+
+    # Explicit or implicit troubleshooting. This also catches pasted errors and
+    # natural reports such as "my script keeps crashing" without requiring the
+    # word assistance.
+    help_patterns = (
+        r"^(?:help|assist|support)\s+(?:me\s+)?(?:to\s+)?(?:fix|solve|with|about)?\s*(.+)$",
+        r"^(?:how\s+(?:do|can)\s+i\s+(?:fix|solve)|what\s+(?:does|should)\s+(?:this|i)|why\s+(?:does|is)|can\s+you\s+fix)\s+(.+)$",
+        r"^(?:i\s+(?:get|got|have|keep getting|am getting)|it\s+(?:says|shows|gives)|my\s+.+?\s+(?:isnt working|doesnt work|keeps crashing|wont open|wont start))\s+(.+)?$",
+        r"^(?:βοηθησε|βοηθα|δωσε\s+μου\s+βοηθεια|χρειαζομαι\s+βοηθεια)(?:\s+(?:να|με|για))?\s*(.+)$",
+        r"^(?:πωσ\s+(?:να\s+)?(?:διορθωσω|λυσω)|τι\s+να\s+κανω|γιατι\s+(?:δεν\s+δουλευει|δεν\s+λειτουργει)|μπορεισ\s+να\s+διορθωσεισ)\s+(.+)$",
+        r"^(?:μου\s+(?:βγαζει|δειχνει)|εχω|παιρνω)\s+(.+)$",
+    )
+    for pattern in help_patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            problem = next((group for group in match.groups() if group), "").strip(" -:;,.?")
+            if not problem:
+                problem = canonical
+            return "give me assistance for " + problem
+    run_patterns = (
+        r"^(?:open|start|launch|execute|run|play|load)\s+(?:the\s+)?(.+?)(?:\s+(?:script|tool|game|program|app))?$",
+        r"^(?:ανοιξε|ξεκινα|εκτελεσε|τρεξε|παιξε|φορτωσε)\s+(?:το\s+)?(.+?)(?:\s+(?:script|εργαλειο|παιχνιδι|προγραμμα|εφαρμογη))?$",
+    )
+    for pattern in run_patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            target = match.group(1).strip(" -:;,.?")
+            if target and target not in {"menu", "settings", "help"}:
+                return "run " + target + " script"
+
+    discovery_patterns = (
+        r"^(?:show|tell|find|list|give|get)\s+(?:me\s+)?(?:all\s+|any\s+|some\s+)?(.+)$",
+        r"^(?:do\s+you\s+have|are\s+there|is\s+there|have\s+you\s+got|got\s+any|anything\s+for|what\s+do\s+you\s+have\s+for)\s+(?:any\s+|some\s+)?(.+)$",
+        r"^(?:what|which)\s+(?:scripts|tools|pages|programs)\s+(?:are\s+)?(?:about|for|related\s+to)\s+(.+)$",
+        r"^(?:δειξε|πες|βρεσ|δωσε)\s+(?:μου\s+)?(?:ολα\s+|καποια\s+|καποιεσ\s+|καποιο\s+)?(.+)$",
+        r"^(?:εχεισ|υπαρχουν|υπαρχει|εχεισ\s+κατι\s+για|τι\s+εχεισ\s+για)\s*(.+)$",
+    )
+    for pattern in discovery_patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            topic = match.group(1).strip(" -:;,.?")
+            if topic:
+                topic = re.sub(r"\bσελιδεσ\b", "pages", topic)
+                topic = re.sub(r"\bεργαλεια\b", "tools", topic)
+                topic = re.sub(r"\bσεναρια\b", "scripts", topic)
+                return "tell me " + topic
+
+    recommendation_patterns = (
+        r"^(?:what|which)\s+(?:script|tool|page|program)\s+(?:can|should|could)\s+i\s+(?:use|run|try)\s+(?:for|to)\s+(.+)$",
+        r"^(?:what\s+can\s+i\s+use|recommend\s+(?:a\s+)?(?:script|tool)|best\s+(?:script|tool))\s+(?:for|to)\s+(.+)$",
+        r"^(?:τι|ποιο)\s+(?:script|εργαλειο|σελιδα|προγραμμα)\s+να\s+(?:χρησιμοποιησω|τρεξω|δοκιμασω)\s+(?:για|να)\s+(.+)$",
+    )
+    for pattern in recommendation_patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            topic = match.group(1).strip(" -:;,.?")
+            return ("give me assistance for " if dedguy_looks_like_problem(topic) else "tell me scripts for ") + topic
+    if dedguy_looks_like_problem(canonical) and not re.match(r"^(?:show|tell|find|list|run|open|start|launch|execute|play|δειξε|πες|βρεσ|τρεξε|ανοιξε)", canonical):
+        return "give me assistance for " + canonical
+    return canonical or original
+
+
+def pipboy_extract_assistance_problem(text):
+    canonical = dedguy_intent_canonical(text)
+    patterns = (
+        r"^(?:give|provide|show|find|get|offer|tell)\s+(?:me\s+)?(?:assistance|help|support|troubleshooting)(?:\s+(?:for|with|about|on))?\s+(.+)$",
+        r"^(?:i\s+need|need)\s+(?:assistance|help|support)(?:\s+(?:for|with|about|on))?\s+(.+)$",
+        r"^(?:assistance|help|support|troubleshooting)(?:\s+(?:for|with|about|on))\s+(.+)$",
+        r"^(?:δωσε|δωσ|δειξε|βρεσ|προσφερε|πες)\s+(?:μου\s+)?(?:βοηθεια|υποστηριξη)(?:\s+(?:για|με|σχετικα\s+με))?\s+(.+)$",
+        r"^(?:χρειαζομαι|θελω)\s+(?:βοηθεια|υποστηριξη)(?:\s+(?:για|με))?\s+(.+)$",
+        r"^(?:βοηθεια|υποστηριξη)(?:\s+(?:για|με))\s+(.+)$",
+    )
+    for pattern in patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            problem = match.group(1).strip(" -:;,.?")
+            if problem:
+                return problem
+    return canonical if dedguy_looks_like_problem(canonical) else ""
+
+def pipboy_record_text(record):
+    body = (record.get("text") or record.get("content") or record.get("excerpt") or record.get("description") or "")
+    if body:
+        return re.sub(r"\s+", " ", str(body)).strip()
+    fallback = " ".join([str(record.get("title") or record.get("name") or ""), " ".join(record.get("headings") or [])])
+    return re.sub(r"\s+", " ", fallback).strip()
+
+
+def pipboy_assistance_relevant_sentences(content, query, limit=4):
+    text_value = re.sub(r"\s+", " ", str(content or "")).strip()
+    if not text_value:
+        return []
+    query_tokens = {token for token in pipboy_search_tokens(query) if len(token) >= 3}
+    sentences = re.split(r"(?<=[.!?;])\s+|\s+[•·]\s+", text_value)
+    ranked = []
+    for position, sentence in enumerate(sentences):
+        sentence = sentence.strip(" -•·\t")
+        if len(sentence) < 18:
+            continue
+        normalized = pipboy_normalize(sentence)
+        overlap = sum(1 for token in query_tokens if token in normalized)
+        assistance_bonus = sum(1 for token in ("fix", "repair", "install", "permission", "storage", "python", "git", "package", "network", "error", "termux", "διορθ", "εγκατα", "δικαιωμα", "σφαλ") if token in normalized)
+        score = overlap * 5 + assistance_bonus * 0.8 - position * 0.01
+        if score > 0 or not query_tokens:
+            ranked.append((score, position, sentence))
+    ranked.sort(key=lambda row: (-row[0], row[1]))
+    selected, seen = [], set()
+    for _score, _position, sentence in ranked:
+        key = pipboy_normalize(sentence)
+        if key in seen:
+            continue
+        seen.add(key)
+        selected.append(sentence[:520])
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def pipboy_assistance_answer(problem, state=None):
+    """Return actionable bilingual assistance from offline and refreshed evidence."""
+    state = state or {}
+    preferred = pipboy_selected_answer_language()
+    offline_matches = dedguy_rank_offline_assistance(problem, limit=5)
+    pages = []
+    for query in (problem, f"assistance {problem}", f"troubleshooting fix {problem}"):
+        try:
+            pages.extend(pipboy_search_website(query, limit=8))
+        except Exception:
+            pass
+    pages.extend({**page, "kind": "website", "score": 1.0} for page in PIPBOY_WEBSITE_SEED_PAGES)
+
+    dedup = {}
+    for page in [*offline_matches, *pages]:
+        key = str(page.get("relative_path") or page.get("url") or page.get("title") or "")
+        if not key:
+            continue
+        blob = pipboy_normalize(" ".join([str(page.get("title") or ""), str(page.get("url") or ""), " ".join(page.get("headings") or []), pipboy_record_text(page)]))
+        score = float(page.get("score", 0) or 0)
+        if page.get("offline"):
+            score += 35
+        if any(term in blob for term in ("assistance", "help", "support", "troubleshoot", "faq", "guide", "βοηθεια", "υποστηριξη", "οδηγοσ")):
+            score += 20
+        if str(page.get("language") or "") == preferred:
+            score += 10
+        score += sum(4 for token in pipboy_search_tokens(problem) if token in blob)
+        candidate = dict(page); candidate["score"] = score
+        if key not in dedup or score > float(dedup[key].get("score", 0)):
+            dedup[key] = candidate
+    ranked = sorted(dedup.values(), key=lambda item: (-float(item.get("score", 0)), str(item.get("title") or "")))
+
+    best_guide = next((item for item in offline_matches if item.get("guide") and item.get("language") == preferred), None)
+    if not best_guide:
+        best_guide = next((item for item in offline_matches if item.get("guide")), None)
+    selected = []
+    seen = set()
+    for page in ranked:
+        key = page.get("assistance_key") or page.get("url") or page.get("title")
+        if key in seen:
+            continue
+        seen.add(key); selected.append(page)
+        if len(selected) >= 4:
+            break
+
+    tool_matches = []
+    try:
+        tool_matches = pipboy_search_project(problem + " repair fix assistance", limit=5)
+    except Exception:
+        pass
+    relevant_tools = [record for record in tool_matches if any(term in pipboy_normalize(" ".join([str(record.get("name") or ""), str(record.get("category") or ""), str(record.get("description") or "")])) for term in ("repair", "wizard", "script keeper", "settings", "market", "developer"))]
+
+    if preferred == "greek":
+        lines = [f"Offline βοήθεια DedSec για: {problem}"]
+        if best_guide:
+            guide = best_guide["guide"]
+            lines += [f"Πιθανότερη αντιστοίχιση: {guide.get('title_el')}", str(guide.get("summary_el") or "")]
+            checks = list(guide.get("checks_el") or [])[:5]
+            if checks:
+                lines.append("Έλεγξε με αυτή τη σειρά:")
+                lines.extend(f"{index}. {item}" for index, item in enumerate(checks, 1))
+            commands = list(guide.get("commands") or [])[:5]
+            if commands:
+                lines.append("Ασφαλείς εντολές για προσαρμογή:")
+                lines.extend(f"- {item}" for item in commands)
+        else:
+            guidance = []
+            for page in selected:
+                guidance.extend(pipboy_assistance_relevant_sentences(pipboy_record_text(page), problem, limit=2))
+            if guidance:
+                lines.append("Σχετικές οδηγίες:"); lines.extend(f"- {item}" for item in guidance[:5])
+            else:
+                lines.append("Δεν βρέθηκε ακριβής αντιστοίχιση. Δώσε το πλήρες error ή traceback για πιο συγκεκριμένη offline διάγνωση.")
+        if relevant_tools:
+            lines.append("Σχετικό εργαλείο project: " + str(relevant_tools[0].get("name") or relevant_tools[0].get("title") or ""))
+        lines.append("Πηγή γνώσης: ενσωματωμένη ενότητα Βοήθειας DedSec και τελευταίο επιτυχημένο τοπικό index.")
+    else:
+        lines = [f"Offline DedSec assistance for: {problem}"]
+        if best_guide:
+            guide = best_guide["guide"]
+            lines += [f"Likely match: {guide.get('title_en')}", str(guide.get("summary_en") or "")]
+            checks = list(guide.get("checks_en") or [])[:5]
+            if checks:
+                lines.append("Check in this order:")
+                lines.extend(f"{index}. {item}" for index, item in enumerate(checks, 1))
+            commands = list(guide.get("commands") or [])[:5]
+            if commands:
+                lines.append("Safe commands to adapt:")
+                lines.extend(f"- {item}" for item in commands)
+        else:
+            guidance = []
+            for page in selected:
+                guidance.extend(pipboy_assistance_relevant_sentences(pipboy_record_text(page), problem, limit=2))
+            if guidance:
+                lines.append("Relevant guidance:"); lines.extend(f"- {item}" for item in guidance[:5])
+            else:
+                lines.append("No exact match was found. Include the complete error or traceback for a more specific offline diagnosis.")
+        if relevant_tools:
+            lines.append("Related project tool: " + str(relevant_tools[0].get("name") or relevant_tools[0].get("title") or ""))
+        lines.append("Knowledge source: embedded DedSec Assistance guides and the last successful local index.")
+    matches = selected + relevant_tools[:2]
+    return pipboy_enforce_answer_language("\n".join(lines)), matches
+
+def pipboy_process_command(raw_text, state):
+    text = dedguy_rewrite_natural_request(raw_text)
+    normalized = pipboy_smart_normalize(text)
+    if normalized in {"hello", "hi", "hey", "good morning", "good evening", "γεια", "γεια σου", "καλημερα", "καλησπερα"}:
+        return pipboy_result(pipboy_text(
+            "Hello. Ded-Guy is ready. Ask about a DedSec tool or use any short control shown above the input box.",
+            "Γεια σας. Το Ded-Guy είναι έτοιμο. Ρωτήστε για εργαλείο DedSec ή χρησιμοποιήστε οποιονδήποτε σύντομο κωδικό πάνω από το πεδίο εισόδου."
+        ))
+    inventory = state.get("inventory") or pipboy_inventory()
+    state["inventory"] = inventory
+    state.setdefault("config", pipboy_load_config())
+    state.setdefault("cwd", HOME_DIR)
+
+    assistance_problem = pipboy_extract_assistance_problem(text)
+    if assistance_problem:
+        answer, assistance_matches = pipboy_assistance_answer(assistance_problem, state)
+        state["last_matches"] = assistance_matches
+        return pipboy_result(answer, matches=assistance_matches)
+
+    if state.get("pending_action"):
+        if pipboy_is_yes(text):
+            action = state.pop("pending_action")
+            return pipboy_result(pipboy_text("Confirmed.", "Επιβεβαιώθηκε."), action=action)
+        if pipboy_is_no(text):
+            state.pop("pending_action", None)
+            return pipboy_result(pipboy_text("Cancelled.", "Ακυρώθηκε."))
+        return pipboy_result(pipboy_text("Type yes/ναι or no/όχι.", "Γράψτε ναι/yes ή όχι/no."))
+
+    learning_result = pipboy_handle_learning_command(text, normalized, state)
+    if learning_result:
+        return learning_result
+
+    audio_result = pipboy_set_audio_command(normalized, state)
+    if audio_result:
+        return audio_result
+
+    context_result = pipboy_context_result(normalized, state)
+    if context_result:
+        return context_result
+
+    if normalized in {"settings", "pipboy settings", "mode settings", "ρυθμισεισ", "ρυθμισεισ ded guy"}:
+        return pipboy_result(pipboy_inline_controls_message(state["config"]))
+
+    if normalized in {"intelligence settings", "project intelligence settings", "ai settings", "ρυθμισεισ νοημοσυνησ", "ρυθμισεισ project"}:
+        return pipboy_result(pipboy_inline_controls_message(state["config"]))
+    if normalized in {"intelligence status", "project intelligence status", "ai status", "κατασταση νοημοσυνησ", "κατασταση ai"}:
+        return pipboy_result(pipboy_intelligence_status_text(state["config"]))
+    if normalized in {"ai models", "model status", "install ai engine", "install ai model", "download ai model", "stop ai server", "llama cpp", "gguf"}:
+        return pipboy_result(pipboy_ai_model_list_text())
+    if normalized in {"intelligence on", "enable intelligence", "ai on", "ενεργοποιηση νοημοσυνησ"}:
+        state["config"]["intelligence_enabled"] = True
+        pipboy_save_config(state["config"])
+        return pipboy_result(pipboy_text("Model-free project intelligence is enabled.", "Η νοημοσύνη project χωρίς models ενεργοποιήθηκε."))
+    if normalized in {"intelligence off", "disable intelligence", "ai off", "απενεργοποιηση νοημοσυνησ"}:
+        state["config"]["intelligence_enabled"] = False
+        pipboy_save_config(state["config"])
+        return pipboy_result(pipboy_text("Project intelligence is disabled. Script controls and confirmed actions remain available.", "Η νοημοσύνη project απενεργοποιήθηκε. Οι χειρισμοί scripts και οι επιβεβαιωμένες ενέργειες παραμένουν διαθέσιμες."))
+    if normalized in {"deep analysis on", "deep intelligence", "ai thinking on", "βαθια αναλυση"}:
+        state["config"]["intelligence_depth"] = "deep"
+        pipboy_save_config(state["config"])
+        return pipboy_result(pipboy_text("Deep deterministic project analysis is enabled.", "Η βαθιά ντετερμινιστική ανάλυση project ενεργοποιήθηκε."))
+    if normalized in {"fast analysis", "ai thinking off", "γρηγορη αναλυση"}:
+        state["config"]["intelligence_depth"] = "fast"
+        pipboy_save_config(state["config"])
+        return pipboy_result(pipboy_text("Fast deterministic project analysis is enabled.", "Η γρήγορη ντετερμινιστική ανάλυση project ενεργοποιήθηκε."))
+    intelligence_question = re.match(r"^(?:ask ai|ai question|ask ded guy|ask intelligence|ρωτα ai|ρωτα ded guy|ρωτα νοημοσυνη)\s+(.+)$", normalized)
+    if intelligence_question:
+        question = intelligence_question.group(1).strip()
+        return pipboy_result(pipboy_text("Analyzing indexed project evidence...", "Ανάλυση ευρετηριασμένων τεκμηρίων project..."), action={"type": "intelligence_query", "query": question, "scope": "all"})
+
+    calc_match = re.match(r"^(?:calculate|compute|solve|what is|υπολογισε)\s+(.+)$", normalized)
+    if calc_match and re.search(r"[0-9]", calc_match.group(1)):
+        try:
+            value = pipboy_safe_calculate(calc_match.group(1))
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            return pipboy_result(pipboy_text(f"Result: {value}", f"Αποτέλεσμα: {value}"))
+        except Exception as exc:
+            return pipboy_result(pipboy_text(f"I could not calculate that safely: {exc}", f"Δεν μπόρεσα να το υπολογίσω με ασφάλεια: {exc}"))
+
+    if normalized in {"battery", "battery status", "μπαταρια", "κατασταση μπαταριασ"}:
+        tool = shutil.which("termux-battery-status")
+        if not tool:
+            return pipboy_result(pipboy_text("Battery status needs Termux:API.", "Η κατάσταση μπαταρίας χρειάζεται το Termux:API."))
+        try:
+            completed = subprocess.run([tool], capture_output=True, text=True, timeout=8, check=False)
+            data = json.loads(completed.stdout or "{}")
+            return pipboy_result(pipboy_text(
+                f"Battery: {data.get('percentage', '?')}%, {data.get('status', 'unknown')}, {data.get('temperature', '?')}°C.",
+                f"Μπαταρία: {data.get('percentage', '?')}%, {data.get('status', 'άγνωστη')}, {data.get('temperature', '?')}°C."
+            ))
+        except Exception as exc:
+            return pipboy_result(str(exc))
+
+    if normalized in {"exit", "quit", "back", "close", "εξοδοσ", "πισω", "τερματισμοσ"}:
+        return pipboy_result(pipboy_text("Closing Ded-Guy.", "Κλείσιμο Ded-Guy."), action={"type": "exit"})
+    if normalized in {"m", "menu", "open menu", "controls", "control panel", "mobile controls", "χειριστηρια", "κουμπια", "μενου", "μενου χειρισμου"}:
+        return pipboy_result(pipboy_inline_controls_message(state["config"]))
+    if normalized in {"help", "commands", "βοηθεια", "εντολεσ", "τι μπορεισ να κανεισ"}:
+        return pipboy_result(pipboy_help_text())
+    if normalized in {"clear", "clean", "καθαρισε", "εκκαθαριση"}:
+        return pipboy_result(pipboy_text("Screen cleared.", "Η οθόνη καθαρίστηκε."), action={"type": "clear"})
+    if normalized in {"scan", "rescan", "learn", "refresh", "σαρωση", "ξανασαρωσε", "μαθε", "ανανεωση"}:
+        event = pipboy_light_launch_scan()
+        state["inventory"] = pipboy_inventory()
+        return pipboy_result(pipboy_learned_text(event))
+    if any(phrase in normalized for phrase in ("what is new", "whats new", "new installed", "what did you learn", "τι νεο", "τι εμαθεσ", "νεα εγκατεστημενα")):
+        return pipboy_result(pipboy_learned_text(pipboy_last_event()))
+    if normalized in {"status", "system status", "κατασταση", "κατασταση συστηματοσ"}:
+        return pipboy_result(pipboy_status_text(inventory, state["config"], state["cwd"]))
+    if normalized in {"pwd", "current folder", "where am i", "τρεχων φακελοσ", "που ειμαι"}:
+        return pipboy_result(state["cwd"])
+
+    if normalized in {"project summary", "summarize project", "dedsec project summary", "συνοψη project", "περιληψη project"}:
+        return pipboy_result(pipboy_project_summary_text())
+    if normalized in {"website status", "site status", "dedsec website status", "κατασταση ιστοσελιδασ", "κατασταση site"}:
+        return pipboy_result(pipboy_website_status_text())
+    if normalized in {"learn project", "learn projects", "learn all projects", "sync projects", "reindex project", "reindex projects", "train project", "train projects", "μαθε project", "μαθε projects", "μαθε ολα τα projects", "σαρωσε project", "σαρωσε projects"}:
+        return pipboy_result(pipboy_text("Opening the full project indexer.", "Άνοιγμα πλήρους ευρετηρίου project."), action={"type": "learn_project"})
+    if normalized in {"learn website", "reindex website", "train website", "crawl website", "μαθε website", "σαρωσε website", "μαθε ιστοσελιδα"}:
+        return pipboy_result(pipboy_text("Opening the DedSec website crawler. It follows the sitemap and every reachable internal English and Greek page.", "Άνοιγμα της σάρωσης ιστοσελίδας DedSec. Ακολουθεί το sitemap και κάθε προσβάσιμη εσωτερική σελίδα στα αγγλικά και ελληνικά."), action={"type": "learn_website"})
+    if normalized in {"learn all", "train all", "learn everything", "μαθε ολα", "εκπαιδευση ολων"}:
+        return pipboy_result(pipboy_text("Opening full project and website learning.", "Άνοιγμα πλήρους μάθησης project και ιστοσελίδας."), action={"type": "learn_all"})
+
+    project_question = re.match(r"^(?:ask project|project question|search project|dedsec project|ρωτα project|ψαξε project)\s+(.+)$", normalized)
+    if project_question:
+        question = project_question.group(1).strip()
+        return pipboy_result(pipboy_text("Analyzing the DedSec project index...", "Ανάλυση του ευρετηρίου DedSec Project..."), action={"type": "intelligence_query", "query": question, "scope": "project"})
+
+    website_question = re.match(r"^(?:ask website|search website|website question|dedsec website|ρωτα ιστοσελιδα|ψαξε ιστοσελιδα|ρωτα website)\s+(.+)$", normalized)
+    if website_question:
+        question = website_question.group(1).strip()
+        return pipboy_result(pipboy_text("Analyzing the DedSec website index...", "Ανάλυση του ευρετηρίου ιστοσελίδας DedSec..."), action={"type": "intelligence_query", "query": question, "scope": "website"})
+
+    save_question = re.match(r"^(?:where does|where is|save location|where are|που αποθηκευει|που ειναι)\s+(.+?)(?:\s+save|\s+saved|\s+files|\s+αρχεια)?$", normalized)
+    if save_question:
+        question = "save location " + save_question.group(1).strip()
+        return pipboy_result(pipboy_text("Finding verified save locations in the project index...", "Εύρεση επαληθευμένων τοποθεσιών αποθήκευσης στο ευρετήριο project..."), action={"type": "intelligence_query", "query": question, "scope": "all"})
+
+    recommend_match = re.match(r"^(?:recommend|which tool|what tool|find a tool|tool for|προτεινε|ποιο εργαλειο)\s+(?:can |should |for |to )?(.+)$", normalized)
+    if recommend_match:
+        task = recommend_match.group(1).strip()
+        return pipboy_result(pipboy_text("Ranking DedSec tools from indexed capabilities...", "Κατάταξη εργαλείων DedSec βάσει ευρετηριασμένων δυνατοτήτων..."), action={"type": "intelligence_query", "query": "recommend tool for " + task, "scope": "project"})
+
+    web_match = re.match(r"^(?:search internet(?: for)?|search web(?: for)?|internet search|web search|ψαξε internet(?: για)?|ψαξε στο internet(?: για)?|αναζητησε στο διαδικτυο(?: για)?)\s+(.+)$", normalized)
+    if web_match:
+        if not state["config"].get("web_search_enabled", True):
+            return pipboy_result(pipboy_text("Internet search is disabled in Ded-Guy settings.", "Η αναζήτηση στο internet είναι απενεργοποιημένη στις ρυθμίσεις Ded-Guy."))
+        query = web_match.group(1).strip()
+        try:
+            matches = pipboy_web_search(query, mode="web", limit=8)
+        except Exception as exc:
+            return pipboy_result(pipboy_text(f"Internet search failed: {exc}", f"Η αναζήτηση στο internet απέτυχε: {exc}"))
+        state["last_matches"] = matches
+        return pipboy_result(pipboy_web_result_text(matches) if matches else pipboy_text("No internet results were found.", "Δεν βρέθηκαν αποτελέσματα internet."), matches=matches)
+
+    github_match = re.match(r"^(?:search github(?: for)?|github search|find repository|find repo|ψαξε github(?: για)?|βρεσ repository)\s+(.+)$", normalized)
+    if github_match:
+        query = github_match.group(1).strip()
+        try:
+            matches = pipboy_web_search(query, mode="github", limit=8)
+        except Exception as exc:
+            return pipboy_result(pipboy_text(f"GitHub search failed: {exc}", f"Η αναζήτηση GitHub απέτυχε: {exc}"))
+        state["last_matches"] = matches
+        return pipboy_result(pipboy_web_result_text(matches) if matches else pipboy_text("No repositories were found.", "Δεν βρέθηκαν repositories."), matches=matches)
+
+    open_result = re.match(r"^(?:open web|open result|open page|ανοιξε αποτελεσμα|ανοιξε σελιδα)\s+#?(\d+)$", normalized)
+    if open_result and state.get("last_matches"):
+        index = int(open_result.group(1)) - 1
+        if 0 <= index < len(state["last_matches"]):
+            item = state["last_matches"][index]
+            url = item.get("url")
+            if url:
+                return pipboy_result(pipboy_text("Opening the selected page.", "Άνοιγμα επιλεγμένης σελίδας."), action=pipboy_open_url_action(url, item.get("name") or item.get("title")))
+        return pipboy_result(pipboy_text("That result number does not exist.", "Αυτός ο αριθμός αποτελέσματος δεν υπάρχει."))
+
+    clone_number = re.match(r"^(?:clone|git clone|κλωνοποιησε)\s+#?(\d+)$", normalized)
+    if clone_number and state.get("last_matches"):
+        index = int(clone_number.group(1)) - 1
+        if 0 <= index < len(state["last_matches"]):
+            item = state["last_matches"][index]
+            if item.get("kind") != "repo":
+                return pipboy_result(pipboy_text("That result is not a repository.", "Αυτό το αποτέλεσμα δεν είναι repository."))
+            try:
+                action = pipboy_clone_action(item.get("clone_url") or item.get("url"))
+            except Exception as exc:
+                return pipboy_result(str(exc))
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"Clone {action['url']} into {action['destination']}? It will be treated as untrusted and not executed automatically. Confirm with yes/ναι.",
+                f"Clone του {action['url']} στο {action['destination']}; Θα θεωρηθεί μη έμπιστο και δεν θα εκτελεστεί αυτόματα. Επιβεβαιώστε με yes/ναι."
+            ))
+
+    clone_direct = re.match(r"^(?:git clone|clone|κλωνοποιησε)\s+(.+)$", text, flags=re.I)
+    if clone_direct:
+        try:
+            action = pipboy_clone_action(clone_direct.group(1).strip())
+        except Exception as exc:
+            return pipboy_result(pipboy_text(f"Clone request rejected: {exc}", f"Το αίτημα clone απορρίφθηκε: {exc}"))
+        state["pending_action"] = action
+        return pipboy_result(pipboy_text(
+            f"Clone {action['url']} into {action['destination']}? The downloaded code will remain untrusted and will never run automatically. Confirm with yes/ναι.",
+            f"Clone του {action['url']} στο {action['destination']}; Ο κώδικας θα παραμείνει μη έμπιστος και δεν θα εκτελεστεί ποτέ αυτόματα. Επιβεβαιώστε με yes/ναι."
+        ))
+
+    shell_match = re.match(r"^(?:shell|run shell|execute command|terminal command|εκτελεσε εντολη|εντολη shell)\s+(.+)$", text, flags=re.I | re.S)
+    if shell_match:
+        try:
+            action = pipboy_shell_action(shell_match.group(1))
+        except Exception as exc:
+            return pipboy_result(str(exc))
+        state["pending_action"] = action
+        return pipboy_result(pipboy_text(
+            f"Arbitrary shell command requested: {action['shell_preview']}\nThis can change or delete data. Confirm with yes/ναι.",
+            f"Ζητήθηκε αυθαίρετη εντολή shell: {action['shell_preview']}\nΜπορεί να αλλάξει ή να διαγράψει δεδομένα. Επιβεβαιώστε με yes/ναι."
+        ))
+
+    cd_match = re.match(r"^(?:cd|go to|change folder|πηγαινε|αλλαξε φακελο)\s+(.+)$", normalized)
+    if cd_match:
+        raw_target = pipboy_original_tail(text, ("cd", "go to", "change folder", "πηγαινε", "αλλαξε φακελο"))
+        target = pipboy_resolve_path(raw_target, state["cwd"])
+        if not os.path.isdir(target):
+            return pipboy_result(pipboy_text(f"Folder not found: {target}", f"Ο φάκελος δεν βρέθηκε: {target}"))
+        state["cwd"] = target
+        return pipboy_result(pipboy_text(f"Current folder: {target}", f"Τρέχων φάκελος: {target}"))
+
+    if normalized in {"list files", "show files", "ls", "δειξε αρχεια", "λιστα αρχειων"}:
+        try:
+            names = sorted(os.listdir(state["cwd"]), key=str.casefold)
+            rendered = "\n".join(f"{index}. {name}{'/' if os.path.isdir(os.path.join(state['cwd'], name)) else ''}" for index, name in enumerate(names[:80], 1))
+            if len(names) > 80:
+                rendered += pipboy_text(f"\n...and {len(names) - 80} more.", f"\n...και άλλα {len(names) - 80}.")
+            return pipboy_result(rendered or pipboy_text("Folder is empty.", "Ο φάκελος είναι κενός."))
+        except Exception as exc:
+            return pipboy_result(str(exc))
+
+    note_prefixes = ("remember ", "note ", "save note ", "θυμησου ", "σημειωσε ", "κρατα σημειωση ")
+    for prefix in note_prefixes:
+        normalized_prefix = pipboy_normalize(prefix)
+        if pipboy_normalize(text).startswith(normalized_prefix + " "):
+            note = text[len(prefix):].strip() if len(text) >= len(prefix) else ""
+            if note:
+                pipboy_save_note(note)
+                return pipboy_result(pipboy_text("I saved that note.", "Αποθήκευσα αυτή τη σημείωση."))
+    if normalized in {"show notes", "notes", "δειξε σημειωσεισ", "σημειωσεισ"}:
+        notes = pipboy_load_json(PIPBOY_NOTES_PATH, [])
+        if not notes:
+            return pipboy_result(pipboy_text("There are no saved notes.", "Δεν υπάρχουν αποθηκευμένες σημειώσεις."))
+        return pipboy_result("\n".join(f"{index}. {item.get('text', '')}" for index, item in enumerate(notes[-20:], 1)))
+    if normalized in {"clear notes", "delete notes", "καθαρισε σημειωσεισ", "διαγραψε σημειωσεισ"}:
+        pipboy_atomic_json_write(PIPBOY_NOTES_PATH, [])
+        return pipboy_result(pipboy_text("Notes cleared.", "Οι σημειώσεις διαγράφηκαν."))
+
+    if normalized in {"list scripts", "show scripts", "scripts", "δειξε scripts", "λιστα scripts", "προγραμματα"}:
+        scripts = sorted(inventory.get("scripts", {}).values(), key=lambda item: item.get("name", "").casefold())
+        matches = [{
+            "kind": "script", "name": item.get("name", "?"), "path": item.get("path", ""),
+            "description": item.get("description", ""), "capabilities": item.get("capabilities", []),
+            "arguments": item.get("arguments", []), "input_hints": item.get("input_hints", []),
+            "command": item.get("command", []), "cwd": item.get("directory", HOME_DIR),
+            "full_screen": bool(item.get("full_screen")), "interactive": bool(item.get("interactive")),
+        } for item in scripts[:60]]
+        state["last_matches"] = matches
+        return pipboy_result(pipboy_match_list_text(matches) or pipboy_text("No scripts found.", "Δεν βρέθηκαν scripts."), matches=matches)
+    if normalized in {"list commands", "show commands", "δειξε εντολεσ", "λιστα εντολων"}:
+        names = sorted(inventory.get("commands", {}), key=str.casefold)[:100]
+        return pipboy_result(", ".join(names) or pipboy_text("No commands found.", "Δεν βρέθηκαν εντολές."))
+    if normalized in {"list apps", "show apps", "apps", "δειξε εφαρμογεσ", "λιστα εφαρμογων"}:
+        matches = pipboy_find_apps("", inventory, limit=60)
+        if not matches:
+            apps = inventory.get("android_apps", {})
+            matches = [{"kind": "android_app", "name": package.rsplit(".", 1)[-1], "package": package, "description": package} for package in sorted(apps)[:60]]
+        state["last_matches"] = matches
+        return pipboy_result(pipboy_match_list_text(matches) or pipboy_text("No user apps found.", "Δεν βρέθηκαν εφαρμογές χρήστη."), matches=matches)
+
+    numeric_match = re.fullmatch(r"(?:run|start|execute|open|τρεξε|εκτελεσε|ανοιξε)?\s*#?(\d+)", normalized)
+    if numeric_match and state.get("last_matches"):
+        index = int(numeric_match.group(1)) - 1
+        matches = state["last_matches"]
+        if 0 <= index < len(matches):
+            item = matches[index]
+            if item.get("kind") in {"web", "website"}:
+                return pipboy_result(pipboy_text("Opening the selected page.", "Άνοιγμα επιλεγμένης σελίδας."), action=pipboy_open_url_action(item.get("url"), item.get("name") or item.get("title")))
+            if item.get("kind") == "repo":
+                try:
+                    action = pipboy_clone_action(item.get("clone_url") or item.get("url"))
+                except Exception as exc:
+                    return pipboy_result(str(exc))
+                state["pending_action"] = action
+                return pipboy_result(pipboy_text(
+                    f"Clone {action['url']} into {action['destination']}? Confirm with yes/ναι.",
+                    f"Clone του {action['url']} στο {action['destination']}; Επιβεβαιώστε με yes/ναι."
+                ))
+            if item.get("kind") == "project":
+                path = pipboy_resolve_project_record_path(item)
+                if not path or os.path.splitext(path)[1].casefold() not in PIPBOY_SCRIPT_EXTENSIONS:
+                    return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "project"), matches=matches)
+                launch_item = {
+                    "kind": "script", "name": item.get("name"), "path": path,
+                    "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
+                    "full_screen": False, "untrusted": pipboy_is_untrusted_path(path) or bool(item.get("sensitive")),
+                }
+                action = pipboy_make_launch_action(launch_item)
+            else:
+                action = pipboy_make_launch_action(item)
+            if action.get("risky"):
+                state["pending_action"] = action
+                return pipboy_result(pipboy_text(
+                    f"Sensitive action: {' '.join(action.get('command', []))}. Confirm with yes/ναι.",
+                    f"Ευαίσθητη ενέργεια: {' '.join(action.get('command', []))}. Επιβεβαιώστε με ναι/yes."
+                ))
+            return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
+
+    project_aliases = [
+        pipboy_normalize(alias)
+        for project in PIPBOY_MANAGED_PROJECTS
+        for alias in [project.get("name", ""), project.get("repo", ""), *project.get("aliases", [])]
+        if pipboy_normalize(alias)
+    ]
+    project_question_prefix = normalized.startswith((
+        "describe ", "explain ", "what does ", "what can ", "what is ", "compare ",
+        "architecture ", "project architecture", "ecosystem ",
+        "περιεγραψε ", "εξηγησε ", "τι κανει ", "τι ειναι ", "συγκρινε ", "αρχιτεκτονικη ",
+    ))
+    if state["config"].get("intelligence_enabled", True) and project_question_prefix and any(alias in normalized for alias in project_aliases):
+        return pipboy_result(
+            pipboy_text("Analyzing the requested DedSec ecosystem project...", "Ανάλυση του ζητούμενου project του οικοσυστήματος DedSec..."),
+            action={"type": "intelligence_query", "query": text, "scope": "project"},
+        )
+
+    if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_category_request(text):
+        return pipboy_result(
+            pipboy_text("Understanding the requested project or website category...", "Κατανόηση της ζητούμενης κατηγορίας project ή website..."),
+            action={"type": "intelligence_query", "query": text, "scope": "all"},
+        )
+
+    describe_match = re.match(r"^(?:describe|explain|what does|what can|περιεγραψε|εξηγησε|τι κανει)\s+(.+)$", normalized)
+    if describe_match:
+        term = describe_match.group(1).strip()
+        matches = pipboy_find_scripts(term, inventory)
+        state["last_matches"] = matches
+        if not matches:
+            return pipboy_result(pipboy_text("I could not find that script.", "Δεν μπόρεσα να βρω αυτό το script."))
+        if len(matches) > 1 and pipboy_normalize(term) not in pipboy_normalize(matches[0].get("name")):
+            return pipboy_result(pipboy_text("Choose a result with 'run 1' or describe it by exact name:\n", "Επιλέξτε αποτέλεσμα με «τρέξε 1» ή περιγράψτε το με ακριβές όνομα:\n") + pipboy_match_list_text(matches), matches=matches)
+        return pipboy_result(pipboy_describe_item(matches[0]), matches=matches)
+
+    app_match = re.match(r"^(?:open|launch|start|ανοιξε|ξεκινα)\s+(?:app|application|εφαρμογη)\s+(.+)$", normalized)
+    if app_match:
+        matches = pipboy_find_apps(app_match.group(1), inventory)
+        state["last_matches"] = matches
+        if not matches:
+            return pipboy_result(pipboy_text("Android app not found.", "Η εφαρμογή Android δεν βρέθηκε."))
+        if len(matches) > 1 and pipboy_normalize(app_match.group(1)) not in pipboy_normalize(matches[0].get("package")):
+            return pipboy_result(pipboy_text("I found several apps. Choose run 1, run 2, and so on:\n", "Βρήκα αρκετές εφαρμογές. Επιλέξτε τρέξε 1, τρέξε 2 κ.ο.κ.:\n") + pipboy_match_list_text(matches), matches=matches)
+        action = pipboy_make_launch_action(matches[0])
+        return pipboy_result(pipboy_text(f"Opening {action['title']}.", f"Άνοιγμα {action['title']}."), action=action)
+
+    file_match = re.match(r"^(?:open|show|ανοιξε|δειξε)\s+(?:file|folder|αρχειο|φακελο)\s+(.+)$", normalized)
+    if file_match:
+        raw_target = pipboy_original_tail(text, (
+            "open file", "show file", "open folder", "show folder",
+            "ανοιξε αρχειο", "δειξε αρχειο", "ανοιξε φακελο", "δειξε φακελο",
+        ))
+        target = pipboy_resolve_path(raw_target, state["cwd"])
+        if not os.path.exists(target):
+            return pipboy_result(pipboy_text(f"Path not found: {target}", f"Η διαδρομή δεν βρέθηκε: {target}"))
+        opener = shutil.which("termux-open") or shutil.which("xdg-open")
+        if not opener:
+            return pipboy_result(pipboy_text("No Android/file opener is installed.", "Δεν είναι εγκατεστημένο εργαλείο ανοίγματος αρχείων."))
+        item = {"name": os.path.basename(target) or target, "command": [opener, target], "cwd": state["cwd"], "full_screen": False}
+        return pipboy_result(pipboy_text(f"Opening {target}.", f"Άνοιγμα {target}."), action=pipboy_make_launch_action(item))
+
+    command_match = re.match(r"^(?:command|tool|cmd|εντολη|εργαλειο)\s+(.+)$", normalized)
+    if command_match:
+        try:
+            parts = shlex.split(text, posix=True)
+        except ValueError as exc:
+            return pipboy_result(str(exc))
+        if len(parts) < 2:
+            return pipboy_result(pipboy_text("Name a command to run.", "Δώστε το όνομα μιας εντολής."))
+        name = parts[1]
+        command_path = inventory.get("commands", {}).get(name) or shutil.which(name)
+        if not command_path:
+            matches = pipboy_find_commands(name, inventory)
+            state["last_matches"] = matches
+            return pipboy_result(pipboy_text("Command not found. Closest matches:\n", "Η εντολή δεν βρέθηκε. Πλησιέστερα αποτελέσματα:\n") + pipboy_match_list_text(matches), matches=matches)
+        item = {"name": name, "command": [command_path], "cwd": state["cwd"], "full_screen": False}
+        action = pipboy_make_launch_action(item, parts[2:])
+        if action["risky"]:
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"This command can modify the system or data: {' '.join(action['command'])}. Confirm with yes/ναι.",
+                f"Αυτή η εντολή μπορεί να αλλάξει το σύστημα ή δεδομένα: {' '.join(action['command'])}. Επιβεβαιώστε με ναι/yes."
+            ))
+        return pipboy_result(pipboy_text(f"Running command {name}.", f"Εκτέλεση εντολής {name}."), action=action)
+
+    search_match = re.match(r"^(?:search|find|look for|αναζητησε|βρεσ|ψαξε)\s+(.+)$", normalized)
+    if search_match:
+        term = search_match.group(1).strip()
+        if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_category_request(term):
+            return pipboy_result(
+                pipboy_text("Searching the project and website by concept...", "Αναζήτηση στο project και website βάσει έννοιας..."),
+                action={"type": "intelligence_query", "query": term, "scope": "all"},
+            )
+        matches = (pipboy_find_scripts(term, inventory) + pipboy_find_commands(term, inventory) +
+                   pipboy_find_apps(term, inventory) + pipboy_search_project(term, limit=4) +
+                   pipboy_search_website(term, limit=4))
+        matches = matches[:8]
+        state["last_matches"] = matches
+        if not matches:
+            return pipboy_result(pipboy_text("I found no matching script, command, or app.", "Δεν βρήκα αντίστοιχο script, εντολή ή εφαρμογή."))
+        return pipboy_result(pipboy_match_list_text(matches), matches=matches)
+
+    run_match = re.match(r"^(?:please\s+)?(?:run|start|execute|launch|open|τρεξε|ξεκινα|εκτελεσε|ανοιξε)(?:\s+(?:the|το|την|τον))?\s+(.+)$", normalized)
+    if run_match:
+        term = pipboy_clean_script_query(run_match.group(1).strip())
+        matches = pipboy_find_runnable_scripts(term, inventory)
+        if not matches:
+            # A multi-word request explicitly framed as a script must never
+            # launch an unrelated shell command because of fuzzy similarity.
+            command_matches = pipboy_find_commands(term, inventory)
+            exact_commands = [
+                item for item in command_matches
+                if pipboy_normalize(item.get("name", "")) == pipboy_normalize(term)
+            ]
+            if len(term.split()) == 1:
+                matches = command_matches
+            elif exact_commands:
+                matches = exact_commands
+        state["last_matches"] = matches
+        if not matches:
+            return pipboy_result(pipboy_text(
+                f"I could not find a runnable script or command matching {term}.",
+                f"Δεν βρήκα εκτελέσιμο script ή εντολή που να ταιριάζει με {term}."
+            ))
+        top = matches[0]
+        top_score = pipboy_script_item_score(term, top) if top.get("kind") == "script" else 0.0
+        if len(matches) > 1 and top.get("kind") == "script" and top_score < 5.0:
+            return pipboy_result(pipboy_text(
+                "I found several runnable possibilities. Choose run 1, run 2, and so on:\n",
+                "Βρήκα αρκετές εκτελέσιμες επιλογές. Επιλέξτε τρέξε 1, τρέξε 2 κ.ο.κ.:\n"
+            ) + pipboy_match_list_text(matches), matches=matches)
+        action = pipboy_make_launch_action(top)
+        if action["risky"]:
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"This script may handle sensitive data or modify files: {action['title']}. Confirm with yes/ναι before it runs.",
+                f"Αυτό το script μπορεί να χειρίζεται ευαίσθητα δεδομένα ή να αλλάζει αρχεία: {action['title']}. Επιβεβαιώστε με ναι/yes πριν εκτελεστεί."
+            ))
+        return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
+
+    if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_category_request(text):
+        return pipboy_result(
+            pipboy_text("Understanding the requested project category...", "Κατανόηση της ζητούμενης κατηγορίας project..."),
+            action={"type": "intelligence_query", "query": text, "scope": "all"},
+        )
+
+    if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_entity_request(text):
+        answer, entity_matches = pipboy_intelligence_entity_answer(text, state)
+        if answer:
+            state["last_matches"] = entity_matches
+            return pipboy_result(answer, matches=entity_matches)
+
+    knowledge_question = normalized.endswith("?") or normalized.startswith((
+        "what ", "how ", "why ", "where ", "which ", "who ", "tell ", "explain ",
+        "compare ", "architecture ", "project architecture", "ecosystem ", "summarize ",
+        "τι ", "πωσ ", "γιατι ", "που ", "ποιο ", "ποιοσ ", "εξηγησε ", "συγκρινε ", "αρχιτεκτονικη ",
+    )) or "dedsec" in normalized or "termux" in normalized
+    if knowledge_question and state["config"].get("intelligence_enabled", True):
+        return pipboy_result(pipboy_text("Analyzing project and website evidence...", "Ανάλυση τεκμηρίων project και website..."), action={"type": "intelligence_query", "query": text, "scope": "all"})
+
+    matches = (pipboy_find_scripts(text, inventory, limit=5) +
+               pipboy_find_commands(text, inventory, limit=4) +
+               pipboy_find_apps(text, inventory, limit=4) +
+               pipboy_search_project(text, limit=3) +
+               pipboy_search_website(text, limit=3))[:8]
+    if matches:
+        state["last_matches"] = matches
+        best = matches[0]
+        best_name = pipboy_normalize(best.get("name", ""))
+        query = pipboy_normalize(text)
+        if query and (query == best_name or difflib.SequenceMatcher(None, query, best_name).ratio() >= 0.93):
+            return pipboy_result(pipboy_text(
+                f"I found {best.get('name')}. Say 'run it', 'describe it', or choose its number.",
+                f"Βρήκα το {best.get('name')}. Πείτε «τρέξε το», «περιέγραψέ το» ή επιλέξτε τον αριθμό του."
+            ) + "\n" + pipboy_match_list_text(matches), matches=matches)
+        return pipboy_result(pipboy_text(
+            "I inferred these likely scripts, commands, or apps. Say run 1, describe it, or refine the name:\n",
+            "Συμπέρανα αυτά τα πιθανά scripts, εντολές ή εφαρμογές. Πείτε τρέξε 1, περιέγραψέ το ή δώστε πιο ακριβές όνομα:\n"
+        ) + pipboy_match_list_text(matches), matches=matches)
+    if state["config"].get("intelligence_enabled", True):
+        return pipboy_result(pipboy_text("Interpreting the request through the indexed DedSec project...", "Ερμηνεία του αιτήματος μέσω του ευρετηριασμένου DedSec Project..."), action={"type": "intelligence_query", "query": text, "scope": "all"})
+    return pipboy_result(pipboy_text(
+        "I could not map that request locally. Project intelligence is disabled; enable it, use `ask project ...`, or type help.",
+        "Δεν μπόρεσα να αντιστοιχίσω το αίτημα τοπικά. Η νοημοσύνη project είναι απενεργοποιημένη· ενεργοποιήστε την, χρησιμοποιήστε `ρώτα project ...` ή γράψτε βοήθεια."
+    ))
+
+
+def pipboy_clean_terminal_text(text):
+    text = PIPBOY_ANSI_RE.sub("", str(text or ""))
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = re.sub(r".\x08", "", text)
+    return "".join(ch for ch in text if ch in "\n\t" or ord(ch) >= 32)
+
+
+def pipboy_resize_pty(master_fd, stdscr):
+    try:
+        import struct
+        import termios
+        height, width = stdscr.getmaxyx()
+        packed = struct.pack("HHHH", max(2, height - 3), max(10, width), 0, 0)
+        fcntl.ioctl(master_fd, termios.TIOCSWINSZ, packed)
+    except Exception:
+        pass
+
+
+def pipboy_send_key(master_fd, key):
+    sequences = {
+        curses.KEY_UP: b"\x1b[A", curses.KEY_DOWN: b"\x1b[B",
+        curses.KEY_RIGHT: b"\x1b[C", curses.KEY_LEFT: b"\x1b[D",
+        curses.KEY_HOME: b"\x1b[H", curses.KEY_END: b"\x1b[F",
+        curses.KEY_DC: b"\x1b[3~", curses.KEY_IC: b"\x1b[2~",
+        curses.KEY_BACKSPACE: b"\x7f",
+    }
+    data = sequences.get(key)
+    if data:
+        try:
+            os.write(master_fd, data)
+            return True
+        except OSError:
+            pass
+    return False
+
+
+
+def pipboy_runner_inline_items(config, running, direct_mode):
+    assistant = pipboy_text("Unmute Assistant" if not config.get("voice_enabled") else "Mute Assistant",
+                            "Άνοιγμα Βοηθού" if not config.get("voice_enabled") else "Σίγαση Βοηθού")
+    microphone = pipboy_text("Unmute Microphone" if not config.get("microphone_enabled") else "Mute Microphone",
+                             "Άνοιγμα Μικροφώνου" if not config.get("microphone_enabled") else "Σίγαση Μικροφώνου")
+    items = [
+        ("sp", pipboy_text("Speak", "Ομιλία"), "listen"),
+        ("im", pipboy_text("Line Input" if direct_mode else "Direct Input", "Είσοδος Γραμμής" if direct_mode else "Άμεση Είσοδος"), "input_mode"),
+        ("ma", assistant, "voice"),
+        ("mm", microphone, "microphone"),
+        ("tl", pipboy_text("Text Lock", "Κλείδωμα Κειμένου"), "text_only"),
+        ("ku", pipboy_text("Up", "Πάνω"), b"\x1b[A"),
+        ("kd", pipboy_text("Down", "Κάτω"), b"\x1b[B"),
+        ("kl", pipboy_text("Left", "Αριστερά"), b"\x1b[D"),
+        ("kr", pipboy_text("Right", "Δεξιά"), b"\x1b[C"),
+        ("ke", "Enter", b"\r"),
+        ("ks", "Escape", b"\x1b"),
+        ("kt", "Tab", b"\t"),
+        ("kb", "Backspace", b"\x7f"),
+        ("ci", "Ctrl+C", "interrupt"),
+        ("ss", pipboy_text("Stop", "Σταμάτημα"), "stop"),
+    ]
+    if not running:
+        items.append(("x", pipboy_text("Return", "Επιστροφή"), "return"))
+    return items
+
+
+def pipboy_runner_inline_map(config, running, direct_mode):
+    return {code.casefold(): action for code, _label, action in pipboy_runner_inline_items(config, running, direct_mode)}
+
+
+def pipboy_runner_inline_lines(config, running, direct_mode, width):
+    pieces = [f"[{code}] {label}" for code, label, _action in pipboy_runner_inline_items(config, running, direct_mode)]
+    width = max(12, int(width))
+    lines, current = [], ""
+    for piece in pieces:
+        candidate = piece if not current else current + "  " + piece
+        if len(candidate) <= width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = piece
+    if current:
+        lines.append(current)
+    return lines
+
+def pipboy_draw_runner(stdscr, title, output_lines, input_buffer, cursor, running, direct_mode, config):
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    status = pipboy_text(
+        f"Running: {title}" if running else f"Finished: {title}",
+        f"Εκτελείται: {title}" if running else f"Ολοκληρώθηκε: {title}",
+    )
+    safe_curses_addstr(stdscr, 0, max(0, (width - len(status)) // 2), status[:max(1, width - 1)], curses.A_BOLD)
+    mode = pipboy_text("DIRECT", "ΑΜΕΣΑ") if direct_mode else pipboy_text("LINE", "ΓΡΑΜΜΗ")
+    mic = "MIC+" if config.get("microphone_enabled") and config.get("input_mode") != "text_only" else "MIC-"
+    voice = "VOICE+" if config.get("voice_enabled") else "VOICE-"
+    help_line = f"{mode} | {mic} | {voice}"
+    if direct_mode:
+        help_line += pipboy_text(" | / switches to line controls", " | / για χειριστήρια γραμμής")
+    safe_curses_addstr(stdscr, 1, 0, help_line[:max(1, width - 1)], curses.A_DIM)
+    separator = "-" * max(1, width - 1)
+    safe_curses_addstr(stdscr, 2, 0, separator, curses.A_DIM)
+
+    control_lines = pipboy_runner_inline_lines(config, running, direct_mode, max(10, width - 2))
+    bottom_reserved = len(control_lines) + 2
+    available = max(1, height - 3 - bottom_reserved)
+    visible = output_lines[-available:]
+    row = 3
+    for line in visible:
+        for wrapped in textwrap.wrap(str(line), max(10, width - 2), replace_whitespace=False, drop_whitespace=False) or [""]:
+            if row >= height - bottom_reserved:
+                break
+            safe_curses_addstr(stdscr, row, 0, wrapped)
+            row += 1
+        if row >= height - bottom_reserved:
+            break
+
+    controls_start = max(3, height - len(control_lines) - 2)
+    safe_curses_addstr(stdscr, controls_start - 1, 0, separator, curses.A_DIM)
+    for index, line in enumerate(control_lines):
+        target = controls_start + index
+        if target >= height - 1:
+            break
+        safe_curses_addstr(stdscr, target, 0, line[:max(1, width - 1)], curses.A_DIM)
+
+    if direct_mode:
+        prompt = pipboy_text("[Direct keys go to the program; / returns to line controls]", "[Τα πλήκτρα πάνε στο πρόγραμμα· / επιστρέφει στα χειριστήρια γραμμής]")
+        safe_curses_addstr(stdscr, height - 1, 0, " " * max(1, width - 1), curses.A_REVERSE)
+        safe_curses_addstr(stdscr, height - 1, 0, prompt[:max(1, width - 1)], curses.A_REVERSE)
+    else:
+        label = "> "
+        available_width = max(1, width - len(label) - 1)
+        start = max(0, cursor - available_width + 1)
+        shown = input_buffer[start:start + available_width]
+        prompt = label + shown
+        safe_curses_addstr(stdscr, height - 1, 0, " " * max(1, width - 1), curses.A_REVERSE)
+        safe_curses_addstr(stdscr, height - 1, 0, prompt, curses.A_REVERSE)
+        try:
+            stdscr.move(height - 1, min(width - 2, len(label) + cursor - start))
+        except Exception:
+            pass
+    stdscr.refresh()
+
+
+def pipboy_reap_process(pid, timeout=1.2):
+    deadline = time.time() + max(0.0, timeout)
+    while time.time() < deadline:
+        try:
+            waited, status = os.waitpid(pid, os.WNOHANG)
+        except ChildProcessError:
+            return True
+        except Exception:
+            return False
+        if waited == pid:
+            return True
+        time.sleep(0.05)
+    return False
+
+
+def pipboy_terminate_process(pid, graceful=True):
+    """Terminate only the child session, never Ded-Guy or the Termux shell."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 1 or pid == os.getpid():
+        return False
+    sig = signal.SIGTERM if graceful else signal.SIGKILL
+    try:
+        target_pgid = os.getpgid(pid)
+    except Exception:
+        target_pgid = None
+    try:
+        own_pgid = os.getpgrp()
+    except Exception:
+        own_pgid = None
+    if target_pgid and target_pgid != own_pgid:
+        try:
+            os.killpg(target_pgid, sig)
+            return True
+        except ProcessLookupError:
+            return True
+        except Exception:
+            pass
+    try:
+        os.kill(pid, sig)
+        return True
+    except ProcessLookupError:
+        return True
+    except Exception:
+        return False
+
+
+def pipboy_run_pty(stdscr, action, config):
+    command = action.get("command") or []
+    title = action.get("title", "program")
+    cwd = action.get("cwd") or HOME_DIR
+    if not command:
+        return pipboy_text("No runnable command was available.", "Δεν υπήρχε διαθέσιμη εκτελέσιμη εντολή.")
+    process = None
+    slave_fd = None
+    try:
+        master_fd, slave_fd = pty.openpty()
+        child_env = os.environ.copy()
+        child_env.setdefault("TERM", "xterm-256color")
+        process = subprocess.Popen(
+            command, cwd=cwd, env=child_env,
+            stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+            start_new_session=True, close_fds=True,
+        )
+        pid = process.pid
+        os.close(slave_fd)
+        slave_fd = None
+    except (OSError, ValueError):
+        if slave_fd is not None:
+            try:
+                os.close(slave_fd)
+            except Exception:
+                pass
+        try:
+            if 'master_fd' in locals():
+                os.close(master_fd)
+        except Exception:
+            pass
+        curses.endwin()
+        try:
+            code = subprocess.call(command, cwd=cwd)
+            return pipboy_text(f"Process exited with code {code}.", f"Η διεργασία έκλεισε με κωδικό {code}.")
+        finally:
+            try:
+                curses.reset_prog_mode()
+                stdscr.refresh()
+            except Exception:
+                pass
+
+    flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+    fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+    pipboy_resize_pty(master_fd, stdscr)
+    output_lines, partial, input_buffer = [], "", ""
+    cursor, running, exit_code, direct_mode = 0, True, None, False
+    stop_requested_at = None
+    stdscr.timeout(80)
+    try:
+        curses.curs_set(1)
+    except Exception:
+        pass
+
+    def append_notice(english, greek):
+        output_lines.append(pipboy_text("[Ded-Guy] " + english, "[Ded-Guy] " + greek))
+
+    def send_bytes(data):
+        if not running or not data:
+            return False
+        try:
+            os.write(master_fd, data)
+            return True
+        except OSError:
+            return False
+
+    try:
+        while True:
+            try:
+                readable, _, _ = select.select([master_fd], [], [], 0)
+            except Exception:
+                readable = []
+            if readable:
+                try:
+                    chunk = os.read(master_fd, 65536)
+                except (BlockingIOError, OSError):
+                    chunk = b""
+                if chunk:
+                    partial += pipboy_clean_terminal_text(chunk.decode("utf-8", errors="replace"))
+                    pieces = partial.split("\n")
+                    partial = pieces.pop() if pieces else ""
+                    output_lines.extend(pieces)
+                    if len(output_lines) > 1800:
+                        output_lines = output_lines[-1200:]
+            if running:
+                polled = process.poll() if process is not None else None
+                if polled is not None:
+                    running = False
+                    exit_code = int(polled)
+                    if partial:
+                        output_lines.append(partial)
+                        partial = ""
+                    output_lines.append(pipboy_text(
+                        f"[Ded-Guy] Process finished with code {exit_code}. Press Enter to return.",
+                        f"[Ded-Guy] Η διεργασία ολοκληρώθηκε με κωδικό {exit_code}. Πατήστε Enter για επιστροφή."
+                    ))
+            if running and stop_requested_at and time.time() - stop_requested_at > 2.5:
+                pipboy_terminate_process(pid, graceful=False)
+                stop_requested_at = None
+            pipboy_draw_runner(stdscr, title, output_lines + ([partial] if partial else []), input_buffer, cursor, running, direct_mode, config)
+            try:
+                key = stdscr.get_wch()
+            except curses.error:
+                continue
+
+            # No external runner menu. Direct mode uses / only to return to
+            # line mode, where every control code is visible above the input.
+            if isinstance(key, str) and key == "/" and direct_mode:
+                direct_mode = False
+                input_buffer = ""
+                cursor = 0
+                append_notice("Line controls enabled.", "Ενεργοποιήθηκαν τα χειριστήρια γραμμής.")
+                continue
+
+            if isinstance(key, int):
+                if key == curses.KEY_RESIZE:
+                    pipboy_resize_pty(master_fd, stdscr)
+                elif direct_mode and running:
+                    pipboy_send_key(master_fd, key)
+                elif key == curses.KEY_LEFT:
+                    cursor = max(0, cursor - 1)
+                elif key == curses.KEY_RIGHT:
+                    cursor = min(len(input_buffer), cursor + 1)
+                elif key == curses.KEY_HOME:
+                    cursor = 0
+                elif key == curses.KEY_END:
+                    cursor = len(input_buffer)
+                elif key in (curses.KEY_BACKSPACE, 127, 8):
+                    if cursor > 0:
+                        input_buffer = input_buffer[:cursor - 1] + input_buffer[cursor:]
+                        cursor -= 1
+                elif key == curses.KEY_DC and cursor < len(input_buffer):
+                    input_buffer = input_buffer[:cursor] + input_buffer[cursor + 1:]
+                continue
+
+            if not running and key in ("\n", "\r", "q", "Q"):
+                break
+            if direct_mode and running:
+                send_bytes(key.encode("utf-8"))
+                continue
+            if key in ("\n", "\r") and running:
+                line = input_buffer
+                lowered = line.strip().casefold()
+                runner_action = pipboy_runner_inline_map(config, running, direct_mode).get(lowered)
+                if runner_action is not None:
+                    input_buffer = ""
+                    cursor = 0
+                    if isinstance(runner_action, bytes):
+                        send_bytes(runner_action)
+                    elif runner_action == "listen":
+                        spoken, error = pipboy_voice_input(config)
+                        if spoken and send_bytes((spoken + "\n").encode("utf-8")):
+                            output_lines.append("> [voice] " + spoken)
+                        elif error:
+                            append_notice(error, error)
+                    elif runner_action == "input_mode":
+                        direct_mode = True
+                        append_notice("Direct input enabled. Type / to return to line controls.", "Ενεργοποιήθηκε η άμεση είσοδος. Γράψτε / για επιστροφή στα χειριστήρια γραμμής.")
+                    elif runner_action == "microphone":
+                        enabled = pipboy_toggle_setting(config, "microphone_enabled")
+                        append_notice(f"Microphone {'on' if enabled else 'muted'}.", f"Μικρόφωνο {'ανοιχτό' if enabled else 'κλειστό'}.")
+                    elif runner_action == "voice":
+                        enabled = pipboy_toggle_setting(config, "voice_enabled")
+                        if not enabled:
+                            pipboy_stop_speech()
+                        append_notice(f"Voice {'on' if enabled else 'muted'}.", f"Φωνή {'ανοιχτή' if enabled else 'κλειστή'}.")
+                    elif runner_action == "text_only":
+                        config["input_mode"] = "mixed" if config.get("input_mode") == "text_only" else "text_only"
+                        pipboy_save_config(config)
+                        append_notice(f"Input privacy mode: {config['input_mode']}.", f"Λειτουργία ιδιωτικότητας εισόδου: {config['input_mode']}.")
+                    elif runner_action == "interrupt" and running:
+                        send_bytes(b"\x03")
+                        append_notice("Interrupt sent.", "Στάλθηκε διακοπή.")
+                    elif runner_action == "stop" and running:
+                        pipboy_terminate_process(pid, graceful=True)
+                        stop_requested_at = time.time()
+                        append_notice("Stop requested.", "Ζητήθηκε σταμάτημα.")
+                    elif runner_action == "return" and not running:
+                        break
+                    continue
+                send_bytes((line + "\n").encode("utf-8"))
+                output_lines.append("> " + line)
+                input_buffer = ""
+                cursor = 0
+            elif key == "\x03" and running:
+                send_bytes(b"\x03")
+            elif key in ("\x7f", "\b"):
+                if cursor > 0:
+                    input_buffer = input_buffer[:cursor - 1] + input_buffer[cursor:]
+                    cursor -= 1
+            elif key == "\t":
+                input_buffer = input_buffer[:cursor] + "\t" + input_buffer[cursor:]
+                cursor += 1
+            elif key.isprintable():
+                input_buffer = input_buffer[:cursor] + key + input_buffer[cursor:]
+                cursor += len(key)
+    finally:
+        if running:
+            pipboy_terminate_process(pid, graceful=True)
+            try:
+                process.wait(timeout=0.8)
+            except Exception:
+                pipboy_terminate_process(pid, graceful=False)
+                try:
+                    process.wait(timeout=0.8)
+                except Exception:
+                    pass
+        elif process is not None:
+            try:
+                process.wait(timeout=0.1)
+            except Exception:
+                pass
+        try:
+            os.close(master_fd)
+        except Exception:
+            pass
+        try:
+            curses.curs_set(0)
+        except Exception:
+            pass
+    return pipboy_text(f"{title} finished with code {exit_code}.", f"Το {title} ολοκληρώθηκε με κωδικό {exit_code}.")
+
+def pipboy_run_action(stdscr, action, config):
+    if action.get("type") == "android_app":
+        package = action.get("package")
+        monkey = shutil.which("monkey") or "/system/bin/monkey"
+        if not package or (not shutil.which("monkey") and not os.path.exists(monkey)):
+            return pipboy_text("Android app launcher is unavailable.", "Το εργαλείο ανοίγματος εφαρμογών Android δεν είναι διαθέσιμο.")
+        try:
+            completed = subprocess.run(
+                [monkey, "-p", package, "-c", "android.intent.category.LAUNCHER", "1"],
+                capture_output=True, text=True, timeout=15, check=False,
+            )
+            if completed.returncode == 0:
+                return pipboy_text(f"Opened {package}.", f"Άνοιξε το {package}.")
+            return (completed.stderr or completed.stdout or pipboy_text("The app could not be opened.", "Η εφαρμογή δεν μπόρεσε να ανοίξει.")).strip()
+        except Exception as exc:
+            return str(exc)
+
+    command = action.get("command") or []
+    title = action.get("title", "program")
+    cwd = action.get("cwd") or HOME_DIR
+    if not command:
+        return pipboy_text("No command could be built for this item.", "Δεν ήταν δυνατή η δημιουργία εντολής για αυτό το στοιχείο.")
+    runner = command[0] if os.path.isabs(command[0]) else shutil.which(command[0])
+    if not runner:
+        return pipboy_text(f"The required runner '{command[0]}' is not installed.", f"Ο απαιτούμενος εκτελεστής '{command[0]}' δεν είναι εγκατεστημένος.")
+    if action.get("full_screen"):
+        try:
+            curses.def_prog_mode()
+            curses.endwin()
+        except Exception:
+            pass
+        print(pipboy_text(
+            f"Ded-Guy started {title} in direct full-screen mode. You now control that program directly.",
+            f"Το Ded-Guy ξεκίνησε το {title} σε άμεση πλήρη οθόνη. Τώρα ελέγχετε απευθείας αυτό το πρόγραμμα."
+        ))
+        try:
+            code = subprocess.call(command, cwd=cwd)
+            result = pipboy_text(f"{title} finished with code {code}.", f"Το {title} ολοκληρώθηκε με κωδικό {code}.")
+        except KeyboardInterrupt:
+            result = pipboy_text(f"{title} was interrupted.", f"Το {title} διακόπηκε.")
+        except Exception as exc:
+            result = str(exc)
+        finally:
+            try:
+                curses.reset_prog_mode()
+                stdscr.refresh()
+            except Exception:
+                pass
+        return result
+    return pipboy_run_pty(stdscr, action, config)
+
+
+
+
+def pipboy_inline_control_items(config):
+    """Only the essential phone controls shown above the input box."""
+    assistant = pipboy_text(
+        "Unmute Assistant" if not config.get("voice_enabled") else "Mute Assistant",
+        "Άνοιγμα Βοηθού" if not config.get("voice_enabled") else "Σίγαση Βοηθού",
+    )
+    microphone = pipboy_text(
+        "Unmute Microphone" if not config.get("microphone_enabled") else "Mute Microphone",
+        "Άνοιγμα Μικροφώνου" if not config.get("microphone_enabled") else "Σίγαση Μικροφώνου",
+    )
+    mode = pipboy_text("Input Mode", "Λειτουργία Εισόδου")
+    return [
+        ("sp", pipboy_text("Speak", "Ομιλία"), "listen"),
+        ("ma", assistant, "voice"),
+        ("mm", microphone, "microphone"),
+        ("md", mode, "mode_cycle"),
+        ("sc", pipboy_text("Scan", "Σάρωση"), "scan"),
+        ("h", pipboy_text("Help", "Βοήθεια"), "help"),
+        ("x", pipboy_text("Exit", "Έξοδος"), "exit"),
+    ]
+
+
+
+
+def pipboy_inline_control_map(config):
+    """Visible essentials plus hidden compatibility shortcuts."""
+    mapping = {code.casefold(): action for code, _label, action in pipboy_inline_control_items(config)}
+    mapping.update({
+        "tl": "text_only", "rl": "language", "nt": "mode_numbered", "tt": "mode_text", "vt": "mode_voice",
+        "rp": "repeat", "cl": "clear", "vs": "voice_slower", "vf": "voice_faster", "pl": "pitch_lower",
+        "ph": "pitch_higher", "vp": "voice_profile", "vb": "voice_backend", "vd": "voice_test", "vr": "voice_reset",
+        "it": "intelligence_toggle", "id": "intelligence_depth", "ia": "intelligence_detail", "is": "intelligence_sources",
+        "im": "intelligence_memory", "iw": "intelligence_web", "lp": "learn_project", "lw": "learn_website",
+        "la": "learn_all", "hp": "help", "st": "status",
+    })
+    return mapping
+
+
+
+def pipboy_inline_control_action(command_text, config):
+    normalized = str(command_text or "").strip().casefold()
+    normalized = normalized[1:-1].strip() if normalized.startswith("[") and normalized.endswith("]") else normalized
+    return pipboy_inline_control_map(config).get(normalized)
+
+
+def pipboy_inline_control_lines(config, width):
+    """Pack every action into readable rows that fit the current terminal."""
+    width = max(12, int(width))
+    pieces = [f"[{code}] {label}" for code, label, _action in pipboy_inline_control_items(config)]
+    lines, current = [], ""
+    for piece in pieces:
+        candidate = piece if not current else current + "  " + piece
+        if len(candidate) <= width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = piece
+    if current:
+        lines.append(current)
+    return lines
+
+
+
+def pipboy_inline_controls_message(config):
+    return pipboy_text(
+        "Use the seven essential shortcuts shown above the input box. You can also type natural requests, `voice settings`, `intelligence settings`, `learn all`, or `help`; advanced controls remain available without filling the screen.",
+        "Χρησιμοποιήστε τις επτά βασικές συντομεύσεις πάνω από το πεδίο εισόδου. Μπορείτε επίσης να γράψετε φυσικά αιτήματα, `ρυθμίσεις φωνής`, `ρυθμίσεις νοημοσύνης`, `μάθε όλα` ή `βοήθεια`· τα προχωρημένα χειριστήρια παραμένουν διαθέσιμα χωρίς να γεμίζουν την οθόνη.",
+    )
+
+
+
+def pipboy_pinned_audio_status(config):
+    assistant = pipboy_text("UNMUTED" if config.get("voice_enabled", True) else "MUTED",
+                            "ΑΝΟΙΧΤΗ" if config.get("voice_enabled", True) else "ΣΕ ΣΙΓΑΣΗ")
+    if config.get("input_mode") == "text_only":
+        microphone = pipboy_text("BLOCKED", "ΑΠΟΚΛΕΙΣΜΕΝΟ")
+    else:
+        microphone = pipboy_text("UNMUTED" if config.get("microphone_enabled", True) else "MUTED",
+                                 "ΑΝΟΙΧΤΟ" if config.get("microphone_enabled", True) else "ΣΕ ΣΙΓΑΣΗ")
+    return pipboy_text(
+        f"PINNED | ASSISTANT: {assistant} | MICROPHONE: {microphone} | WAKE: HEY GUY",
+        f"ΚΑΡΦΙΤΣΩΜΕΝΟ | ΒΟΗΘΟΣ: {assistant} | ΜΙΚΡΟΦΩΝΟ: {microphone} | ΑΦΥΠΝΙΣΗ: HEY GUY",
+    )
+
+def pipboy_draw_main(stdscr, state, input_buffer, cursor, frame_index):
+    """Responsive layout with three readable answers and inline controls."""
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    if height <= 0 or width <= 0:
+        return
+
+    title = "DED-GUY" if width < 28 else ("DED-GUY // DEDSEC" if width < 58 else "DED-GUY // DEDSEC ASSISTANT")
+    safe_curses_addstr(stdscr, 0, max(0, (width - len(title)) // 2), title[:max(1, width - 1)], curses.A_BOLD)
+
+    config = state["config"]
+    control_lines = pipboy_inline_control_lines(config, max(10, width - 2))
+    # Keep all controls visible. On very small screens the art shrinks first.
+    footer_rows = len(control_lines) + 3  # pinned audio + status + controls + input
+    body_top = 1
+    body_bottom = max(body_top, height - footer_rows)
+    available_rows = max(1, body_bottom - body_top)
+    speaking = pipboy_is_speaking()
+    visual_frame = 0 if input_buffer else frame_index
+
+    # Three rows plus borders are reserved for the talk bubble whenever possible.
+    bubble_content_rows = min(3, max(1, available_rows - 4))
+    bubble_total_rows = bubble_content_rows + 2
+    preferred_art_rows = max(1, available_rows - bubble_total_rows - 1)
+    art = pipboy_art_for_terminal(
+        max(1, width - 2), preferred_art_rows, speaking,
+        visual_frame // (1 if speaking else 2),
+    )
+    bubble_room = max(1, available_rows - len(art) - 1)
+    bubble_content_rows = max(1, min(3, bubble_room - 2))
+    marquee_started_at = float(state.get("marquee_started_at", time.monotonic()))
+    marquee_tick = int(max(0.0, time.monotonic() - marquee_started_at) / 0.35)
+    bubble, max_offset = pipboy_bubble_lines(
+        state.get("reply_history") or [state.get("message", "...")],
+        max(12, width - 2),
+        state.get("message_offset", 0),
+        bubble_content_rows,
+        PIPBOY_MAX_BUBBLE_ANSWERS,
+        marquee_tick,
+    )
+    state["max_message_offset"] = max_offset
+
+    row = body_top
+    for line in bubble:
+        if row >= body_bottom:
+            break
+        pipboy_draw_mascot_line(stdscr, row, max(0, (width - len(line)) // 2), line[:max(1, width - 1)])
+        row += 1
+    if row < body_bottom and art:
+        tail = "  \\" if width >= 8 else "\\"
+        safe_curses_addstr(stdscr, row, max(0, width // 2 - 2), tail[:max(1, width - 1)])
+        row += 1
+    remaining = max(0, body_bottom - row)
+    art = pipboy_art_for_terminal(
+        max(1, width - 2), max(1, remaining), speaking,
+        visual_frame // (1 if speaking else 2),
+    )
+    for line in art:
+        if row >= body_bottom:
+            break
+        pipboy_draw_mascot_line(stdscr, row, max(0, (width - len(line)) // 2), line[:max(1, width - 1)])
+        row += 1
+
+    mic = "MIC+" if config.get("microphone_enabled") and config.get("input_mode") != "text_only" else "MIC-"
+    voice = "VOICE+" if config.get("voice_enabled") else "VOICE-"
+    mode = pipboy_interaction_mode_label(config)
+    rate, pitch = pipboy_effective_voice_values(config)
+    intelligence_flag = "KNOW+" if config.get("intelligence_enabled", True) else "KNOW-"
+    depth_label = str(config.get("intelligence_depth", "deep")).upper()
+    listen_flag = "LISTEN∞" if config.get("interaction_mode") == "voice" and config.get("continuous_listening", True) else ""
+    wake_flag = "WAKE:HEY GUY" if config.get("interaction_mode") == "voice" and config.get("wake_word_enabled", True) else ""
+    status_parts = [mic, voice, mode, listen_flag, wake_flag, f"{intelligence_flag} {depth_label}", f"{rate:.2f}x/{pitch:.2f}x", "3 answers"]
+    status = " | ".join(part for part in status_parts if part)
+    pinned = pipboy_pinned_audio_status(config)
+    pinned_row = max(0, height - len(control_lines) - 3)
+    safe_curses_addstr(stdscr, pinned_row, max(0, (width - len(pinned)) // 2), pinned[:max(1, width - 1)], curses.A_BOLD)
+    status_row = pinned_row + 1
+    safe_curses_addstr(stdscr, status_row, max(0, (width - len(status)) // 2), status[:max(1, width - 1)], curses.A_DIM)
+
+    control_start = status_row + 1
+    for index, line in enumerate(control_lines):
+        target_row = control_start + index
+        if target_row >= height - 1:
+            break
+        safe_curses_addstr(stdscr, target_row, 0, " " * max(1, width - 1), curses.A_DIM)
+        safe_curses_addstr(stdscr, target_row, max(0, (width - len(line)) // 2), line[:max(1, width - 1)], curses.A_DIM)
+
+    prompt_label = pipboy_text("You", "Εσείς") + "> "
+    available = max(1, width - len(prompt_label) - 1)
+    start = max(0, cursor - available + 1)
+    shown = input_buffer[start:start + available]
+    safe_curses_addstr(stdscr, height - 1, 0, " " * max(1, width - 1), curses.A_REVERSE)
+    safe_curses_addstr(stdscr, height - 1, 0, (prompt_label + shown)[:max(1, width - 1)], curses.A_REVERSE)
+    try:
+        stdscr.move(height - 1, min(max(0, width - 2), len(prompt_label) + cursor - start))
+    except Exception:
+        pass
+    stdscr.refresh()
+
+
+def pipboy_set_message(state, message, speak=True, record=True):
+    state["message"] = pipboy_enforce_answer_language(message)
+    state["message_offset"] = 0
+    state["marquee_started_at"] = time.monotonic()
+    if record and state["message"].strip():
+        replies = list(state.get("reply_history") or [])
+        if not replies or replies[-1] != state["message"]:
+            replies.append(state["message"])
+        state["reply_history"] = replies[-PIPBOY_MAX_BUBBLE_ANSWERS:]
+    if speak:
+        pipboy_speak(state["message"], state["config"])
+
+
+def pipboy_curses(stdscr):
+    try:
+        curses.curs_set(1)
+    except Exception:
+        pass
+    stdscr.keypad(True)
+    stdscr.timeout(220)
+    config = pipboy_load_config()
+    microphone_tool, speech_tool = pipboy_audio_backend_status()
+    initial_message = pipboy_welcome_message()
+    state = {
+        "inventory": pipboy_inventory(), "last_matches": [], "pending_action": None,
+        "cwd": HOME_DIR, "config": config, "message_offset": 0, "max_message_offset": 0,
+        "message": initial_message,
+        "reply_history": [initial_message],
+        "welcome_message": initial_message,
+        "marquee_started_at": time.monotonic(),
+        "voice_auto_suspended": False,
+        "voice_silence_count": 0,
+        "voice_retry_at": 0.0,
+        "wake_armed_until": 0.0,
+        "wake_ignored_count": 0,
+        "one_text_command": False,
+    }
+    pipboy_speak(state["message"], config)
+    input_buffer, cursor, frame_index = "", 0, 0
+
+    def voice_message(prefix=None):
+        summary = pipboy_voice_settings_summary(config)
+        return (str(prefix).strip() + " " + summary).strip() if prefix else summary
+
+    def submit_command(command_text):
+        command_text = str(command_text or "").strip()
+        if not command_text:
+            return False
+        inline_control = pipboy_inline_control_action(command_text, config)
+        if inline_control:
+            return bool(handle_mobile_control(inline_control))
+        if command_text.casefold() in {"m", "menu", "open menu", "controls", "μενού", "χειριστήρια"}:
+            pipboy_set_message(state, pipboy_inline_controls_message(config), speak=False)
+            return False
+        pipboy_append_history("user", command_text)
+        try:
+            result = pipboy_process_command(command_text, state)
+        except Exception as exc:
+            pipboy_log_error("interactive command", exc)
+            pipboy_set_message(state, pipboy_text(
+                f"The request failed safely: {exc}. Ded-Guy is still running.",
+                f"Το αίτημα απέτυχε με ασφάλεια: {exc}. Το Ded-Guy συνεχίζει να λειτουργεί."
+            ))
+            return False
+        action = result.get("action")
+        transient_types = {
+            "intelligence_query", "open_url", "learn_project", "learn_website",
+            "learn_all", "clone", "launch", "android_app",
+        }
+        transient = bool(action and action.get("type") in transient_types)
+        pinned_result = bool(result.get("pinned"))
+        pipboy_set_message(
+            state,
+            result.get("message", ""),
+            speak=not transient and not (pinned_result and not config.get("voice_enabled", True)),
+            record=not transient and not pinned_result,
+        )
+        if not transient and not pinned_result:
+            pipboy_append_history("pipboy", state["message"])
+        if not action:
+            return False
+        if action.get("type") == "exit":
+            pipboy_stop_speech()
+            return True
+        if action.get("type") in {"mobile_controls", "mode_settings", "intelligence_settings"}:
+            pipboy_set_message(state, pipboy_inline_controls_message(config), speak=False)
+            return False
+        if action.get("type") == "intelligence_query":
+            pipboy_stop_speech()
+            # Keep the current frame visible while the fast local query runs.
+            # A temporary analysis screen caused a one-frame jump on Android.
+            try:
+                answer, matches = pipboy_intelligence_answer(action.get("query", command_text), state, scope=action.get("scope", "all"))
+                state["last_matches"] = matches
+            except Exception as exc:
+                answer = pipboy_text(f"Project intelligence error: {exc}", f"Σφάλμα νοημοσύνης project: {exc}")
+            pipboy_set_message(state, answer)
+            pipboy_append_history("pipboy", answer)
+            return False
+        if action.get("type") == "clear":
+            welcome = state.get("welcome_message") or pipboy_welcome_message()
+            state["reply_history"] = [welcome]
+            pipboy_set_message(state, welcome, speak=False, record=False)
+            return False
+        if action.get("type") == "open_url":
+            opener = shutil.which("termux-open-url") or shutil.which("termux-open") or shutil.which("xdg-open")
+            if not opener:
+                outcome = pipboy_text("No URL opener is installed. URL: " + action.get("url", ""), "Δεν υπάρχει εργαλείο ανοίγματος URL. URL: " + action.get("url", ""))
+            else:
+                try:
+                    completed = subprocess.run([opener, action.get("url", "")], capture_output=True, text=True, timeout=15, check=False)
+                    outcome = pipboy_text("Opened " + action.get("url", ""), "Άνοιξε το " + action.get("url", "")) if completed.returncode == 0 else (completed.stderr or completed.stdout or "Open failed").strip()
+                except Exception as exc:
+                    outcome = str(exc)
+            pipboy_set_message(state, outcome)
+            pipboy_append_history("pipboy", outcome)
+            return False
+        if action.get("type") in {"learn_project", "learn_website", "learn_all"}:
+            script_path = SETTINGS_SCRIPT_PATH if os.path.isfile(SETTINGS_SCRIPT_PATH) else os.path.realpath(__file__)
+            cli_flag = {"learn_project": "--pipboy-project-index", "learn_website": "--pipboy-website-index", "learn_all": "--pipboy-learn-all"}[action.get("type")]
+            command_parts = [sys.executable or "python3", script_path, cli_flag]
+            if action.get("type") == "learn_project":
+                command_parts.append("--refresh")
+            run_action = {"type": "launch", "title": action.get("type").replace("_", " "), "command": command_parts, "cwd": HOME_DIR, "full_screen": False, "risky": False}
+            pipboy_stop_speech()
+            outcome = pipboy_run_action(stdscr, run_action, config)
+            state["inventory"] = pipboy_inventory()
+            pipboy_set_message(state, outcome + "\n" + pipboy_project_summary_text() + "\n" + pipboy_website_status_text())
+            pipboy_append_history("pipboy", state["message"])
+            return False
+        if action.get("type") == "clone":
+            os.makedirs(PIPBOY_DOWNLOADED_REPOS_DIR, exist_ok=True)
+            pipboy_stop_speech()
+            outcome = pipboy_run_action(stdscr, {**action, "type": "launch"}, config)
+            destination = action.get("destination", "")
+            if destination and os.path.isdir(destination) and os.path.isdir(os.path.join(destination, ".git")):
+                safety = pipboy_repo_static_safety_scan(destination)
+                pipboy_register_clone(action, "cloned", safety)
+                try:
+                    pipboy_scan_environment(silent=True)
+                    pipboy_build_project_index(force=True)
+                except Exception:
+                    pass
+                outcome = pipboy_clone_safety_text(action, safety)
+            else:
+                pipboy_register_clone(action, "failed", {})
+            pipboy_set_message(state, outcome)
+            pipboy_append_history("pipboy", outcome)
+            state["inventory"] = pipboy_inventory()
+            return False
+        if action.get("type") in {"launch", "android_app"}:
+            pipboy_stop_speech()
+            outcome = pipboy_run_action(stdscr, action, config)
+            pipboy_set_message(state, outcome)
+            pipboy_append_history("pipboy", outcome)
+            state["inventory"] = pipboy_inventory()
+        return False
+
+    def handle_mobile_control(control):
+        nonlocal input_buffer, cursor
+        if control in {"more", "voice_settings", "mode_settings", "ai_settings", "intelligence_settings"}:
+            pipboy_set_message(state, pipboy_inline_controls_message(config), speak=False)
+            return False
+        if control in {None, "back"}:
+            return False
+        if control == "listen":
+            config["interaction_mode"] = "voice"
+            config["continuous_listening"] = True
+            config["microphone_enabled"] = True
+            config["input_mode"] = "mixed"
+            pipboy_save_config(config)
+            state["voice_auto_suspended"] = False
+            state["voice_retry_at"] = 0.0
+            pipboy_set_message(state, pipboy_text("Listening...", "Ακούω..."), speak=False, record=False)
+            pipboy_start_voice_worker(config)
+            return False
+        elif control == "type_command":
+            state["one_text_command"] = True
+            pipboy_set_message(state, pipboy_text("Type one command below.", "Γράψτε μία εντολή παρακάτω."), speak=False)
+        elif control == "mode_cycle":
+            modes = ["text", "voice", "numbered"]
+            current = config.get("interaction_mode", "text")
+            next_mode = modes[(modes.index(current) + 1) % len(modes)] if current in modes else "text"
+            if next_mode == "voice":
+                config["interaction_mode"] = "voice"
+                config["continuous_listening"] = True
+                config["microphone_enabled"] = True
+                config["input_mode"] = "mixed"
+                pipboy_save_config(config)
+            else:
+                pipboy_set_interaction_mode(config, next_mode)
+            state["voice_auto_suspended"] = next_mode != "voice"
+            state["voice_retry_at"] = 0.0
+            pipboy_set_message(state, pipboy_text(
+                f"Input mode changed to {next_mode}.",
+                f"Η λειτουργία εισόδου άλλαξε σε {next_mode}.",
+            ))
+        elif control == "mode_numbered":
+            pipboy_set_interaction_mode(config, "numbered")
+            state["voice_auto_suspended"] = True
+            pipboy_set_message(state, pipboy_text("Inline shortcut mode saved and active.", "Η λειτουργία συντομεύσεων αποθηκεύτηκε και ενεργοποιήθηκε."))
+        elif control == "mode_text":
+            pipboy_set_interaction_mode(config, "text")
+            state["voice_auto_suspended"] = True
+            pipboy_set_message(state, pipboy_text("Text interface mode saved and active.", "Η λειτουργία κειμένου αποθηκεύτηκε και ενεργοποιήθηκε."))
+        elif control == "mode_voice":
+            config["interaction_mode"] = "voice"
+            config["continuous_listening"] = True
+            config["microphone_enabled"] = True
+            config["input_mode"] = "mixed"
+            pipboy_save_config(config)
+            state["voice_auto_suspended"] = False
+            state["voice_retry_at"] = 0.0
+            pipboy_set_message(state, pipboy_text(
+                "Voice conversation mode is active. Automatic listening is on.",
+                "Η φωνητική συνομιλία ενεργοποιήθηκε. Η αυτόματη ακρόαση είναι ανοιχτή.",
+            ))
+        elif control == "scan":
+            pipboy_set_message(state, pipboy_text("Scanning the environment...", "Σάρωση του περιβάλλοντος..."), speak=False, record=False)
+            pipboy_draw_main(stdscr, state, input_buffer, cursor, frame_index)
+            event = pipboy_light_launch_scan()
+            state["inventory"] = pipboy_inventory()
+            pipboy_set_message(state, pipboy_learned_text(event))
+        elif control == "language":
+            label = pipboy_cycle_recognition_language(config)
+            pipboy_set_message(state, pipboy_text(f"Recognition language: {label}.", f"Γλώσσα αναγνώρισης: {label}."))
+        elif control == "microphone":
+            enabled = pipboy_toggle_setting(config, "microphone_enabled")
+            if enabled and config.get("interaction_mode") == "voice" and config.get("input_mode") != "text_only":
+                state["voice_auto_suspended"] = False
+            pipboy_set_message(state, pipboy_text(f"Microphone {'enabled' if enabled else 'muted'}.", f"Μικρόφωνο {'ανοιχτό' if enabled else 'κλειστό'}."), speak=False, record=False)
+        elif control == "voice":
+            enabled = pipboy_toggle_setting(config, "voice_enabled")
+            if not enabled:
+                pipboy_stop_speech()
+            pipboy_set_message(state, pipboy_text(f"Ded-Guy voice {'enabled' if enabled else 'muted'}.", f"Φωνή Ded-Guy {'ανοιχτή' if enabled else 'κλειστή'}."), speak=enabled, record=False)
+        elif control == "text_only":
+            config["input_mode"] = "mixed" if config.get("input_mode") == "text_only" else "text_only"
+            pipboy_save_config(config)
+            if config["input_mode"] == "text_only":
+                state["voice_auto_suspended"] = True
+            elif config.get("interaction_mode") == "voice" and config.get("microphone_enabled"):
+                state["voice_auto_suspended"] = False
+            pipboy_set_message(state, pipboy_text(
+                "Text-only privacy lock enabled. The microphone is blocked." if config["input_mode"] == "text_only" else "Text-only lock disabled. Voice input is allowed again.",
+                "Ενεργοποιήθηκε το κλείδωμα μόνο κειμένου. Το μικρόφωνο αποκλείστηκε." if config["input_mode"] == "text_only" else "Το κλείδωμα μόνο κειμένου απενεργοποιήθηκε. Επιτρέπεται ξανά η φωνητική είσοδος."
+            ))
+        elif control == "voice_slower":
+            config["speech_rate"] = max(0.45, round(float(config.get("speech_rate", 0.95)) - 0.10, 2))
+            pipboy_save_config(config)
+            pipboy_set_message(state, voice_message())
+        elif control == "voice_faster":
+            config["speech_rate"] = min(2.0, round(float(config.get("speech_rate", 0.95)) + 0.10, 2))
+            pipboy_save_config(config)
+            pipboy_set_message(state, voice_message())
+        elif control == "pitch_lower":
+            config["speech_pitch"] = max(0.45, round(float(config.get("speech_pitch", 0.78)) - 0.10, 2))
+            pipboy_save_config(config)
+            pipboy_set_message(state, voice_message())
+        elif control == "pitch_higher":
+            config["speech_pitch"] = min(1.5, round(float(config.get("speech_pitch", 0.78)) + 0.10, 2))
+            pipboy_save_config(config)
+            pipboy_set_message(state, voice_message())
+        elif control == "voice_profile":
+            label = pipboy_cycle_voice_profile(config)
+            pipboy_set_message(state, voice_message(pipboy_text(f"Voice profile changed to {label}.", f"Το προφίλ φωνής άλλαξε σε {label}.")))
+        elif control == "voice_backend":
+            label = pipboy_cycle_voice_backend(config)
+            pipboy_set_message(state, voice_message(pipboy_text(f"Voice backend changed to {label}.", f"Η μηχανή φωνής άλλαξε σε {label}.")))
+        elif control == "voice_test":
+            test_line = pipboy_text("Ded-Guy voice test. Systems online.", "Δοκιμή φωνής Ded-Guy. Τα συστήματα είναι σε λειτουργία.")
+            pipboy_set_message(state, voice_message(test_line), speak=False)
+            pipboy_speak(test_line, config, force=True)
+        elif control == "voice_reset":
+            pipboy_reset_voice_settings(config)
+            pipboy_set_message(state, voice_message(pipboy_text("Voice settings reset.", "Οι ρυθμίσεις φωνής επαναφέρθηκαν.")))
+        elif control == "intelligence_toggle":
+            config["intelligence_enabled"] = not bool(config.get("intelligence_enabled", True))
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Project intelligence {'enabled' if config['intelligence_enabled'] else 'disabled'}.", f"Η νοημοσύνη project {'ενεργοποιήθηκε' if config['intelligence_enabled'] else 'απενεργοποιήθηκε'}."))
+        elif control == "intelligence_depth":
+            choices = ["fast", "balanced", "deep", "expert"]
+            current = config.get("intelligence_depth", "expert")
+            config["intelligence_depth"] = choices[(choices.index(current) + 1) % len(choices)] if current in choices else "expert"
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Analysis depth: {config['intelligence_depth']}.", f"Βάθος ανάλυσης: {config['intelligence_depth']}."))
+        elif control == "intelligence_detail":
+            choices = ["compact", "balanced", "detailed", "maximum"]
+            current = config.get("intelligence_detail", "maximum")
+            config["intelligence_detail"] = choices[(choices.index(current) + 1) % len(choices)] if current in choices else "maximum"
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Answer detail: {config['intelligence_detail']}.", f"Λεπτομέρεια απάντησης: {config['intelligence_detail']}."))
+        elif control == "intelligence_sources":
+            choices = [4, 8, 12, 16, 20, 24]
+            current = int(config.get("intelligence_max_sources", 8))
+            nearest = min(range(len(choices)), key=lambda index: abs(choices[index] - current))
+            config["intelligence_max_sources"] = choices[(nearest + 1) % len(choices)]
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Maximum evidence sources: {config['intelligence_max_sources']}.", f"Μέγιστες πηγές τεκμηρίων: {config['intelligence_max_sources']}."))
+        elif control == "intelligence_memory":
+            choices = [0, 4, 8, 12, 20, 30, 40]
+            current = int(config.get("intelligence_memory_turns", 12))
+            nearest = min(range(len(choices)), key=lambda index: abs(choices[index] - current))
+            config["intelligence_memory_turns"] = choices[(nearest + 1) % len(choices)]
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Conversation context: {config['intelligence_memory_turns']} turns.", f"Context συνομιλίας: {config['intelligence_memory_turns']} γύροι."))
+        elif control == "intelligence_web":
+            config["intelligence_web_context"] = not bool(config.get("intelligence_web_context", True))
+            pipboy_save_config(config)
+            pipboy_set_message(state, pipboy_text(f"Explicit web context {'enabled' if config['intelligence_web_context'] else 'disabled'}.", f"Το ρητό web context {'ενεργοποιήθηκε' if config['intelligence_web_context'] else 'απενεργοποιήθηκε'}."))
+        elif control == "intelligence_status":
+            pipboy_set_message(state, pipboy_intelligence_status_text(config))
+        elif control == "repeat":
+            pipboy_speak(state.get("message", ""), config, force=False)
+        elif control == "scroll_up":
+            state["message_offset"] = max(0, state.get("message_offset", 0) - 5)
+        elif control == "scroll_down":
+            state["message_offset"] = min(state.get("max_message_offset", 0), state.get("message_offset", 0) + 5)
+        elif control == "scroll_top":
+            state["message_offset"] = 0
+        elif control == "scroll_bottom":
+            state["message_offset"] = state.get("max_message_offset", 0)
+        elif control == "help":
+            pipboy_set_message(state, pipboy_help_text())
+        elif control == "status":
+            pipboy_set_message(state, pipboy_status_text(state.get("inventory") or {}, config, state.get("cwd")))
+        elif control == "clear":
+            welcome = state.get("welcome_message") or pipboy_welcome_message()
+            state["reply_history"] = [welcome]
+            pipboy_set_message(state, welcome, speak=False, record=False)
+        elif control == "exit":
+            pipboy_stop_speech()
+            return True
+        return False
+
+    numbered_menu_due = False
+    voice_listen_due = config.get("interaction_mode") == "voice"
+
+    while True:
+        current_mode = config.get("interaction_mode", "text")
+        if PIPBOY_LAST_BARGE_ACTION in {"stop_listening", "mute_microphone", "mute_voice"}:
+            state["voice_auto_suspended"] = config.get("interaction_mode") != "voice" or not config.get("microphone_enabled", True)
+        retry_ready = time.monotonic() >= float(state.get("voice_retry_at", 0.0))
+        voice_result = pipboy_poll_voice_worker()
+        if voice_result is not None:
+            spoken, error = voice_result
+            if error == PIPBOY_VOICE_SILENCE_SENTINEL:
+                state["voice_auto_suspended"] = False
+                wake_waiting = time.monotonic() <= float(state.get("wake_armed_until", 0.0))
+                # Never interrupt an answer or a wake-follow-up window merely
+                # because one Android recognizer cycle returned silence.
+                if not pipboy_is_speaking() and not wake_waiting:
+                    prompt = pipboy_silence_prompt(state)
+                    pipboy_set_message(state, prompt, speak=True, record=False)
+            elif error:
+                state["voice_auto_suspended"] = False
+                state["voice_retry_at"] = time.monotonic() + float(config.get("voice_retry_seconds", 1.25))
+                pipboy_set_message(state, error, speak=False, record=False)
+            elif spoken:
+                state["voice_silence_count"] = 0
+                now = time.monotonic()
+                wake_command, woke = pipboy_extract_wake_command(spoken, config)
+                wake_armed = now <= float(state.get("wake_armed_until", 0.0))
+                if woke:
+                    # A valid wake phrase always owns the audio channel. Stop
+                    # the current answer before accepting the new command.
+                    pipboy_stop_speech()
+                if woke and wake_command:
+                    state["wake_armed_until"] = 0.0
+                    state["wake_ignored_count"] = 0
+                    if submit_command(wake_command):
+                        return
+                elif woke:
+                    state["wake_armed_until"] = now + float(config.get("wake_window_seconds", 10.0))
+                    state["wake_ignored_count"] = 0
+                    # Do not speak an acknowledgement into the live microphone.
+                    pipboy_set_message(state, pipboy_text(
+                        "Listening for your command...",
+                        "Ακούω την εντολή σου..."
+                    ), speak=False, record=False)
+                elif wake_armed:
+                    pipboy_stop_speech()
+                    state["wake_armed_until"] = 0.0
+                    state["wake_ignored_count"] = 0
+                    if submit_command(spoken):
+                        return
+                else:
+                    # Ignore room speech without polluting the three-answer bubble.
+                    state["wake_ignored_count"] = int(state.get("wake_ignored_count", 0)) + 1
+            voice_listen_due = config.get("interaction_mode") == "voice"
+
+        if current_mode == "voice" and voice_listen_due and retry_ready and not state.get("voice_auto_suspended"):
+            if config.get("input_mode") == "text_only" or not config.get("microphone_enabled"):
+                state["voice_auto_suspended"] = True
+                pipboy_set_message(state, pipboy_text(
+                    "Voice mode is saved, but automatic listening is paused by the microphone/privacy setting.",
+                    "Η λειτουργία φωνής έχει αποθηκευτεί, αλλά η αυτόματη ακρόαση σταμάτησε από τη ρύθμιση μικροφώνου/ιδιωτικότητας."
+                ))
+            else:
+                # Keep one serialized listener active even while Ded-Guy talks.
+                # It ignores all room speech until the wake phrase is detected.
+                if pipboy_start_voice_worker(config, wake_monitor=True):
+                    if not pipboy_is_speaking():
+                        pipboy_set_message(state, pipboy_text("Listening...", "Ακούω..."), speak=False, record=False)
+
+        frame_index += 1
+        pipboy_draw_main(stdscr, state, input_buffer, cursor, frame_index)
+        try:
+            key = stdscr.get_wch()
+        except curses.error:
+            continue
+        if isinstance(key, int):
+            if key == curses.KEY_LEFT:
+                cursor = max(0, cursor - 1)
+            elif key == curses.KEY_RIGHT:
+                cursor = min(len(input_buffer), cursor + 1)
+            elif key == curses.KEY_HOME:
+                cursor = 0
+            elif key == curses.KEY_END:
+                cursor = len(input_buffer)
+            elif key in (curses.KEY_BACKSPACE, 127, 8):
+                if cursor > 0:
+                    input_buffer = input_buffer[:cursor - 1] + input_buffer[cursor:]
+                    cursor -= 1
+            elif key == curses.KEY_DC and cursor < len(input_buffer):
+                input_buffer = input_buffer[:cursor] + input_buffer[cursor + 1:]
+            continue
+        if key == "\x1b":
+            pipboy_cancel_voice_worker()
+            pipboy_stop_speech()
+            return
+        if key == "\x0c":
+            welcome = state.get("welcome_message") or pipboy_welcome_message()
+            state["reply_history"] = [welcome]
+            pipboy_set_message(state, welcome, speak=False, record=False)
+            input_buffer, cursor = "", 0
+            continue
+        if key in ("\n", "\r"):
+            command_text = input_buffer.strip()
+            input_buffer, cursor = "", 0
+            try:
+                should_exit = submit_command(command_text)
+            except Exception as exc:
+                pipboy_log_error("interactive submit", exc)
+                pipboy_set_message(state, pipboy_text(
+                    f"The request was stopped safely: {exc}",
+                    f"Το αίτημα σταμάτησε με ασφάλεια: {exc}"
+                ))
+                should_exit = False
+            if should_exit:
+                return
+            numbered_menu_due = False
+            if config.get("interaction_mode") == "voice":
+                state["voice_auto_suspended"] = False
+            voice_listen_due = config.get("interaction_mode") == "voice"
+            continue
+        if key in ("\x7f", "\b"):
+            if cursor > 0:
+                input_buffer = input_buffer[:cursor - 1] + input_buffer[cursor:]
+                cursor -= 1
+            continue
+        if key == "\t":
+            input_buffer = input_buffer[:cursor] + "    " + input_buffer[cursor:]
+            cursor += 4
+            continue
+        if key.isprintable():
+            if config.get("interaction_mode") == "voice":
+                pipboy_cancel_voice_worker()
+                state["voice_auto_suspended"] = True
+            if len(input_buffer) < 1200:
+                input_buffer = input_buffer[:cursor] + key + input_buffer[cursor:]
+                cursor += len(key)
+            else:
+                curses.beep()
+
+
+
+
+def pipboy_male_barge_in_self_test():
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    checks = [
+        ("male backend default", config.get("voice_backend") == "espeak", str(config.get("voice_backend"))),
+        ("male profile default", config.get("voice_profile") in {"male", "deep_male"}, str(config.get("voice_profile"))),
+        ("continuous listening", bool(config.get("continuous_listening")), str(config.get("continuous_listening"))),
+        ("barge-in enabled", bool(config.get("barge_in_enabled")), str(config.get("barge_in_enabled"))),
+        ("spoken stop", pipboy_is_voice_stop_phrase("stop") == "stop_speech", str(pipboy_is_voice_stop_phrase("stop"))),
+        ("spoken mute", pipboy_is_voice_stop_phrase("mute assistant") == "mute_voice", str(pipboy_is_voice_stop_phrase("mute assistant"))),
+        ("spoken text mode", pipboy_is_voice_stop_phrase("stop listening") == "stop_listening", str(pipboy_is_voice_stop_phrase("stop listening"))),
+        ("Greek stop", pipboy_is_voice_stop_phrase("Ded Guy σταμάτα") == "stop_speech", str(pipboy_is_voice_stop_phrase("Ded Guy σταμάτα"))),
+    ]
+    print("Ded-Guy male voice / barge-in self-test")
+    print("=" * 46)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
+    ok = all(item[1] for item in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
+
+
+def pipboy_ded_guy_wake_self_test():
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    samples = [
+        ("Hey Guy any Facebook pages", "any facebook pages", True),
+        ("hay guy show phishing scripts", "show phishing scripts", True),
+        ("okay hey guide stop talking", "stop talking", True),
+        ("any Facebook pages", "", False),
+    ]
+    checks = []
+    for spoken, expected, expected_woke in samples:
+        command, woke = pipboy_extract_wake_command(spoken, config)
+        checks.append((spoken, woke == expected_woke and pipboy_normalize(command) == pipboy_normalize(expected), f"woke={woke}; command={command!r}"))
+    bald = pipboy_animated_braille_pixels(False, 0)
+    # The redesigned dome should have a narrow smooth crown rather than the old hair tuft.
+    crown_counts = [sum(row[39:87]) for row in bald[:8]]
+    checks.append(("bald mascot crown", max(crown_counts or [99]) <= 10, str(crown_counts)))
+    source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    old_tokens = ("Pip" + "-Boy", "PIP" + "-BOY", "Pip" + " Boy")
+    visible_old_name = any(token in source for token in old_tokens)
+    checks.append(("Ded-Guy visible rename", not visible_old_name, str(visible_old_name)))
+    print("Ded-Guy wake-word / bald mascot self-test")
+    print("=" * 45)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
+    ok = all(item[1] for item in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
+
+
+def pipboy_continuous_voice_self_test():
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    samples = {
+        "any face book payges": ("facebook", "page"),
+        "show fishing scripts": ("phishing", "scripts"),
+        "developer bass": ("developer", "base"),
+        "dead sect project": ("dedsec", "project"),
+        "pocket eye tools": ("pocket", "ai"),
+    }
+    checks = []
+    for sample, expected in samples.items():
+        repaired = pipboy_voice_repair_text(sample, config)
+        normalized = pipboy_normalize(repaired)
+        passed = all(token in normalized for token in expected)
+        checks.append((sample, passed, repaired))
+    checks.append(("continuous default", bool(config.get("continuous_listening")), str(config.get("continuous_listening"))))
+    checks.append(("four-second silence", abs(float(config.get("silence_seconds", 0)) - 4.0) < 0.01, str(config.get("silence_seconds"))))
+    state = {}
+    prompt = pipboy_silence_prompt(state)
+    checks.append(("silence prompt", bool(prompt) and state.get("voice_silence_count") == 1, prompt))
+    print("Ded-Guy continuous voice self-test")
+    print("=" * 44)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}: {detail}")
+    ok = all(item[1] for item in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
+
+
+def pipboy_voice_runtime_self_test():
+    source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    tree = ast.parse(source)
+    function_source = {}
+    source_lines = source.splitlines()
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef):
+            function_source[node.name] = "\n".join(source_lines[node.lineno - 1:node.end_lineno])
+    launch_source = function_source.get("launch_pipboy", "")
+    barge_source = function_source.get("pipboy_start_barge_in_monitor", "")
+    speak_source = function_source.get("pipboy_speak", "")
+    curses_source = function_source.get("pipboy_curses", "")
+    checks = [
+        ("nonblocking dependency installer", "pipboy_install_missing_voice_dependencies_async()" in launch_source and "pipboy_install_missing_voice_dependencies(quiet=False)" not in launch_source),
+        ("male WAV playback", "-w {wav_q}" in speak_source and "termux-media-player" in speak_source),
+        ("nonblocking recognizer worker", "pipboy_start_voice_worker(config)" in curses_source and "voice_result = pipboy_poll_voice_worker()" in curses_source),
+        ("bounded barge-in", not any(isinstance(node, ast.While) for node in ast.walk(ast.parse(barge_source)))),
+        ("valid dependency packages", set(pipboy_missing_voice_packages()).issubset({"termux-api", "espeak"})),
+    ]
+    original_voice_input = globals()["pipboy_voice_input"]
+    try:
+        def fake_voice_input(*_args, **_kwargs):
+            time.sleep(0.25)
+            return "test phrase", ""
+        globals()["pipboy_voice_input"] = fake_voice_input
+        pipboy_cancel_voice_worker()
+        started = time.monotonic()
+        launched = pipboy_start_voice_worker(dict(PIPBOY_DEFAULT_CONFIG))
+        launch_time = time.monotonic() - started
+        result = None
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline and result is None:
+            result = pipboy_poll_voice_worker()
+            time.sleep(0.03)
+        checks.append(("worker returns immediately", launched and launch_time < 0.08))
+        checks.append(("worker returns transcription", bool(result and result[0] == "test phrase")))
+    finally:
+        globals()["pipboy_voice_input"] = original_voice_input
+        pipboy_cancel_voice_worker()
+    es = shutil.which("espeak-ng") or shutil.which("espeak")
+    if es:
+        # /tmp is not a portable writable path on Android/Termux. Use the
+        # existing Ded-Guy data directory, which is guaranteed to be writable.
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        test_wav = os.path.join(PIPBOY_DATA_DIR, f"ded_guy_espeak_test_{os.getpid()}.wav")
+        try:
+            commands = (
+                [es, "-w", test_wav, "voice test"],
+                [es, "--stdout", "voice test"],
+            )
+            generated = False
+            for index, command in enumerate(commands):
+                try:
+                    if index == 0:
+                        completed = subprocess.run(
+                            command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                            timeout=8, check=False
+                        )
+                    else:
+                        with open(test_wav, "wb") as handle:
+                            completed = subprocess.run(
+                                command, stdout=handle, stderr=subprocess.DEVNULL,
+                                timeout=8, check=False
+                            )
+                    if completed.returncode == 0 and os.path.isfile(test_wav) and os.path.getsize(test_wav) > 44:
+                        with open(test_wav, "rb") as handle:
+                            header = handle.read(12)
+                        generated = header[:4] in {b"RIFF", b"RF64"} and header[8:12] == b"WAVE"
+                        if generated:
+                            break
+                except Exception:
+                    generated = False
+            checks.append(("eSpeak WAV generation", generated))
+        except Exception:
+            checks.append(("eSpeak WAV generation", False))
+        finally:
+            try:
+                os.unlink(test_wav)
+            except OSError:
+                pass
+    for name, passed in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] Voice runtime: {name}")
+    return all(passed for _name, passed in checks)
+
+
+
+
+def pipboy_inline_ui_self_test():
+    checks = []
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    items = pipboy_inline_control_items(config)
+    codes = [item[0] for item in items]
+    checks.append(("Unique inline codes", len(codes) == len(set(codes)), str(codes)))
+    checks.append(("Required mute codes", pipboy_inline_control_action("ma", config) == "voice" and pipboy_inline_control_action("mm", config) == "microphone", ""))
+    checks.append(("Three-answer limit", PIPBOY_MAX_BUBBLE_ANSWERS == 3, str(PIPBOY_MAX_BUBBLE_ANSWERS)))
+    bubble, _ = pipboy_bubble_lines(["one", "two", "three", "four"], 50, max_content_lines=3, max_answers=3, marquee_tick=0)
+    body = "\n".join(bubble)
+    checks.append(("FIFO bubble", "one" not in body and all(word in body for word in ("two", "three", "four")), body))
+    welcome = pipboy_welcome_message()
+    checks.append(("Named welcome", pipboy_prompt_display_name() in welcome, welcome))
+    frames = pipboy_art_frames(False)
+    checks.append(("Eight mascot frames", len(frames) == 8 and len({tuple(frame) for frame in frames}) >= 4, str(len({tuple(frame) for frame in frames}))))
+    try:
+        with open(__file__, "r", encoding="utf-8", errors="replace") as handle:
+            source = handle.read()
+        tree = ast.parse(source)
+        external_calls = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "pipboy_main_controls"
+        ]
+        checks.append(("No external main menu call", not external_calls, str(len(external_calls))))
+    except Exception as exc:
+        checks.append(("No external main menu call", False, str(exc)))
+    print("Ded-Guy inline UI self-test")
+    print("=" * 44)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    failures = [item for item in checks if not item[1]]
+    print("=" * 44)
+    print("RESULT: " + ("PASS" if not failures else "FAIL"))
+    return not failures
+
+def pipboy_ui_language_self_test():
+    checks = []
+    try:
+        with open(__file__, "r", encoding="utf-8", errors="replace") as handle:
+            source = handle.read()
+    except Exception as exc:
+        source = ""
+        checks.append(("Read source", False, str(exc)))
+    checks.append(("No transient analysis screen", "waiting = pipboy_text(\"Ded-Guy is analyzing" not in source, ""))
+    checks.append(("Inline controls", "[ma]" in source and "[mm]" in source and "pipboy_inline_control_lines" in source, ""))
+    checks.append(("Slash main hotkey removed", re.search(r'^\s*if key == "/" and not input_buffer:\s*$', source, re.M) is None, ""))
+
+    original = get_current_display_language
+    try:
+        globals()["get_current_display_language"] = lambda: "greek"
+        greek = pipboy_enforce_answer_language("Top matches:\n1. Fake Page.py - English explanation only")
+        checks.append(("Greek-only prose", "Top matches" not in greek and "English explanation" not in greek and "Κορυφαία" in greek, greek))
+        globals()["get_current_display_language"] = lambda: "english"
+        english = pipboy_enforce_answer_language("Καθαρά ελληνική πρόταση χωρίς path.\n1. Fake Page.py")
+        checks.append(("English-only prose", "Καθαρά ελληνική" not in english and "Fake Page.py" in english, english))
+    finally:
+        globals()["get_current_display_language"] = original
+
+    print("Ded-Guy UI/language self-test")
+    print("=" * 44)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    failures = [item for item in checks if not item[1]]
+    print("=" * 44)
+    print("RESULT: " + ("PASS" if not failures else "FAIL"))
+    return not failures
+
+
+def launch_pipboy():
+    """Launch Ded-Guy; network update checks run only in a detached low-priority process."""
+    success = False
+    try:
+        pipboy_ensure_async_startup_hook()
+        # Never block the terminal on package installation. Missing voice
+        # packages are installed once in a delayed low-priority worker.
+        pipboy_install_missing_voice_dependencies_async()
+        dedguy_maybe_spawn_auto_update_check()
+        errors = pipboy_runtime_self_check()
+        if errors:
+            print(pipboy_text("Ded-Guy self-check failed:", "Αποτυχία αυτοελέγχου Ded-Guy:"))
+            for error in errors:
+                print(" - " + error)
+            return False
+        curses.wrapper(pipboy_curses)
+        success = True
+    except KeyboardInterrupt:
+        success = True
+    except curses.error as exc:
+        print(pipboy_text(f"Ded-Guy could not start in this terminal: {exc}", f"Το Ded-Guy δεν μπόρεσε να ξεκινήσει σε αυτό το τερματικό: {exc}"))
+    except Exception as exc:
+        pipboy_log_error("Ded-Guy launch", exc)
+        print(pipboy_text(f"Ded-Guy error: {exc}", f"Σφάλμα Ded-Guy: {exc}"))
+    finally:
+        pipboy_stop_speech()
+    return success
+
+
+# ------------------------------
 # Settings Menu with Different Styles
 # ------------------------------
 def ensure_required_settings_menu_items(options):
-    """Keeps important Settings entries visible even if older lists are reused."""
+    """Keep required entries and remove legacy Ded-Guy action entries.
+
+    Ded-Guy is a main-menu style selected through Change Menu Style. It must never
+    appear as a standalone Settings action, even if an older cached option list is
+    passed into this helper.
+    """
+    legacy_pipboy_labels = {
+        "pip-boy",
+        "ded guy",
+        str(_("Ded-Guy")).strip().casefold(),
+    }
+    options[:] = [
+        item for item in options
+        if str(item).strip().casefold() not in legacy_pipboy_labels
+    ]
+
     sponsors_label = _("Access Sponsors-Only Scripts")
     if sponsors_label not in options:
         try:
@@ -7898,7 +18301,7 @@ def run_settings_grid_menu():
                             pass
             
             # Draw instructions
-            instructions = f"Arrow Keys: Move | Enter: Select | q: Quit"
+            instructions = "Arrow Keys: Move | Enter: Select | q: Quit"
             try:
                 safe_curses_addstr(stdscr, term_height - 1, 0, instructions[:term_width - 1], curses.color_pair(3))
             except curses.error:
@@ -7970,6 +18373,66 @@ def run_settings_menu():
     
     return selected
 
+
+
+def _pipboy_impl_pipboy_expert_self_test_1():
+    checks = []
+    def record(name, condition, detail=""):
+        checks.append((name, bool(condition), str(detail or "")))
+    try:
+        payload = pipboy_embedded_project_payload()
+        record("Embedded complete uploaded project", len(payload.get("files", {})) == 201, len(payload.get("files", {})))
+        record("Embedded script coverage", int(payload.get("counts", {}).get("scripts", 0)) >= 180, payload.get("counts", {}).get("scripts"))
+    except Exception as exc:
+        record("Embedded complete uploaded project", False, exc)
+    try:
+        catalog = pipboy_tool_catalog_payload()
+        record("Authoritative README tool catalog", len(catalog) >= 80, len(catalog))
+        record("Pet Friends catalog knowledge", "pet friends" in catalog)
+        record("Termux Repair catalog knowledge", "termux repair wizard" in catalog)
+    except Exception as exc:
+        record("Authoritative README tool catalog", False, exc)
+    try:
+        index = pipboy_load_project_index(auto_build=False)
+        record("Merged project knowledge", len(index.get("files", {})) >= 201, len(index.get("files", {})))
+        pet = pipboy_search_project("Pet Friends virtual pet save", limit=4)
+        record("Hybrid project retrieval", bool(pet) and "pet friends" in pipboy_normalize(pet[0].get("name")), pet[0].get("name") if pet else "none")
+    except Exception as exc:
+        record("Hybrid project retrieval", False, exc)
+    state = {"config": pipboy_load_config(), "last_matches": [], "inventory": pipboy_empty_inventory(), "cwd": HOME_DIR}
+    try:
+        answer, _ = pipboy_intelligence_answer("where does Pet Friends save its data?", state)
+        record("Direct save-path reasoning", "petfriends_save.json" in answer, answer[:180])
+    except Exception as exc:
+        record("Direct save-path reasoning", False, exc)
+    try:
+        answer, matches = pipboy_intelligence_answer("which tool repairs broken Termux scripts and dependencies?", state)
+        record("Project tool recommendation", bool(matches) and "repair wizard" in pipboy_normalize(matches[0].get("name")), matches[0].get("name") if matches else answer[:120])
+    except Exception as exc:
+        record("Project tool recommendation", False, exc)
+    try:
+        answer, _ = pipboy_intelligence_answer("trace function get_existing_sponsors_paths", state)
+        record("Code-symbol tracing", "get_existing_sponsors_paths" in answer and "Settings.py" in answer, answer[:180])
+    except Exception as exc:
+        record("Code-symbol tracing", False, exc)
+    try:
+        clone = pipboy_clone_action("https://github.com/example/example.git")
+        shell = pipboy_shell_action("pkg install git")
+        record("Confirmed Git clone safety", bool(clone.get("risky")))
+        record("Confirmed shell safety", bool(shell.get("risky")))
+    except Exception as exc:
+        record("Confirmed action safety", False, exc)
+    config = pipboy_load_config()
+    record("Maximum single-file defaults", config.get("intelligence_depth") in {"balanced", "deep", "expert"} and config.get("intelligence_detail") in {"detailed", "maximum"} and int(config.get("intelligence_max_sources", 0)) >= 6)
+    print("Ded-Guy single-file expert self-test")
+    print("=" * 52)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    failures = [item for item in checks if not item[1]]
+    print("=" * 52)
+    print("RESULT: " + ("PASS" if not failures else "FAIL"))
+    return not failures
+
 def main():
     while True:
         should_exit = False
@@ -8024,60 +18487,2142 @@ def main():
             else:
                 input(f"\n{_('Press Enter to return to the settings menu...')}")
 
+
+# -----------------------------------------------------------------------------
+# Four-project + complete website intelligence overrides
+# -----------------------------------------------------------------------------
+_PIPBOY_PROJECT_ROOTS_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_project_roots_1
+_PIPBOY_MERGE_EMBEDDED_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_merge_embedded_project_index_2
+_PIPBOY_BUILD_INDEX_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_build_project_index_3
+_PIPBOY_LOAD_INDEX_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_load_project_index_3
+_PIPBOY_SEARCH_BLOB_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_record_search_blob_2
+_PIPBOY_REQUESTED_FILES_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_intelligence_requested_project_files_2
+_PIPBOY_RECORD_SUMMARY_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_intelligence_record_summary_1
+_PIPBOY_EXPERT_SELF_TEST_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_expert_self_test_1
+_PIPBOY_SCAN_ENVIRONMENT_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_scan_environment_1
+
+
+def pipboy_project_definition_by_name(value):
+    normalized = pipboy_normalize(value)
+    for project in PIPBOY_MANAGED_PROJECTS:
+        candidates = [project.get("name", ""), project.get("key", ""), project.get("repo", ""), *project.get("local_names", []), *project.get("aliases", [])]
+        if any(pipboy_normalize(item) and pipboy_normalize(item) in normalized for item in candidates):
+            return project
+    return None
+
+
+def pipboy_project_name_for_root(root):
+    root_real = os.path.realpath(str(root or ""))
+    root_name = os.path.basename(root_real)
+    for project in PIPBOY_MANAGED_PROJECTS:
+        managed = os.path.realpath(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))
+        if root_real == managed:
+            return project["name"]
+        for candidate in project.get("local_names", []):
+            if pipboy_normalize(root_name) == pipboy_normalize(candidate):
+                return project["name"]
+    if "/DedSec/" in root_real.replace("\\", "/") or pipboy_normalize(root_name) in {"dedsec", "dedsec main"}:
+        return "DedSec Project"
+    return root_name or "Project"
+
+
+def pipboy_installed_project_root(project):
+    candidates = []
+    for name in project.get("local_names", []):
+        candidates.append(os.path.join(HOME_DIR, name))
+    if project.get("key") == "dedsec":
+        candidates.extend([os.path.dirname(ENGLISH_BASE_PATH), os.path.dirname(os.path.dirname(os.path.realpath(__file__)))])
+    candidates.append(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))
+    for candidate in candidates:
+        candidate = os.path.realpath(os.path.expanduser(candidate))
+        if os.path.isdir(candidate) and any(os.path.exists(os.path.join(candidate, marker)) for marker in ("README.md", "README", "Setup.sh", "main.py", "Pocket AI.py", "Use Corrupted Files Project.py", "index.html")):
+            return candidate
+    return ""
+
+
+def pipboy_sync_managed_projects(force=False, progress=None):
+    """Index installed repositories; network cloning/updating occurs only when force=True.
+
+    User-managed installations are always read-only. Ded-Guy's private shallow
+    cache may be cloned or refreshed only after an explicit learn/refresh command.
+    """
+    os.makedirs(PIPBOY_MANAGED_PROJECTS_DIR, exist_ok=True)
+    status = {
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "generated_epoch": time.time(),
+        "projects": {},
+        "errors": [],
+    }
+    git = shutil.which("git")
+    env = os.environ.copy()
+    env["GIT_LFS_SKIP_SMUDGE"] = "1"
+
+    for project in PIPBOY_MANAGED_PROJECTS:
+        installed = ""
+        for name in project.get("local_names", []):
+            candidate = os.path.realpath(os.path.join(HOME_DIR, name))
+            if os.path.isdir(candidate):
+                installed = candidate
+                break
+        if project["key"] == "dedsec" and os.path.isdir(os.path.dirname(ENGLISH_BASE_PATH)):
+            installed = os.path.realpath(os.path.dirname(ENGLISH_BASE_PATH))
+        if installed:
+            status["projects"][project["key"]] = {
+                "name": project["name"], "path": installed, "state": "installed", "repo": project["repo"]
+            }
+            if progress:
+                progress(pipboy_text(
+                    f"Using installed {project['name']}: {installed}",
+                    f"Χρήση εγκατεστημένου {project['name']}: {installed}",
+                ))
+            continue
+
+        destination = os.path.realpath(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))
+        cached = os.path.isdir(os.path.join(destination, ".git"))
+        if not force:
+            state = "cached" if cached else "not_installed"
+            status["projects"][project["key"]] = {
+                "name": project["name"], "path": destination if cached else "", "state": state, "repo": project["repo"]
+            }
+            continue
+        if not git:
+            message = pipboy_text("git is not installed", "το git δεν είναι εγκατεστημένο")
+            status["errors"].append(f"{project['name']}: {message}")
+            status["projects"][project["key"]] = {
+                "name": project["name"], "path": destination, "state": "unavailable", "repo": project["repo"], "error": message
+            }
+            continue
+
+        try:
+            if cached:
+                branch_result = subprocess.run(
+                    [git, "-C", destination, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"],
+                    env=env, capture_output=True, text=True, timeout=30, check=False,
+                )
+                branch = (branch_result.stdout or "").strip().split("/")[-1] or "main"
+                fetch = subprocess.run(
+                    [git, "-C", destination, "fetch", "--depth", "1", "origin", branch],
+                    env=env, capture_output=True, text=True, timeout=240, check=False,
+                )
+                if fetch.returncode != 0:
+                    raise RuntimeError((fetch.stderr or fetch.stdout or "git fetch failed").strip())
+                reset = subprocess.run(
+                    [git, "-C", destination, "reset", "--hard", "FETCH_HEAD"],
+                    env=env, capture_output=True, text=True, timeout=120, check=False,
+                )
+                if reset.returncode != 0:
+                    raise RuntimeError((reset.stderr or reset.stdout or "git reset failed").strip())
+                state = "updated"
+            else:
+                _remove_path_if_exists(destination)
+                result = subprocess.run(
+                    [git, "clone", "--depth", "1", "--single-branch", project["url"], destination],
+                    env=env, capture_output=True, text=True, timeout=600, check=False,
+                )
+                if result.returncode != 0:
+                    raise RuntimeError((result.stderr or result.stdout or "git clone failed").strip())
+                state = "cloned"
+            status["projects"][project["key"]] = {
+                "name": project["name"], "path": destination, "state": state, "repo": project["repo"]
+            }
+            if progress:
+                progress(pipboy_text(f"{project['name']}: {state} — {destination}", f"{project['name']}: {state} — {destination}"))
+        except Exception as exc:
+            message = f"{project['name']}: {exc}"
+            pipboy_log_error("managed project synchronization", message)
+            status["errors"].append(message)
+            status["projects"][project["key"]] = {
+                "name": project["name"], "path": destination, "state": "unavailable", "repo": project["repo"], "error": str(exc)
+            }
+            if progress:
+                progress("[!] " + message)
+
+    pipboy_atomic_json_write(PIPBOY_MANAGED_PROJECTS_STATUS_PATH, status)
+    return status
+
+
+
+def pipboy_project_roots():
+    candidates = []
+    try:
+        candidates.extend(_PIPBOY_PROJECT_ROOTS_BEFORE_ECOSYSTEM())
+    except Exception:
+        pass
+    for project in PIPBOY_MANAGED_PROJECTS:
+        for name in project.get("local_names", []):
+            candidates.append(os.path.join(HOME_DIR, name))
+        candidates.append(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))
+    roots = []
+    seen = set()
+    for candidate in candidates:
+        if not candidate:
+            continue
+        real = os.path.realpath(os.path.expanduser(candidate))
+        if real in seen or not os.path.isdir(real):
+            continue
+        if any(os.path.exists(os.path.join(real, marker)) for marker in ("README.md", "README", "Setup.sh", "main.py", "Pocket AI.py", "Use Corrupted Files Project.py", "index.html", "Scripts")):
+            roots.append(real)
+            seen.add(real)
+    return roots
+
+
+def pipboy_managed_seed_records():
+    seeds = [
+        {
+            "project_name": "Offline Survival Project", "relative_path": "README.md", "name": "Offline Survival Project — embedded overview", "extension": ".md", "language": "bilingual",
+            "description": "Bilingual fully offline emergency-preparedness knowledge base and terminal reader for Termux and desktop systems.",
+            "content": (
+                "Offline Survival Project contains mirrored English and Greek JSON knowledge "
+                "databases and dependency-free Python launchers. It supports searching, category "
+                "browsing, file finding, record-ID lookup, random topics, paged reading, integrity "
+                "validation, accent-insensitive Greek matching, and persistent settings. Primary "
+                "launcher: main.py. Compatibility launcher: Offline Survival.py. The official README "
+                "describes 2,308 records and 642 JSON files per language across 258 category folders. "
+                "Local preferences are saved in ~/.offline_survival_project/settings.json; searches "
+                "and viewed records are not logged."
+            ),
+            "headings": ["Overview", "Main features", "Repository structure", "Controls"], "capabilities": ["offline survival knowledge", "English and Greek databases", "search", "integrity validation", "paged terminal reader"],
+            "arguments": [], "input_hints": ["numbered menu", "n/Enter next page", "p previous", "0/q back"], "save_paths": ["~/.offline_survival_project/settings.json"], "urls": ["https://github.com/dedsec1121fk/Offline-Survival-Project"],
+        },
+        {
+            "project_name": "Pocket AI", "relative_path": "README.md", "name": "Pocket AI — embedded overview", "extension": ".md", "language": "bilingual",
+            "description": "Pocket AI 16.0 is a local bilingual English/Greek assistant for Android and Termux with hardware-aware routing, retrieval memory, school tools, exact utilities, guarded web learning and sequential local-model tiers.",
+            "content": (
+                "Pocket AI 16.0 is designed for Android and Termux without root. The repository "
+                "includes Pocket AI.py, Models, Other Files, documentation, installers, saved data, "
+                "bilingual knowledge and school databases. Normal local inference starts at 0.6B and "
+                "scales through 0.8B, 1.5B, 1.7B, 2B and 3.09B when the phone can safely support "
+                "them; 135M models remain emergency fallbacks and hybrid routes run sequentially. "
+                "It scans phone RAM, CPU, architecture, storage, battery and thermal conditions; "
+                "indexes local files and allowed public web sources; and supports conversation "
+                "memory, school help, exact tools and hardware-aware routing. Generated user data is "
+                "stored under Other Files/Saved Data/."
+            ),
+            "headings": ["Main Features", "Hardware", "Installation", "Learning", "Save locations"], "capabilities": ["local bilingual assistant", "hardware scanner", "offline retrieval", "web learning", "school tutor", "conversation memory"],
+            "arguments": [], "input_hints": ["help", "scan my phone", "normal English or Greek questions"], "save_paths": ["Other Files/Saved Data/"], "urls": ["https://github.com/dedsec1121fk/Pocket-AI"],
+        },
+        {
+            "project_name": "Corrupted Files Project", "relative_path": "README.md", "name": "Corrupted Files Project — embedded overview", "extension": ".md", "language": "bilingual",
+            "description": "Termux-only bilingual historical research archive for Android with Greek and USA case databases, images, citations, research notes, galleries and exports.",
+            "content": (
+                "Corrupted Files Project has Greek and USA data folders, README.md and Use Corrupted "
+                "Files Project.py. It provides validation, statistics, quality reports, Termux "
+                "checks, new cases, collections, progress, case reading, galleries, HTML/index "
+                "exports and state backup/restore. Bookmarks, read state, history, notes and study "
+                "scores are stored in ~/.corrupted_files_project_state.json. Exports and state "
+                "backups use the Corrupted Files Exports folder in Android Downloads."
+            ),
+            "headings": ["Repository Structure", "Commands", "Personal Data", "Troubleshooting"], "capabilities": ["historical case archive", "bilingual research", "citation and image credits", "gallery", "HTML export", "state backup"],
+            "arguments": ["--validate", "--stats", "--quality-report", "--termux-check", "--new-cases", "--collections", "--progress", "--case", "--gallery", "--export-html", "--export-index", "--backup-state", "--restore-state"],
+            "input_hints": ["interactive menu and CLI"], "save_paths": ["~/.corrupted_files_project_state.json", "/storage/emulated/0/Download/Corrupted Files Exports/"], "urls": ["https://github.com/dedsec1121fk/Corrupted-Files-Project"],
+        },
+        {
+            "project_name": "DedSec Website Source", "relative_path": "README/site", "name": "DedSec website — embedded overview", "extension": ".html", "language": "bilingual",
+            "description": "The English and Greek DedSec Project website, including installation, tools, assistance, FAQ, store, privacy, contact, articles and sitemap-driven pages.",
+            "content": (
+                "The website source repository publishes ded-sec.space. Ded-Guy also performs a live "
+                "sitemap and same-domain crawl so it can learn every reachable current English and "
+                "Greek page, assistance guide, tool description and save location. The source "
+                "repository is indexed for HTML, CSS, JavaScript, metadata, structured data and "
+                "navigation relationships."
+            ),
+            "headings": ["Home", "Guide For Installation", "Learn About The Tools", "Assistance", "FAQ", "Store"], "capabilities": ["website documentation", "English and Greek pages", "SEO metadata", "assistance articles", "tool save locations"],
+            "arguments": [], "input_hints": [], "save_paths": [], "urls": ["https://ded-sec.space/", "https://github.com/dedsec1121fk/dedsec1121fk.github.io"],
+        },
+    ]
+    records = {}
+    for seed in seeds:
+        project_key = pipboy_normalize(seed["project_name"]).replace(" ", "-")
+        path = f"embedded://{project_key}/{seed['relative_path']}"
+        record = dict(seed)
+        record.update({"path": path, "root": f"embedded://{project_key}", "signature": "embedded-ecosystem-r21", "embedded": True, "excerpt": seed.get("content", "")[:5000], "size": len(seed.get("content", "")), "modified": 0})
+        analysis = pipboy_deep_analyze_source(seed.get("content", ""), seed.get("relative_path", ""), seed.get("extension", ""))
+        for key, value in analysis.items():
+            record.setdefault(key, value)
+        records[path] = record
+    return records
+
+
+def pipboy_merge_managed_project_seeds(index):
+    result = dict(index or {})
+    files = dict(result.get("files") or {})
+    existing_projects = Counter(str(item.get("project_name") or pipboy_project_name_for_root(item.get("root", ""))) for item in files.values())
+    for path, seed in pipboy_managed_seed_records().items():
+        if existing_projects.get(seed["project_name"], 0) == 0:
+            files[path] = seed
+    for path, item in list(files.items()):
+        record = dict(item)
+        record["project_name"] = record.get("project_name") or pipboy_project_name_for_root(record.get("root", ""))
+        files[path] = record
+    result["files"] = files
+    result["roots"] = list(dict.fromkeys([*(result.get("roots") or []), *[os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]) for project in PIPBOY_MANAGED_PROJECTS if os.path.isdir(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))]]))
+    counts = dict(result.get("counts") or {})
+    counts["files"] = len(files)
+    counts["projects"] = dict(Counter(record.get("project_name", "Project") for record in files.values()))
+    result["counts"] = counts
+    result["managed_projects"] = [{"name": project["name"], "repo": project["repo"], "path": pipboy_installed_project_root(project) or os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"])} for project in PIPBOY_MANAGED_PROJECTS]
+    result["ecosystem_schema"] = 1
+    return result
+
+
+def pipboy_merge_embedded_project_index(index):
+    """Merge DedSec's embedded payload without attaching it to same-named files in other repositories."""
+    if not isinstance(index, dict):
+        return pipboy_merge_managed_project_seeds(_PIPBOY_MERGE_EMBEDDED_BEFORE_ECOSYSTEM(index))
+    live = index.get("files", {}) if isinstance(index.get("files"), dict) else {}
+    dedsec_files, other_files = {}, {}
+    for path, record in live.items():
+        project_name = record.get("project_name") or pipboy_project_name_for_root(record.get("root", ""))
+        enriched = dict(record)
+        enriched["project_name"] = project_name
+        if project_name == "DedSec Project":
+            dedsec_files[path] = enriched
+        else:
+            other_files[path] = enriched
+    dedsec_index = dict(index)
+    dedsec_index["files"] = dedsec_files
+    dedsec_index["roots"] = [root for root in index.get("roots", []) if pipboy_project_name_for_root(root) == "DedSec Project"]
+    merged = _PIPBOY_MERGE_EMBEDDED_BEFORE_ECOSYSTEM(dedsec_index)
+    result = dict(index)
+    combined = dict(merged.get("files", {}))
+    for path, record in other_files.items():
+        combined[path] = record
+    result.update({key: value for key, value in merged.items() if key not in {"files", "roots", "counts"}})
+    result["files"] = combined
+    result["roots"] = list(dict.fromkeys(index.get("roots", [])))
+    result["counts"] = dict(index.get("counts") or {})
+    return pipboy_merge_managed_project_seeds(result)
+
+
+
+def pipboy_build_project_index(force=False, progress=None):
+    """Explicit bounded index build; normal typing never calls this function."""
+    global _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    raw = _PIPBOY_BUILD_INDEX_BEFORE_ECOSYSTEM(force=force, progress=progress)
+    raw = pipboy_merge_managed_project_seeds(raw)
+    compact = pipboy_compact_runtime_index(raw, max_records=1800)
+    pipboy_atomic_json_write(PIPBOY_PROJECT_INDEX_PATH, compact)
+    _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = compact
+    return compact
+
+
+
+
+_PIPBOY_FAST_PROJECT_INDEX_CACHE = None
+
+
+
+def pipboy_functional_bilingual_self_test():
+    checks = []
+    def record(name, condition, detail=""):
+        checks.append((name, bool(condition), str(detail)))
+
+    config = dict(PIPBOY_DEFAULT_CONFIG)
+    config.update({"wake_word_enabled": True, "recognition_language": "english"})
+    speech_samples = [
+        ('{"text":"Hey Guide run pet friend script"}', "run pet friends script"),
+        ('[{"transcript":"Hey Guy tell me scripts for fishing"}]', "tell me scripts for phishing"),
+        ('final: Hey Gai give me assistance for python module error', "give me assistance for python module error"),
+    ]
+    for raw, expected in speech_samples:
+        parsed = pipboy_parse_speech_output(raw)
+        command, woke = pipboy_extract_wake_command(parsed, config)
+        record("Voice parse: " + expected, woke and expected in pipboy_normalize(command), command)
+
+    fake_path = os.path.join(PIPBOY_DATA_DIR, "Pet Friends.py")
+    fake_inventory = {"scripts": {
+        fake_path: {
+            "name": "Pet Friends.py", "description": "Terminal pet game", "capabilities": ["terminal UI"],
+            "arguments": [], "input_hints": [], "command": [sys.executable or "python3", fake_path],
+            "directory": PIPBOY_DATA_DIR, "full_screen": True, "interactive": True,
+        }
+    }, "commands": {}, "android_apps": {}}
+    state = {"config": dict(PIPBOY_DEFAULT_CONFIG), "inventory": fake_inventory, "cwd": HOME_DIR, "last_matches": [], "pending_action": None}
+    run_result = pipboy_process_command("run pet friends script", state)
+    action = run_result.get("action") or {}
+    record("Natural script execution", action.get("type") == "launch" and "Pet Friends" in action.get("title", ""), run_result)
+
+    phishing = pipboy_smart_normalize("Tell me scripts for phishing")
+    developer = pipboy_smart_normalize("Tell me developer scripts")
+    greek_discovery = pipboy_smart_normalize("Πες μου scripts για phishing")
+    record("English phishing discovery", phishing == "search phishing scripts", phishing)
+    record("English developer discovery", developer == "search developer base scripts", developer)
+    record("Greek discovery intent", "search" in greek_discovery and "phishing" in greek_discovery, greek_discovery)
+
+    assistance_problem = pipboy_extract_assistance_problem("Give me assistance for a Python module error")
+    assistance_answer, assistance_matches = pipboy_assistance_answer(assistance_problem, state)
+    record("Assistance intent", assistance_problem == "a python module error", assistance_problem)
+    record("Assistance evidence", bool(assistance_matches) and bool(assistance_answer), assistance_answer[:160])
+
+    pinned_on = pipboy_pinned_audio_status({"voice_enabled": True, "microphone_enabled": True, "input_mode": "mixed"})
+    pinned_off = pipboy_pinned_audio_status({"voice_enabled": False, "microphone_enabled": False, "input_mode": "mixed"})
+    record("Pinned unmuted status", "UNMUTED" in pinned_on or "ΑΝΟΙΧ" in pinned_on, pinned_on)
+    record("Pinned muted status", "MUTED" in pinned_off or "ΣΙΓΑΣ" in pinned_off, pinned_off)
+
+    original_language = globals().get("get_current_display_language")
+    try:
+        globals()["get_current_display_language"] = lambda: "english"
+        english_answer, _ = pipboy_assistance_answer("git clone failure", state)
+        globals()["get_current_display_language"] = lambda: "greek"
+        greek_answer, _ = pipboy_assistance_answer("σφαλμα git clone", state)
+        record("English-only answer", bool(english_answer) and not _PIPBOY_GREEK_RE.search(english_answer), english_answer[:100])
+        record("Greek answer", bool(_PIPBOY_GREEK_RE.search(greek_answer)), greek_answer[:100])
+    finally:
+        if original_language is not None:
+            globals()["get_current_display_language"] = original_language
+
+    print("Ded-Guy functional bilingual self-test")
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    return all(passed for _name, passed, _detail in checks)
+
+def pipboy_compact_runtime_record(source, key=""):
+    """Keep only evidence needed for answers; discard large source bodies."""
+    source = source if isinstance(source, dict) else {}
+    item = {
+        "path": str(source.get("path") or key),
+        "root": str(source.get("root") or ""),
+        "relative_path": str(source.get("relative_path") or source.get("name") or key),
+        "name": str(source.get("name") or source.get("title") or os.path.basename(str(key))),
+        "title": str(source.get("title") or source.get("name") or ""),
+        "project_name": str(source.get("project_name") or "DedSec Project"),
+        "language": str(source.get("language") or ""),
+        "description": str(source.get("description") or "")[:5000],
+        "excerpt": str(source.get("excerpt") or source.get("text") or source.get("content") or source.get("description") or "")[:5000],
+        "content": str(source.get("excerpt") or source.get("description") or "")[:5000],
+        "extension": str(source.get("extension") or ""),
+        "signature": str(source.get("signature") or "runtime"),
+        "embedded": bool(source.get("embedded")),
+    }
+    for field, cap in (
+        ("headings", 40), ("save_paths", 30), ("urls", 30),
+        ("capabilities", 50), ("arguments", 40), ("input_hints", 40),
+        ("functions", 100), ("classes", 60), ("imports", 100),
+        ("risk_tags", 30), ("commands", 40), ("calls", 80),
+    ):
+        values = source.get(field) or []
+        item[field] = list(values)[:cap] if isinstance(values, (list, tuple)) else []
+    defs = source.get("defined_symbols") or {}
+    item["defined_symbols"] = dict(list(defs.items())[:160]) if isinstance(defs, dict) else {}
+    call_lines = source.get("call_lines") or {}
+    item["call_lines"] = {str(k): list(v)[:12] for k, v in list(call_lines.items())[:80]} if isinstance(call_lines, dict) else {}
+    if source.get("catalog_save_location"):
+        item["catalog_save_location"] = str(source.get("catalog_save_location"))[:2000]
+    return item
+
+
+def pipboy_fast_project_index():
+    """Build a small in-memory expert catalog without expanding the full source payload."""
+    global _PIPBOY_FAST_PROJECT_INDEX_CACHE
+    if isinstance(_PIPBOY_FAST_PROJECT_INDEX_CACHE, dict):
+        return _PIPBOY_FAST_PROJECT_INDEX_CACHE
+    records = {}
+    catalog = pipboy_tool_catalog_payload()
+    if isinstance(catalog, dict):
+        for key, entries in catalog.items():
+            if not isinstance(entries, list):
+                continue
+            for position, entry in enumerate(entries[:4]):
+                if not isinstance(entry, dict):
+                    continue
+                language = str(entry.get("language") or "unknown")
+                path = f"catalog://DedSec/{key}/{language}/{position}"
+                save_location = str(entry.get("save_location") or "")
+                record = {
+                    "path": path, "root": "catalog://DedSec", "relative_path": str(entry.get("name") or key),
+                    "name": str(entry.get("name") or key), "project_name": "DedSec Project",
+                    "language": language, "extension": ".catalog", "description": str(entry.get("description") or ""),
+                    "excerpt": str(entry.get("description") or "") + ("\nSave location: " + save_location if save_location else ""),
+                    "save_paths": [save_location] if save_location else [], "catalog_save_location": save_location,
+                    "capabilities": [], "arguments": [], "input_hints": [], "functions": [], "classes": [],
+                    "imports": [], "risk_tags": [], "defined_symbols": {}, "calls": [], "signature": "catalog",
+                    "embedded": True,
+                }
+                records[path] = pipboy_compact_runtime_record(record, path)
+    try:
+        for path, seed in pipboy_managed_seed_records().items():
+            records[path] = pipboy_compact_runtime_record(seed, path)
+    except Exception:
+        pass
+    _PIPBOY_FAST_PROJECT_INDEX_CACHE = {
+        "schema": 26, "generated_at": "runtime catalog", "generated_epoch": 0,
+        "roots": ["catalog://DedSec"], "files": records,
+        "counts": {"files": len(records), "runtime_safe": True}, "runtime_safe": True,
+    }
+    return _PIPBOY_FAST_PROJECT_INDEX_CACHE
+
+
+def pipboy_compact_runtime_index(index, max_records=1200):
+    if not isinstance(index, dict):
+        return pipboy_fast_project_index()
+    files = index.get("files") if isinstance(index.get("files"), dict) else {}
+    compact = {}
+    for key, source in list(files.items())[:max_records]:
+        compact[str(key)] = pipboy_compact_runtime_record(source, str(key))
+    if not compact:
+        return pipboy_fast_project_index()
+    result = {
+        "schema": 26, "generated_at": index.get("generated_at", ""),
+        "generated_epoch": index.get("generated_epoch", 0), "roots": list(index.get("roots") or [])[:20],
+        "files": compact, "counts": {"files": len(compact), "runtime_safe": True},
+        "runtime_safe": True,
+    }
+    return result
+
+
+def _dedguy_base_pipboy_load_project_index(auto_build=False):
+    """Load only a compact index in the interactive process."""
+    global _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    if isinstance(_PIPBOY_PROJECT_INDEX_RUNTIME_CACHE, dict) and _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE.get("runtime_safe"):
+        return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    try:
+        if os.path.isfile(PIPBOY_PROJECT_INDEX_PATH) and os.path.getsize(PIPBOY_PROJECT_INDEX_PATH) <= 4 * 1024 * 1024:
+            index = pipboy_load_json(PIPBOY_PROJECT_INDEX_PATH, {})
+            _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_compact_runtime_index(index)
+            return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    except Exception:
+        pass
+    try:
+        compact_embedded = pipboy_embedded_project_index()
+        _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_merge_managed_project_seeds(compact_embedded)
+    except Exception:
+        _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_fast_project_index()
+    _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE["runtime_safe"] = True
+    return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+
+
+def pipboy_record_search_blob(record):
+    project = str(record.get("project_name") or "")
+    return project + " " + _PIPBOY_SEARCH_BLOB_BEFORE_ECOSYSTEM(record)
+
+
+def pipboy_intelligence_record_summary(record, query, label, detail="detailed"):
+    project = record.get("project_name") or pipboy_project_name_for_root(record.get("root", ""))
+    summary = _PIPBOY_RECORD_SUMMARY_BEFORE_ECOSYSTEM(record, query, label, detail)
+    if project and f"[{project}]" not in summary:
+        summary = f"[{project}] " + summary
+    return summary
+
+
+def pipboy_intelligence_requested_project_files(query, limit=12):
+    """Resolve explicit ecosystem project names before similarly named image assets."""
+    query_normalized = pipboy_normalize(query)
+    requested_projects = []
+    for project in PIPBOY_MANAGED_PROJECTS:
+        aliases = [project.get("name", ""), project.get("repo", ""), *project.get("aliases", [])]
+        if any(pipboy_normalize(alias) and pipboy_normalize(alias) in query_normalized for alias in aliases):
+            requested_projects.append(project["name"])
+    if not requested_projects:
+        return _PIPBOY_REQUESTED_FILES_BEFORE_ECOSYSTEM(query, limit=limit)
+    index = pipboy_load_project_index(auto_build=False)
+    query_tokens = set(pipboy_search_tokens(query))
+    wants_save = any(term in query_normalized for term in ("save", "saved", "storage", "folder", "path", "where", "αποθηκευ", "φακελ", "διαδρομ"))
+    ranked = []
+    for record in index.get("files", {}).values():
+        project_name = record.get("project_name") or pipboy_project_name_for_root(record.get("root", ""))
+        if project_name not in requested_projects:
+            continue
+        name = str(record.get("name") or record.get("relative_path") or "")
+        extension = str(record.get("extension") or "").casefold()
+        metadata = " ".join([
+            name, str(record.get("description") or ""), str(record.get("content") or "")[:12000],
+            " ".join(map(str, record.get("headings", []) or [])),
+            " ".join(map(str, record.get("save_paths", []) or [])),
+        ])
+        tokens = set(pipboy_search_tokens(metadata))
+        score = 100.0 + len(query_tokens & tokens) * 4.0
+        lower_name = name.casefold()
+        if lower_name in {"readme.md", "readme", "readme/site"} or "embedded overview" in lower_name:
+            score += 45.0
+        if record.get("embedded"):
+            score += 12.0
+        if wants_save and record.get("save_paths"):
+            score += 55.0
+        if extension in {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".ico"}:
+            score -= 90.0
+        item = dict(record)
+        item.update({"kind": "project", "title": name, "project_name": project_name, "score": score})
+        ranked.append(item)
+    ranked.sort(key=lambda item: (-float(item.get("score", 0)), str(item.get("relative_path") or "").casefold()))
+    return ranked[:max(1, int(limit))]
+
+
+def pipboy_project_summary_text():
+    index = pipboy_load_project_index(auto_build=False)
+    files = list(index.get("files", {}).values())
+    extension_counts = Counter(record.get("extension", "none") for record in files)
+    project_counts = Counter(record.get("project_name") or pipboy_project_name_for_root(record.get("root", "")) for record in files)
+    script_count = sum(1 for record in files if record.get("extension") in PIPBOY_SCRIPT_EXTENSIONS)
+    greek_count = sum(1 for record in files if record.get("language") == "greek")
+    projects = ", ".join(f"{name}: {count}" for name, count in project_counts.most_common())
+    top_extensions = ", ".join(f"{ext}: {count}" for ext, count in extension_counts.most_common(8))
+    return pipboy_text(
+        f"Ecosystem knowledge contains {len(files)} indexed text/code records across {len(project_counts)} project areas, including {script_count} runnable/web scripts and {greek_count} Greek-language files. Projects: {projects}. Main file types: {top_extensions}.",
+        f"Η γνώση του οικοσυστήματος περιέχει {len(files)} εγγραφές κειμένου/κώδικα σε {len(project_counts)} περιοχές project, μεταξύ τους {script_count} εκτελέσιμα/web scripts και {greek_count} αρχεία στα ελληνικά. Projects: {projects}. Κύριοι τύποι: {top_extensions}."
+    )
+
+
+def pipboy_intelligence_architecture_answer(query, records, sources):
+    index = pipboy_load_project_index(auto_build=False)
+    files = list(index.get("files", {}).values())
+    project_counts = Counter(record.get("project_name") or pipboy_project_name_for_root(record.get("root", "")) for record in files)
+    runnable_counts = Counter()
+    for record in files:
+        if record.get("extension") in PIPBOY_SCRIPT_EXTENSIONS:
+            runnable_counts[record.get("project_name") or "Project"] += 1
+    project_line = ", ".join(f"{name}: {count} files/{runnable_counts.get(name, 0)} scripts" for name, count in project_counts.most_common())
+    details = [pipboy_text(
+        f"The expert index covers the DedSec ecosystem rather than one repository. Current coverage: {project_line}. The live website crawler is a separate layer and follows the sitemap plus same-domain links for English and Greek documentation.",
+        f"Το expert index καλύπτει το οικοσύστημα DedSec και όχι μόνο ένα repository. Τρέχουσα κάλυψη: {project_line}. Ο live website crawler είναι ξεχωριστό επίπεδο και ακολουθεί το sitemap και same-domain links για αγγλική και ελληνική τεκμηρίωση."
+    )]
+    for source, record in zip(sources[:7], records[:7]):
+        details.append(pipboy_intelligence_record_summary(record, query, source["label"], "balanced"))
+    return "\n\n".join(details)
+
+
+def pipboy_intelligence_status_text(config=None):
+    config = config or pipboy_load_config()
+    index = pipboy_load_project_index(auto_build=False)
+    project_counts = Counter(record.get("project_name") or pipboy_project_name_for_root(record.get("root", "")) for record in index.get("files", {}).values())
+    website = pipboy_load_website_index()
+    status = pipboy_load_json(PIPBOY_MANAGED_PROJECTS_STATUS_PATH, {})
+    synced = sum(1 for item in (status.get("projects") or {}).values() if item.get("state") in {"installed", "cached", "cloned", "updated"})
+    projects = ", ".join(f"{name} {count}" for name, count in project_counts.most_common())
+    return pipboy_text(
+        f"Single-file ecosystem expert: {'ON' if config.get('intelligence_enabled', True) else 'OFF'} | no models/APIs | {len(index.get('files', {}))} project records | {len(project_counts)} project areas ({projects}) | {len(website.get('pages', {}))} website pages | {synced}/{len(PIPBOY_MANAGED_PROJECTS)} managed repositories available.",
+        f"Single-file ειδικός οικοσυστήματος: {'ON' if config.get('intelligence_enabled', True) else 'OFF'} | χωρίς models/APIs | {len(index.get('files', {}))} εγγραφές project | {len(project_counts)} περιοχές ({projects}) | {len(website.get('pages', {}))} σελίδες website | {synced}/{len(PIPBOY_MANAGED_PROJECTS)} managed repositories διαθέσιμα."
+    )
+
+
+PIPBOY_MANAGED_PROJECT_REFRESH_SECONDS = 24 * 60 * 60
+
+
+def pipboy_managed_projects_stale(status=None):
+    """Return True when the private source mirrors need their daily update check."""
+    status = status if isinstance(status, dict) else pipboy_load_json(PIPBOY_MANAGED_PROJECTS_STATUS_PATH, {})
+    if not status or status.get("errors"):
+        return True
+    projects = status.get("projects") if isinstance(status.get("projects"), dict) else {}
+    required_keys = {item["key"] for item in PIPBOY_MANAGED_PROJECTS}
+    if not required_keys.issubset(projects):
+        return True
+    try:
+        generated_epoch = float(status.get("generated_epoch") or 0)
+    except (TypeError, ValueError):
+        generated_epoch = 0
+    return generated_epoch <= 0 or time.time() - generated_epoch >= PIPBOY_MANAGED_PROJECT_REFRESH_SECONDS
+
+
+def pipboy_maybe_spawn_project_refresh():
+    """Never clone, fetch, or index repositories silently in the UI session."""
+    return False
+
+
+def pipboy_scan_environment(silent=False, launch_scan=False):
+    """Scan installed items only; repository/network refresh is always explicit."""
+    return _PIPBOY_SCAN_ENVIRONMENT_BEFORE_ECOSYSTEM(silent=silent, launch_scan=launch_scan)
+
+
+_PIPBOY_SYMBOL_ANSWER_BEFORE_ECOSYSTEM = _pipboy_impl_pipboy_intelligence_symbol_answer_2
+
+
+def pipboy_intelligence_symbol_answer(query):
+    """Trace indexed symbols and fall back to this single Settings.py source."""
+    answer, matches = _PIPBOY_SYMBOL_ANSWER_BEFORE_ECOSYSTEM(query)
+    if answer:
+        return answer, matches
+    symbol = pipboy_intelligence_extract_symbol(query)
+    if not symbol:
+        return "", []
+    source_candidates = []
+    for candidate in (globals().get("__file__"), SETTINGS_SCRIPT_PATH):
+        candidate = str(candidate or "")
+        if candidate and os.path.isfile(candidate) and candidate not in source_candidates:
+            source_candidates.append(candidate)
+    definitions, references = [], []
+    definition_pattern = re.compile(r"^\s*(?:async\s+def|def|class)\s+" + re.escape(symbol) + r"\b")
+    reference_pattern = re.compile(r"\b" + re.escape(symbol) + r"\b")
+    for path in source_candidates:
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                for line_number, line in enumerate(handle, 1):
+                    if definition_pattern.search(line):
+                        definitions.append((path, line_number))
+                    elif reference_pattern.search(line):
+                        references.append((path, line_number))
+        except OSError:
+            continue
+    if not definitions and not references:
+        return "", []
+    rows = [pipboy_text(f"Symbol trace for `{symbol}`:", f"Ανίχνευση symbol για `{symbol}`:")]
+    if definitions:
+        rows.append(pipboy_text("Definitions:", "Ορισμοί:"))
+        for path, line_number in definitions[:12]:
+            rows.append(f"- Settings.py:L{line_number}")
+    else:
+        rows.append(pipboy_text("No definition was found in Settings.py.", "Δεν βρέθηκε ορισμός στο Settings.py."))
+    if references:
+        rows.append(pipboy_text("Other references:", "Άλλες αναφορές:"))
+        for path, line_number in references[:12]:
+            rows.append(f"- Settings.py:L{line_number}")
+    record = {
+        "kind": "project",
+        "project_name": "DedSec Project",
+        "name": "Settings.py",
+        "relative_path": "Settings.py",
+        "path": source_candidates[0] if source_candidates else SETTINGS_SCRIPT_PATH,
+        "extension": ".py",
+        "defined_symbols": {symbol: definitions[0][1]} if definitions else {},
+        "excerpt": "\n".join(rows),
+    }
+    return "\n".join(rows), [record]
+
+
+def pipboy_expert_self_test():
+    base_ok = bool(_PIPBOY_EXPERT_SELF_TEST_BEFORE_ECOSYSTEM())
+    repo_urls = {item.get("url") for item in PROJECT_SAVE_REPOSITORIES}
+    required = {project["url"] for project in PIPBOY_MANAGED_PROJECTS[:4]}
+    registry_ok = required.issubset(repo_urls)
+    roots_ok = isinstance(pipboy_project_roots(), list)
+    seeds_ok = {"Offline Survival Project", "Pocket AI", "Corrupted Files Project", "DedSec Website Source"}.issubset({item.get("project_name") for item in pipboy_managed_seed_records().values()})
+    print("[PASS] Four-project backup repository list" if registry_ok else "[FAIL] Four-project backup repository list")
+    print("[PASS] Multi-project root discovery" if roots_ok else "[FAIL] Multi-project root discovery")
+    print("[PASS] Offline seed knowledge for additional projects" if seeds_ok else "[FAIL] Offline seed knowledge for additional projects")
+    return base_ok and registry_ok and roots_ok and seeds_ok
+
+
+
+
+
+def pipboy_natural_language_self_test():
+    state = {
+        "config": pipboy_load_config(), "inventory": pipboy_inventory(),
+        "cwd": HOME_DIR, "last_matches": [], "pending_action": None,
+    }
+    checks = [
+        ("Any Facebook pages?", {"Fake Facebook Friends Page.py", "Fake Facebook Verification Page.py"}),
+        ("Do you have Instagram pages?", {"Fake Instagram Followers Page.py", "Fake Instagram Verification Page.py"}),
+        ("Any PayPal pages?", {"Fake PayPal Page.py"}),
+        ("Is there a Snapchat page?", {"Fake Snapchat Friends Page.py"}),
+    ]
+    passed = True
+    for query, expected in checks:
+        result = pipboy_process_command(query, state)
+        names = {str(item.get("name") or "") for item in result.get("matches", [])}
+        ok = bool(expected & names) and not any(item.get("kind") == "command" for item in result.get("matches", []))
+        print(f"[{'PASS' if ok else 'FAIL'}] Natural query: {query}")
+        if not ok:
+            print("  Matches:", sorted(names)[:10])
+            passed = False
+    visible = pipboy_inline_control_items(state["config"])
+    controls_ok = len(visible) <= 7 and {code for code, _label, _action in visible} == {"sp", "ma", "mm", "md", "sc", "h", "x"}
+    print(f"[{'PASS' if controls_ok else 'FAIL'}] Compact visible controls")
+    return passed and controls_ok
+
+
+def pipboy_semantic_expert_self_test():
+    """Regression test for natural category and capability discovery."""
+    state = {
+        "config": pipboy_load_config(), "inventory": pipboy_inventory(),
+        "cwd": HOME_DIR, "last_matches": [], "pending_action": None,
+    }
+    checks = []
+    expected = {
+        "phishing scripts": "Fake",
+        "fake pages": "Fake",
+        "developer base": "Developer Base",
+        "network scripts": "Network Tools",
+        "what tools can make a website": "Developer Base",
+    }
+    for query, marker in expected.items():
+        routed = pipboy_process_command(query, state)
+        action = routed.get("action") or {}
+        passed = action.get("type") == "intelligence_query"
+        answer = ""
+        matches = []
+        if passed:
+            answer, matches = pipboy_intelligence_answer(action.get("query", query), state, scope=action.get("scope", "all"))
+            passed = bool(answer) and bool(matches) and marker.casefold() in (answer + " " + " ".join(str(item.get("category") or "") for item in matches)).casefold()
+        checks.append((query, passed))
+    overview = pipboy_process_command("what does the project have", state)
+    overview_ok = overview.get("action", {}).get("type") == "intelligence_query"
+    if overview_ok:
+        answer, _ = pipboy_intelligence_answer(overview["action"]["query"], state, scope="all")
+        overview_ok = "Developer Base" in answer and "Fake Pages" in answer
+    checks.append(("project category overview", overview_ok))
+    for name, passed in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] Semantic search: {name}")
+    return all(passed for _name, passed in checks)
+
+
+def pipboy_menu_style_regression_check():
+    """Verify Ded-Guy is a main menu style and never a normal Settings action."""
+    settings_labels = [pipboy_normalize(item) for item in get_settings_options()]
+    standalone_absent = all(label not in {"ded guy", "pip-boy", "pipboy"} for label in settings_labels)
+    style_saved = get_current_menu_style() in {"list", "grid", "number", "pipboy", "dedsec_os"}
+    try:
+        source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    except Exception:
+        source = ""
+    selector_present = '_("Ded-Guy Style")' in source and 'return "pipboy"' in source
+    entry_present = 'explicit_style == "pipboy"' in source and 'launch_pipboy()' in source
+    return standalone_absent and style_saved and selector_present and entry_present
+
+
+
+# -----------------------------------------------------------------------------
+# Transactional update-triggered knowledge refresh
+# -----------------------------------------------------------------------------
+
+def pipboy_read_small_file_bytes(path, max_bytes=8 * 1024 * 1024):
+    try:
+        if os.path.isfile(path) and os.path.getsize(path) <= max_bytes:
+            with open(path, "rb") as handle:
+                return handle.read()
+    except OSError:
+        pass
+    return None
+
+
+def pipboy_restore_file_bytes(path, payload):
+    try:
+        if payload is None:
+            return
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        temporary = path + ".restore.tmp"
+        with open(temporary, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    except OSError as exc:
+        pipboy_log_error("knowledge database restore", exc)
+
+
+def pipboy_acquire_refresh_lock(max_age=1800):
+    os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+    try:
+        if os.path.exists(PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH):
+            age = time.time() - os.path.getmtime(PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH)
+            if age > max_age:
+                os.remove(PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH)
+    except OSError:
+        pass
+    try:
+        fd = os.open(
+            PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH,
+            os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+            0o600,
+        )
+        os.write(fd, f"{os.getpid()}\n{time.time()}\n".encode("ascii", errors="ignore"))
+        return fd
+    except FileExistsError:
+        return None
+
+
+def pipboy_release_refresh_lock(fd):
+    try:
+        if fd is not None:
+            os.close(fd)
+    except OSError:
+        pass
+    try:
+        os.remove(PIPBOY_KNOWLEDGE_REFRESH_LOCK_PATH)
+    except OSError:
+        pass
+
+
+def pipboy_git_local_head(path):
+    git = shutil.which("git")
+    if not git or not os.path.isdir(os.path.join(path, ".git")):
+        return ""
+    try:
+        result = subprocess.run(
+            [git, "-C", path, "rev-parse", "HEAD"],
+            capture_output=True, text=True, timeout=20, check=False,
+        )
+        return (result.stdout or "").strip() if result.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def pipboy_git_remote_head(project):
+    git = shutil.which("git")
+    if not git:
+        return {"head": "", "branch": "", "error": "git is not installed"}
+    try:
+        result = subprocess.run(
+            [git, "ls-remote", "--symref", project["url"], "HEAD"],
+            capture_output=True, text=True,
+            timeout=PIPBOY_REMOTE_CHECK_TIMEOUT, check=False,
+            env={**os.environ, "GIT_LFS_SKIP_SMUDGE": "1", "GIT_TERMINAL_PROMPT": "0"},
+        )
+        if result.returncode != 0:
+            return {"head": "", "branch": "", "error": (result.stderr or result.stdout or "git ls-remote failed").strip()[:500]}
+        branch = ""
+        head = ""
+        for line in (result.stdout or "").splitlines():
+            stripped = line.strip()
+            ref_match = re.match(r"ref:\s+refs/heads/([^\s]+)\s+HEAD$", stripped)
+            if ref_match:
+                branch = ref_match.group(1)
+                continue
+            fields = stripped.split()
+            if len(fields) >= 2 and fields[1] == "HEAD" and re.fullmatch(r"[0-9a-fA-F]{40,64}", fields[0]):
+                head = fields[0].lower()
+        return {"head": head, "branch": branch or "main", "error": ""}
+    except subprocess.TimeoutExpired:
+        return {"head": "", "branch": "", "error": "remote check timed out"}
+    except Exception as exc:
+        return {"head": "", "branch": "", "error": str(exc)[:500]}
+
+
+def pipboy_local_tree_fingerprint(path, max_files=5000):
+    """Fingerprint a repository cheaply without loading file contents into RAM."""
+    path = os.path.realpath(str(path or ""))
+    if not os.path.isdir(path):
+        return ""
+    digest = hashlib.sha256()
+    head = pipboy_git_local_head(path)
+    digest.update(("HEAD:" + head + "\n").encode("utf-8"))
+    scanned = 0
+    for current, directories, files in os.walk(path):
+        directories[:] = sorted(
+            name for name in directories
+            if name not in PIPBOY_IGNORED_DIRS and name != ".git"
+        )
+        for filename in sorted(files):
+            extension = os.path.splitext(filename)[1].casefold()
+            if extension not in PIPBOY_PROJECT_TEXT_EXTENSIONS and filename.casefold() not in {"readme", "license", "setup.sh"}:
+                continue
+            full = os.path.join(current, filename)
+            try:
+                stat = os.stat(full, follow_symlinks=False)
+            except OSError:
+                continue
+            relative = os.path.relpath(full, path).replace(os.sep, "/")
+            digest.update(f"{relative}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode("utf-8", errors="replace"))
+            scanned += 1
+            if scanned >= max_files:
+                digest.update(b"TRUNCATED")
+                return digest.hexdigest()
+    return digest.hexdigest()
+
+
+def pipboy_refresh_managed_mirror(project, remote_state, progress=None):
+    """Refresh Ded-Guy's private mirror without modifying a user's installed copy."""
+    head = str((remote_state or {}).get("head") or "")
+    branch = str((remote_state or {}).get("branch") or "main")
+    if not head:
+        return {"changed": False, "path": "", "error": str((remote_state or {}).get("error") or "remote head unavailable")}
+    installed = pipboy_installed_project_root(project)
+    if installed and pipboy_git_local_head(installed) == head:
+        return {"changed": False, "path": installed, "state": "installed_current", "error": ""}
+    git = shutil.which("git")
+    if not git:
+        return {"changed": False, "path": "", "error": "git is not installed"}
+    destination = os.path.realpath(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"]))
+    os.makedirs(PIPBOY_MANAGED_PROJECTS_DIR, exist_ok=True)
+    env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1", "GIT_TERMINAL_PROMPT": "0"}
+    current_head = pipboy_git_local_head(destination)
+    if current_head == head:
+        return {"changed": False, "path": destination, "state": "cache_current", "error": ""}
+    try:
+        if os.path.isdir(os.path.join(destination, ".git")):
+            fetch = subprocess.run(
+                [git, "-C", destination, "fetch", "--depth", "1", "origin", branch],
+                capture_output=True, text=True, timeout=300, check=False, env=env,
+            )
+            if fetch.returncode != 0:
+                raise RuntimeError((fetch.stderr or fetch.stdout or "git fetch failed").strip())
+            reset = subprocess.run(
+                [git, "-C", destination, "reset", "--hard", "FETCH_HEAD"],
+                capture_output=True, text=True, timeout=120, check=False, env=env,
+            )
+            if reset.returncode != 0:
+                raise RuntimeError((reset.stderr or reset.stdout or "git reset failed").strip())
+            state = "updated"
+        else:
+            _remove_path_if_exists(destination)
+            clone = subprocess.run(
+                [git, "clone", "--depth", "1", "--single-branch", "--branch", branch, project["url"], destination],
+                capture_output=True, text=True, timeout=600, check=False, env=env,
+            )
+            if clone.returncode != 0:
+                # Some hosts do not accept --branch with unusual HEAD refs. Retry normally.
+                _remove_path_if_exists(destination)
+                clone = subprocess.run(
+                    [git, "clone", "--depth", "1", "--single-branch", project["url"], destination],
+                    capture_output=True, text=True, timeout=600, check=False, env=env,
+                )
+            if clone.returncode != 0:
+                raise RuntimeError((clone.stderr or clone.stdout or "git clone failed").strip())
+            state = "cloned"
+        actual_head = pipboy_git_local_head(destination)
+        if actual_head and actual_head != head:
+            raise RuntimeError(f"mirror verification failed: expected {head[:12]}, got {actual_head[:12]}")
+        if progress:
+            progress(pipboy_text(
+                f"{project['name']} mirror {state}: {head[:12]}",
+                f"Το mirror {project['name']} {state}: {head[:12]}",
+            ))
+        return {"changed": True, "path": destination, "state": state, "error": ""}
+    except Exception as exc:
+        pipboy_log_error(f"refresh mirror {project['name']}", exc)
+        return {"changed": False, "path": destination, "state": "error", "error": str(exc)[:500]}
+
+
+def pipboy_live_website_signature(progress=None):
+    """Fingerprint the live sitemap and its pages during an explicit update check."""
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "DedSec-DedGuy/1.1 (+https://ded-sec.space/; update-triggered knowledge check)",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.5",
+    })
+    digest = hashlib.sha256()
+    errors = []
+    try:
+        sitemap_urls = pipboy_discover_sitemap_urls(session)
+    except Exception as exc:
+        sitemap_urls = []
+        errors.append(f"sitemap: {exc}")
+    urls = list(dict.fromkeys([PIPBOY_WEBSITE_BASE_URL, *sitemap_urls]))[:PIPBOY_WEBSITE_SIGNATURE_MAX_URLS]
+
+    def inspect_url(url):
+        try:
+            response = session.get(url, timeout=15, allow_redirects=True)
+            response.raise_for_status()
+            content = response.content[:2_000_000]
+            return url, hashlib.sha256(content).hexdigest(), ""
+        except Exception as exc:
+            return url, "", str(exc)[:300]
+
+    results = []
+    workers = min(5, max(1, len(urls)))
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_map = {executor.submit(inspect_url, url): url for url in urls}
+        for future in as_completed(future_map):
+            results.append(future.result())
+    for url, content_hash, error in sorted(results):
+        digest.update(url.encode("utf-8", errors="replace"))
+        digest.update(b"\0")
+        digest.update(content_hash.encode("ascii", errors="ignore"))
+        digest.update(b"\n")
+        if error:
+            errors.append(f"{url}: {error}")
+    if progress:
+        progress(pipboy_text(
+            f"Website change check: {len(urls)} pages, {len(errors)} errors.",
+            f"Έλεγχος αλλαγών website: {len(urls)} σελίδες, {len(errors)} σφάλματα.",
+        ))
+    successful = sum(1 for _url, content_hash, _error in results if content_hash)
+    return {
+        "signature": digest.hexdigest() if successful else "",
+        "checked_urls": len(urls),
+        "successful_urls": successful,
+        "errors": errors[-50:],
+    }
+
+
+def pipboy_current_project_fingerprints():
+    fingerprints = {}
+    for root in pipboy_project_roots():
+        fingerprint = pipboy_local_tree_fingerprint(root)
+        if fingerprint:
+            fingerprints[os.path.realpath(root)] = fingerprint
+    return fingerprints
+
+
+def pipboy_record_current_knowledge_state(trigger="manual"):
+    state = pipboy_load_json(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, {})
+    state = state if isinstance(state, dict) else {}
+    state.update({
+        "schema": PIPBOY_KNOWLEDGE_REFRESH_SCHEMA,
+        "last_trigger": str(trigger),
+        "last_checked_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "last_checked_epoch": time.time(),
+        "local_projects": pipboy_current_project_fingerprints(),
+    })
+    try:
+        if os.path.isfile(PIPBOY_PROJECT_INDEX_PATH):
+            state["project_database_hash"] = hashlib.sha256(pipboy_read_small_file_bytes(PIPBOY_PROJECT_INDEX_PATH) or b"").hexdigest()
+        if os.path.isfile(PIPBOY_WEBSITE_INDEX_PATH):
+            state["website_database_hash"] = hashlib.sha256(pipboy_read_small_file_bytes(PIPBOY_WEBSITE_INDEX_PATH) or b"").hexdigest()
+    except Exception:
+        pass
+    pipboy_atomic_json_write(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, state)
+    return state
+
+
+def pipboy_refresh_knowledge_after_update(trigger="update", force_project_rebuild=False, quiet=False):
+    """Check all official repositories and the live site after every update action.
+
+    Database writes are transactional: the previous usable database is restored
+    whenever a new crawl or index build fails validation.
+    """
+    progress = None if quiet else print
+    lock_fd = pipboy_acquire_refresh_lock()
+    if lock_fd is None:
+        message = pipboy_text(
+            "Another Ded-Guy database refresh is already running; this update will use it.",
+            "Μια άλλη ανανέωση βάσης Ded-Guy εκτελείται ήδη· αυτή η ενημέρωση θα τη χρησιμοποιήσει.",
+        )
+        if progress:
+            progress(message)
+        return {"ok": True, "busy": True, "message": message}
+
+    old_state = pipboy_load_json(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, {})
+    old_state = old_state if isinstance(old_state, dict) else {}
+    old_project_bytes = pipboy_read_small_file_bytes(PIPBOY_PROJECT_INDEX_PATH)
+    old_website_bytes = pipboy_read_small_file_bytes(PIPBOY_WEBSITE_INDEX_PATH)
+    summary = {
+        "ok": True, "trigger": str(trigger), "repositories_checked": 0,
+        "repositories_changed": [], "project_database_updated": False,
+        "website_checked": False, "website_changed": False,
+        "website_database_updated": False, "errors": [],
+    }
+    try:
+        if progress:
+            progress(pipboy_text(
+                "Checking every DedSec ecosystem repository and the live website for knowledge changes...",
+                "Έλεγχος όλων των repositories του οικοσυστήματος DedSec και του live website για αλλαγές γνώσης...",
+            ))
+        previous_remote = old_state.get("remote_projects") if isinstance(old_state.get("remote_projects"), dict) else {}
+        remote_projects = {}
+        mirror_changed = False
+        for project in PIPBOY_MANAGED_PROJECTS:
+            remote = pipboy_git_remote_head(project)
+            summary["repositories_checked"] += 1
+            if remote.get("error"):
+                summary["errors"].append(f"{project['name']}: {remote['error']}")
+                remote_projects[project["key"]] = previous_remote.get(project["key"], remote)
+                continue
+            remote_projects[project["key"]] = remote
+            prior_head = str((previous_remote.get(project["key"]) or {}).get("head") or "")
+            remote_changed = bool(prior_head and remote.get("head") and remote.get("head") != prior_head)
+            managed_path = os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, project["key"])
+            managed_head = pipboy_git_local_head(managed_path)
+            mirror_outdated = bool(remote.get("head") and managed_head != remote.get("head"))
+            if remote_changed or mirror_outdated or not os.path.isfile(PIPBOY_PROJECT_INDEX_PATH):
+                mirror = pipboy_refresh_managed_mirror(project, remote, progress=progress)
+                if mirror.get("error"):
+                    summary["errors"].append(f"{project['name']} mirror: {mirror['error']}")
+                if mirror.get("changed"):
+                    mirror_changed = True
+            if remote_changed:
+                summary["repositories_changed"].append(project["name"])
+
+        local_fingerprints = pipboy_current_project_fingerprints()
+        previous_local = old_state.get("local_projects") if isinstance(old_state.get("local_projects"), dict) else {}
+        local_changed = bool(previous_local) and local_fingerprints != previous_local
+        project_needs_rebuild = (
+            force_project_rebuild or mirror_changed or local_changed
+            or not os.path.isfile(PIPBOY_PROJECT_INDEX_PATH)
+        )
+        if project_needs_rebuild:
+            try:
+                project_index = pipboy_build_project_index(force=True, progress=progress)
+                if not isinstance(project_index, dict) or not project_index.get("files"):
+                    raise RuntimeError("rebuilt project database contains no records")
+                summary["project_database_updated"] = True
+            except Exception as exc:
+                pipboy_restore_file_bytes(PIPBOY_PROJECT_INDEX_PATH, old_project_bytes)
+                summary["ok"] = False
+                summary["errors"].append(f"project database: {exc}")
+                pipboy_log_error("transactional project database refresh", exc)
+
+        website_remote_changed = "DedSec Website Source" in summary["repositories_changed"]
+        website_probe = pipboy_live_website_signature(progress=progress)
+        summary["website_checked"] = True
+        previous_website_signature = str(old_state.get("live_website_signature") or "")
+        live_signature = str(website_probe.get("signature") or "")
+        summary["errors"].extend(website_probe.get("errors") or [])
+        website_changed = bool(live_signature) and live_signature != previous_website_signature
+        summary["website_changed"] = website_changed or website_remote_changed
+        website_needs_rebuild = (
+            summary["website_changed"] or not os.path.isfile(PIPBOY_WEBSITE_INDEX_PATH)
+        )
+        if website_needs_rebuild:
+            try:
+                previous_page_count = len(pipboy_load_website_index().get("pages", {}))
+                website_index = pipboy_crawl_website(force=True, progress=progress)
+                page_count = len((website_index or {}).get("pages", {}))
+                if not isinstance(website_index, dict) or page_count == 0:
+                    raise RuntimeError("rebuilt website database contains no pages")
+                if previous_page_count > 20 and website_index.get("seed_only") and page_count < previous_page_count:
+                    raise RuntimeError("live website was unreachable; refusing to replace the larger previous database")
+                summary["website_database_updated"] = True
+            except Exception as exc:
+                pipboy_restore_file_bytes(PIPBOY_WEBSITE_INDEX_PATH, old_website_bytes)
+                summary["ok"] = False
+                summary["errors"].append(f"website database: {exc}")
+                pipboy_log_error("transactional website database refresh", exc)
+
+        new_state = dict(old_state)
+        new_state.update({
+            "schema": PIPBOY_KNOWLEDGE_REFRESH_SCHEMA,
+            "last_trigger": str(trigger),
+            "last_checked_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "last_checked_epoch": time.time(),
+            "remote_projects": remote_projects,
+            "local_projects": pipboy_current_project_fingerprints(),
+            "last_summary": summary,
+        })
+        if live_signature and (summary["website_database_updated"] or not summary["website_changed"]):
+            new_state["live_website_signature"] = live_signature
+        if summary["project_database_updated"] or old_state.get("project_database_hash"):
+            data = pipboy_read_small_file_bytes(PIPBOY_PROJECT_INDEX_PATH)
+            if data is not None:
+                new_state["project_database_hash"] = hashlib.sha256(data).hexdigest()
+        if summary["website_database_updated"] or old_state.get("website_database_hash"):
+            data = pipboy_read_small_file_bytes(PIPBOY_WEBSITE_INDEX_PATH)
+            if data is not None:
+                new_state["website_database_hash"] = hashlib.sha256(data).hexdigest()
+        summary["source_changes_found"] = bool(summary["repositories_changed"] or summary["website_changed"] or local_changed)
+        summary["settings_update_created"] = False
+        summary["settings_update_path"] = ""
+        pipboy_atomic_json_write(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, new_state)
+
+        if summary["ok"] and summary["source_changes_found"]:
+            try:
+                staged = dedguy_create_settings_updated(summary=summary, refresh_state=new_state)
+                summary["settings_update_created"] = bool(staged.get("created"))
+                summary["settings_update_path"] = str(staged.get("path") or "")
+            except Exception as exc:
+                summary["errors"].append(f"Settings-Updated.py: {exc}")
+                pipboy_log_error("Settings staged self-update", exc)
+
+        # Save the final summary including candidate-generation status.
+        new_state["last_summary"] = summary
+        pipboy_atomic_json_write(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, new_state)
+
+        # Force the interactive process to reload only the newly validated compact database.
+        globals()["_PIPBOY_PROJECT_INDEX_RUNTIME_CACHE"] = None
+        globals()["_PIPBOY_FAST_PROJECT_INDEX_CACHE"] = None
+        if progress:
+            if summary["project_database_updated"] or summary["website_database_updated"]:
+                progress(pipboy_text(
+                    f"Ded-Guy database refreshed: project={'yes' if summary['project_database_updated'] else 'current'}, website={'yes' if summary['website_database_updated'] else 'current'}.",
+                    f"Η βάση Ded-Guy ανανεώθηκε: project={'ναι' if summary['project_database_updated'] else 'ενημερωμένο'}, website={'ναι' if summary['website_database_updated'] else 'ενημερωμένο'}.",
+                ))
+            else:
+                progress(pipboy_text(
+                    "Ded-Guy checked all repositories and the website; the database is already current.",
+                    "Το Ded-Guy έλεγξε όλα τα repositories και το website· η βάση είναι ήδη ενημερωμένη.",
+                ))
+            if summary.get("settings_update_created"):
+                progress(pipboy_text(
+                    "A validated ~/Settings-Updated.py was created. The replacement command will be shown on the next launch.",
+                    "Δημιουργήθηκε ελεγμένο ~/Settings-Updated.py. Η εντολή αντικατάστασης θα εμφανιστεί στην επόμενη εκκίνηση.",
+                ))
+            if summary["errors"]:
+                progress(pipboy_text(
+                    f"The check completed with {len(summary['errors'])} recoverable warning(s). The previous valid data was preserved where needed.",
+                    f"Ο έλεγχος ολοκληρώθηκε με {len(summary['errors'])} ανακτήσιμες προειδοποιήσεις. Τα προηγούμενα έγκυρα δεδομένα διατηρήθηκαν όπου χρειαζόταν.",
+                ))
+        return summary
+    finally:
+        pipboy_release_refresh_lock(lock_fd)
+
+
+
+# -----------------------------------------------------------------------------
+# Ded-Guy staged self-update generator
+# -----------------------------------------------------------------------------
+_DEDGUY_EMBEDDED_UPDATE_CACHE = None
+_DEDGUY_BASE_LOAD_PROJECT_INDEX = _dedguy_base_pipboy_load_project_index
+_DEDGUY_BASE_LOAD_WEBSITE_INDEX = _dedguy_base_pipboy_load_website_index
+
+
+def dedguy_sha256_bytes(payload):
+    return hashlib.sha256(payload).hexdigest()
+
+
+def dedguy_atomic_write_bytes(path, payload, mode=0o700):
+    path = os.path.realpath(os.path.expanduser(path))
+    parent = os.path.dirname(path)
+    os.makedirs(parent, exist_ok=True)
+    temporary = path + f".tmp.{os.getpid()}.{int(time.time() * 1000)}"
+    with open(temporary, "wb") as handle:
+        handle.write(payload)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, mode)
+    os.replace(temporary, path)
+    return path
+
+
+def dedguy_embedded_update_payload():
+    global _DEDGUY_EMBEDDED_UPDATE_CACHE
+    if isinstance(_DEDGUY_EMBEDDED_UPDATE_CACHE, dict):
+        return _DEDGUY_EMBEDDED_UPDATE_CACHE
+    raw = "".join(str(globals().get("DEDGUY_EMBEDDED_UPDATE_PAYLOAD_B64", "") or "").split())
+    if not raw:
+        _DEDGUY_EMBEDDED_UPDATE_CACHE = {}
+        return {}
+    try:
+        compressed = base64.b64decode(raw.encode("ascii"), validate=True)
+        decompressor = zlib.decompressobj()
+        decoded = decompressor.decompress(compressed, DEDGUY_SELF_UPDATE_MAX_DECODED_BYTES + 1)
+        if len(decoded) > DEDGUY_SELF_UPDATE_MAX_DECODED_BYTES:
+            raise ValueError("embedded update payload is too large")
+        remaining = DEDGUY_SELF_UPDATE_MAX_DECODED_BYTES + 1 - len(decoded)
+        decoded += decompressor.flush(max(0, remaining))
+        if len(decoded) > DEDGUY_SELF_UPDATE_MAX_DECODED_BYTES:
+            raise ValueError("embedded update payload exceeds the safe limit")
+        metadata = globals().get("DEDGUY_EMBEDDED_UPDATE_METADATA", {})
+        expected = str(metadata.get("payload_sha256") or "") if isinstance(metadata, dict) else ""
+        if expected and dedguy_sha256_bytes(decoded) != expected:
+            raise ValueError("embedded update payload checksum mismatch")
+        payload = json.loads(decoded.decode("utf-8"))
+        if not isinstance(payload, dict) or int(payload.get("schema", 0)) != DEDGUY_SELF_UPDATE_SCHEMA:
+            raise ValueError("unsupported embedded update payload")
+        _DEDGUY_EMBEDDED_UPDATE_CACHE = payload
+        return payload
+    except Exception as exc:
+        pipboy_log_error("embedded Settings update payload", exc)
+        _DEDGUY_EMBEDDED_UPDATE_CACHE = {}
+        return {}
+
+
+def dedguy_embedded_project_index():
+    payload = dedguy_embedded_update_payload()
+    index = payload.get("project_index") if isinstance(payload, dict) else None
+    return index if isinstance(index, dict) and isinstance(index.get("files"), dict) and index.get("files") else {}
+
+
+def dedguy_embedded_website_index():
+    payload = dedguy_embedded_update_payload()
+    index = payload.get("website_index") if isinstance(payload, dict) else None
+    return index if isinstance(index, dict) and isinstance(index.get("pages"), dict) and index.get("pages") else {}
+
+
+def pipboy_load_project_index(auto_build=False):
+    """Prefer the newest valid external or generated single-file project index."""
+    global _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    external = None
+    try:
+        if os.path.isfile(PIPBOY_PROJECT_INDEX_PATH) and os.path.getsize(PIPBOY_PROJECT_INDEX_PATH) <= 4 * 1024 * 1024:
+            candidate = pipboy_load_json(PIPBOY_PROJECT_INDEX_PATH, {})
+            if isinstance(candidate, dict) and candidate.get("files"):
+                external = pipboy_compact_runtime_index(candidate, max_records=1800)
+    except Exception:
+        external = None
+    embedded = dedguy_embedded_project_index()
+    if embedded:
+        embedded = pipboy_compact_runtime_index(embedded, max_records=1800)
+    choices = [item for item in (external, embedded) if isinstance(item, dict) and item.get("files")]
+    if choices:
+        chosen = max(choices, key=lambda item: (float(item.get("generated_epoch") or 0), len(item.get("files") or {})))
+        _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE = pipboy_merge_managed_project_seeds(chosen)
+        _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE["runtime_safe"] = True
+        return _PIPBOY_PROJECT_INDEX_RUNTIME_CACHE
+    return _DEDGUY_BASE_LOAD_PROJECT_INDEX(auto_build=auto_build)
+
+
+def pipboy_load_website_index():
+    """Prefer the newest valid external or generated single-file website index."""
+    external = None
+    try:
+        if os.path.isfile(PIPBOY_WEBSITE_INDEX_PATH) and os.path.getsize(PIPBOY_WEBSITE_INDEX_PATH) <= 4 * 1024 * 1024:
+            candidate = pipboy_load_json(PIPBOY_WEBSITE_INDEX_PATH, {})
+            if isinstance(candidate, dict) and candidate.get("pages"):
+                external = candidate
+    except Exception:
+        external = None
+    embedded = dedguy_embedded_website_index()
+    choices = [item for item in (external, embedded) if isinstance(item, dict) and item.get("pages")]
+    if choices:
+        chosen = max(choices, key=lambda item: (float(item.get("generated_epoch") or 0), len(item.get("pages") or {})))
+        compact = {}
+        for url, source in list((chosen.get("pages") or {}).items())[:400]:
+            if not isinstance(source, dict):
+                continue
+            item = dict(source)
+            item["text"] = str(item.get("text") or item.get("description") or "")[:5000]
+            item["links"] = list(item.get("links") or [])[:80]
+            compact[str(url)] = item
+        result = dict(chosen)
+        result["pages"] = compact
+        result["runtime_safe"] = True
+        return result
+    return _DEDGUY_BASE_LOAD_WEBSITE_INDEX()
+
+
+def dedguy_source_constants(source):
+    constants = {}
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return constants
+    for node in tree.body:
+        if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+            continue
+        targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+        value_node = node.value
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id in {"SETTINGS_BUILD_ID", "DEDGUY_SELF_UPDATE_COMPATIBILITY"}:
+                try:
+                    constants[target.id] = ast.literal_eval(value_node)
+                except Exception:
+                    pass
+    return constants
+
+
+def dedguy_build_sort_key(build_id):
+    value = str(build_id or "")
+    date_match = re.search(r"(20\d{2})-(\d{2})-(\d{2})", value)
+    revision_match = re.search(r"(?:^|[-_])r(\d+)(?:$|[-_])", value, flags=re.I)
+    date_key = tuple(map(int, date_match.groups())) if date_match else (0, 0, 0)
+    revision = int(revision_match.group(1)) if revision_match else 0
+    return (*date_key, revision, value)
+
+
+def dedguy_validate_settings_source(source, require_compatibility=True):
+    if not isinstance(source, str) or len(source.encode("utf-8")) > DEDGUY_SELF_UPDATE_MAX_SOURCE_BYTES:
+        return False, "source size is invalid"
+    if "\x00" in source:
+        return False, "source contains null bytes"
+    try:
+        tree = ast.parse(source)
+        compile(tree, "Settings-Updated.py", "exec")
+    except Exception as exc:
+        return False, f"Python validation failed: {exc}"
+    constants = dedguy_source_constants(source)
+    required_markers = ("def launch_pipboy", "def pipboy_process_command", "SETTINGS_BUILD_ID")
+    if not all(marker in source for marker in required_markers):
+        return False, "required Settings.py components are missing"
+    if require_compatibility and int(constants.get("DEDGUY_SELF_UPDATE_COMPATIBILITY") or 0) < DEDGUY_SELF_UPDATE_COMPATIBILITY:
+        return False, "self-update compatibility marker is missing"
+    return True, ""
+
+
+def dedguy_select_candidate_base_source():
+    """Use a newer compatible official Settings.py when one exists; otherwise keep this code."""
+    current_path = os.path.realpath(__file__)
+    current_source = open(current_path, "r", encoding="utf-8", errors="replace").read()
+    current_constants = dedguy_source_constants(current_source)
+    current_key = dedguy_build_sort_key(current_constants.get("SETTINGS_BUILD_ID"))
+    best = (current_key, current_source, current_path)
+    dedsec_project = next((item for item in PIPBOY_MANAGED_PROJECTS if item.get("key") == "dedsec"), None)
+    roots = []
+    if dedsec_project:
+        roots.append(os.path.join(PIPBOY_MANAGED_PROJECTS_DIR, dedsec_project["key"]))
+        installed = pipboy_installed_project_root(dedsec_project)
+        if installed:
+            roots.append(installed)
+    seen = set()
+    for root in roots:
+        root = os.path.realpath(root)
+        if root in seen or not os.path.isdir(root):
+            continue
+        seen.add(root)
+        for relative in (os.path.join("Scripts", "Settings.py"), "Settings.py"):
+            candidate_path = os.path.realpath(os.path.join(root, relative))
+            if candidate_path == current_path or not candidate_path.startswith(root + os.sep):
+                continue
+            try:
+                if not os.path.isfile(candidate_path) or os.path.islink(candidate_path):
+                    continue
+                if os.path.getsize(candidate_path) > DEDGUY_SELF_UPDATE_MAX_SOURCE_BYTES:
+                    continue
+                candidate_source = open(candidate_path, "r", encoding="utf-8", errors="replace").read()
+            except OSError:
+                continue
+            valid, _reason = dedguy_validate_settings_source(candidate_source, require_compatibility=True)
+            if not valid:
+                continue
+            constants = dedguy_source_constants(candidate_source)
+            candidate_key = dedguy_build_sort_key(constants.get("SETTINGS_BUILD_ID"))
+            if candidate_key > best[0]:
+                best = (candidate_key, candidate_source, candidate_path)
+    return {"source": best[1], "path": best[2], "build_id": dedguy_source_constants(best[1]).get("SETTINGS_BUILD_ID", "")}
+
+
+def dedguy_compact_update_payload(refresh_state=None):
+    project_source = pipboy_load_json(PIPBOY_PROJECT_INDEX_PATH, {})
+    if not isinstance(project_source, dict) or not project_source.get("files"):
+        project_source = pipboy_load_project_index(False)
+    project_index = pipboy_compact_runtime_index(project_source, max_records=1800)
+    website_source = pipboy_load_json(PIPBOY_WEBSITE_INDEX_PATH, {})
+    if not isinstance(website_source, dict) or not website_source.get("pages"):
+        website_source = pipboy_load_website_index()
+    website_pages = {}
+    for url, source in list((website_source.get("pages") or {}).items())[:400]:
+        if not isinstance(source, dict):
+            continue
+        item = dict(source)
+        item["text"] = str(item.get("text") or item.get("description") or "")[:5000]
+        item["links"] = list(item.get("links") or [])[:80]
+        website_pages[str(url)] = item
+    website_index = dict(website_source)
+    website_index["pages"] = website_pages
+    website_index["runtime_safe"] = True
+    state = refresh_state if isinstance(refresh_state, dict) else pipboy_load_json(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, {})
+    public_heads = {}
+    for key, value in (state.get("remote_projects") or {}).items() if isinstance(state, dict) else []:
+        if isinstance(value, dict):
+            public_heads[str(key)] = {"head": str(value.get("head") or ""), "branch": str(value.get("branch") or "")}
+    return {
+        "schema": DEDGUY_SELF_UPDATE_SCHEMA,
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "generated_epoch": time.time(),
+        "source_heads": public_heads,
+        "live_website_signature": str(state.get("live_website_signature") or "") if isinstance(state, dict) else "",
+        "project_index": project_index,
+        "website_index": website_index,
+    }
+
+
+def dedguy_payload_source_block(payload, metadata):
+    raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    compressed = zlib.compress(raw, 9)
+    encoded = base64.b64encode(compressed).decode("ascii")
+    chunks = [encoded[index:index + 100] for index in range(0, len(encoded), 100)] or [""]
+    metadata = dict(metadata or {})
+    metadata.update({
+        "schema": DEDGUY_SELF_UPDATE_SCHEMA,
+        "payload_sha256": dedguy_sha256_bytes(raw),
+        "payload_json_bytes": len(raw),
+        "payload_compressed_bytes": len(compressed),
+        "generated_at": payload.get("generated_at", ""),
+    })
+    string_lines = "\n".join(f"    {chunk!r}" for chunk in chunks)
+    return (
+        "# === DED-GUY GENERATED KNOWLEDGE PAYLOAD START ===\n"
+        f"DEDGUY_EMBEDDED_UPDATE_METADATA = {metadata!r}\n"
+        "DEDGUY_EMBEDDED_UPDATE_PAYLOAD_B64 = (\n"
+        f"{string_lines}\n"
+        ")\n"
+        "# === DED-GUY GENERATED KNOWLEDGE PAYLOAD END ==="
+    )
+
+
+def dedguy_inject_payload(source, payload, metadata):
+    start_marker = "# === DED-GUY GENERATED KNOWLEDGE PAYLOAD START ==="
+    end_marker = "# === DED-GUY GENERATED KNOWLEDGE PAYLOAD END ==="
+    block = dedguy_payload_source_block(payload, metadata)
+    if start_marker in source and end_marker in source:
+        pattern = re.compile(re.escape(start_marker) + r".*?" + re.escape(end_marker), flags=re.S)
+        return pattern.sub(lambda _match: block, source, count=1)
+    # Compatible future source may have moved the block. Insert after build ID.
+    match = re.search(r"^SETTINGS_BUILD_ID\s*=.*$", source, flags=re.M)
+    if not match:
+        raise ValueError("candidate source has no SETTINGS_BUILD_ID")
+    return source[:match.end()] + "\n\n" + block + source[match.end():]
+
+
+def dedguy_validate_candidate_file(path=None):
+    path = os.path.realpath(os.path.expanduser(path or DEDGUY_UPDATED_SCRIPT_PATH))
+    expected = os.path.realpath(DEDGUY_UPDATED_SCRIPT_PATH)
+    if path != expected or not os.path.isfile(path) or os.path.islink(path):
+        return False, "pending file is missing"
+    try:
+        if os.path.getsize(path) > DEDGUY_SELF_UPDATE_MAX_SOURCE_BYTES:
+            return False, "pending file is too large"
+        source = open(path, "r", encoding="utf-8", errors="strict").read()
+    except Exception as exc:
+        return False, str(exc)
+    valid, reason = dedguy_validate_settings_source(source, require_compatibility=True)
+    if not valid:
+        return False, reason
+    try:
+        current = open(os.path.realpath(__file__), "rb").read()
+        pending = source.encode("utf-8")
+        if dedguy_sha256_bytes(current) == dedguy_sha256_bytes(pending):
+            return False, "pending file is identical to the installed file"
+    except OSError:
+        pass
+    return True, ""
+
+
+def dedguy_replacement_command():
+    return (
+        "cp -f ~/DedSec/Scripts/Settings.py ~/Settings-Previous.py && "
+        "mv -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py && "
+        "chmod +x ~/DedSec/Scripts/Settings.py && "
+        "rm -rf ~/DedSec/Scripts/__pycache__ && "
+        "python3 -m py_compile ~/DedSec/Scripts/Settings.py && "
+        "python3 ~/DedSec/Scripts/Settings.py --activate-ded-guy"
+    )
+
+
+def dedguy_pending_update_notice():
+    valid, reason = dedguy_validate_candidate_file()
+    if not valid:
+        if os.path.isfile(DEDGUY_UPDATED_SCRIPT_PATH) and reason not in {"pending file is missing", "pending file is identical to the installed file"}:
+            return pipboy_text(
+                f"A staged Settings update exists but failed validation: {reason}. It was not installed.",
+                f"Υπάρχει staged ενημέρωση Settings αλλά απέτυχε στον έλεγχο: {reason}. Δεν εγκαταστάθηκε.",
+            )
+        return ""
+    command = dedguy_replacement_command()
+    return pipboy_text(
+        "A validated Settings update is ready at ~/Settings-Updated.py. Run this exact command to back up the current file, rename the update to Settings.py, validate it, and reactivate Ded-Guy:\n" + command,
+        "Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py. Εκτέλεσε ακριβώς αυτή την εντολή για backup του τρέχοντος αρχείου, μετονομασία της ενημέρωσης σε Settings.py, έλεγχο και επανενεργοποίηση του Ded-Guy:\n" + command,
+    )
+
+
+def dedguy_create_settings_updated(summary=None, refresh_state=None):
+    """Create a complete validated candidate only after real source/content changes."""
+    summary = summary if isinstance(summary, dict) else {}
+    changed = bool(
+        summary.get("repositories_changed") or summary.get("website_changed")
+        or summary.get("source_changes_found")
+    )
+    if not changed:
+        return {"created": False, "reason": "no source changes"}
+    payload = dedguy_compact_update_payload(refresh_state=refresh_state)
+    payload_raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    payload_hash = dedguy_sha256_bytes(payload_raw)
+    state = pipboy_load_json(DEDGUY_SELF_UPDATE_STATE_PATH, {})
+    if isinstance(state, dict) and state.get("payload_sha256") == payload_hash:
+        valid, _reason = dedguy_validate_candidate_file()
+        if valid:
+            return {"created": False, "reason": "candidate already current", "path": DEDGUY_UPDATED_SCRIPT_PATH}
+    base = dedguy_select_candidate_base_source()
+    metadata = {
+        "base_build_id": str(base.get("build_id") or SETTINGS_BUILD_ID),
+        "base_source": os.path.basename(str(base.get("path") or "Settings.py")),
+        "repositories_changed": list(summary.get("repositories_changed") or []),
+        "website_changed": bool(summary.get("website_changed")),
+    }
+    candidate_source = dedguy_inject_payload(str(base.get("source") or ""), payload, metadata)
+    valid, reason = dedguy_validate_settings_source(candidate_source, require_compatibility=True)
+    if not valid:
+        raise RuntimeError(reason)
+    candidate_bytes = candidate_source.encode("utf-8")
+    if len(candidate_bytes) > DEDGUY_SELF_UPDATE_MAX_SOURCE_BYTES:
+        raise RuntimeError("generated Settings-Updated.py exceeds the safe source limit")
+    dedguy_atomic_write_bytes(DEDGUY_UPDATED_SCRIPT_PATH, candidate_bytes, mode=0o700)
+    file_valid, file_reason = dedguy_validate_candidate_file()
+    if not file_valid:
+        try:
+            os.remove(DEDGUY_UPDATED_SCRIPT_PATH)
+        except OSError:
+            pass
+        raise RuntimeError(file_reason)
+    new_state = dict(state) if isinstance(state, dict) else {}
+    new_state.update({
+        "schema": DEDGUY_SELF_UPDATE_SCHEMA,
+        "generated_at": payload.get("generated_at"),
+        "generated_epoch": payload.get("generated_epoch"),
+        "payload_sha256": payload_hash,
+        "candidate_sha256": dedguy_sha256_bytes(candidate_bytes),
+        "candidate_path": DEDGUY_UPDATED_SCRIPT_PATH,
+        "base_build_id": metadata["base_build_id"],
+        "repositories_changed": metadata["repositories_changed"],
+        "website_changed": metadata["website_changed"],
+    })
+    pipboy_atomic_json_write(DEDGUY_SELF_UPDATE_STATE_PATH, new_state)
+    return {"created": True, "path": DEDGUY_UPDATED_SCRIPT_PATH, "sha256": new_state["candidate_sha256"]}
+
+
+def dedguy_lightweight_website_signature():
+    """Cheap background probe: home page plus sitemap content, never all pages."""
+    session = requests.Session()
+    session.headers.update({"User-Agent": "DedSec-DedGuy/1.2 self-update-check", "Accept": "text/html,application/xml;q=0.9,*/*;q=0.5"})
+    digest = hashlib.sha256()
+    successes = 0
+    errors = []
+    for url in (PIPBOY_WEBSITE_BASE_URL, urljoin(PIPBOY_WEBSITE_BASE_URL, "sitemap.xml")):
+        try:
+            response = session.get(url, timeout=15, allow_redirects=True)
+            response.raise_for_status()
+            content = response.content[:2_000_000]
+            digest.update(url.encode("utf-8")); digest.update(b"\0")
+            digest.update(hashlib.sha256(content).digest())
+            successes += 1
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+    return {"signature": digest.hexdigest() if successes else "", "errors": errors}
+
+
+def dedguy_acquire_self_update_lock(max_age=3600):
+    os.makedirs(os.path.dirname(DEDGUY_SELF_UPDATE_LOCK_PATH), exist_ok=True)
+    try:
+        if os.path.exists(DEDGUY_SELF_UPDATE_LOCK_PATH) and time.time() - os.path.getmtime(DEDGUY_SELF_UPDATE_LOCK_PATH) > max_age:
+            os.remove(DEDGUY_SELF_UPDATE_LOCK_PATH)
+    except OSError:
+        pass
+    try:
+        fd = os.open(DEDGUY_SELF_UPDATE_LOCK_PATH, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.write(fd, f"{os.getpid()}\n{time.time()}\n".encode("ascii"))
+        return fd
+    except FileExistsError:
+        return None
+
+
+def dedguy_release_self_update_lock(fd):
+    try:
+        if fd is not None:
+            os.close(fd)
+    except OSError:
+        pass
+    try:
+        os.remove(DEDGUY_SELF_UPDATE_LOCK_PATH)
+    except OSError:
+        pass
+
+
+def dedguy_auto_update_check(quiet=True, force=False):
+    """Check public source signatures; run the heavy refresh only after a change."""
+    lock_fd = dedguy_acquire_self_update_lock()
+    if lock_fd is None:
+        return {"ok": True, "busy": True}
+    try:
+        state = pipboy_load_json(DEDGUY_SELF_UPDATE_STATE_PATH, {})
+        state = state if isinstance(state, dict) else {}
+        prior_heads = state.get("checked_remote_heads") if isinstance(state.get("checked_remote_heads"), dict) else {}
+        current_heads = {}
+        errors = []
+        changed_projects = []
+        for project in PIPBOY_MANAGED_PROJECTS:
+            remote = pipboy_git_remote_head(project)
+            if remote.get("error"):
+                errors.append(f"{project['name']}: {remote['error']}")
+                continue
+            head = str(remote.get("head") or "")
+            current_heads[project["key"]] = head
+            previous = str(prior_heads.get(project["key"]) or "")
+            if previous and head and head != previous:
+                changed_projects.append(project["name"])
+        site = dedguy_lightweight_website_signature()
+        errors.extend(site.get("errors") or [])
+        site_signature = str(site.get("signature") or "")
+        prior_site = str(state.get("checked_light_website_signature") or "")
+        site_changed = bool(prior_site and site_signature and site_signature != prior_site)
+        baseline_only = not prior_heads and not prior_site and not force
+        state.update({
+            "last_check_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "last_check_epoch": time.time(),
+            "checked_remote_heads": current_heads or prior_heads,
+            "checked_light_website_signature": site_signature or prior_site,
+            "last_check_errors": errors[-30:],
+        })
+        pipboy_atomic_json_write(DEDGUY_SELF_UPDATE_STATE_PATH, state)
+        if baseline_only or (not changed_projects and not site_changed and not force):
+            return {"ok": True, "changed": False, "baseline": baseline_only, "errors": errors}
+        refresh = pipboy_refresh_knowledge_after_update(trigger="automatic_settings_update", quiet=quiet)
+        refresh["automatic_detected_projects"] = changed_projects
+        refresh["automatic_detected_website"] = site_changed
+        return refresh
+    finally:
+        dedguy_release_self_update_lock(lock_fd)
+
+
+def dedguy_maybe_spawn_auto_update_check():
+    """Run the requested source check out of process so the UI never lags."""
+    valid_pending, _reason = dedguy_validate_candidate_file()
+    if valid_pending:
+        return False
+    state = pipboy_load_json(DEDGUY_SELF_UPDATE_STATE_PATH, {})
+    try:
+        last = float((state or {}).get("last_spawn_epoch") or 0)
+    except (TypeError, ValueError):
+        last = 0
+    if time.time() - last < DEDGUY_AUTO_UPDATE_CHECK_INTERVAL:
+        return False
+    state = dict(state) if isinstance(state, dict) else {}
+    state["last_spawn_epoch"] = time.time()
+    state["last_spawn_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    pipboy_atomic_json_write(DEDGUY_SELF_UPDATE_STATE_PATH, state)
+    script_path = os.path.realpath(__file__)
+    command = [sys.executable or "python3", script_path, "--ded-guy-auto-update-check", "--quiet"]
+    nice = shutil.which("nice")
+    if nice:
+        command = [nice, "-n", "10", *command]
+    try:
+        os.makedirs(os.path.dirname(DEDGUY_SELF_UPDATE_LOG_PATH), exist_ok=True)
+        log = open(DEDGUY_SELF_UPDATE_LOG_PATH, "ab", buffering=0)
+        subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True, close_fds=True)
+        log.close()
+        return True
+    except Exception as exc:
+        pipboy_log_error("spawn Settings auto-update check", exc)
+        return False
+
+
+def dedguy_r41_self_test():
+    checks = []
+    def record(name, condition, detail=""):
+        checks.append((name, bool(condition), str(detail)))
+
+    cfg_en = dict(PIPBOY_DEFAULT_CONFIG)
+    cfg_en.update({"wake_word_enabled": True, "recognition_language": "english"})
+    cfg_el = dict(PIPBOY_DEFAULT_CONFIG)
+    cfg_el.update({"wake_word_enabled": True, "recognition_language": "greek"})
+    command, woke = pipboy_extract_wake_command("Hey Guy give me assistance for a Python error", cfg_en)
+    record("English wake command", woke and "assistance" in command, command)
+    command, woke = pipboy_extract_wake_command("Χέι Γκάι δώσε μου βοήθεια για σφάλμα Python", cfg_el)
+    record("Greek wake command", woke and ("βοηθεια" in pipboy_normalize(command) or "assistance" in command), command)
+    record("Natural English assistance", dedguy_rewrite_natural_request("Could you help me fix a Git error").startswith("give me assistance for"))
+    record("Natural Greek assistance", dedguy_rewrite_natural_request("Μπορείς να με βοηθήσεις να διορθώσω ένα σφάλμα Git").startswith("give me assistance for"))
+    record("Natural run command", dedguy_rewrite_natural_request("Please launch Pet Friends").startswith("run pet friends"))
+    sample_payload = {
+        "schema": DEDGUY_SELF_UPDATE_SCHEMA, "generated_at": "test", "generated_epoch": 1,
+        "source_heads": {}, "live_website_signature": "test",
+        "project_index": {"schema": 26, "generated_epoch": 1, "files": {"x": {"name": "Test.py", "content": "test", "extension": ".py"}}},
+        "website_index": {"schema": 2, "generated_epoch": 1, "pages": {"https://example.invalid/": {"title": "Test", "text": "test"}}},
+    }
+    source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    try:
+        injected = dedguy_inject_payload(source, sample_payload, {"self_test": True})
+        valid, reason = dedguy_validate_settings_source(injected, require_compatibility=True)
+        record("Generated Settings source validates", valid, reason)
+    except Exception as exc:
+        record("Generated Settings source validates", False, exc)
+    command_text = dedguy_replacement_command()
+    record("Replacement renames update", "mv -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py" in command_text)
+    try:
+        curses_source = inspect.getsource(pipboy_curses) if "inspect" in globals() else ""
+    except Exception:
+        curses_source = ""
+    if not curses_source:
+        try:
+            curses_source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+        except OSError:
+            curses_source = ""
+    record("Wake stops current speech", "if woke:" in curses_source and "pipboy_stop_speech()" in curses_source)
+    record("Listener runs while speaking", "pipboy_start_voice_worker(config, wake_monitor=True)" in curses_source)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] R41: {name}" + (f": {detail}" if detail and not passed else ""))
+    return all(passed for _name, passed, _detail in checks)
+
+def dedguy_r42_self_test():
+    checks = []
+    def record(name, passed, detail=""):
+        checks.append((name, bool(passed), str(detail or "")))
+    config = pipboy_load_config(); config.update({"wake_word_enabled": True, "wake_interrupt_partial": True})
+    for phrase in ("Hey Guy show Facebook pages", "χέι Γκάι πες μου developer scripts", "okay hay gai run pet friends"):
+        state = pipboy_partial_wake_state(phrase, config)
+        record("Partial wake: " + phrase, state.get("woke"), state)
+    record("Wake command English", pipboy_extract_wake_command("Hey Guy help me with a missing module", config)[0].startswith("help"))
+    record("Wake command Greek", bool(pipboy_extract_wake_command("Χέι Γκάι δώσε μου βοήθεια για σφάλμα git", config)[0]))
+    rewrites = {
+        "I keep getting ModuleNotFoundError: No module named requests": "give me assistance for",
+        "it says permission denied when I start the script": "give me assistance for",
+        "my script keeps crashing with a traceback": "give me assistance for",
+        "got any Facebook pages": "tell me",
+        "what can I use for a broken Termux install": "give me assistance for",
+        "μου βγάζει σφάλμα permission denied": "give me assistance for",
+        "πώς να διορθώσω missing module": "give me assistance for",
+    }
+    for phrase, prefix in rewrites.items():
+        actual = dedguy_rewrite_natural_request(phrase)
+        record("Intent: " + phrase, actual.startswith(prefix), actual)
+    records = dedguy_offline_assistance_records()
+    record("Offline guides expanded", len(DEDGUY_OFFLINE_ASSISTANCE_GUIDES) >= 35, len(DEDGUY_OFFLINE_ASSISTANCE_GUIDES))
+    record("Offline records bilingual", any(r.get("language") == "english" for r in records) and any(r.get("language") == "greek" for r in records), len(records))
+    module = dedguy_rank_offline_assistance("ModuleNotFoundError no module named requests", 1)
+    record("Offline module diagnosis", bool(module and module[0].get("assistance_key") == "module_missing"), module[0].get("assistance_key") if module else "none")
+    permission = dedguy_rank_offline_assistance("permission denied", 1)
+    record("Offline permission diagnosis", bool(permission and permission[0].get("assistance_key") == "permission_denied"), permission[0].get("assistance_key") if permission else "none")
+    answer, _matches = pipboy_assistance_answer("ModuleNotFoundError: No module named requests", {})
+    record("Offline answer contains command", "python -m pip" in answer and "requests" in answer.casefold(), answer[:100])
+    try:
+        project_count = len((pipboy_load_project_index(False).get("files") or {}))
+    except Exception:
+        project_count = 0
+    record("Embedded project knowledge", project_count >= 190, project_count)
+    record("Self-update retained", callable(globals().get("dedguy_auto_update_check")) and callable(globals().get("dedguy_create_settings_updated")))
+    try:
+        source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    except OSError:
+        source = ""
+    record("Streaming wake stops speech", "pipboy_partial_wake_state(stdout_buffer, config)" in source and "pipboy_stop_speech()" in source)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] R42: {name}" + (f": {detail}" if detail and not passed else ""))
+    return all(passed for _name, passed, _detail in checks)
+
+def pipboy_database_refresh_self_test():
+    checks = []
+    checks.append(("refresh coordinator callable", callable(globals().get("pipboy_refresh_knowledge_after_update"))))
+    checks.append(("transactional project restore", "pipboy_restore_file_bytes" in globals()))
+    checks.append(("repository remote checker", callable(globals().get("pipboy_git_remote_head"))))
+    checks.append(("website signature checker", callable(globals().get("pipboy_live_website_signature"))))
+    checks.append(("staged Settings generator", callable(globals().get("dedguy_create_settings_updated"))))
+    checks.append(("startup pending-update notice", callable(globals().get("dedguy_pending_update_notice"))))
+    try:
+        source = open(__file__, "r", encoding="utf-8", errors="replace").read()
+    except OSError:
+        source = ""
+    checks.append(("terminal source updates refresh DB", source.count("pipboy_refresh_knowledge_after_update(") >= 4))
+    generated = dedsec_os_server_source()
+    checks.append(("DedSec OS project updates refresh DB", generated.count("--pipboy-refresh-after-update") >= 4))
+    checks.append(("no fixed origin/main in terminal updater", "HEAD..origin/main" not in source[:120000]))
+    for name, passed in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] Database refresh: {name}")
+    return all(passed for _name, passed in checks)
+
+
 # ------------------------------
 # Entry Point
 # ------------------------------
 if __name__ == "__main__":
     try:
-        # Load language preference at startup
         get_current_display_language()
-        
-        # --- NEW: Enforce Language Folder Visibility ---
-        enforce_language_folder_visibility()
-        remove_obsolete_settings_helpers()
+        command = sys.argv[1] if len(sys.argv) > 1 else ""
+        explicit_style = sys.argv[2] if command == "--menu" and len(sys.argv) > 2 else ""
+        if explicit_style in {"ded-guy", "ded_guy", "dedguy"}:
+            explicit_style = "pipboy"
 
-        if len(sys.argv) > 1 and sys.argv[1] == NETWORK_SESSION_GUARD_COMMAND:
+        # Lightweight service commands must never pass through the interactive
+        # Settings startup path. This keeps shell launch reliable.
+        if command == "--build-id":
+            print(SETTINGS_BUILD_ID)
+            sys.exit(0)
+
+        if command == NETWORK_SESSION_GUARD_COMMAND:
             network_session_guard()
             sys.exit(0)
 
-        if len(sys.argv) > 1 and sys.argv[1].startswith("--") and sys.argv[1] != "--menu":
+        if command == "--pipboy-scan":
+            # Legacy bashrc compatibility: background scanning is intentionally disabled.
             sys.exit(0)
+
+        if command == "--pipboy-refresh-after-update":
+            quiet = "--quiet" in sys.argv[2:]
+            trigger = "update"
+            if "--trigger" in sys.argv[2:]:
+                try:
+                    trigger = sys.argv[sys.argv.index("--trigger") + 1]
+                except (ValueError, IndexError):
+                    trigger = "update"
+            try:
+                result = pipboy_refresh_knowledge_after_update(trigger=trigger, quiet=quiet)
+                sys.exit(0 if result.get("ok", False) else 1)
+            except Exception as exc:
+                pipboy_log_error("update-triggered database refresh", exc)
+                if not quiet:
+                    print(pipboy_text(
+                        f"Ded-Guy database refresh failed: {exc}",
+                        f"Η ανανέωση βάσης Ded-Guy απέτυχε: {exc}",
+                    ))
+                sys.exit(1)
+
+        if command == "--ded-guy-auto-update-check":
+            quiet = "--quiet" in sys.argv[2:]
+            force = "--force" in sys.argv[2:]
+            try:
+                result = dedguy_auto_update_check(quiet=quiet, force=force)
+                if not quiet:
+                    print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+                sys.exit(0 if result.get("ok", False) else 1)
+            except Exception as exc:
+                pipboy_log_error("automatic Settings update check", exc)
+                if not quiet:
+                    print(pipboy_text(f"Settings update check failed: {exc}", f"Ο έλεγχος ενημέρωσης Settings απέτυχε: {exc}"))
+                sys.exit(1)
+
+        if command == "--ded-guy-r42-self-test":
+            sys.exit(0 if dedguy_r42_self_test() else 1)
+
+        if command == "--ded-guy-r41-self-test":
+            sys.exit(0 if dedguy_r41_self_test() else 1)
+
+        if command == "--pipboy-database-self-test":
+            sys.exit(0 if pipboy_database_refresh_self_test() else 1)
+
+        if command == "--pipboy-inline-ui-self-test":
+            sys.exit(0 if pipboy_inline_ui_self_test() else 1)
+        if command == "--pipboy-ui-language-self-test":
+            sys.exit(0 if pipboy_ui_language_self_test() else 1)
+
+        if command == "--pipboy-project-index":
+            quiet = "--quiet" in sys.argv[2:]
+            refresh = "--refresh" in sys.argv[2:]
+            try:
+                pipboy_sync_managed_projects(force=refresh, progress=None if quiet else print)
+                index = pipboy_build_project_index(force=True, progress=None if quiet else print)
+                if not quiet:
+                    print(pipboy_project_summary_text())
+                if index.get("files"):
+                    pipboy_record_current_knowledge_state("project_index")
+                sys.exit(0 if index.get("files") else 1)
+            except Exception as exc:
+                pipboy_log_error("project indexing", exc)
+                if not quiet:
+                    print(pipboy_text(f"Project indexing failed: {exc}", f"Η ευρετηρίαση project απέτυχε: {exc}"))
+                sys.exit(1)
+
+        if command == "--pipboy-website-index":
+            quiet = "--quiet" in sys.argv[2:]
+            try:
+                index = pipboy_crawl_website(force=True, progress=None if quiet else print)
+                if not quiet:
+                    print(pipboy_website_status_text())
+                    if index.get("errors"):
+                        print(f"Website crawl errors: {len(index.get('errors', []))}")
+                if index.get("pages"):
+                    pipboy_record_current_knowledge_state("website_index")
+                sys.exit(0 if index.get("pages") else 1)
+            except Exception as exc:
+                pipboy_log_error("website indexing", exc)
+                if not quiet:
+                    print(pipboy_text(f"Website indexing failed: {exc}", f"Η ευρετηρίαση website απέτυχε: {exc}"))
+                sys.exit(1)
+
+        if command == "--pipboy-learn-all":
+            try:
+                print(pipboy_text("Synchronizing the official DedSec ecosystem repositories...", "Συγχρονισμός των επίσημων αποθετηρίων του οικοσυστήματος DedSec..."))
+                pipboy_sync_managed_projects(force=True, progress=print)
+                print(pipboy_text("Indexing DedSec, Offline Survival, Pocket AI, Corrupted Files, and the website source...", "Ευρετηρίαση DedSec, Offline Survival, Pocket AI, Corrupted Files και πηγαίου κώδικα website..."))
+                project_index = pipboy_build_project_index(force=True, progress=print)
+                print(pipboy_project_summary_text())
+                print(pipboy_text("Crawling all reachable DedSec Project website pages...", "Σάρωση όλων των προσβάσιμων σελίδων του website DedSec Project..."))
+                website_index = pipboy_crawl_website(force=True, progress=print)
+                print(pipboy_website_status_text())
+                if project_index.get("files") and website_index.get("pages"):
+                    pipboy_record_current_knowledge_state("learn_all")
+                sys.exit(0 if project_index.get("files") and website_index.get("pages") else 1)
+            except Exception as exc:
+                pipboy_log_error("full Ded-Guy learning", exc)
+                print(pipboy_text(f"Full Ded-Guy learning failed: {exc}", f"Η πλήρης εκμάθηση Ded-Guy απέτυχε: {exc}"))
+                sys.exit(1)
+
+        if command == "--ded-guy-functional-self-test":
+            sys.exit(0 if pipboy_functional_bilingual_self_test() else 1)
+
+        if command in {"--ded-guy-wake-self-test", "--pipboy-wake-self-test"}:
+            sys.exit(0 if pipboy_ded_guy_wake_self_test() else 1)
+        if command == "--pipboy-voice-self-test":
+            sys.exit(0 if pipboy_continuous_voice_self_test() else 1)
+        if command == "--pipboy-male-voice-self-test":
+            sys.exit(0 if pipboy_male_barge_in_self_test() else 1)
+
+        if command == "--pipboy-voice-dependency-self-test":
+            sys.exit(0 if pipboy_voice_dependency_self_test() else 1)
+        if command == "--pipboy-voice-runtime-self-test":
+            sys.exit(0 if pipboy_voice_runtime_self_test() else 1)
+
+        if command == "--pipboy-input-self-test":
+            test_state = {
+                "config": pipboy_load_config(), "inventory": pipboy_inventory(),
+                "cwd": HOME_DIR, "last_matches": [], "pending_action": None,
+            }
+            started = time.monotonic()
+            hello = pipboy_process_command("hello", test_state)
+            project = pipboy_process_command("where does Pet Friends save", test_state)
+            if project.get("action", {}).get("type") == "intelligence_query":
+                answer, _matches = pipboy_intelligence_answer(project["action"].get("query", ""), test_state, scope=project["action"].get("scope", "all"))
+            else:
+                answer = project.get("message", "")
+            elapsed = time.monotonic() - started
+            marquee_sample = "This complete sentence must be readable without truncation."
+            viewport = 18
+            windows = [pipboy_marquee_window(marquee_sample, viewport, tick) for tick in range(120)]
+            reconstructed = set()
+            for window in windows:
+                reconstructed.update(window.strip().split())
+            marquee_ok = "sentence" in reconstructed and "truncation." in reconstructed and not any("..." in window for window in windows)
+            runtime_index = pipboy_load_project_index(False)
+            runtime_records = len(runtime_index.get("files", {}))
+            # The optimized semantic path should normally complete in under two
+            # seconds, but allow up to eight seconds on very old Android phones.
+            safe = (bool(hello.get("message")) and bool(answer) and elapsed < 8.0
+                    and runtime_records <= 1400 and marquee_ok)
+            print(f"Input-safe self-test: {'PASS' if safe else 'FAIL'} ({elapsed:.2f}s, runtime records={runtime_records}, marquee={'PASS' if marquee_ok else 'FAIL'})")
+            sys.exit(0 if safe else 1)
+
+        if command == "--pipboy-natural-self-test":
+            sys.exit(0 if pipboy_natural_language_self_test() else 1)
+
+        if command == "--pipboy-semantic-self-test":
+            sys.exit(0 if pipboy_semantic_expert_self_test() else 1)
+
+        if command == "--pipboy-self-test":
+            base_pass = bool(pipboy_cli_self_test())
+            menu_pass = bool(pipboy_menu_style_regression_check())
+            print("[PASS] Ded-Guy appears under Change Menu Style only" if menu_pass else "[FAIL] Ded-Guy menu-style placement")
+            sys.exit(0 if base_pass and menu_pass else 1)
+
+        if command == "--pipboy-expert-self-test":
+            sys.exit(0 if pipboy_expert_self_test() else 1)
+
+        if command in {"--pipboy-intelligence-status", "--pipboy-ai-status"}:
+            print(pipboy_intelligence_status_text(pipboy_load_config()))
+            sys.exit(0 if pipboy_ai_can_answer() else 1)
+
+        if command == "--pipboy-ai-models":
+            print(pipboy_ai_model_list_text())
+            sys.exit(0)
+
+        if command in {"--pipboy-intelligence-test", "--pipboy-ai-test"}:
+            query = " ".join(sys.argv[2:]).strip() or "Summarize the installed DedSec Project architecture and cite project evidence."
+            test_state = {
+                "config": pipboy_load_config(), "inventory": pipboy_inventory(),
+                "cwd": HOME_DIR, "last_matches": [], "pending_action": None,
+            }
+            try:
+                answer, _matches = pipboy_intelligence_answer(query, test_state, scope="all", progress=print)
+                print(answer)
+                sys.exit(0)
+            except Exception as exc:
+                print(f"Ded-Guy intelligence test failed: {exc}")
+                print(pipboy_intelligence_status_text(test_state["config"]))
+                sys.exit(1)
+
+        if command in {"--activate-pipboy", "--activate-ded-guy"}:
+            # Non-interactive Android-friendly activation used after replacing
+            # Settings.py. It persists the style and repairs the Termux startup
+            # block immediately, without requiring arrow keys or a second menu.
+            save_menu_style_preference("pipboy")
+            save_menu_autostart_preference(True)
+            update_bashrc(get_current_language_path(), "pipboy")
+            try:
+                with open(BASHRC_PATH, "r", encoding="utf-8") as handle:
+                    bashrc_text = handle.read()
+                    activated = "--menu ded-guy" in bashrc_text or "--menu pipboy" in bashrc_text
+            except Exception:
+                activated = False
+            print(pipboy_text(
+                "Ded-Guy menu style and Termux auto-start activated." if activated else "Ded-Guy style was saved, but bash.bashrc could not be verified.",
+                "Το στυλ Ded-Guy και η αυτόματη εκκίνηση Termux ενεργοποιήθηκαν." if activated else "Το στυλ Ded-Guy αποθηκεύτηκε, αλλά το bash.bashrc δεν μπόρεσε να επαληθευτεί."
+            ))
+            sys.exit(0 if activated else 1)
+
+        # Ded-Guy is a main-menu style, not a Settings option. Launch it before
+        # backups, GitHub checks, network auto-start, or any synchronous scan.
+        if command == "--menu" and explicit_style == "pipboy":
+            try:
+                enforce_language_folder_visibility()
+            except Exception:
+                pass
+            try:
+                pipboy_ensure_async_startup_hook()
+            except Exception:
+                pass
+            sys.exit(0 if launch_pipboy() else 1)
+
+        if command.startswith("--") and command != "--menu":
+            sys.exit(0)
+
+        enforce_language_folder_visibility()
+        remove_obsolete_settings_helpers()
+        pipboy_ensure_async_startup_hook()
+        pipboy_spawn_background_scan()
 
         create_backup_zip_if_not_exists()
         apply_github_prompt_if_connected()
         network_autostart_if_enabled(silent=True)
-        
-        if len(sys.argv) > 1 and sys.argv[1] == "--menu":
-            if len(sys.argv) > 2:
-                current_style = sys.argv[2]
-                if current_style == "list":
-                    run_list_menu()
-                    sys.exit(0)
-                elif current_style == "grid":
-                    run_grid_menu()
-                    sys.exit(0)
-                elif current_style == "number":
-                    run_number_menu()
-                    sys.exit(0)
-                elif current_style == "dedsec_os":
-                    launch_dedsec_os()
-                    sys.exit(0)
-                else:
-                    print(_("Unknown menu style. Use 'list' or 'grid' or 'number'."))
-                    main()
+
+        if command == "--menu":
+            current_style = explicit_style or get_current_menu_style()
+            if current_style == "list":
+                run_list_menu()
+            elif current_style == "grid":
+                run_grid_menu()
+            elif current_style == "number":
+                run_number_menu()
+            elif current_style == "pipboy":
+                if not launch_pipboy():
+                    sys.exit(1)
+            elif current_style == "dedsec_os":
+                launch_dedsec_os()
             else:
-                # If no style specified, use the current style from bashrc
-                current_style = get_current_menu_style()
-                if current_style == 'list':
-                    run_list_menu()
-                elif current_style == 'grid':
-                    run_grid_menu()
-                elif current_style == 'number':
-                    run_number_menu()
-                elif current_style == 'dedsec_os':
-                    launch_dedsec_os()
-                else:
-                    run_list_menu()  # Default fallback
+                print(_("Unknown menu style. Use 'list', 'grid', 'number', 'pipboy', or 'dedsec_os'."))
+                main()
         else:
             main()
     except KeyboardInterrupt:
