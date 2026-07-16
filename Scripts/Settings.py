@@ -26,6 +26,7 @@ import unicodedata
 import difflib
 import importlib.metadata as importlib_metadata
 import ast
+import inspect
 import pty
 import html
 import xml.etree.ElementTree as ET
@@ -34,7 +35,7 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qs
 from collections import deque, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SETTINGS_BUILD_ID = "2026-07-17-ded-guy-instant-wake-offline-expert-r42"
+SETTINGS_BUILD_ID = "2026-07-17-ded-guy-universal-direct-script-launch-r44"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -8491,8 +8492,18 @@ def pipboy_welcome_message():
 
 _PIPBOY_GREEK_RE = re.compile(r"[Α-Ωα-ωΆΈΉΊΌΎΏάέήίόύώϊϋΐΰ]")
 _PIPBOY_LATIN_RE = re.compile(r"[A-Za-z]")
+_PIPBOY_FILE_EXTENSION_PATTERN = r"(?:py|sh|bash|zsh|js|mjs|cjs|ts|html?|css|json|ya?ml|toml|md|txt|sqlite3?|db|zip|apk|gguf|png|jpe?g|gif|webp|svg|rb|pl|php|lua|tcl|awk|jar)"
+# Generic single-token reference fallback. Result rows and quoted/path references
+# are parsed separately so filenames containing spaces remain complete.
 _PIPBOY_FILE_RE = re.compile(
-    r"(?i)\b[^\s/\\]+\.(?:py|sh|bash|zsh|js|ts|html?|css|json|ya?ml|toml|md|txt|sqlite3?|db|zip|apk|gguf|png|jpe?g|gif|webp|svg)\b"
+    rf"(?i)\b[^\s/\\]+\.{_PIPBOY_FILE_EXTENSION_PATTERN}\b"
+)
+_PIPBOY_RESULT_LINE_RE = re.compile(
+    rf"^(?P<prefix>\s*\d+\.\s+\[[^\]]+\]\s+)(?P<name>.+?\.{_PIPBOY_FILE_EXTENSION_PATTERN})(?P<suffix>\s+-\s+.*)?$",
+    re.IGNORECASE,
+)
+_PIPBOY_QUOTED_FILE_RE = re.compile(
+    rf"(?i)(?:`|\"|')(?P<name>[^`\"'\r\n]+?\.{_PIPBOY_FILE_EXTENSION_PATTERN})(?:`|\"|')"
 )
 _PIPBOY_URL_OR_PATH_RE = re.compile(r"(?:https?://\S+|(?:^|\s)[~/]/?[^\s]+|/data/data/com\.termux/\S+)")
 
@@ -8523,8 +8534,21 @@ def pipboy_line_has_exact_technical_reference(line):
 
 
 def pipboy_extract_exact_technical_references(line):
+    """Extract literal references without truncating names such as Pet Friends.py."""
     value = str(line or "")
     refs = []
+
+    result_match = _PIPBOY_RESULT_LINE_RE.match(value)
+    if result_match:
+        name = result_match.group("name").strip()
+        if name:
+            refs.append(name)
+
+    for match in _PIPBOY_QUOTED_FILE_RE.finditer(value):
+        name = match.group("name").strip()
+        if name and name not in refs:
+            refs.append(name)
+
     for pattern in (_PIPBOY_URL_OR_PATH_RE, _PIPBOY_FILE_RE):
         for match in pattern.finditer(value):
             ref = match.group(0).strip().rstrip(".,);]")
@@ -8543,6 +8567,12 @@ def pipboy_extract_exact_technical_references(line):
 def pipboy_greek_line_cleanup(line):
     """Keep Greek prose while preserving exact technical names and paths."""
     value = str(line or "")
+    result_match = _PIPBOY_RESULT_LINE_RE.match(value)
+    if result_match:
+        suffix = result_match.group("suffix") or ""
+        if suffix and not _PIPBOY_GREEK_RE.search(suffix):
+            return result_match.group("prefix") + result_match.group("name").strip()
+        return value
     replacements = (
         ("Sources:", "Πηγές:"), ("Source:", "Πηγή:"),
         ("Top matches:", "Κορυφαία αποτελέσματα:"),
@@ -8568,8 +8598,14 @@ def pipboy_greek_line_cleanup(line):
 
 
 def pipboy_english_line_cleanup(line):
-    """Keep English prose while preserving exact Greek filenames and paths."""
+    """Keep English prose while preserving complete filenames and result numbering."""
     value = str(line or "")
+    result_match = _PIPBOY_RESULT_LINE_RE.match(value)
+    if result_match:
+        suffix = result_match.group("suffix") or ""
+        if suffix and _PIPBOY_GREEK_RE.search(suffix):
+            return result_match.group("prefix") + result_match.group("name").strip()
+        return value
     if not _PIPBOY_GREEK_RE.search(value):
         return value
     refs = pipboy_extract_exact_technical_references(value)
@@ -12176,8 +12212,9 @@ def pipboy_find_scripts(term, inventory, limit=8):
             "interactive": bool(record.get("interactive")),
             "command": record.get("command") or pipboy_script_command(path),
             "cwd": record.get("directory") or os.path.dirname(path),
-            "full_screen": bool(record.get("full_screen")),
+            "full_screen": bool(record.get("full_screen")) or os.path.splitext(path)[1].casefold() not in {".html", ".htm"},
             "untrusted": pipboy_is_untrusted_path(path),
+            "language": record.get("language") or ("greek" if GREEK_FOLDER_NAME in path or HIDDEN_GREEK_FOLDER in path else "english"),
         }
         for _, path, record in scores[:limit]
     ]
@@ -12230,6 +12267,87 @@ def pipboy_script_item_score(term, item):
     return score
 
 
+def pipboy_item_language(item):
+    """Infer an indexed item's language consistently."""
+    explicit = str((item or {}).get("language") or "").casefold()
+    if explicit in {"english", "greek"}:
+        return explicit
+    path = str((item or {}).get("path") or (item or {}).get("relative_path") or "")
+    return "greek" if GREEK_FOLDER_NAME in path or HIDDEN_GREEK_FOLDER in path else "english"
+
+
+def pipboy_script_should_run_direct(item):
+    """Local terminal scripts should take over the terminal like menu launches."""
+    if str((item or {}).get("kind") or "") != "script":
+        return False
+    path = str((item or {}).get("path") or "")
+    extension = os.path.splitext(path)[1].casefold()
+    return extension not in {".html", ".htm"}
+
+
+def pipboy_prepare_matches(matches, limit=8):
+    """Prefer the selected language and hide duplicate translated copies."""
+    preferred = get_current_display_language()
+    ranked = []
+    for position, item in enumerate(matches or []):
+        if not isinstance(item, dict):
+            continue
+        language = pipboy_item_language(item)
+        preference = 0 if language == preferred else 1
+        ranked.append((preference, position, item))
+    ranked.sort(key=lambda row: (row[0], row[1]))
+
+    output = []
+    seen_paths = set()
+    chosen_language_by_name = {}
+    for _preference, _position, item in ranked:
+        path = os.path.realpath(str(item.get("path") or "")) if item.get("path") else ""
+        if path and path in seen_paths:
+            continue
+        kind = str(item.get("kind") or "item")
+        name = str(item.get("name") or item.get("title") or item.get("relative_path") or "")
+        stem = pipboy_normalize(os.path.splitext(os.path.basename(name))[0])
+        language = pipboy_item_language(item)
+        if kind in {"script", "project"} and stem:
+            previous_language = chosen_language_by_name.get(stem)
+            if previous_language and previous_language != language:
+                continue
+            chosen_language_by_name.setdefault(stem, language)
+        if path:
+            seen_paths.add(path)
+        output.append(item)
+        if len(output) >= limit:
+            break
+    return output
+
+
+def pipboy_exact_script_name_match(term, item):
+    query = pipboy_clean_script_query(term)
+    query = os.path.splitext(query)[0]
+    name = os.path.splitext(str((item or {}).get("name") or ""))[0]
+    return bool(query and pipboy_normalize(query) == pipboy_normalize(name))
+
+
+def pipboy_local_script_item(path, name=None):
+    """Build a safe runnable record for an existing local script."""
+    real_path = os.path.realpath(os.path.expanduser(str(path or "")))
+    if not os.path.isfile(real_path):
+        return None
+    command = pipboy_script_command(real_path)
+    if not command:
+        return None
+    item = {
+        "kind": "script", "name": name or os.path.basename(real_path),
+        "path": real_path, "relative_path": "", "description": "",
+        "capabilities": [], "arguments": [], "input_hints": [],
+        "interactive": True, "command": command, "cwd": os.path.dirname(real_path),
+        "full_screen": True, "untrusted": pipboy_is_untrusted_path(real_path),
+        "language": "greek" if GREEK_FOLDER_NAME in real_path or HIDDEN_GREEK_FOLDER in real_path else "english",
+        "category": "", "risk_tags": [],
+    }
+    return item
+
+
 def pipboy_project_record_to_runnable(record):
     real_path = pipboy_resolve_project_record_path(record)
     if not real_path or not os.path.isfile(real_path):
@@ -12244,8 +12362,8 @@ def pipboy_project_record_to_runnable(record):
         "capabilities": list(record.get("capabilities") or []),
         "arguments": list(record.get("arguments") or []),
         "input_hints": list(record.get("input_hints") or []),
-        "interactive": bool(record.get("interactive")), "command": command,
-        "cwd": os.path.dirname(real_path), "full_screen": bool(record.get("full_screen")),
+        "interactive": bool(record.get("interactive", True)), "command": command,
+        "cwd": os.path.dirname(real_path), "full_screen": True,
         "untrusted": pipboy_is_untrusted_path(real_path), "language": record.get("language", ""),
         "category": record.get("category", ""), "risk_tags": list(record.get("risk_tags") or []),
     }
@@ -12254,7 +12372,7 @@ def pipboy_project_record_to_runnable(record):
 def pipboy_bounded_filesystem_script_search(term, limit=8):
     """Last-resort exact script lookup; runs only for an explicit run request."""
     query = pipboy_clean_script_query(term)
-    roots = [ENGLISH_BASE_PATH, os.path.join(HOME_DIR, "DedSec", "Scripts")]
+    roots = [os.getcwd(), ENGLISH_BASE_PATH, os.path.join(HOME_DIR, "DedSec", "Scripts"), HOME_DIR]
     for project in PIPBOY_MANAGED_PROJECTS:
         try:
             root = pipboy_installed_project_root(project)
@@ -12314,10 +12432,16 @@ def pipboy_find_runnable_scripts(term, inventory, limit=8):
         for item in pipboy_bounded_filesystem_script_search(query, limit=max(8, limit)):
             rows.append((pipboy_script_item_score(query, item), item))
     dedup = {}
+    preferred = get_current_display_language()
     for score, item in rows:
-        key = os.path.realpath(str(item.get("path") or "")) or pipboy_normalize(item.get("name"))
-        if key and (key not in dedup or score > dedup[key][0]):
-            dedup[key] = (score, item)
+        path_key = os.path.realpath(str(item.get("path") or "")) or pipboy_normalize(item.get("name"))
+        language = pipboy_item_language(item)
+        stem = pipboy_normalize(os.path.splitext(str(item.get("name") or ""))[0])
+        logical_key = ("translated-script", stem) if stem else ("path", path_key)
+        adjusted_score = score + (2.0 if language == preferred else 0.0)
+        previous = dedup.get(logical_key)
+        if logical_key and (previous is None or adjusted_score > previous[0]):
+            dedup[logical_key] = (adjusted_score, item)
     ranked = sorted(dedup.values(), key=lambda row: (-row[0], str(row[1].get("name") or "").casefold()))
     return [item for score, item in ranked[:limit] if score >= 2.9]
 
@@ -12378,13 +12502,23 @@ def pipboy_find_apps(term, inventory, limit=8):
 
 
 def pipboy_match_list_text(matches):
+    """Render numbered results without mixing foreign prose into a result name."""
     lines = []
-    for index, item in enumerate(matches[:8], 1):
+    selected_language = pipboy_selected_answer_language()
+    for index, item in enumerate((matches or [])[:8], 1):
         kind = item.get("kind", "item")
         name = item.get("name") or item.get("title") or item.get("relative_path") or item.get("url") or "?"
         extra = str(item.get("description") or "").strip()
+        if selected_language == "english" and _PIPBOY_GREEK_RE.search(extra):
+            extra = ""
+        elif selected_language == "greek" and extra and not _PIPBOY_GREEK_RE.search(extra):
+            # Keep URLs/paths but avoid English prose that would later erase the row.
+            refs = pipboy_extract_exact_technical_references(extra)
+            extra = " | ".join(refs)
         if kind == "project" and not extra:
             extra = str(item.get("relative_path") or "")
+            if selected_language == "english" and _PIPBOY_GREEK_RE.search(extra):
+                extra = ""
         if kind == "website" and not extra:
             extra = str(item.get("url") or "")
         if kind == "repo":
@@ -12545,8 +12679,6 @@ def pipboy_install_missing_voice_dependencies_async():
 def pipboy_voice_dependency_self_test():
     missing = pipboy_missing_voice_packages()
     unique = len(missing) == len(set(missing)) and all(name in {"termux-api", "espeak"} for name in missing)
-    source = Path(__file__).read_text(encoding="utf-8", errors="replace") if "Path" in globals() else ""
-    # Source check is optional because pathlib is intentionally not imported by Settings.py.
     checks = [
         ("valid missing-package list", unique, str(missing)),
         ("does not request espeak-ng package", "espeak-ng" not in missing, str(missing)),
@@ -15651,7 +15783,7 @@ def pipboy_make_launch_action(item, extra_args=None):
     return {
         "type": "launch", "title": item.get("name") or (os.path.basename(command[0]) if command else "program"),
         "command": command, "cwd": item.get("cwd") or HOME_DIR,
-        "full_screen": bool(item.get("full_screen")),
+        "full_screen": bool(item.get("full_screen")) or pipboy_script_should_run_direct(item),
         "risky": command_risk or untrusted or sensitive,
         "untrusted": untrusted,
     }
@@ -15904,7 +16036,7 @@ def pipboy_context_result(normalized, state):
                 item = {
                     "kind": "script", "name": first.get("name"), "path": path,
                     "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
-                    "full_screen": False, "untrusted": pipboy_is_untrusted_path(path) or bool(first.get("sensitive")),
+                    "full_screen": True, "untrusted": pipboy_is_untrusted_path(path) or bool(first.get("sensitive")),
                 }
                 action = pipboy_make_launch_action(item)
             else:
@@ -16011,7 +16143,7 @@ def dedguy_rewrite_natural_request(text):
         if match:
             target = match.group(1).strip(" -:;,.?")
             if target and target not in {"menu", "settings", "help"}:
-                return "run " + target + " script"
+                return "run " + target
 
     discovery_patterns = (
         r"^(?:show|tell|find|list|give|get)\s+(?:me\s+)?(?:all\s+|any\s+|some\s+)?(.+)$",
@@ -16205,7 +16337,8 @@ def pipboy_assistance_answer(problem, state=None):
     return pipboy_enforce_answer_language("\n".join(lines)), matches
 
 def pipboy_process_command(raw_text, state):
-    text = dedguy_rewrite_natural_request(raw_text)
+    original_text = str(raw_text or "").strip()
+    text = dedguy_rewrite_natural_request(original_text)
     normalized = pipboy_smart_normalize(text)
     if normalized in {"hello", "hi", "hey", "good morning", "good evening", "γεια", "γεια σου", "καλημερα", "καλησπερα"}:
         return pipboy_result(pipboy_text(
@@ -16479,43 +16612,66 @@ def pipboy_process_command(raw_text, state):
         state["last_matches"] = matches
         return pipboy_result(pipboy_match_list_text(matches) or pipboy_text("No user apps found.", "Δεν βρέθηκαν εφαρμογές χρήστη."), matches=matches)
 
-    numeric_match = re.fullmatch(r"(?:run|start|execute|open|τρεξε|εκτελεσε|ανοιξε)?\s*#?(\d+)", normalized)
-    if numeric_match and state.get("last_matches"):
-        index = int(numeric_match.group(1)) - 1
+    result_number_words = {
+        "one": 1, "first": 1, "ena": 1, "ενα": 1, "μια": 1,
+        "two": 2, "second": 2, "dyo": 2, "δυο": 2,
+        "three": 3, "third": 3, "tria": 3, "τρια": 3,
+        "four": 4, "fourth": 4, "tessera": 4, "τεσσερα": 4,
+        "five": 5, "fifth": 5, "pente": 5, "πεντε": 5,
+        "six": 6, "sixth": 6, "eksi": 6, "εξι": 6,
+        "seven": 7, "seventh": 7, "efta": 7, "επτα": 7,
+        "eight": 8, "eighth": 8, "okto": 8, "οκτω": 8,
+    }
+    selection_match = re.fullmatch(
+        r"(?:(run|start|execute|open|describe|explain|τρεξε|εκτελεσε|ανοιξε|περιεγραψε|εξηγησε)\s+)?#?(\d+|one|first|two|second|three|third|four|fourth|five|fifth|six|sixth|seven|seventh|eight|eighth|ena|dyo|tria|tessera|pente|eksi|efta|okto|ενα|μια|δυο|τρια|τεσσερα|πεντε|εξι|επτα|οκτω)",
+        normalized,
+    )
+    if selection_match and state.get("last_matches"):
+        verb = selection_match.group(1) or "run"
+        raw_number = selection_match.group(2)
+        number = int(raw_number) if raw_number.isdigit() else result_number_words.get(raw_number, 0)
+        index = number - 1
         matches = state["last_matches"]
-        if 0 <= index < len(matches):
-            item = matches[index]
-            if item.get("kind") in {"web", "website"}:
-                return pipboy_result(pipboy_text("Opening the selected page.", "Άνοιγμα επιλεγμένης σελίδας."), action=pipboy_open_url_action(item.get("url"), item.get("name") or item.get("title")))
-            if item.get("kind") == "repo":
-                try:
-                    action = pipboy_clone_action(item.get("clone_url") or item.get("url"))
-                except Exception as exc:
-                    return pipboy_result(str(exc))
-                state["pending_action"] = action
-                return pipboy_result(pipboy_text(
-                    f"Clone {action['url']} into {action['destination']}? Confirm with yes/ναι.",
-                    f"Clone του {action['url']} στο {action['destination']}; Επιβεβαιώστε με yes/ναι."
-                ))
+        if not (0 <= index < len(matches)):
+            return pipboy_result(pipboy_text("That result number does not exist.", "Αυτός ο αριθμός αποτελέσματος δεν υπάρχει."))
+        item = matches[index]
+        if verb in {"describe", "explain", "περιεγραψε", "εξηγησε"}:
             if item.get("kind") == "project":
-                path = pipboy_resolve_project_record_path(item)
-                if not path or os.path.splitext(path)[1].casefold() not in PIPBOY_SCRIPT_EXTENSIONS:
-                    return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "project"), matches=matches)
-                launch_item = {
-                    "kind": "script", "name": item.get("name"), "path": path,
-                    "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
-                    "full_screen": False, "untrusted": pipboy_is_untrusted_path(path) or bool(item.get("sensitive")),
-                }
-                action = pipboy_make_launch_action(launch_item)
-            else:
-                action = pipboy_make_launch_action(item)
-            if action.get("risky"):
-                state["pending_action"] = action
-                return pipboy_result(pipboy_text(
-                    f"Sensitive action: {' '.join(action.get('command', []))}. Confirm with yes/ναι.",
-                    f"Ευαίσθητη ενέργεια: {' '.join(action.get('command', []))}. Επιβεβαιώστε με ναι/yes."
-                ))
-            return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
+                return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "project"), matches=matches)
+            if item.get("kind") == "website":
+                return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "website"), matches=matches)
+            return pipboy_result(pipboy_describe_item(item), matches=matches)
+        if item.get("kind") in {"web", "website"}:
+            return pipboy_result(pipboy_text("Opening the selected page.", "Άνοιγμα της επιλεγμένης σελίδας."), action=pipboy_open_url_action(item.get("url"), item.get("name") or item.get("title")))
+        if item.get("kind") == "repo":
+            try:
+                action = pipboy_clone_action(item.get("clone_url") or item.get("url"))
+            except Exception as exc:
+                return pipboy_result(str(exc))
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"Clone {action['url']} into {action['destination']}? Confirm with yes/ναι.",
+                f"Clone του {action['url']} στο {action['destination']}; Επιβεβαιώστε με yes/ναι."
+            ))
+        if item.get("kind") == "project":
+            path = pipboy_resolve_project_record_path(item)
+            if not path or os.path.splitext(path)[1].casefold() not in PIPBOY_SCRIPT_EXTENSIONS:
+                return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "project"), matches=matches)
+            launch_item = {
+                "kind": "script", "name": item.get("name"), "path": path,
+                "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
+                "full_screen": True, "untrusted": pipboy_is_untrusted_path(path) or bool(item.get("sensitive")),
+            }
+            action = pipboy_make_launch_action(launch_item)
+        else:
+            action = pipboy_make_launch_action(item)
+        if action.get("risky"):
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"Sensitive action: {' '.join(action.get('command', []))}. Confirm with yes/ναι.",
+                f"Ευαίσθητη ενέργεια: {' '.join(action.get('command', []))}. Επιβεβαιώστε με ναι/yes."
+            ))
+        return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
 
     project_aliases = [
         pipboy_normalize(alias)
@@ -16609,10 +16765,12 @@ def pipboy_process_command(raw_text, state):
                 pipboy_text("Searching the project and website by concept...", "Αναζήτηση στο project και website βάσει έννοιας..."),
                 action={"type": "intelligence_query", "query": term, "scope": "all"},
             )
-        matches = (pipboy_find_scripts(term, inventory) + pipboy_find_commands(term, inventory) +
-                   pipboy_find_apps(term, inventory) + pipboy_search_project(term, limit=4) +
-                   pipboy_search_website(term, limit=4))
-        matches = matches[:8]
+        matches = pipboy_prepare_matches(
+            pipboy_find_scripts(term, inventory) + pipboy_find_commands(term, inventory) +
+            pipboy_find_apps(term, inventory) + pipboy_search_project(term, limit=4) +
+            pipboy_search_website(term, limit=4),
+            limit=8,
+        )
         state["last_matches"] = matches
         if not matches:
             return pipboy_result(pipboy_text("I found no matching script, command, or app.", "Δεν βρήκα αντίστοιχο script, εντολή ή εφαρμογή."))
@@ -16620,6 +16778,32 @@ def pipboy_process_command(raw_text, state):
 
     run_match = re.match(r"^(?:please\s+)?(?:run|start|execute|launch|open|τρεξε|ξεκινα|εκτελεσε|ανοιξε)(?:\s+(?:the|το|την|τον))?\s+(.+)$", normalized)
     if run_match:
+        run_prefixes = (
+            "run", "start", "execute", "launch", "open",
+            "τρεξε", "ξεκινα", "εκτελεσε", "ανοιξε",
+        )
+        raw_target = pipboy_original_tail(original_text, run_prefixes)
+        if not raw_target:
+            raw_target = pipboy_original_tail(text, run_prefixes)
+        raw_target = re.sub(r"(?i)\s+(?:script|tool|game|program|app)$", "", raw_target).strip()
+        explicit_path = pipboy_resolve_path(raw_target, state["cwd"]) if raw_target and ("/" in raw_target or raw_target.startswith(("~", "."))) else ""
+        if explicit_path and os.path.isfile(explicit_path):
+            direct_item = pipboy_local_script_item(explicit_path)
+            if not direct_item:
+                return pipboy_result(pipboy_text(
+                    f"That file type cannot be executed directly: {explicit_path}",
+                    f"Αυτός ο τύπος αρχείου δεν μπορεί να εκτελεστεί άμεσα: {explicit_path}",
+                ))
+            state["last_matches"] = [direct_item]
+            action = pipboy_make_launch_action(direct_item)
+            if action.get("risky"):
+                state["pending_action"] = action
+                return pipboy_result(pipboy_text(
+                    f"This local script requires confirmation: {action['title']}. Confirm with yes/ναι.",
+                    f"Αυτό το τοπικό script απαιτεί επιβεβαίωση: {action['title']}. Επιβεβαιώστε με ναι/yes.",
+                ))
+            return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
+
         term = pipboy_clean_script_query(run_match.group(1).strip())
         matches = pipboy_find_runnable_scripts(term, inventory)
         if not matches:
@@ -16656,6 +16840,25 @@ def pipboy_process_command(raw_text, state):
             ))
         return pipboy_result(pipboy_text(f"Starting {action['title']}.", f"Εκκίνηση {action['title']}."), action=action)
 
+    # A bare exact script name such as "Pet Friends" launches immediately.
+    # This mirrors selecting the same script from the normal DedSec menu.
+    bare_candidates = pipboy_find_runnable_scripts(text, inventory, limit=8)
+    exact_candidates = [item for item in bare_candidates if pipboy_exact_script_name_match(text, item)]
+    if exact_candidates:
+        exact_candidates = pipboy_prepare_matches(exact_candidates, limit=8)
+        state["last_matches"] = exact_candidates
+        action = pipboy_make_launch_action(exact_candidates[0])
+        if action.get("risky"):
+            state["pending_action"] = action
+            return pipboy_result(pipboy_text(
+                f"This script requires confirmation before it runs: {action['title']}. Confirm with yes/ναι.",
+                f"Αυτό το script απαιτεί επιβεβαίωση πριν εκτελεστεί: {action['title']}. Επιβεβαιώστε με ναι/yes.",
+            ), matches=exact_candidates)
+        return pipboy_result(pipboy_text(
+            f"Starting {action['title']} in direct terminal mode.",
+            f"Εκκίνηση του {action['title']} σε άμεση λειτουργία τερματικού.",
+        ), action=action, matches=exact_candidates)
+
     if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_category_request(text):
         return pipboy_result(
             pipboy_text("Understanding the requested project category...", "Κατανόηση της ζητούμενης κατηγορίας project..."),
@@ -16676,11 +16879,14 @@ def pipboy_process_command(raw_text, state):
     if knowledge_question and state["config"].get("intelligence_enabled", True):
         return pipboy_result(pipboy_text("Analyzing project and website evidence...", "Ανάλυση τεκμηρίων project και website..."), action={"type": "intelligence_query", "query": text, "scope": "all"})
 
-    matches = (pipboy_find_scripts(text, inventory, limit=5) +
-               pipboy_find_commands(text, inventory, limit=4) +
-               pipboy_find_apps(text, inventory, limit=4) +
-               pipboy_search_project(text, limit=3) +
-               pipboy_search_website(text, limit=3))[:8]
+    matches = pipboy_prepare_matches(
+        pipboy_find_scripts(text, inventory, limit=8) +
+        pipboy_find_commands(text, inventory, limit=4) +
+        pipboy_find_apps(text, inventory, limit=4) +
+        pipboy_search_project(text, limit=5) +
+        pipboy_search_website(text, limit=3),
+        limit=8,
+    )
     if matches:
         state["last_matches"] = matches
         best = matches[0]
@@ -17515,7 +17721,6 @@ def pipboy_curses(stdscr):
         return False
 
     def handle_mobile_control(control):
-        nonlocal input_buffer, cursor
         if control in {"more", "voice_settings", "mode_settings", "ai_settings", "intelligence_settings"}:
             pipboy_set_message(state, pipboy_inline_controls_message(config), speak=False)
             return False
@@ -17691,7 +17896,6 @@ def pipboy_curses(stdscr):
             return True
         return False
 
-    numbered_menu_due = False
     voice_listen_due = config.get("interaction_mode") == "voice"
 
     while True:
@@ -17807,7 +18011,6 @@ def pipboy_curses(stdscr):
                 should_exit = False
             if should_exit:
                 return
-            numbered_menu_due = False
             if config.get("interaction_mode") == "voice":
                 state["voice_auto_suspended"] = False
             voice_listen_due = config.get("interaction_mode") == "voice"
@@ -17858,8 +18061,8 @@ def pipboy_male_barge_in_self_test():
 def pipboy_ded_guy_wake_self_test():
     config = dict(PIPBOY_DEFAULT_CONFIG)
     samples = [
-        ("Hey Guy any Facebook pages", "any facebook pages", True),
-        ("hay guy show phishing scripts", "show phishing scripts", True),
+        ("Hey Guy any Facebook pages", "facebook pages", True),
+        ("hay guy show phishing scripts", "phishing scripts", True),
         ("okay hey guide stop talking", "stop talking", True),
         ("any Facebook pages", "", False),
     ]
@@ -20335,6 +20538,72 @@ def dedguy_r42_self_test():
         print(f"[{'PASS' if passed else 'FAIL'}] R42: {name}" + (f": {detail}" if detail and not passed else ""))
     return all(passed for _name, passed, _detail in checks)
 
+def dedguy_r44_self_test():
+    """Regression checks for filenames with spaces and direct script takeover."""
+    checks = []
+    def record(name, passed, detail=""):
+        checks.append((name, bool(passed), str(detail or "")))
+
+    original_language = globals().get("CURRENT_DISPLAY_LANGUAGE")
+    try:
+        globals()["CURRENT_DISPLAY_LANGUAGE"] = "english"
+        mixed = "2. [project] Pet Friends.py - Ένα παιχνίδι εικονικών συντρόφων"
+        cleaned = pipboy_english_line_cleanup(mixed)
+        record("Complete spaced filename", "Pet Friends.py" in cleaned and "Friends.py" != cleaned.strip("- "), cleaned)
+        record("Foreign description removed only", "παιχνίδι" not in cleaned and cleaned.startswith("2. [project]"), cleaned)
+
+        fake_path = os.path.join(PIPBOY_DATA_DIR, "Pet Friends.py")
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        with open(fake_path, "w", encoding="utf-8") as handle:
+            handle.write("print('pet-friends-v44-test')\n")
+        item = pipboy_local_script_item(fake_path)
+        record("Runnable item with spaces", bool(item and item.get("command") and item.get("path") == os.path.realpath(fake_path)), item)
+        action = pipboy_make_launch_action(item or {})
+        record("Direct terminal takeover", action.get("type") == "launch" and action.get("full_screen") is True, action)
+
+        inventory = pipboy_empty_inventory()
+        inventory["scripts"] = {
+            fake_path: {
+                "name": "Pet Friends.py", "path": fake_path, "directory": os.path.dirname(fake_path),
+                "description": "Terminal virtual pet game", "capabilities": ["game"],
+                "command": pipboy_script_command(fake_path), "interactive": True,
+                "full_screen": False, "language": "english",
+            }
+        }
+        state = {"config": dict(PIPBOY_DEFAULT_CONFIG), "inventory": inventory, "cwd": HOME_DIR,
+                 "last_matches": [], "pending_action": None}
+        result = pipboy_process_command("Pet Friends", state)
+        record("Bare exact name launches", result.get("action", {}).get("type") == "launch", result)
+        record("Bare launch is direct", result.get("action", {}).get("full_screen") is True, result.get("action"))
+
+        state["last_matches"] = [item]
+        numbered = pipboy_process_command("run 1", state)
+        record("Numbered result launches", numbered.get("action", {}).get("type") == "launch", numbered)
+        record("Numbered result is direct", numbered.get("action", {}).get("full_screen") is True, numbered.get("action"))
+
+        rendered = pipboy_match_list_text([{
+            "kind": "project", "name": "Pet Friends.py",
+            "description": "Ένα παιχνίδι εικονικών συντρόφων", "relative_path": "Scripts/Games/Pet Friends.py",
+        }])
+        record("Result rendering keeps full name", "Pet Friends.py" in rendered and "Ένα" not in rendered, rendered)
+    except Exception as exc:
+        record("V44 self-test execution", False, exc)
+    finally:
+        globals()["CURRENT_DISPLAY_LANGUAGE"] = original_language
+        try:
+            os.remove(os.path.join(PIPBOY_DATA_DIR, "Pet Friends.py"))
+        except OSError:
+            pass
+
+    print("Ded-Guy V44 universal script-launch self-test")
+    print("=" * 49)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    ok = bool(checks) and all(passed for _name, passed, _detail in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
+
+
 def pipboy_database_refresh_self_test():
     checks = []
     checks.append(("refresh coordinator callable", callable(globals().get("pipboy_refresh_knowledge_after_update"))))
@@ -20414,6 +20683,9 @@ if __name__ == "__main__":
                 if not quiet:
                     print(pipboy_text(f"Settings update check failed: {exc}", f"Ο έλεγχος ενημέρωσης Settings απέτυχε: {exc}"))
                 sys.exit(1)
+
+        if command == "--ded-guy-r44-self-test":
+            sys.exit(0 if dedguy_r44_self_test() else 1)
 
         if command == "--ded-guy-r42-self-test":
             sys.exit(0 if dedguy_r42_self_test() else 1)
