@@ -35,7 +35,7 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qs
 from collections import deque, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SETTINGS_BUILD_ID = "2026-07-17-ded-guy-post-update-command-r45"
+SETTINGS_BUILD_ID = "2026-07-17-ded-guy-dual-language-install-smart-intent-r46"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -8379,8 +8379,11 @@ PIPBOY_MAX_SCRIPTS = 6000
 PIPBOY_MAX_COMMANDS = 5000
 PIPBOY_MAX_HISTORY_BYTES = 2 * 1024 * 1024
 PIPBOY_SCRIPT_EXTENSIONS = {
-    ".py", ".sh", ".bash", ".zsh", ".js", ".mjs", ".cjs", ".rb", ".pl",
-    ".php", ".lua", ".tcl", ".awk", ".jar", ".html", ".htm"
+    ".py", ".pyw", ".sh", ".bash", ".zsh", ".command", ".fish", ".nu",
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".rb", ".pl", ".php", ".lua",
+    ".tcl", ".awk", ".jar", ".ps1", ".r", ".jl", ".dart", ".groovy",
+    ".kts", ".clj", ".exs", ".fsx", ".scala", ".raku", ".scm", ".lisp",
+    ".cl", ".html", ".htm"
 }
 PIPBOY_IGNORED_DIRS = {
     ".git", ".cache", "node_modules", "__pycache__", ".npm", ".gradle",
@@ -8398,7 +8401,7 @@ PIPBOY_ANSI_RE = re.compile(
     r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))"
 )
 PIPBOY_DEFAULT_CONFIG = {
-    "schema": 16,
+    "schema": 17,
     "microphone_enabled": True,
     "voice_enabled": True,
     "input_mode": "mixed",          # mixed or text_only privacy mode
@@ -8429,11 +8432,11 @@ PIPBOY_DEFAULT_CONFIG = {
     # Model-free project intelligence. It uses deterministic retrieval,
     # source-code analysis, website knowledge, rules, and saved context only.
     "intelligence_enabled": True,
-    "intelligence_depth": "balanced", # fast, balanced, deep, or expert
-    "intelligence_detail": "detailed", # compact, balanced, detailed, or maximum
+    "intelligence_depth": "expert", # fast, balanced, deep, or expert
+    "intelligence_detail": "maximum", # compact, balanced, detailed, or maximum
     "intelligence_web_context": False,
-    "intelligence_max_sources": 8,
-    "intelligence_memory_turns": 12,
+    "intelligence_max_sources": 14,
+    "intelligence_memory_turns": 24,
 }
 PIPBOY_MAX_BUBBLE_ANSWERS = 3
 PIPBOY_TTS_PROCESS = None
@@ -8762,6 +8765,15 @@ def pipboy_load_config():
         config["continuous_listening"] = True
         config["barge_in_enabled"] = True
         config["voice_retry_seconds"] = 1.25
+
+    # R46 migration: use the expanded deterministic understanding engine by
+    # default while preserving explicit mute/privacy and language choices.
+    if stored_schema < 17:
+        config["intelligence_depth"] = "expert"
+        config["intelligence_detail"] = "maximum"
+        config["intelligence_max_sources"] = max(14, int(config.get("intelligence_max_sources", 8) or 8))
+        config["intelligence_memory_turns"] = max(24, int(config.get("intelligence_memory_turns", 12) or 12))
+        config["accent_tolerance"] = max(0.82, float(config.get("accent_tolerance", 0.72) or 0.72))
 
     config["microphone_enabled"] = bool(config.get("microphone_enabled", True))
     config["voice_enabled"] = bool(config.get("voice_enabled", True))
@@ -9890,24 +9902,113 @@ def pipboy_cancel_voice_worker():
 
 
 
+def pipboy_first_runner(*names):
+    """Return the first installed interpreter path from a preference list."""
+    for name in names:
+        if not name:
+            continue
+        resolved = shutil.which(str(name))
+        if resolved:
+            return resolved
+    return ""
+
+
+def pipboy_shebang_command(path):
+    """Resolve an executable command from a script shebang, even without an extension."""
+    try:
+        if os.path.getsize(path) > 8 * 1024 * 1024:
+            return []
+        with open(path, "rb") as handle:
+            first = handle.readline(1024).decode("utf-8", errors="replace").strip()
+    except Exception:
+        return []
+    if not first.startswith("#!"):
+        return []
+    try:
+        parts = shlex.split(first[2:].strip(), posix=True)
+    except ValueError:
+        return []
+    if not parts:
+        return []
+    executable = parts[0]
+    args = parts[1:]
+    if os.path.basename(executable) == "env":
+        while args and args[0].startswith("-"):
+            if args[0] == "-S":
+                args = args[1:]
+                break
+            args = args[1:]
+        if not args:
+            return []
+        executable, args = args[0], args[1:]
+    resolved = executable if os.path.isabs(executable) and os.path.isfile(executable) else shutil.which(executable)
+    if not resolved:
+        resolved = shutil.which(os.path.basename(executable))
+    return [resolved, *args, path] if resolved else []
+
+
+def pipboy_has_shebang(path):
+    try:
+        if os.path.getsize(path) > 8 * 1024 * 1024:
+            return False
+        with open(path, "rb") as handle:
+            return handle.read(2) == b"#!"
+    except Exception:
+        return False
+
+
 def pipboy_script_command(path):
+    """Build a runnable command for common scripts or any valid local shebang file."""
     ext = os.path.splitext(path)[1].lower()
-    runners = {
-        ".py": [sys.executable or "python3", path],
-        ".sh": ["bash", path], ".bash": ["bash", path],
-        ".zsh": ["zsh", path], ".js": ["node", path], ".mjs": ["node", path],
-        ".cjs": ["node", path], ".rb": ["ruby", path], ".pl": ["perl", path],
-        ".php": ["php", path], ".lua": ["lua", path], ".tcl": ["tclsh", path],
-        ".awk": ["awk", "-f", path], ".jar": ["java", "-jar", path],
+    python_runner = sys.executable if sys.executable and os.path.isfile(sys.executable) else pipboy_first_runner("python3", "python")
+    simple = {
+        ".py": (python_runner, []), ".pyw": (python_runner, []),
+        ".sh": (pipboy_first_runner("bash", "sh"), []),
+        ".bash": (pipboy_first_runner("bash", "sh"), []),
+        ".zsh": (pipboy_first_runner("zsh", "bash"), []),
+        ".command": (pipboy_first_runner("bash", "sh"), []),
+        ".fish": (pipboy_first_runner("fish"), []), ".nu": (pipboy_first_runner("nu"), []),
+        ".cjs": (pipboy_first_runner("node", "bun"), []),
+        ".rb": (pipboy_first_runner("ruby"), []), ".pl": (pipboy_first_runner("perl"), []),
+        ".php": (pipboy_first_runner("php"), []), ".lua": (pipboy_first_runner("lua", "luajit"), []),
+        ".tcl": (pipboy_first_runner("tclsh"), []), ".awk": (pipboy_first_runner("awk"), ["-f"]),
+        ".jar": (pipboy_first_runner("java"), ["-jar"]),
+        ".ps1": (pipboy_first_runner("pwsh", "powershell"), ["-File"]),
+        ".r": (pipboy_first_runner("Rscript"), []), ".jl": (pipboy_first_runner("julia"), []),
+        ".dart": (pipboy_first_runner("dart"), []), ".groovy": (pipboy_first_runner("groovy"), []),
+        ".kts": (pipboy_first_runner("kotlinc"), ["-script"]),
+        ".clj": (pipboy_first_runner("clojure"), []), ".exs": (pipboy_first_runner("elixir"), []),
+        ".fsx": (pipboy_first_runner("dotnet"), ["fsi"]), ".scala": (pipboy_first_runner("scala"), []),
+        ".raku": (pipboy_first_runner("raku", "perl6"), []),
+        ".scm": (pipboy_first_runner("guile"), []),
+        ".lisp": (pipboy_first_runner("sbcl"), ["--script"]),
+        ".cl": (pipboy_first_runner("sbcl"), ["--script"]),
     }
     if ext in {".html", ".htm"}:
         opener = shutil.which("termux-open") or shutil.which("xdg-open")
         return [opener, path] if opener else []
-    if ext in runners:
-        command = runners[ext]
-        if ext == ".zsh" and not shutil.which("zsh"):
-            command[0] = "bash"
-        return command
+    if ext in {".js", ".mjs"}:
+        if runner := pipboy_first_runner("node", "bun"):
+            return [runner, path]
+        if runner := pipboy_first_runner("deno"):
+            return [runner, "run", path]
+        return []
+    if ext in {".ts", ".tsx"}:
+        if runner := pipboy_first_runner("tsx"):
+            return [runner, path]
+        if runner := pipboy_first_runner("ts-node"):
+            return [runner, path]
+        if runner := pipboy_first_runner("deno"):
+            return [runner, "run", path]
+        if runner := pipboy_first_runner("bun"):
+            return [runner, path]
+        return []
+    if ext in simple:
+        runner, prefix = simple[ext]
+        return [runner, *prefix, path] if runner else []
+    shebang = pipboy_shebang_command(path)
+    if shebang:
+        return shebang
     if os.access(path, os.X_OK):
         return [path]
     return []
@@ -10041,7 +10142,7 @@ def pipboy_scan_scripts():
                     if not os.path.isfile(path) or os.path.islink(path):
                         continue
                     ext = os.path.splitext(filename)[1].lower()
-                    if ext not in PIPBOY_SCRIPT_EXTENSIONS and not os.access(path, os.X_OK):
+                    if ext not in PIPBOY_SCRIPT_EXTENSIONS and not os.access(path, os.X_OK) and not pipboy_has_shebang(path):
                         continue
                     command = pipboy_script_command(path)
                     if not command:
@@ -10259,17 +10360,20 @@ def pipboy_light_launch_scan():
                 if scanned >= 2200:
                     break
                 extension = os.path.splitext(filename)[1].casefold()
-                if extension not in PIPBOY_SCRIPT_EXTENSIONS:
-                    continue
                 path = os.path.realpath(os.path.join(directory, filename))
+                if extension not in PIPBOY_SCRIPT_EXTENSIONS and not os.access(path, os.X_OK) and not pipboy_has_shebang(path):
+                    continue
                 try:
                     stat = os.stat(path)
                 except OSError:
                     continue
+                command = pipboy_script_command(path)
+                if not command:
+                    continue
                 scripts[path] = {
                     'name': filename,
                     'path': path,
-                    'command': pipboy_script_command(path),
+                    'command': command,
                     'modified': stat.st_mtime,
                     'size': stat.st_size,
                 }
@@ -12230,17 +12334,24 @@ def pipboy_find_scripts(term, inventory, limit=8):
 
 PIPBOY_SCRIPT_QUERY_NOISE = {
     "the", "a", "an", "please", "script", "scripts", "program", "programs",
-    "tool", "tools", "app", "application", "file", "called", "named",
+    "tool", "tools", "app", "application", "file", "called", "named", "for", "me",
+    "now", "please", "game", "utility", "python", "shell", "terminal",
     "το", "τη", "την", "τον", "ενα", "μια", "script", "εργαλειο", "προγραμμα", "αρχειο",
+    "παιχνιδι", "τωρα", "παρακαλω", "μου",
 }
 
 
 def pipboy_clean_script_query(term):
     normalized = pipboy_canonicalize(term)
+    normalized = re.sub(r"(?i)\b(?:dot|τελεια)\s+(py|sh|bash|js|rb|pl|php|lua|jar|html)\b", r".\1", normalized)
+    normalized = re.sub(r"(?i)\s+(?:for me|right now|now please|please now|σε παρακαλω|παρακαλω|τωρα)$", "", normalized).strip()
     aliases = {
         "pet friend": "pet friends", "pet friends game": "pet friends",
-        "pet fringe": "pet friends", "pet trends": "pet friends",
+        "pet fringe": "pet friends", "pet trends": "pet friends", "pet fiends": "pet friends",
+        "pet frends": "pet friends", "pets friends": "pet friends", "friend pets": "pet friends",
         "termux repair": "termux repair wizard", "repair wizard script": "termux repair wizard",
+        "termux wizard": "termux repair wizard", "offline survive": "offline survival",
+        "pocket a i": "pocket ai", "ded sec market": "dedsec market",
     }
     normalized = aliases.get(normalized, normalized)
     tokens = [token for token in normalized.split() if token not in PIPBOY_SCRIPT_QUERY_NOISE]
@@ -12400,13 +12511,15 @@ def pipboy_bounded_filesystem_script_search(term, limit=8):
                 visited += 1
                 if visited > 5000:
                     break
-                if os.path.splitext(filename)[1].lower() not in PIPBOY_SCRIPT_EXTENSIONS:
-                    continue
                 full = os.path.join(current, filename)
+                extension = os.path.splitext(filename)[1].lower()
+                if extension not in PIPBOY_SCRIPT_EXTENSIONS and not os.access(full, os.X_OK) and not pipboy_has_shebang(full):
+                    continue
+                command = pipboy_script_command(full)
                 item = {
                     "kind": "script", "name": filename, "path": full,
                     "description": "", "capabilities": [], "arguments": [], "input_hints": [],
-                    "command": pipboy_script_command(full), "cwd": current, "full_screen": False,
+                    "command": command, "cwd": current, "full_screen": False,
                     "untrusted": pipboy_is_untrusted_path(full),
                     "language": "greek" if GREEK_FOLDER_NAME in full or HIDDEN_GREEK_FOLDER in full else "english",
                 }
@@ -15962,7 +16075,11 @@ def pipboy_smart_normalize(raw_text):
         (r"^what can\s+(.+?)\s+do$", r"describe \1"),
         (r"^show me information about\s+", "describe "),
         (r"^show me\s+", "search "),
+        (r"^(?:take|bring|put) me (?:to|into|in)\s+", "run "),
+        (r"^(?:go|jump|switch) (?:me )?(?:to|into)\s+", "run "),
+        (r"^(?:get me into|bring up|fire up|boot)\s+", "run "),
         (r"^use\s+", "run "),
+        (r"^play\s+", "run "),
         (r"^execute the script\s+", "run "),
         (r"^launch the script\s+", "run "),
         (r"^open the script\s+", "run "),
@@ -16012,8 +16129,17 @@ def pipboy_context_result(normalized, state):
     if not matches:
         return None
     first = matches[0]
-    run_words = {"run it", "start it", "open it", "launch it", "execute it", "run that", "open that", "τρεξε το", "ανοιξε το"}
-    describe_words = {"describe it", "explain it", "what does it do", "describe that", "περιεγραψε το", "τι κανει αυτο"}
+    run_words = {
+        "run it", "start it", "open it", "launch it", "execute it", "play it",
+        "run that", "open that", "start that", "launch that", "take me there",
+        "go into it", "enter it", "run it again", "open it again", "run the same one",
+        "run the last one", "run previous", "run selected",
+        "τρεξε το", "ανοιξε το", "ξεκινα το", "παιξε το", "βαλε με εκει", "μπεσ σε αυτο",
+    }
+    describe_words = {
+        "describe it", "explain it", "what does it do", "describe that", "explain that",
+        "tell me about it", "describe the last one", "περιεγραψε το", "εξηγησε το", "τι κανει αυτο",
+    }
     clone_words = {"clone it", "clone that", "κλωνοποιησε το", "κανε clone"}
     if normalized in clone_words and first.get("kind") == "repo":
         try:
@@ -16040,10 +16166,11 @@ def pipboy_context_result(normalized, state):
             ))
         if first.get("kind") == "project":
             path = pipboy_resolve_project_record_path(first)
-            if path and os.path.splitext(path)[1].casefold() in PIPBOY_SCRIPT_EXTENSIONS:
+            command = pipboy_script_command(path) if path else []
+            if path and command:
                 item = {
                     "kind": "script", "name": first.get("name"), "path": path,
-                    "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
+                    "command": command, "cwd": os.path.dirname(path),
                     "full_screen": True, "untrusted": pipboy_is_untrusted_path(path) or bool(first.get("sensitive")),
                 }
                 action = pipboy_make_launch_action(item)
@@ -16076,7 +16203,13 @@ def dedguy_intent_canonical(text):
         "scipts": "scripts", "scrips": "scripts", "scritps": "scripts",
         "develper": "developer", "developper": "developer", "phising": "phishing",
         "modul not found": "module not found", "permision denied": "permission denied",
+        "ruun ": "run ", "runn ": "run ", "rn ": "run ", "launc ": "launch ",
+        "lanch ": "launch ", "opne ": "open ", "strat ": "start ", "serach ": "search ",
+        "seach ": "search ", "fnd ": "find ", "descibe ": "describe ",
+        "explane ": "explain ", "excute ": "execute ",
         "βοηθια": "βοηθεια", "σκριπτσ": "scripts", "προβλιμα": "προβλημα",
+        "τρεξαι ": "τρεξε ", "ανιξε ": "ανοιξε ", "ανοιξαι ": "ανοιξε ",
+        "ψαξαι ": "ψαξε ", "βρεσμου ": "βρεσ ",
     }
     for wrong, right in replacements.items():
         value = value.replace(wrong, right)
@@ -16098,35 +16231,63 @@ def dedguy_looks_like_problem(text):
 
 
 def dedguy_rewrite_natural_request(text):
-    """Convert free bilingual conversation into stable model-free intents.
+    """Convert broad bilingual conversation into stable deterministic intents.
 
-    Error text, filenames, paths, and pasted tracebacks are preserved. Only the
-    outer request wording is normalized.
+    Filenames, paths, errors, and tracebacks remain intact. The function only
+    removes conversational wrappers and recognizes action phrasing.
     """
     original = re.sub(r"\s+", " ", str(text or "")).strip()
     if not original:
         return ""
     canonical = dedguy_intent_canonical(original)
 
-    # Wake words may survive a typed/pasted or alternate voice path.
     wake_command, woke = pipboy_extract_wake_command(canonical, pipboy_load_config())
     if woke and wake_command:
         canonical = wake_command
 
+    # Remove common discourse fillers that voice recognition often adds.
+    canonical = re.sub(
+        r"^(?:okay|ok|alright|well|hey|listen|so|λοιπον|ενταξει|οκ)[, ]+", "", canonical
+    ).strip()
+    canonical = re.sub(
+        r"(?:\s+(?:please|for me|right now|now|thanks|thank you|σε παρακαλω|παρακαλω|τωρα|ευχαριστω))+$",
+        "", canonical,
+    ).strip()
+
     polite_patterns = (
-        r"^please\s+", r"^(?:please\s+)?(?:can|could|would|will)\s+you\s+",
-        r"^(?:please\s+)?i\s+(?:want|need|would like)\s+you\s+to\s+",
-        r"^(?:σε\s+παρακαλω\s+)?(?:μπορεισ|θα\s+μπορουσεσ)\s+να\s+(?:(?:μου|με)\s+)?",
-        r"^(?:θα\s+ηθελα|θελω)\s+να\s+(?:μου\s+)?",
+        r"^please\s+", r"^(?:please\s+)?(?:can|could|would|will|may)\s+you\s+",
+        r"^(?:please\s+)?i\s+(?:want|need|would like|want you|need you)\s+(?:you\s+)?to\s+",
+        r"^(?:σε\s+παρακαλω\s+)?(?:μπορεισ|θα\s+μπορουσεσ|γίνεται)\s+να\s+(?:(?:μου|με)\s+)?",
+        r"^(?:θα\s+ηθελα|θελω|χρειαζομαι)\s+να\s+(?:μου\s+)?",
     )
     for pattern in polite_patterns:
         updated = re.sub(pattern, "", canonical, count=1)
         if updated != canonical:
-            canonical = updated.strip(); break
+            canonical = updated.strip()
+            break
+    canonical = re.sub(r"^(?:please|σε παρακαλω|παρακαλω)\s+", "", canonical).strip()
 
-    # Explicit or implicit troubleshooting. This also catches pasted errors and
-    # natural reports such as "my script keeps crashing" without requiring the
-    # word assistance.
+    # Direct navigation/launch requests, including natural game language.
+    launch_patterns = (
+        r"^(?:open|open up|start|start up|launch|execute|run|play|load|boot|fire up|enter|use)\s+(?:the\s+)?(.+?)(?:\s+(?:script|tool|game|program|app))?$",
+        r"^(?:i\s+(?:want|need|would like)\s+to|let\s+me)\s+(?:open|start|launch|execute|run|play|load|enter|use)\s+(?:the\s+)?(.+)$",
+        r"^(?:take|bring|put)\s+me\s+(?:to|into|in)\s+(.+)$",
+        r"^(?:go|jump|switch)\s+(?:me\s+)?(?:to|into)\s+(.+)$",
+        r"^(?:get\s+me\s+into|bring\s+up)\s+(.+)$",
+        r"^(?:ανοιξε|ξεκινα|εκτελεσε|τρεξε|παιξε|φορτωσε|μπεσ|χρησιμοποιησε|ανοιξω|ξεκινησω|τρεξω|παιξω|μπω|χρησιμοποιησω)\s+(?:το\s+|την\s+|τον\s+)?(.+?)(?:\s+(?:script|εργαλειο|παιχνιδι|προγραμμα|εφαρμογη))?$",
+        r"^(?:θελω|θα\s+ηθελα|ασε\s+με)\s+να\s+(?:ανοιξω|ξεκινησω|τρεξω|παιξω|μπω|χρησιμοποιησω)\s+(?:το\s+|την\s+|τον\s+)?(.+)$",
+        r"^(?:πηγαινε|βαλε|περασε)\s+με\s+(?:στο|στη|στην|σε)\s+(.+)$",
+        r"^(?:μπεσ\s+στο|ανοιξε\s+μου|φερε\s+μου)\s+(.+)$",
+    )
+    for pattern in launch_patterns:
+        match = re.match(pattern, canonical)
+        if match:
+            target = match.group(1).strip(" -:;,.?\"")
+            target = re.sub(r"\s+(?:for me|please|now|τωρα|παρακαλω)$", "", target).strip()
+            if target and target not in {"menu", "settings", "help", "μενου", "ρυθμισεισ", "βοηθεια"}:
+                return "run " + target
+
+    # Troubleshooting and pasted error reports.
     help_patterns = (
         r"^(?:help|assist|support)\s+(?:me\s+)?(?:to\s+)?(?:fix|solve|with|about)?\s*(.+)$",
         r"^(?:how\s+(?:do|can)\s+i\s+(?:fix|solve)|what\s+(?:does|should)\s+(?:this|i)|why\s+(?:does|is)|can\s+you\s+fix)\s+(.+)$",
@@ -16139,25 +16300,13 @@ def dedguy_rewrite_natural_request(text):
         match = re.match(pattern, canonical)
         if match:
             problem = next((group for group in match.groups() if group), "").strip(" -:;,.?")
-            if not problem:
-                problem = canonical
-            return "give me assistance for " + problem
-    run_patterns = (
-        r"^(?:open|start|launch|execute|run|play|load)\s+(?:the\s+)?(.+?)(?:\s+(?:script|tool|game|program|app))?$",
-        r"^(?:ανοιξε|ξεκινα|εκτελεσε|τρεξε|παιξε|φορτωσε)\s+(?:το\s+)?(.+?)(?:\s+(?:script|εργαλειο|παιχνιδι|προγραμμα|εφαρμογη))?$",
-    )
-    for pattern in run_patterns:
-        match = re.match(pattern, canonical)
-        if match:
-            target = match.group(1).strip(" -:;,.?")
-            if target and target not in {"menu", "settings", "help"}:
-                return "run " + target
+            return "give me assistance for " + (problem or canonical)
 
     discovery_patterns = (
-        r"^(?:show|tell|find|list|give|get)\s+(?:me\s+)?(?:all\s+|any\s+|some\s+)?(.+)$",
+        r"^(?:show|tell|find|list|give|get|display)\s+(?:me\s+)?(?:all\s+|any\s+|some\s+)?(.+)$",
         r"^(?:do\s+you\s+have|are\s+there|is\s+there|have\s+you\s+got|got\s+any|anything\s+for|what\s+do\s+you\s+have\s+for)\s+(?:any\s+|some\s+)?(.+)$",
-        r"^(?:what|which)\s+(?:scripts|tools|pages|programs)\s+(?:are\s+)?(?:about|for|related\s+to)\s+(.+)$",
-        r"^(?:δειξε|πες|βρεσ|δωσε)\s+(?:μου\s+)?(?:ολα\s+|καποια\s+|καποιεσ\s+|καποιο\s+)?(.+)$",
+        r"^(?:what|which)\s+(?:scripts|tools|pages|programs|games)\s+(?:are\s+)?(?:about|for|related\s+to)\s+(.+)$",
+        r"^(?:δειξε|πες|βρεσ|δωσε|εμφανισε)\s+(?:μου\s+)?(?:ολα\s+|καποια\s+|καποιεσ\s+|καποιο\s+)?(.+)$",
         r"^(?:εχεισ|υπαρχουν|υπαρχει|εχεισ\s+κατι\s+για|τι\s+εχεισ\s+για)\s*(.+)$",
     )
     for pattern in discovery_patterns:
@@ -16168,19 +16317,23 @@ def dedguy_rewrite_natural_request(text):
                 topic = re.sub(r"\bσελιδεσ\b", "pages", topic)
                 topic = re.sub(r"\bεργαλεια\b", "tools", topic)
                 topic = re.sub(r"\bσεναρια\b", "scripts", topic)
+                topic = re.sub(r"\bπαιχνιδια\b", "games", topic)
                 return "tell me " + topic
 
     recommendation_patterns = (
-        r"^(?:what|which)\s+(?:script|tool|page|program)\s+(?:can|should|could)\s+i\s+(?:use|run|try)\s+(?:for|to)\s+(.+)$",
-        r"^(?:what\s+can\s+i\s+use|recommend\s+(?:a\s+)?(?:script|tool)|best\s+(?:script|tool))\s+(?:for|to)\s+(.+)$",
-        r"^(?:τι|ποιο)\s+(?:script|εργαλειο|σελιδα|προγραμμα)\s+να\s+(?:χρησιμοποιησω|τρεξω|δοκιμασω)\s+(?:για|να)\s+(.+)$",
+        r"^(?:what|which)\s+(?:script|tool|page|program|game)\s+(?:can|should|could)\s+i\s+(?:use|run|try|play)\s+(?:for|to)\s+(.+)$",
+        r"^(?:what\s+can\s+i\s+use|recommend\s+(?:a\s+)?(?:script|tool|game)|best\s+(?:script|tool|game))\s+(?:for|to)\s+(.+)$",
+        r"^(?:τι|ποιο)\s+(?:script|εργαλειο|σελιδα|προγραμμα|παιχνιδι)\s+να\s+(?:χρησιμοποιησω|τρεξω|δοκιμασω|παιξω)\s+(?:για|να)\s+(.+)$",
     )
     for pattern in recommendation_patterns:
         match = re.match(pattern, canonical)
         if match:
             topic = match.group(1).strip(" -:;,.?")
             return ("give me assistance for " if dedguy_looks_like_problem(topic) else "tell me scripts for ") + topic
-    if dedguy_looks_like_problem(canonical) and not re.match(r"^(?:show|tell|find|list|run|open|start|launch|execute|play|δειξε|πες|βρεσ|τρεξε|ανοιξε)", canonical):
+
+    if dedguy_looks_like_problem(canonical) and not re.match(
+        r"^(?:show|tell|find|list|run|open|start|launch|execute|play|δειξε|πες|βρεσ|τρεξε|ανοιξε)", canonical
+    ):
         return "give me assistance for " + canonical
     return canonical or original
 
@@ -16631,7 +16784,10 @@ def pipboy_process_command(raw_text, state):
         "eight": 8, "eighth": 8, "okto": 8, "οκτω": 8,
     }
     selection_match = re.fullmatch(
-        r"(?:(run|start|execute|open|describe|explain|τρεξε|εκτελεσε|ανοιξε|περιεγραψε|εξηγησε)\s+)?#?(\d+|one|first|two|second|three|third|four|fourth|five|fifth|six|sixth|seven|seventh|eight|eighth|ena|dyo|tria|tessera|pente|eksi|efta|okto|ενα|μια|δυο|τρια|τεσσερα|πεντε|εξι|επτα|οκτω)",
+        r"(?:(run|start|execute|open|launch|play|choose|select|pick|describe|explain|τρεξε|εκτελεσε|ανοιξε|ξεκινα|παιξε|επιλεξε|διαλεξε|περιεγραψε|εξηγησε)\s+)?"
+        r"(?:(?:result|option|number|item|choice|the)\s+)*#?"
+        r"(\d+|one|first|two|second|three|third|four|fourth|five|fifth|six|sixth|seven|seventh|eight|eighth|ena|dyo|tria|tessera|pente|eksi|efta|okto|ενα|μια|δυο|τρια|τεσσερα|πεντε|εξι|επτα|οκτω)"
+        r"(?:\s+(?:one|result|option|item|choice))?",
         normalized,
     )
     if selection_match and state.get("last_matches"):
@@ -16663,11 +16819,12 @@ def pipboy_process_command(raw_text, state):
             ))
         if item.get("kind") == "project":
             path = pipboy_resolve_project_record_path(item)
-            if not path or os.path.splitext(path)[1].casefold() not in PIPBOY_SCRIPT_EXTENSIONS:
+            command = pipboy_script_command(path) if path else []
+            if not path or not command:
                 return pipboy_result(pipboy_answer_from_knowledge(normalized, [item], "project"), matches=matches)
             launch_item = {
                 "kind": "script", "name": item.get("name"), "path": path,
-                "command": pipboy_script_command(path), "cwd": os.path.dirname(path),
+                "command": command, "cwd": os.path.dirname(path),
                 "full_screen": True, "untrusted": pipboy_is_untrusted_path(path) or bool(item.get("sensitive")),
             }
             action = pipboy_make_launch_action(launch_item)
@@ -16866,6 +17023,28 @@ def pipboy_process_command(raw_text, state):
             f"Starting {action['title']} in direct terminal mode.",
             f"Εκκίνηση του {action['title']} σε άμεση λειτουργία τερματικού.",
         ), action=action, matches=exact_candidates)
+
+    # High-confidence speech/typing correction for a bare script name. It only
+    # auto-launches when one local candidate is clearly stronger than the rest.
+    if bare_candidates and not pipboy_intelligence_is_category_request(text):
+        scored = [(pipboy_script_item_score(text, item), item) for item in bare_candidates]
+        scored.sort(key=lambda row: -row[0])
+        top_score, top_item = scored[0]
+        next_score = scored[1][0] if len(scored) > 1 else 0.0
+        short_statement = len(pipboy_clean_script_query(text).split()) <= 7 and not normalized.endswith("?")
+        if short_statement and top_score >= 9.0 and (top_score - next_score >= 1.6 or top_score >= 13.0):
+            state["last_matches"] = [item for _score, item in scored[:8]]
+            action = pipboy_make_launch_action(top_item)
+            if action.get("risky"):
+                state["pending_action"] = action
+                return pipboy_result(pipboy_text(
+                    f"I understood this as {action['title']}. It requires confirmation; type yes/ναι.",
+                    f"Το κατάλαβα ως {action['title']}. Απαιτεί επιβεβαίωση· γράψτε yes/ναι.",
+                ), matches=state["last_matches"])
+            return pipboy_result(pipboy_text(
+                f"I understood this as {action['title']} and am starting it in direct terminal mode.",
+                f"Το κατάλαβα ως {action['title']} και το ξεκινώ σε άμεση λειτουργία τερματικού.",
+            ), action=action, matches=state["last_matches"])
 
     if state["config"].get("intelligence_enabled", True) and pipboy_intelligence_is_category_request(text):
         return pipboy_result(
@@ -20248,13 +20427,25 @@ def dedguy_validate_candidate_file(path=None):
 
 
 def dedguy_replacement_command():
+    """Install the validated update into English and the active Greek folder without launching."""
     return (
+        "GREEK_VISIBLE=\"$HOME/DedSec/Scripts/Ελληνική Έκδοση\"; "
+        "GREEK_HIDDEN=\"$HOME/DedSec/Scripts/.Ελληνική Έκδοση\"; "
+        "if [ -d \"$GREEK_HIDDEN\" ]; then GREEK_DIR=\"$GREEK_HIDDEN\"; "
+        "else GREEK_DIR=\"$GREEK_VISIBLE\"; fi; "
+        "mkdir -p \"$GREEK_DIR\" && "
+        "python3 -m py_compile ~/Settings-Updated.py && "
         "cp -f ~/DedSec/Scripts/Settings.py ~/Settings-Previous.py && "
-        "mv -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py && "
-        "chmod +x ~/DedSec/Scripts/Settings.py && "
-        "rm -rf ~/DedSec/Scripts/__pycache__ && "
-        "python3 -m py_compile ~/DedSec/Scripts/Settings.py && "
-        "python3 ~/DedSec/Scripts/Settings.py --activate-ded-guy"
+        "if [ -f \"$GREEK_DIR/Settings.py\" ]; then "
+        "cp -f \"$GREEK_DIR/Settings.py\" ~/Settings-Greek-Previous.py; fi && "
+        "cp -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py && "
+        "cp -f ~/Settings-Updated.py \"$GREEK_DIR/Settings.py\" && "
+        "if [ -d \"$GREEK_VISIBLE\" ] && [ \"$GREEK_DIR\" != \"$GREEK_VISIBLE\" ]; then "
+        "cp -f ~/Settings-Updated.py \"$GREEK_VISIBLE/Settings.py\"; fi && "
+        "chmod +x ~/DedSec/Scripts/Settings.py \"$GREEK_DIR/Settings.py\" && "
+        "rm -rf ~/DedSec/Scripts/__pycache__ \"$GREEK_DIR/__pycache__\" && "
+        "python3 -m py_compile ~/DedSec/Scripts/Settings.py \"$GREEK_DIR/Settings.py\" && "
+        "rm -f ~/Settings-Updated.py"
     )
 
 
@@ -20285,8 +20476,8 @@ def dedguy_pending_update_notice():
         return ""
     command = dedguy_replacement_command()
     return pipboy_text(
-        "A validated Settings update is ready at ~/Settings-Updated.py. Run this exact command to back up the current file, rename the update to Settings.py, validate it, and reactivate Ded-Guy:\n" + command,
-        "Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py. Εκτέλεσε ακριβώς αυτή την εντολή για backup του τρέχοντος αρχείου, μετονομασία της ενημέρωσης σε Settings.py, έλεγχο και επανενεργοποίηση του Ded-Guy:\n" + command,
+        "A validated Settings update is ready at ~/Settings-Updated.py. Run this exact command to back up both language copies, install the update into English and the active Ελληνική Έκδοση folder (visible or hidden), validate both files, and finish without launching Ded-Guy:\n" + command,
+        "Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py. Εκτέλεσε ακριβώς αυτή την εντολή για backup και των δύο γλωσσικών αντιγράφων, εγκατάσταση στα English και στον ενεργό φάκελο Ελληνική Έκδοση (ορατό ή κρυφό), έλεγχο και των δύο αρχείων και ολοκλήρωση χωρίς εκκίνηση του Ded-Guy:\n" + command,
     )
 
 
@@ -20500,7 +20691,9 @@ def dedguy_r41_self_test():
     except Exception as exc:
         record("Generated Settings source validates", False, exc)
     command_text = dedguy_replacement_command()
-    record("Replacement renames update", "mv -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py" in command_text)
+    record("Replacement updates English copy", "cp -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py" in command_text)
+    record("Replacement updates Greek copy", "GREEK_DIR" in command_text and "Ελληνική Έκδοση" in command_text)
+    record("Replacement does not launch Ded-Guy", "--activate-ded-guy" not in command_text)
     try:
         curses_source = inspect.getsource(pipboy_curses) if "inspect" in globals() else ""
     except Exception:
@@ -20619,7 +20812,7 @@ def dedguy_r44_self_test():
         except OSError:
             pass
 
-    print("Ded-Guy V44 universal script-launch self-test")
+    print("Ded-Guy V46 inherited universal script-launch self-test")
     print("=" * 49)
     for name, passed, detail in checks:
         print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
@@ -20627,6 +20820,58 @@ def dedguy_r44_self_test():
     print("RESULT:", "PASS" if ok else "FAIL")
     return ok
 
+
+
+def dedguy_r46_self_test():
+    """Regression checks for dual-language installation and broader understanding."""
+    checks = []
+    def record(name, passed, detail=""):
+        checks.append((name, bool(passed), str(detail or "")))
+
+    command = dedguy_replacement_command()
+    record("No automatic Ded-Guy launch", "--activate-ded-guy" not in command and "--activate-pipboy" not in command, command)
+    record("English Settings updated", "~/DedSec/Scripts/Settings.py" in command, command)
+    record("Greek Settings updated", "GREEK_DIR" in command and "Ελληνική Έκδοση" in command, command)
+    record("Candidate validated first", command.index("python3 -m py_compile ~/Settings-Updated.py") < command.index("cp -f ~/Settings-Updated.py ~/DedSec/Scripts/Settings.py"), command)
+    record("Hidden Greek folder supported", ".Ελληνική Έκδοση" in command, command)
+
+    rewrites = {
+        "Take me into Pet Friends please": "run pet friends",
+        "I want to play Pet Friends now": "run pet friends",
+        "Bring up Termux Repair Wizard": "run termux repair wizard",
+        "Ruun Pet Frends": "run pet frends",
+        "Θέλω να παίξω Pet Friends τώρα": "run pet friends",
+        "Βάλε με στο Pet Friends": "run pet friends",
+    }
+    for phrase, expected in rewrites.items():
+        actual = dedguy_rewrite_natural_request(phrase)
+        record("Understand: " + phrase, actual == expected, actual)
+
+    record("Spoken extension normalized", pipboy_clean_script_query("Pet Friends dot py please") == "pet friends .py", pipboy_clean_script_query("Pet Friends dot py please"))
+    record("Pet Friends speech typo corrected", pipboy_clean_script_query("Pet Frends") == "pet friends", pipboy_clean_script_query("Pet Frends"))
+
+    with_shebang = os.path.join(PIPBOY_DATA_DIR, "dedguy-r46-shebang-test")
+    try:
+        os.makedirs(PIPBOY_DATA_DIR, exist_ok=True)
+        with open(with_shebang, "w", encoding="utf-8") as handle:
+            handle.write("#!/usr/bin/env python3\nprint('ok')\n")
+        command_line = pipboy_script_command(with_shebang)
+        record("Extensionless shebang script supported", bool(command_line and command_line[-1] == with_shebang), command_line)
+    except Exception as exc:
+        record("Extensionless shebang script supported", False, exc)
+    finally:
+        try:
+            os.remove(with_shebang)
+        except OSError:
+            pass
+
+    print("Ded-Guy V46 smart-intent and dual-install self-test")
+    print("=" * 55)
+    for name, passed, detail in checks:
+        print(f"[{'PASS' if passed else 'FAIL'}] {name}" + (f": {detail}" if detail and not passed else ""))
+    ok = bool(checks) and all(passed for _name, passed, _detail in checks)
+    print("RESULT:", "PASS" if ok else "FAIL")
+    return ok
 
 def pipboy_database_refresh_self_test():
     checks = []
@@ -20707,6 +20952,9 @@ if __name__ == "__main__":
                 if not quiet:
                     print(pipboy_text(f"Settings update check failed: {exc}", f"Ο έλεγχος ενημέρωσης Settings απέτυχε: {exc}"))
                 sys.exit(1)
+
+        if command == "--ded-guy-r46-self-test":
+            sys.exit(0 if dedguy_r46_self_test() else 1)
 
         if command == "--ded-guy-r44-self-test":
             sys.exit(0 if dedguy_r44_self_test() else 1)
