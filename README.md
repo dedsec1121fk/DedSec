@@ -310,7 +310,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 
 ### Toolkit Summary
 
-- **Developer Base:** 10 tools
+- **Developer Base:** 11 tools
 - **Network Tools:** 10 tools
 - **Other Tools:** 5 tools
 - **Games:** 6 tools
@@ -319,7 +319,7 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 - **No Category:** 3 tools
 - **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 tier
 
-**Total listed on tools page:** 85 tools
+**Total listed on tools page:** 86 tools
 
 ---
 <a id="developer-base"></a>
@@ -424,6 +424,17 @@ Use **Save DedSec Project** on your first run, then run it again a few times eve
 **Description:** Local-first browser and secure vault for Termux. It combines multiple search engines, bookmarks, history, saved pages, ad/tracker cleanup, Lite mode, country-based proxy routing with smart/strict/direct modes, optional Tor support, encrypted vault entries powered by OpenSSL, and a built-in full-page website screenshot tool. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in tools/screenshots/, and the encrypted vault database in vault/vault.db.`
+
+</details>
+
+
+<details>
+<summary>DedSec's Server</summary>
+
+
+**Description:** Multi-server file hosting and management platform for Termux. It creates separate named server profiles with open guest access or administrator-only protection, multiple administrator accounts, uploads up to 30 GB with live chunked progress, folder creation and ZIP downloads, file moves, renames and deletions, categories, search, filters, sorting, details, comments, user sessions, and complete activity and security logs. Each server starts localhost and local-network access and automatically attempts to generate Cloudflare and Tor links. It also includes light and dark themes, separate English and Greek editions, confirmation prompts for changes, rate limiting, CSRF protection, storage-safety checks, and automatic dependency setup. Built for Termux with clear controls and organized storage.
+
+**Save Location:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
 
 </details>
 
@@ -1589,7 +1600,7 @@ bash Setup.sh
 
 ### Σύνοψη Toolkit
 
-- **Developer Base:** 10 εργαλεία
+- **Developer Base:** 11 εργαλεία
 - **Network Tools:** 10 εργαλεία
 - **Other Tools:** 5 εργαλεία
 - **Games:** 6 εργαλεία
@@ -1598,7 +1609,7 @@ bash Setup.sh
 - **No Category:** 3 εργαλεία
 - **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στο $9 tier
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 85 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 86 εργαλεία
 
 ---
 <a id="greek-developer-base"></a>
@@ -1705,6 +1716,17 @@ bash Setup.sh
 **Περιγραφή:** Local-first browser και ασφαλές vault για Termux. Συνδυάζει πολλαπλές μηχανές αναζήτησης, bookmarks, ιστορικό, αποθηκευμένες σελίδες, καθαρισμό διαφημίσεων και trackers, Lite mode, δρομολόγηση μέσω proxy ανά χώρα με smart/strict/direct modes, προαιρετική υποστήριξη Tor, κρυπτογραφημένες εγγραφές vault μέσω OpenSSL και ενσωματωμένο εργαλείο full-page screenshots ιστοσελίδων. Φτιαγμένο για Termux με καθαρές επιλογές και οργανωμένα αποτελέσματα.
 
 **Τοποθεσία Αποθήκευσης:** `Στο Termux όλα τα δεδομένα αποθηκεύονται στο ~/Free Internet/, ενώ εκτός Termux χρησιμοποιείται το ~/.free_internet/. Τα browser data είναι στο browser/, οι saved pages στο browser/saved/, τα screenshots στο tools/screenshots/ και το encrypted vault database στο vault/vault.db.`
+
+</details>
+
+
+<details>
+<summary>DedSec's Server</summary>
+
+
+**Περιγραφή:** Πλατφόρμα φιλοξενίας και διαχείρισης αρχείων πολλαπλών διακομιστών για Termux. Δημιουργεί ξεχωριστά προφίλ server με όνομα, ανοιχτή πρόσβαση επισκεπτών ή προστασία μόνο για διαχειριστές, πολλαπλούς λογαριασμούς διαχειριστών, μεταφορτώσεις έως 30 GB με ζωντανή τμηματική πρόοδο, δημιουργία φακέλων και λήψεις ZIP, μετακινήσεις, μετονομασίες και διαγραφές αρχείων, κατηγορίες, αναζήτηση, φίλτρα, ταξινόμηση, λεπτομέρειες, σχόλια, συνεδρίες χρηστών και πλήρη αρχεία καταγραφής δραστηριότητας και ασφάλειας. Κάθε server ξεκινά πρόσβαση μέσω localhost και τοπικού δικτύου και προσπαθεί αυτόματα να δημιουργήσει συνδέσμους Cloudflare και Tor. Περιλαμβάνει επίσης φωτεινό και σκοτεινό θέμα, ξεχωριστές αγγλικές και ελληνικές εκδόσεις, επιβεβαιώσεις για αλλαγές, περιορισμό αποτυχημένων προσπαθειών, προστασία CSRF, ελέγχους ασφαλείας αποθηκευτικού χώρου και αυτόματη εγκατάσταση εξαρτήσεων. Σχεδιασμένο για το Termux, με σαφείς επιλογές και οργανωμένη αποθήκευση.
+
+**Τοποθεσία Αποθήκευσης:** `Όλα τα δεδομένα αποθηκεύονται κάτω από το ~/DedSec's Server/. Οι αγγλικές και ελληνικές εκδόσεις χρησιμοποιούν ξεχωριστούς φακέλους English/ και Greek/. Τα αρχεία κάθε server αποθηκεύονται στο <edition>/Servers/<server-id>/, οι ρυθμίσεις στο <edition>/Config/config.json, τα προσωρινά δεδομένα συνεδρίας στο <edition>/Runtime/, τα σχόλια στο <edition>/Comments/ και τα αρχεία καταγραφής κάθε server στον κρυφό φάκελο .dedsec-server/logs/ του server.`
 
 </details>
 
