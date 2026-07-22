@@ -24,9 +24,13 @@ import subprocess
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Tuple, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import hmac
 import ssl
+import tempfile
+import io
+import traceback
 
 
 # ---------------------------
@@ -141,21 +145,35 @@ Returns:
                     pass
             _run([sys.executable, "-m", "pip", "install", "cryptography>=41.0"], check=False, env=env)
 
+    # QR generation for the public entry page. SVG output avoids a Pillow dependency.
+    try:
+        import qrcode  # noqa
+        import qrcode.image.svg  # noqa
+    except Exception:
+        _run([sys.executable, "-m", "pip", "install", "qrcode>=7.4"], check=False)
+
 ensure_dependencies()
 
 from flask import (
     Flask, request, redirect, url_for, session, abort,
-    Response, flash, render_template, render_template_string, jsonify, g, send_file
+    Response, flash, render_template, render_template_string, jsonify, g, send_file, make_response
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import HTTPException
 from jinja2 import DictLoader
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, padding as asym_padding
 from cryptography import x509
 from cryptography.x509.oid import NameOID
+
+try:
+    import qrcode  # type: ignore
+    import qrcode.image.svg  # type: ignore
+except Exception:
+    qrcode = None
 
 # ---------------------------
 # Paths / logging
@@ -400,6 +418,54 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(message)s",
 )
 log = logging.getLogger("butsystem")
+
+_TERMUX_ERROR_LOCK = threading.RLock()
+_TERMUX_ERROR_BUFFER = []
+_TERMUX_ERROR_MONITOR_ACTIVE = False
+
+
+class _TermuxErrorBufferHandler(logging.Handler):
+    """Buffer startup errors and print future errors beneath the link block."""
+
+    def __init__(self):
+        super().__init__(level=logging.ERROR)
+        self.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+
+    def emit(self, record):
+        try:
+            rendered = self.format(record)
+            if record.exc_info:
+                rendered += "\n" + "".join(traceback.format_exception(*record.exc_info)).rstrip()
+            with _TERMUX_ERROR_LOCK:
+                if _TERMUX_ERROR_MONITOR_ACTIVE:
+                    sys.stderr.write("\n[ButSystem ERROR] " + rendered + "\n")
+                    sys.stderr.flush()
+                else:
+                    _TERMUX_ERROR_BUFFER.append(rendered)
+                    del _TERMUX_ERROR_BUFFER[:-50]
+        except Exception:
+            pass
+
+
+_TERMUX_ERROR_HANDLER = _TermuxErrorBufferHandler()
+logging.getLogger().addHandler(_TERMUX_ERROR_HANDLER)
+
+
+def _activate_termux_error_monitor():
+    """Print buffered errors and stream new errors below the generated links."""
+    global _TERMUX_ERROR_MONITOR_ACTIVE
+    with _TERMUX_ERROR_LOCK:
+        _TERMUX_ERROR_MONITOR_ACTIVE = True
+        buffered = list(_TERMUX_ERROR_BUFFER)
+        _TERMUX_ERROR_BUFFER.clear()
+    print("ERROR MONITOR: New application errors will appear below this line.")
+    if buffered:
+        print(f"STARTUP ERRORS FOUND: {len(buffered)}")
+        for item in buffered:
+            print("\n[ButSystem ERROR] " + item)
+    else:
+        print("ERROR MONITOR: No errors detected during startup.")
+    sys.stdout.flush()
 
 # ---------------------------
 # Crypto helpers (TEXT encryption only; binary files stored plaintext)
@@ -1052,6 +1118,46 @@ Returns:
         FOREIGN KEY(entry_id) REFERENCES profiler_entries(id) ON DELETE CASCADE
     )
     """)
+
+    # Advanced per-user file manager metadata.
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS file_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner TEXT NOT NULL,
+        relpath TEXT NOT NULL,
+        author TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_file_comments_owner_path ON file_comments(owner, relpath)")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS file_shares (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token TEXT UNIQUE NOT NULL,
+        owner TEXT NOT NULL,
+        relpath TEXT NOT NULL,
+        pw_hash TEXT,
+        expires_at TEXT,
+        created_at TEXT NOT NULL,
+        revoked INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_file_shares_owner_path ON file_shares(owner, relpath)")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS file_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        action TEXT NOT NULL,
+        relpath TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL
+    )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_file_activity_owner_id ON file_activity(owner, id DESC)")
     conn.commit()
     conn.close()
 
@@ -1308,6 +1414,29 @@ Returns:
 # ---------------------------
 
 app = Flask(__name__)
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected_web_error(error):
+    """Log full web exceptions to the file and the Termux error monitor."""
+    if isinstance(error, HTTPException):
+        return error
+    try:
+        request_id = getattr(g, "request_id", "-")
+        method = getattr(request, "method", "?")
+        path = getattr(request, "path", "?")
+        log.error(
+            "Unhandled web exception request_id=%s method=%s path=%s error=%s",
+            request_id, method, path, error,
+            exc_info=(type(error), error, error.__traceback__),
+        )
+    except Exception:
+        traceback.print_exc()
+    return Response(
+        "Internal Server Error\n\nThe complete error was printed in Termux below the generated links and saved to the ButSystem log.",
+        status=500,
+        mimetype="text/plain",
+    )
 # Respect X-Forwarded-* headers when running behind Cloudflared / reverse proxies.
 # This helps correct URL generation (scheme/host) and client IP for security logs.
 # Only trust X-Forwarded-* when the direct peer is loopback (cloudflared/tor connect locally).
@@ -1334,7 +1463,7 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
     # Global hard cap (needed for Flask/Werkzeug to accept large multipart bodies).
     # We enforce tighter per-feature limits below.
-    MAX_CONTENT_LENGTH=(333 * 1024 * 1024) + (8 * 1024 * 1024),  # 333MB file cap (+overhead)
+    MAX_CONTENT_LENGTH=(333 * 1024 * 1024) + (8 * 1024 * 1024),  # Per-request cap; 10GB vault files use 16MB chunks.
 )
 
 # ---------------------------
@@ -1347,8 +1476,8 @@ CHAT_MAX_BYTES = 33 * 1024 * 1024
 ENABLE_CALLS = True
 # Profile pictures: keep small to reduce risk/CPU (10MB).
 PFP_MAX_BYTES = 10 * 1024 * 1024
-# Vault Files uploads: 333MB max (applies to both classic and chunked uploads).
-FILES_MAX_BYTES = 333 * 1024 * 1024
+# Vault Files uploads: 10GB max (applies to both classic and chunked uploads).
+FILES_MAX_BYTES = 10 * 1024 * 1024 * 1024
 
 # ---------------------------
 # Security helpers (CSRF + per-request nonce + security headers)
@@ -1891,6 +2020,7 @@ TRANSLATIONS_EL = {
     "Chats": "Συνομιλίες",
     "Groups": "Ομάδες",
     "News": "Νέα",
+    "Weather": "Καιρός",
 
     "Live Locations": "Ζωντανές τοποθεσίες",
     "Live location": "Ζωντανή τοποθεσία",
@@ -3483,24 +3613,12 @@ Returns:
     return "/".join(parts)
 
 def abs_user_path(username: str, rel: str) -> str:
-    """abs_user_path.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    username: Parameter.
-    rel: Parameter.
-
-Returns:
-    Varies.
-"""
+    """Resolve a vault path and prevent traversal through ``..`` or symlinks."""
     rel = safe_relpath(rel)
     root = user_root(username)
-    ap = os.path.abspath(os.path.join(root, rel))
-    root_abs = os.path.abspath(root)
-    if not (ap == root_abs or ap.startswith(root_abs + os.sep)):
+    root_real = os.path.realpath(root)
+    ap = os.path.realpath(os.path.join(root_real, rel))
+    if not (ap == root_real or ap.startswith(root_real + os.sep)):
         raise ValueError("Bad path")
     return ap
 
@@ -4559,6 +4677,7 @@ TEMPLATES["base.html"] = r"""
           {% if is_admin %}<li class="nav-item"><a class="nav-link" href="{{ url_for('bounty') }}">{{ _('Bounty') }}</a></li>{% endif %}
           <li class="nav-item"><a class="nav-link" href="{{ url_for('reports') }}">{{ _('Reports') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('news') }}">{{ _("News") }}</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('weather_page') }}">{{ _("Weather") }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('groups') }}">{{ _("Groups") }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('discussion') }}">{{ _('Discussion') }}</a></li>
           <li class="nav-item"><a class="nav-link" href="{{ url_for('chats') }}">{{ _("Chats") }} {% if notifications and notifications.dm_total>0 %}<span class="notif-badge">{{ notifications.dm_total }}</span>{% endif %}</a></li>
@@ -4975,10 +5094,9 @@ TEMPLATES["landing.html"] = r"""
 {% extends "base.html" %}
 {% block content %}
 <style>
-  /* Make the welcome screen non-scrollable and fit in one viewport */
-  main.container{padding:0!important;}
-  body{overflow:hidden;}
-  .welcome-card{max-height: calc(var(--app-height, 100vh) - 120px); overflow:hidden;}
+  main.container{padding-top:0!important;}
+  body{overflow-y:auto;}
+  .welcome-card{overflow:visible;}
   .welcome-card .alert{font-size:clamp(.72rem,2.6vw,.9rem); line-height:1.25;}
 </style>
 <div class="row justify-content-center">
@@ -5011,6 +5129,29 @@ TEMPLATES["landing.html"] = r"""
       <div class="small-muted mt-3">
         Tip: Camera/mic features (if used) may require HTTPS — use the Cloudflared link.
       </div>
+
+      {% if login_link_cards %}
+      <div class="mt-4 pt-3 border-top">
+        <h4 class="mb-1">{{ 'Current links' if lang=='en' else 'Τρέχοντες σύνδεσμοι' }}</h4>
+        <div class="small-muted mb-3">{{ 'Scan a freshly generated QR code to open ButSystem.' if lang=='en' else 'Σάρωσε έναν νέο κωδικό QR για να ανοίξεις το ButSystem.' }}</div>
+        <div class="row g-3">
+          {% for item in login_link_cards %}
+          <div class="col-12 col-sm-6">
+            <div class="card-soft p-3 h-100 text-center">
+              <a href="{{ item.barcode_data_uri }}" download="ButSystem-{{ item.label|replace(' ', '-')|lower }}-qr.svg" class="text-decoration-none">
+                <img src="{{ item.barcode_data_uri }}" alt="{{ item.label }} QR code" class="img-fluid bg-white rounded p-2" style="max-width:210px;width:100%;">
+              </a>
+              <div class="fw-semibold mt-2">{{ item.label }}</div>
+              <div class="small-muted mt-1" style="word-break:break-all;">{{ item.url }}</div>
+              <div class="mt-3">
+                <a class="btn btn-ghost btn-sm" href="{{ item.barcode_data_uri }}" download="ButSystem-{{ item.label|replace(' ', '-')|lower }}-qr.svg">{{ 'Download QR' if lang=='en' else 'Λήψη QR' }}</a>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>
@@ -5047,11 +5188,11 @@ TEMPLATES["loading.html"] = r"""{% extends "base.html" %}
   try{ await fetch("{{ url_for('api_ping') }}", {method:"POST"}); }catch(e){}
   try{ await fetch("{{ url_for('api_bootstrap') }}"); }catch(e){}
 
-  // Preload news into the server cache in the background (faster News page later).
+  // Start the larger News refresh in the background without extending login time.
   try{
     const qs = new URLSearchParams();
     qs.set("lang", "{{ lang }}");
-    await fetch("{{ url_for('api_news') }}?" + qs.toString(), {cache:"no-store"});
+    fetch("{{ url_for('api_news') }}?" + qs.toString(), {cache:"no-store"}).catch(()=>{});
   }catch(e){}
 
   // Keep the loading screen visible for a random 10–20 seconds (each login).
@@ -5067,6 +5208,183 @@ TEMPLATES["loading.html"] = r"""{% extends "base.html" %}
 
 
 
+
+TEMPLATES["weather.html"] = r"""
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-start gap-3 mb-3">
+  <div>
+    <h3 class="mb-1">{{ 'Weather' if lang=='en' else 'Καιρός' }}</h3>
+    <div class="small-muted">
+      {{ 'Current conditions and a forecast of up to 14 days.' if lang=='en' else 'Τρέχουσες συνθήκες και πρόγνωση έως 14 ημερών.' }}
+    </div>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <button class="btn btn-accent" id="weatherCurrent" type="button">📍 {{ 'Use current location' if lang=='en' else 'Χρήση τρέχουσας τοποθεσίας' }}</button>
+    <button class="btn btn-ghost" id="weatherRefresh" type="button" disabled>↻ {{ 'Refresh' if lang=='en' else 'Ανανέωση' }}</button>
+  </div>
+</div>
+
+<div class="card-soft p-3 mb-3">
+  <label class="form-label fw-semibold" for="weatherSearch">{{ 'Search another location' if lang=='en' else 'Αναζήτηση άλλης τοποθεσίας' }}</label>
+  <div class="input-group">
+    <input class="form-control" id="weatherSearch" placeholder="{{ 'City, village or postal code…' if lang=='en' else 'Πόλη, χωριό ή ταχυδρομικός κώδικας…' }}" autocomplete="off" maxlength="100">
+    <button class="btn btn-ghost" id="weatherSearchBtn" type="button">{{ 'Search' if lang=='en' else 'Αναζήτηση' }}</button>
+  </div>
+  <div class="small-muted mt-2">
+    {{ 'Your precise coordinates are used only to request the forecast and are not saved by ButSystem.' if lang=='en' else 'Οι ακριβείς συντεταγμένες χρησιμοποιούνται μόνο για την πρόγνωση και δεν αποθηκεύονται από το ButSystem.' }}
+  </div>
+  <div id="weatherSearchResults" class="d-grid gap-2 mt-3"></div>
+</div>
+
+<div id="weatherStatus" class="card-soft p-3 small-muted mb-3">
+  {{ 'Requesting your current location…' if lang=='en' else 'Ζητείται η τρέχουσα τοποθεσία σου…' }}
+</div>
+
+<div id="weatherCurrentCard" class="card-soft p-3 p-md-4 mb-3" style="display:none;">
+  <div class="d-flex flex-column flex-md-row justify-content-between gap-3 align-items-start">
+    <div>
+      <div class="small-muted" id="weatherLocationLabel"></div>
+      <div class="d-flex align-items-center gap-3 mt-1">
+        <div id="weatherIcon" style="font-size:3.4rem;line-height:1;"></div>
+        <div>
+          <div class="display-5 fw-bold" id="weatherTemperature"></div>
+          <div class="fw-semibold" id="weatherDescription"></div>
+          <div class="small-muted" id="weatherUpdated"></div>
+        </div>
+      </div>
+    </div>
+    <div class="row g-2 flex-grow-1" style="max-width:650px;" id="weatherMetrics"></div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-end gap-2 mb-2" id="weatherForecastHeader" style="display:none;">
+  <div>
+    <h4 class="mb-0">{{ '14-day forecast' if lang=='en' else 'Πρόγνωση 14 ημερών' }}</h4>
+    <div class="small-muted">{{ 'Long-range forecasts are less certain toward the final days.' if lang=='en' else 'Οι μακροπρόθεσμες προγνώσεις έχουν μικρότερη βεβαιότητα στις τελευταίες ημέρες.' }}</div>
+  </div>
+</div>
+<div id="weatherForecast" class="row g-3"></div>
+<div class="small-muted text-center mt-3 mb-2" id="weatherSource" style="display:none;">{{ 'Weather data: Open-Meteo' if lang=='en' else 'Δεδομένα καιρού: Open-Meteo' }}</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function(){
+  const lang={{ lang|tojson }};
+  const csrf=(document.querySelector('meta[name="csrf-token"]')||{}).content||'';
+  const currentBtn=document.getElementById('weatherCurrent');
+  const refreshBtn=document.getElementById('weatherRefresh');
+  const searchInput=document.getElementById('weatherSearch');
+  const searchBtn=document.getElementById('weatherSearchBtn');
+  const results=document.getElementById('weatherSearchResults');
+  const status=document.getElementById('weatherStatus');
+  const currentCard=document.getElementById('weatherCurrentCard');
+  const forecast=document.getElementById('weatherForecast');
+  const forecastHeader=document.getElementById('weatherForecastHeader');
+  const source=document.getElementById('weatherSource');
+  let selected=null;
+
+  function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function n(v,d=0){const x=Number(v);return Number.isFinite(x)?x.toFixed(d):'—';}
+  function setStatus(message,isError=false){status.style.display='block';status.classList.toggle('text-danger',!!isError);status.textContent=message;}
+  function dateLabel(raw){try{return new Intl.DateTimeFormat(lang==='el'?'el-GR':'en-GB',{weekday:'short',day:'2-digit',month:'short'}).format(new Date(raw+'T12:00:00'));}catch(e){return raw;}}
+  function timeLabel(raw){try{return new Intl.DateTimeFormat(lang==='el'?'el-GR':'en-GB',{hour:'2-digit',minute:'2-digit'}).format(new Date(raw));}catch(e){return raw||'—';}}
+
+  function metric(label,value){return `<div class="col-6 col-lg-4"><div class="card-soft p-2 h-100"><div class="small-muted">${esc(label)}</div><div class="fw-semibold">${esc(value)}</div></div></div>`;}
+
+  function renderWeather(data){
+    const c=data.current||{};
+    const place=data.location||{};
+    status.style.display='none';
+    currentCard.style.display='block';
+    forecastHeader.style.display='flex';
+    source.style.display='block';
+    document.getElementById('weatherLocationLabel').textContent=place.label||`${n(place.latitude,4)}, ${n(place.longitude,4)}`;
+    document.getElementById('weatherIcon').textContent=c.icon||'🌤️';
+    document.getElementById('weatherTemperature').textContent=`${n(c.temperature,1)}°C`;
+    document.getElementById('weatherDescription').textContent=c.description||'';
+    document.getElementById('weatherUpdated').textContent=(lang==='el'?'Ενημέρωση: ':'Updated: ')+(c.time?timeLabel(c.time):'—');
+    const labels=lang==='el'?{
+      feels:'Αίσθηση',humidity:'Υγρασία',wind:'Άνεμος',gusts:'Ριπές',rain:'Υετός',cloud:'Νεφοκάλυψη',pressure:'Πίεση'
+    }:{feels:'Feels like',humidity:'Humidity',wind:'Wind',gusts:'Gusts',rain:'Precipitation',cloud:'Cloud cover',pressure:'Pressure'};
+    document.getElementById('weatherMetrics').innerHTML=[
+      metric(labels.feels,`${n(c.apparent_temperature,1)}°C`),
+      metric(labels.humidity,`${n(c.humidity)}%`),
+      metric(labels.wind,`${n(c.wind_speed,1)} km/h`),
+      metric(labels.gusts,`${n(c.wind_gusts,1)} km/h`),
+      metric(labels.rain,`${n(c.precipitation,1)} mm`),
+      metric(labels.cloud,`${n(c.cloud_cover)}%`),
+      metric(labels.pressure,`${n(c.pressure)} hPa`)
+    ].join('');
+
+    const days=Array.isArray(data.daily)?data.daily:[];
+    forecast.innerHTML=days.map((d,i)=>{
+      const precip=lang==='el'?'Πιθανότητα':'Chance';
+      const amount=lang==='el'?'Υετός':'Precip.';
+      const wind=lang==='el'?'Άνεμος':'Wind';
+      const sun=lang==='el'?'Ανατολή / Δύση':'Sunrise / sunset';
+      const today=i===0?(lang==='el'?'Σήμερα':'Today'):dateLabel(d.date);
+      return `<div class="col-12 col-sm-6 col-xl-4"><div class="card-soft p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start gap-2"><div><div class="fw-bold">${esc(today)}</div><div class="small-muted">${esc(d.description||'')}</div></div><div style="font-size:2rem">${esc(d.icon||'🌤️')}</div></div>
+        <div class="d-flex align-items-baseline gap-2 my-2"><span class="h4 mb-0">${n(d.max_temperature,0)}°</span><span class="small-muted">/ ${n(d.min_temperature,0)}°C</span></div>
+        <div class="small-muted">${precip}: <strong>${n(d.precipitation_probability)}%</strong> · ${amount}: <strong>${n(d.precipitation_sum,1)} mm</strong></div>
+        <div class="small-muted">${wind}: <strong>${n(d.wind_speed_max,0)} km/h</strong> · UV: <strong>${n(d.uv_index_max,1)}</strong></div>
+        <div class="small-muted">${sun}: <strong>${esc(timeLabel(d.sunrise))} / ${esc(timeLabel(d.sunset))}</strong></div>
+      </div></div>`;
+    }).join('');
+    refreshBtn.disabled=false;
+  }
+
+  async function loadForecast(lat,lon,label,save=true){
+    selected={lat:Number(lat),lon:Number(lon),label:String(label||'')};
+    setStatus(lang==='el'?'Φόρτωση πρόγνωσης…':'Loading forecast…');
+    currentCard.style.display='none';forecastHeader.style.display='none';forecast.innerHTML='';source.style.display='none';
+    try{
+      const r=await fetch({{ url_for('api_weather_forecast')|tojson }},{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({latitude:selected.lat,longitude:selected.lon,label:selected.label,lang})});
+      const j=await r.json().catch(()=>({}));
+      if(!r.ok||!j.ok) throw new Error(j.error||`HTTP ${r.status}`);
+      renderWeather(j);
+      if(save){try{localStorage.setItem('butsystem_weather_location',JSON.stringify(selected));}catch(e){}}
+    }catch(e){setStatus((lang==='el'?'Δεν ήταν δυνατή η φόρτωση του καιρού: ':'Could not load weather: ')+String(e.message||e),true);}
+  }
+
+  function useCurrentLocation(){
+    results.innerHTML='';
+    if(!navigator.geolocation){setStatus(lang==='el'?'Η συσκευή δεν υποστηρίζει γεωεντοπισμό. Αναζήτησε μια πόλη.':'This device does not support location. Search for a city.',true);return;}
+    currentBtn.disabled=true;
+    setStatus(lang==='el'?'Ζητείται άδεια τοποθεσίας…':'Requesting location permission…');
+    navigator.geolocation.getCurrentPosition(
+      pos=>{currentBtn.disabled=false;loadForecast(pos.coords.latitude,pos.coords.longitude,lang==='el'?'Τρέχουσα τοποθεσία':'Current location',true);},
+      err=>{currentBtn.disabled=false;let msg=lang==='el'?'Δεν δόθηκε πρόσβαση τοποθεσίας. Αναζήτησε μια πόλη.':'Location access was unavailable. Search for a city.';if(err&&err.message)msg+=' '+err.message;setStatus(msg,true);try{const saved=JSON.parse(localStorage.getItem('butsystem_weather_location')||'null');if(saved&&Number.isFinite(Number(saved.lat))&&Number.isFinite(Number(saved.lon)))loadForecast(saved.lat,saved.lon,saved.label||'',false);}catch(e){}},
+      {enableHighAccuracy:false,timeout:12000,maximumAge:600000}
+    );
+  }
+
+  async function searchPlaces(){
+    const q=searchInput.value.trim();
+    if(q.length<2){results.innerHTML=`<div class="small-muted">${lang==='el'?'Γράψε τουλάχιστον 2 χαρακτήρες.':'Enter at least 2 characters.'}</div>`;return;}
+    searchBtn.disabled=true;results.innerHTML=`<div class="small-muted">${lang==='el'?'Αναζήτηση…':'Searching…'}</div>`;
+    try{
+      const url=new URL({{ url_for('api_weather_search')|tojson }},window.location.origin);url.searchParams.set('q',q);url.searchParams.set('lang',lang);
+      const r=await fetch(url,{cache:'no-store'});const j=await r.json().catch(()=>({}));if(!r.ok||!j.ok)throw new Error(j.error||`HTTP ${r.status}`);
+      const places=Array.isArray(j.results)?j.results:[];
+      results.innerHTML=places.length?places.map((p,i)=>`<button type="button" class="btn btn-ghost text-start weather-place" data-index="${i}"><strong>${esc(p.name)}</strong><br><span class="small-muted">${esc(p.detail||'')}</span></button>`).join(''):`<div class="small-muted">${lang==='el'?'Δεν βρέθηκαν τοποθεσίες.':'No locations found.'}</div>`;
+      results.querySelectorAll('.weather-place').forEach(btn=>btn.addEventListener('click',()=>{const p=places[Number(btn.dataset.index)];results.innerHTML='';searchInput.value=p.name;loadForecast(p.latitude,p.longitude,p.label,true);}));
+    }catch(e){results.innerHTML=`<div class="text-danger">${esc((lang==='el'?'Η αναζήτηση απέτυχε: ':'Search failed: ')+String(e.message||e))}</div>`;}
+    finally{searchBtn.disabled=false;}
+  }
+
+  currentBtn.addEventListener('click',useCurrentLocation);
+  refreshBtn.addEventListener('click',()=>{if(selected)loadForecast(selected.lat,selected.lon,selected.label,false);});
+  searchBtn.addEventListener('click',searchPlaces);
+  searchInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();searchPlaces();}});
+  useCurrentLocation();
+})();
+</script>
+{% endblock %}
+"""
+
 TEMPLATES["news.html"] = r"""
 {% extends "base.html" %}
 {% block content %}
@@ -5075,9 +5393,9 @@ TEMPLATES["news.html"] = r"""
     <h3 class="mb-1">{{ _("News") }}</h3>
     <div class="small-muted">
       {% if lang=="el" %}
-        Παγκόσμια νέα για κυβερνοασφάλεια, χάκινγκ, Termux, DedSec Project, ίντερνετ, κρύπτο και άλλα σχετικά θέματα.
+        Παγκόσμια νέα για κυβερνοασφάλεια, τεχνολογία, AI, επιστήμη, Ελλάδα, οικονομία, υγεία, αθλητισμό, gaming και πολλά άλλα ενδιαφέροντα.
       {% else %}
-        Worldwide news about cybersecurity, hacking, Termux, the DedSec Project, the internet, crypto, and related topics.
+        Worldwide news across cybersecurity, technology, AI, science, Greece, business, health, sports, gaming, entertainment, and many more interests.
       {% endif %}
     </div>
   </div>
@@ -5850,45 +6168,77 @@ TEMPLATES["admin_logs.html"] = r"""
 TEMPLATES["files.html"] = r"""
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-start gap-2 mb-3">
+<div class="d-flex flex-column flex-xl-row justify-content-between align-items-start gap-3 mb-3">
   <div>
-    <h3 class="mb-1">Files</h3>
-    <div class="small-muted">Path: /{{ relpath }} <span class="badge badge-soft ms-2">Encrypted</span></div>
+    <h3 class="mb-1">{{ _("Files") }}</h3>
+    <div class="small-muted">{{ _("Path") }}: /{{ relpath }} <span class="badge badge-soft ms-2">{{ _("Private user vault") }}</span></div>
+    <div class="small-muted mt-1">{{ storage.used_h }} {{ _("used") }} · {{ storage.free_h }} {{ _("free") }} · {{ storage.percent }}%</div>
   </div>
   <div class="d-flex flex-wrap gap-2">
-    <a class="btn btn-ghost" href="{{ url_for('files', p=parent_relpath, sort=sort, order=order) }}">Up</a>
-    <button class="btn btn-ghost" data-bs-toggle="collapse" data-bs-target="#mkdirBox">New folder</button>
-    <button class="btn btn-accent" data-bs-toggle="collapse" data-bs-target="#uploadBox">{{ _('Upload') }}</button>
-
-    <form class="d-flex gap-2" method="get" action="{{ url_for('files') }}">
-      <input type="hidden" name="p" value="{{ relpath }}">
-      <select class="form-select" name="sort">
-        <option value="name" {% if sort=='name' %}selected{% endif %}>Sort: name</option>
-        <option value="mtime" {% if sort=='mtime' %}selected{% endif %}>Sort: modified</option>
-        <option value="size" {% if sort=='size' %}selected{% endif %}>Sort: size</option>
-        <option value="type" {% if sort=='type' %}selected{% endif %}>Sort: type</option>
-      </select>
-      <select class="form-select" name="order">
-        <option value="asc" {% if order=='asc' %}selected{% endif %}>Asc</option>
-        <option value="desc" {% if order=='desc' %}selected{% endif %}>Desc</option>
-      </select>
-      <button class="btn btn-ghost" type="submit">Apply</button>
-    </form>
+    {% if relpath %}<a class="btn btn-ghost" href="{{ url_for('files', p=parent_relpath) }}">{{ _("Up") }}</a>{% endif %}
+    <button class="btn btn-ghost" data-bs-toggle="collapse" data-bs-target="#mkdirBox">{{ _("New folder") }}</button>
+    <button class="btn btn-accent" data-bs-toggle="collapse" data-bs-target="#uploadBox">{{ _("Upload") }}</button>
+    <a class="btn btn-ghost" href="{{ url_for('file_activity') }}">{{ _("Activity") }}</a>
   </div>
+</div>
+
+<div class="card-soft p-3 mb-3">
+  <form class="row g-2 align-items-end" method="get" action="{{ url_for('files') }}">
+    <input type="hidden" name="p" value="{{ relpath }}">
+    <div class="col-12 col-lg-4">
+      <label class="form-label">{{ _("Search") }}</label>
+      <input class="form-control" name="q" value="{{ query }}" placeholder="{{ _('Search this folder and subfolders…') }}">
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Category") }}</label>
+      <select class="form-select" name="category">
+        {% for key,label in categories %}<option value="{{ key }}" {% if category==key %}selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Sort") }}</label>
+      <select class="form-select" name="sort">
+        <option value="name" {% if sort=='name' %}selected{% endif %}>{{ _("Name") }}</option>
+        <option value="mtime" {% if sort=='mtime' %}selected{% endif %}>{{ _("Modified") }}</option>
+        <option value="size" {% if sort=='size' %}selected{% endif %}>{{ _("Size") }}</option>
+        <option value="type" {% if sort=='type' %}selected{% endif %}>{{ _("Type") }}</option>
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Order") }}</label>
+      <select class="form-select" name="order">
+        <option value="asc" {% if order=='asc' %}selected{% endif %}>{{ _("Ascending") }}</option>
+        <option value="desc" {% if order=='desc' %}selected{% endif %}>{{ _("Descending") }}</option>
+      </select>
+    </div>
+    <div class="col-6 col-lg-2 d-grid"><button class="btn btn-ghost" type="submit">{{ _("Apply") }}</button></div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Minimum size (MB)") }}</label>
+      <input class="form-control" type="number" min="0" name="size_min" value="{{ size_min }}">
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Maximum size (MB)") }}</label>
+      <input class="form-control" type="number" min="0" name="size_max" value="{{ size_max }}">
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Modified from") }}</label>
+      <input class="form-control" type="date" name="date_from" value="{{ date_from }}">
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label">{{ _("Modified to") }}</label>
+      <input class="form-control" type="date" name="date_to" value="{{ date_to }}">
+    </div>
+    <div class="col-12 col-lg-4 d-grid"><a class="btn btn-ghost" href="{{ url_for('files', p=relpath) }}">{{ _("Reset filters") }}</a></div>
+  </form>
 </div>
 
 <div id="mkdirBox" class="collapse mb-3">
   <div class="card-soft p-3">
-    <form method="post" action="{{ url_for('mkdir') }}">
+    <form method="post" action="{{ url_for('mkdir') }}" data-confirm="{{ _('Create this folder?') }}">
       <input type="hidden" name="p" value="{{ relpath }}">
       <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-8">
-          <label class="form-label">Folder name</label>
-          <input class="form-control" name="name" required>
-        </div>
-        <div class="col-12 col-md-4">
-          <button class="btn btn-ghost w-100" type="submit">Create</button>
-        </div>
+        <div class="col-12 col-md-8"><label class="form-label">{{ _("Folder name") }}</label><input class="form-control" name="name" required maxlength="255"></div>
+        <div class="col-12 col-md-4"><button class="btn btn-ghost w-100" type="submit">{{ _("Create") }}</button></div>
       </div>
     </form>
   </div>
@@ -5899,149 +6249,134 @@ TEMPLATES["files.html"] = r"""
     <form id="vaultUploadForm" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
       <input type="hidden" name="p" value="{{ relpath }}">
       <div class="row g-2 align-items-end">
-        <div class="col-12 col-md-8">
-          <label class="form-label">Choose file</label>
-          <input id="vaultFileInput" class="form-control" type="file" name="file" required>
+        <div class="col-12 col-lg-6"><label class="form-label">{{ _("Choose files") }}</label><input id="vaultFileInput" class="form-control" type="file" name="files" multiple required></div>
+        <div class="col-12 col-lg-3">
+          <label class="form-label">{{ _("When a name already exists") }}</label>
+          <select id="vaultConflict" class="form-select" name="conflict">
+            <option value="keep">{{ _("Keep both") }}</option>
+            <option value="replace">{{ _("Replace after confirmation") }}</option>
+            <option value="cancel">{{ _("Cancel that file") }}</option>
+          </select>
         </div>
-        <div class="col-12 col-md-4">
-          <button class="btn btn-accent w-100" type="submit">{{ _('Upload') }}</button>
-        </div>
+        <div class="col-8 col-lg-2"><button id="vaultUploadButton" class="btn btn-accent w-100" type="submit">{{ _("Upload") }}</button></div>
+        <div class="col-4 col-lg-1"><button id="vaultCancelButton" class="btn btn-ghost w-100" type="button" disabled>{{ _("Cancel") }}</button></div>
       </div>
+      <div class="small-muted mt-2">{{ _("Maximum size per file: 10 GB. Uploads use 16 MB resumable chunks and stop before storage reaches 85% usage.") }}</div>
       <div id="vaultUploadProg" class="mt-3" style="display:none;">
-  <div class="progress">
-    <div id="vaultUploadBar" class="progress-bar" role="progressbar" style="width:0%"></div>
-  </div>
-  <div id="vaultUploadText" class="small-muted mt-2">Uploading…</div>
-</div>
-<div class="small-muted mt-2">Vault files are stored after upload.</div>
+        <div class="progress"><div id="vaultUploadBar" class="progress-bar" role="progressbar" style="width:0%"></div></div>
+        <div id="vaultUploadText" class="small-muted mt-2"></div>
+        <div id="vaultUploadList" class="small-muted mt-2 d-grid gap-1"></div>
+      </div>
     </form>
   </div>
 </div>
 
-<div class="card-soft p-3">
+<form id="bulkForm" method="post" action="{{ url_for('file_bulk_action') }}" class="card-soft p-3">
+  <input type="hidden" name="return_p" value="{{ relpath }}">
+  <div class="d-flex flex-column flex-lg-row gap-2 align-items-lg-end mb-3">
+    <div><label class="form-label">{{ _("Bulk action") }}</label><select class="form-select" name="action" id="bulkAction"><option value="download">{{ _("Download selected as ZIP") }}</option><option value="move">{{ _("Move selected") }}</option><option value="delete">{{ _("Delete selected") }}</option></select></div>
+    <div class="flex-grow-1"><label class="form-label">{{ _("Destination folder") }}</label><select class="form-select" name="destination"><option value="">/</option>{% for f in folder_choices %}<option value="{{ f }}">/{{ f }}</option>{% endfor %}</select></div>
+    <button class="btn btn-ghost" type="submit">{{ _("Apply to selected") }}</button>
+    <button class="btn btn-ghost" type="button" id="selectAllButton">{{ _("Select all") }}</button>
+  </div>
   <div class="table-responsive">
     <table class="table table-dark table-striped align-middle mb-0">
-      <thead>
-        <tr>
-          <th style="width:40%">{{ _('Name') }}</th>
-          <th style="width:18%">Type</th>
-          <th style="width:12%">Size</th>
-          <th style="width:18%">Modified</th>
-          <th style="width:12%">{{ _('Actions') }}</th>
-        </tr>
-      </thead>
+      <thead><tr><th style="width:3%"></th><th style="width:31%">{{ _("Name") }}</th><th style="width:15%">{{ _("Category") }}</th><th style="width:12%">{{ _("Size") }}</th><th style="width:18%">{{ _("Modified") }}</th><th style="width:21%">{{ _("Actions") }}</th></tr></thead>
       <tbody>
-        {% for e in entries %}
-          <tr>
-            <td>
-              {% if e.is_dir %}
-                📁 <a href="{{ url_for('files', p=child_path(relpath, e.name), sort=sort, order=order) }}">{{ e.name }}</a>
-              {% else %}
-                📄 {{ e.name }}
-              {% endif %}
-            </td>
-            <td><span class="small-muted">{{ e.kind }}</span></td>
-            <td>{{ e.size_h }}</td>
-            <td class="small-muted">{{ e.mtime_h }}</td>
-            <td class="d-flex flex-wrap gap-2">
-              {% if e.is_dir %}
-                <form method="post" action="{{ url_for('delete') }}" style="display:inline;">
-                  <input type="hidden" name="p" value="{{ child_path(relpath, e.name) }}">
-                  <input type="hidden" name="is_dir" value="1">
-                  <button class="btn btn-sm btn-ghost" type="submit" onclick="return confirm('Delete folder and everything inside?')">{{ _('Delete') }}</button>
-                </form>
-              {% else %}
-                <a class="btn btn-sm btn-ghost" href="{{ url_for('view_file', p=child_path(relpath, e.name)) }}" target="_blank">Open</a>
-                <a class="btn btn-sm btn-ghost" href="{{ url_for('download', p=child_path(relpath, e.name)) }}">{{ _('Download') }}</a>
-                <form method="post" action="{{ url_for('delete') }}" style="display:inline;">
-                  <input type="hidden" name="p" value="{{ child_path(relpath, e.name) }}">
-                  <input type="hidden" name="is_dir" value="0">
-                  <button class="btn btn-sm btn-ghost" type="submit" onclick="return confirm('Delete file?')">{{ _('Delete') }}</button>
-                </form>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-        {% if not entries %}
-          <tr><td colspan="5" class="small-muted">Empty folder.</td></tr>
-        {% endif %}
+      {% for e in entries %}
+        <tr>
+          <td><input class="form-check-input bulk-check" type="checkbox" name="entry" value="{{ e.relpath }}"></td>
+          <td>{% if e.is_dir %}📁 <a href="{{ url_for('files', p=e.relpath) }}">{{ e.name }}</a>{% else %}📄 {{ e.name }}{% endif %}{% if e.display_parent %}<div class="small-muted">/{{ e.display_parent }}</div>{% endif %}</td>
+          <td><span class="small-muted">{{ e.category_label }}</span></td>
+          <td>{{ e.size_h }}</td>
+          <td class="small-muted">{{ e.mtime_h }}</td>
+          <td><div class="d-flex flex-wrap gap-1">
+            {% if not e.is_dir %}<a class="btn btn-sm btn-ghost" href="{{ url_for('view_file', p=e.relpath) }}" target="_blank">{{ _("Open") }}</a>{% endif %}
+            <a class="btn btn-sm btn-ghost" href="{{ url_for('download', p=e.relpath) }}">{{ _("Download") }}</a>
+            <a class="btn btn-sm btn-ghost" href="{{ url_for('file_details', p=e.relpath) }}">{{ _("Details") }}</a>
+            <a class="btn btn-sm btn-ghost" href="{{ url_for('file_move', p=e.relpath) }}">{{ _("Move") }}</a>
+            <a class="btn btn-sm btn-ghost" href="{{ url_for('file_rename', p=e.relpath) }}">{{ _("Rename") }}</a>
+            <button class="btn btn-sm btn-ghost" type="submit" name="p" value="{{ e.relpath }}" formaction="{{ url_for('delete') }}" formmethod="post" onclick="return confirm({{ _('Permanently delete this entry?')|tojson }})">{{ _("Delete") }}</button>
+          </div></td>
+        </tr>
+      {% endfor %}
+      {% if not entries %}<tr><td colspan="6" class="small-muted">{{ _("No matching entries were found.") }}</td></tr>{% endif %}
       </tbody>
     </table>
   </div>
-</div>
+</form>
+
 <script nonce="{{ csp_nonce }}">
-
-const MSG_UPLOAD_FAIL = {{ _("Upload failed. Please retry.")|tojson }};
-const MSG_DONE_REFRESH = {{ _("Done. Refreshing…")|tojson }};
 (function(){
-  const form = document.getElementById('vaultUploadForm');
-  const input = document.getElementById('vaultFileInput');
-  const prog = document.getElementById('vaultUploadProg');
-  const bar = document.getElementById('vaultUploadBar');
-  const txt = document.getElementById('vaultUploadText');
-  if(!form || !input || !window.fetch) return;
-
-  const csrf = (document.querySelector('meta[name="csrf-token"]')||{}).content || '';
-
-  async function jpost(url, obj){
-    const r = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},
-      body: JSON.stringify(obj||{})
+  const form=document.getElementById('vaultUploadForm'), input=document.getElementById('vaultFileInput');
+  const conflict=document.getElementById('vaultConflict'), prog=document.getElementById('vaultUploadProg');
+  const bar=document.getElementById('vaultUploadBar'), txt=document.getElementById('vaultUploadText');
+  const list=document.getElementById('vaultUploadList'), cancel=document.getElementById('vaultCancelButton');
+  const submit=document.getElementById('vaultUploadButton');
+  const csrf=(document.querySelector('meta[name="csrf-token"]')||{}).content||'';
+  const MAX=10*1024*1024*1024, CHUNK=16*1024*1024;
+  let controller=null, cancelled=false, currentUploadId='';
+  async function jsonPost(url,obj){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(obj),signal:controller.signal});return {r,j:await r.json().catch(()=>({}))};}
+  async function chunkPost(fd){let last;for(let attempt=1;attempt<=3;attempt++){try{const r=await fetch('{{ url_for("api_upload_chunk") }}',{method:'POST',headers:{'X-CSRF-Token':csrf},body:fd,signal:controller.signal});const j=await r.json().catch(()=>({}));if(r.ok&&j.ok)return j;last=j.error||r.status;}catch(e){last=e;}await new Promise(res=>setTimeout(res,600*attempt));}throw new Error(String(last||'upload_failed'));}
+  if(form&&input&&window.fetch){
+    cancel.addEventListener('click',()=>{cancelled=true;const id=currentUploadId;currentUploadId='';if(controller)controller.abort();if(id){fetch('{{ url_for("api_upload_cancel") }}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({upload_id:id})}).catch(()=>{});}txt.textContent={{ _('Upload cancelled.')|tojson }};});
+    form.addEventListener('submit',async e=>{
+      const files=Array.from(input.files||[]);if(!files.length)return;
+      if(files.some(f=>f.size>MAX)){e.preventDefault();alert({{ _('One or more files exceed the 10 GB limit.')|tojson }});return;}
+      if(conflict.value==='replace'&&!confirm({{ _('Existing files with the same name will be replaced. Continue?')|tojson }})){e.preventDefault();return;}
+      e.preventDefault();cancelled=false;controller=new AbortController();submit.disabled=true;cancel.disabled=false;prog.style.display='';list.innerHTML='';bar.style.width='0%';
+      const totalBytes=files.reduce((a,f)=>a+f.size,0)||1;let completedBytes=0;
+      try{
+        for(let fi=0;fi<files.length;fi++){
+          if(cancelled)throw new Error('cancelled');const file=files[fi];const row=document.createElement('div');row.textContent=file.name+' — 0%';list.appendChild(row);
+          const totalChunks=Math.max(1,Math.ceil(file.size/CHUNK));
+          const init=await jsonPost('{{ url_for("api_upload_init") }}',{p:(form.querySelector('[name="p"]')||{}).value||'',filename:file.name,total_chunks:totalChunks,total_size:file.size,conflict:conflict.value});
+          if(!init.r.ok||!init.j.ok){row.textContent=file.name+' — '+(init.j.error||'failed');if(conflict.value==='cancel'&&init.j.error==='exists')continue;throw new Error(init.j.error||'init_failed');}
+          const uploadId=init.j.upload_id;currentUploadId=uploadId;
+          for(let i=0;i<totalChunks;i++){
+            const start=i*CHUNK,end=Math.min(file.size,start+CHUNK),blob=file.slice(start,end),fd=new FormData();
+            fd.append('upload_id',uploadId);fd.append('index',String(i));fd.append('total',String(totalChunks));fd.append('chunk',blob,file.name+'.part');
+            await chunkPost(fd);const fileDone=Math.min(file.size,end);const overall=completedBytes+fileDone;const pct=Math.round((overall/totalBytes)*100);bar.style.width=pct+'%';row.textContent=file.name+' — '+Math.round((fileDone/Math.max(file.size,1))*100)+'%';txt.textContent={{ _('Uploading')|tojson }}+' '+(fi+1)+'/'+files.length+' · '+pct+'%';
+          }
+          currentUploadId='';completedBytes+=file.size;row.textContent=file.name+' — 100%';
+        }
+        txt.textContent={{ _('Upload completed. Refreshing…')|tojson }};window.location.reload();
+      }catch(err){if(String(err).includes('AbortError')||cancelled){txt.textContent={{ _('Upload cancelled.')|tojson }};}else{txt.textContent={{ _('Upload failed: ')|tojson }}+String(err);}submit.disabled=false;cancel.disabled=true;}
     });
-    return {ok:r.ok, json: await r.json().catch(()=>({}))};
   }
-
-  form.addEventListener('submit', async (e) => {
-    const file = input.files && input.files[0];
-    if(!file) return;
-    // Use chunked uploader for larger files; fallback to normal POST for tiny files.
-    if(file.size < 2*1024*1024) return;
-
-    e.preventDefault();
-    prog.style.display = '';
-    bar.style.width = '0%';
-    txt.textContent = 'Starting…';
-
-    const rel = (form.querySelector('input[name="p"]')||{}).value || '';
-    const chunkSize = 8 * 1024 * 1024; // 8 MiB
-    const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
-
-    const init = await jpost('{{ url_for("api_upload_init") }}', {p: rel, filename: file.name, total_chunks: totalChunks});
-    if(!init.ok || !init.json.ok){
-      txt.textContent = 'Init failed. Falling back…';
-      form.submit();
-      return;
-    }
-    const uploadId = init.json.upload_id;
-
-    for(let i=0;i<totalChunks;i++){
-      const start = i*chunkSize;
-      const end = Math.min(file.size, start+chunkSize);
-      const blob = file.slice(start, end);
-      const fd = new FormData();
-      fd.append('upload_id', uploadId);
-      fd.append('index', String(i));
-      fd.append('total', String(totalChunks));
-      fd.append('chunk', blob, file.name + '.part');
-
-      txt.textContent = `Uploading… ${i+1}/${totalChunks}`;
-      const r = await fetch('{{ url_for("api_upload_chunk") }}', {method:'POST', headers:{'X-CSRF-Token':csrf}, body: fd});
-      const j = await r.json().catch(()=>({}));
-      if(!r.ok || !j.ok){
-        txt.textContent = MSG_UPLOAD_FAIL;
-        return;
-      }
-      const pct = Math.round(((i+1)/totalChunks)*100);
-      bar.style.width = pct + '%';
-    }
-
-    txt.textContent = MSG_DONE_REFRESH;
-    window.location.reload();
-  });
+  const selectAll=document.getElementById('selectAllButton');if(selectAll)selectAll.addEventListener('click',()=>{const boxes=Array.from(document.querySelectorAll('.bulk-check'));const next=boxes.some(x=>!x.checked);boxes.forEach(x=>x.checked=next);});
+  const bulk=document.getElementById('bulkForm');if(bulk)bulk.addEventListener('submit',e=>{if(!bulk.querySelector('.bulk-check:checked')){e.preventDefault();alert({{ _('Select at least one entry.')|tojson }});return;}const action=document.getElementById('bulkAction').value;if(action==='delete'&&!confirm({{ _('Permanently delete every selected entry?')|tojson }}))e.preventDefault();});
 })();
 </script>
 {% endblock %}
+"""
+
+TEMPLATES["file_details.html"] = r"""
+{% extends "base.html" %}{% block content %}
+<div class="d-flex justify-content-between align-items-start gap-2 mb-3"><div><h3 class="mb-1">{{ _("File details") }}</h3><div class="small-muted">/{{ relpath }}</div></div><a class="btn btn-ghost" href="{{ url_for('files', p=parent_relpath) }}">{{ _("Back") }}</a></div>
+<div class="row g-3">
+  <div class="col-12 col-lg-7"><div class="card-soft p-3"><dl class="row mb-0"><dt class="col-sm-4">{{ _("Name") }}</dt><dd class="col-sm-8">{{ info.name }}</dd><dt class="col-sm-4">{{ _("Type") }}</dt><dd class="col-sm-8">{{ info.kind }}</dd><dt class="col-sm-4">{{ _("Category") }}</dt><dd class="col-sm-8">{{ info.category }}</dd><dt class="col-sm-4">MIME</dt><dd class="col-sm-8">{{ info.mime }}</dd><dt class="col-sm-4">{{ _("Size") }}</dt><dd class="col-sm-8">{{ info.size_h }} ({{ info.size }} bytes)</dd><dt class="col-sm-4">{{ _("Created") }}</dt><dd class="col-sm-8">{{ info.created }}</dd><dt class="col-sm-4">{{ _("Modified") }}</dt><dd class="col-sm-8">{{ info.modified }}</dd>{% if checksum %}<dt class="col-sm-4">SHA-256</dt><dd class="col-sm-8" style="word-break:break-all">{{ checksum }}</dd>{% endif %}</dl><div class="d-flex flex-wrap gap-2 mt-3"><a class="btn btn-ghost" href="{{ url_for('download', p=relpath) }}">{{ _("Download") }}</a>{% if not info.is_dir %}<a class="btn btn-ghost" target="_blank" href="{{ url_for('view_file', p=relpath) }}">{{ _("Open") }}</a><a class="btn btn-ghost" href="{{ url_for('file_details', p=relpath, checksum=1) }}">{{ _("Calculate SHA-256") }}</a>{% endif %}<a class="btn btn-ghost" href="{{ url_for('file_move', p=relpath) }}">{{ _("Move") }}</a><a class="btn btn-ghost" href="{{ url_for('file_rename', p=relpath) }}">{{ _("Rename") }}</a></div></div></div>
+  <div class="col-12 col-lg-5"><div class="card-soft p-3 mb-3"><h5>{{ _("Create controlled share link") }}</h5><form method="post" action="{{ url_for('file_share_create') }}" data-confirm="{{ _('Create this share link?') }}"><input type="hidden" name="p" value="{{ relpath }}"><label class="form-label">{{ _("Expires after hours") }}</label><input class="form-control mb-2" type="number" min="1" max="720" name="hours" value="24"><label class="form-label">{{ _("Optional password") }}</label><input class="form-control mb-2" type="password" name="password" maxlength="128"><button class="btn btn-accent w-100" type="submit">{{ _("Create link") }}</button></form></div>
+  <div class="card-soft p-3"><h5>{{ _("Active share links") }}</h5>{% for s in shares %}<div class="border rounded p-2 mb-2"><a style="word-break:break-all" href="{{ s.url }}" target="_blank">{{ s.url }}</a><div class="small-muted">{{ _("Expires") }}: {{ s.expires_at or _('Never') }} · {% if s.protected %}{{ _("Password protected") }}{% else %}{{ _("No password") }}{% endif %}</div><form method="post" action="{{ url_for('file_share_revoke', sid=s.id) }}" class="mt-2" data-confirm="{{ _('Revoke this share link?') }}"><button class="btn btn-sm btn-ghost" type="submit">{{ _("Revoke") }}</button></form></div>{% else %}<div class="small-muted">{{ _("No active share links.") }}</div>{% endfor %}</div></div>
+</div>
+<div class="card-soft p-3 mt-3"><h5>{{ _("Comments") }}</h5><form method="post" action="{{ url_for('file_comment_add') }}" class="mb-3"><input type="hidden" name="p" value="{{ relpath }}"><textarea class="form-control mb-2" name="body" maxlength="2000" required placeholder="{{ _('Write a comment about this entry…') }}"></textarea><button class="btn btn-accent" type="submit">{{ _("Add comment") }}</button></form>{% for c in comments %}<div class="border rounded p-2 mb-2"><div class="d-flex justify-content-between gap-2"><strong>{{ c.author }}</strong><span class="small-muted">{{ c.created_at }}</span></div><div style="white-space:pre-wrap">{{ c.body }}</div><form method="post" action="{{ url_for('file_comment_delete', cid=c.id) }}" class="mt-2" data-confirm="{{ _('Delete this comment?') }}"><input type="hidden" name="p" value="{{ relpath }}"><button class="btn btn-sm btn-ghost" type="submit">{{ _("Delete") }}</button></form></div>{% else %}<div class="small-muted">{{ _("No comments have been added.") }}</div>{% endfor %}</div>
+{% endblock %}
+"""
+
+TEMPLATES["file_move.html"] = r"""
+{% extends "base.html" %}{% block content %}<div class="card-soft p-3"><h3>{{ _("Move entry") }}</h3><div class="small-muted mb-3">/{{ relpath }}</div><form method="post" data-confirm="{{ _('Move this entry?') }}"><input type="hidden" name="p" value="{{ relpath }}"><label class="form-label">{{ _("Destination folder") }}</label><select class="form-select mb-3" name="destination"><option value="">/</option>{% for f in folder_choices %}<option value="{{ f }}">/{{ f }}</option>{% endfor %}</select><div class="d-flex gap-2"><button class="btn btn-accent" type="submit">{{ _("Move") }}</button><a class="btn btn-ghost" href="{{ url_for('files', p=parent_relpath) }}">{{ _("Cancel") }}</a></div></form></div>{% endblock %}
+"""
+
+TEMPLATES["file_rename.html"] = r"""
+{% extends "base.html" %}{% block content %}<div class="card-soft p-3"><h3>{{ _("Rename entry") }}</h3><div class="small-muted mb-3">/{{ relpath }}</div><form method="post" data-confirm="{{ _('Rename this entry?') }}"><input type="hidden" name="p" value="{{ relpath }}"><label class="form-label">{{ _("New name") }}</label><input class="form-control mb-3" name="new_name" value="{{ name }}" required maxlength="255"><div class="d-flex gap-2"><button class="btn btn-accent" type="submit">{{ _("Rename") }}</button><a class="btn btn-ghost" href="{{ url_for('files', p=parent_relpath) }}">{{ _("Cancel") }}</a></div></form></div>{% endblock %}
+"""
+
+TEMPLATES["file_activity.html"] = r"""
+{% extends "base.html" %}{% block content %}<div class="d-flex justify-content-between align-items-start mb-3"><div><h3>{{ _("File activity") }}</h3><div class="small-muted">{{ _("Recent changes and downloads in your vault") }}</div></div><a class="btn btn-ghost" href="{{ url_for('files') }}">{{ _("Back") }}</a></div><div class="card-soft p-3"><div class="table-responsive"><table class="table table-dark table-striped"><thead><tr><th>{{ _("Time") }}</th><th>{{ _("Action") }}</th><th>{{ _("Path") }}</th><th>{{ _("Details") }}</th></tr></thead><tbody>{% for a in activity %}<tr><td class="small-muted">{{ a.created_at }}</td><td>{{ a.action }}</td><td style="word-break:break-all">/{{ a.relpath }}</td><td class="small-muted">{{ a.detail or '' }}</td></tr>{% else %}<tr><td colspan="4" class="small-muted">{{ _("No file activity yet.") }}</td></tr>{% endfor %}</tbody></table></div></div>{% endblock %}
+"""
+
+TEMPLATES["public_share.html"] = r"""
+{% extends "base.html" %}{% block content %}<div class="card-soft p-3 mx-auto" style="max-width:760px"><h3>{{ _("Shared file") }}</h3>{% if locked %}<div class="small-muted mb-3">{{ _("This share link is password protected.") }}</div><form method="post"><label class="form-label">{{ _("Password") }}</label><input class="form-control mb-3" type="password" name="password" required><button class="btn btn-accent" type="submit">{{ _("Open share") }}</button></form>{% else %}<div class="mb-2"><strong>{{ name }}</strong></div><div class="small-muted mb-3">{{ kind }} · {{ size_h }} · {{ _("Expires") }}: {{ expires_at or _('Never') }}</div><a class="btn btn-accent" href="{{ url_for('public_share_download', token=token) }}">{{ _("Download") }}</a>{% endif %}</div>{% endblock %}
 """
 
 TEMPLATES["chats.html"] = r"""{% extends "base.html" %}
@@ -10272,6 +10607,89 @@ def _host_is_allowed(hostname: str) -> bool:
     return False
 
 # ---------------------------
+# Public-link QR generation
+# ---------------------------
+
+CURRENT_LOCAL_URL = None
+CURRENT_LOCALHOST_URL = None
+
+
+def _qr_placeholder_data_uri() -> str:
+    """Return a non-crashing placeholder if the qrcode package is unavailable."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240">'
+        '<rect width="240" height="240" fill="white"/>'
+        '<rect x="16" y="16" width="208" height="208" rx="16" fill="none" stroke="#111" stroke-width="6"/>'
+        '<text x="120" y="112" text-anchor="middle" font-family="sans-serif" font-size="18" fill="#111">QR unavailable</text>'
+        '<text x="120" y="140" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#444">Use the text link below</text>'
+        '</svg>'
+    )
+    return "data:image/svg+xml;base64," + base64.b64encode(svg.encode("utf-8")).decode("ascii")
+
+
+def _link_barcode_data_uri(link: str) -> str:
+    """Generate a fresh SVG QR image for one URL without writing temporary files."""
+    value = str(link or "").strip()
+    if not value:
+        return _qr_placeholder_data_uri()
+    try:
+        if qrcode is None:
+            raise RuntimeError("Python package 'qrcode' is unavailable")
+        qr = qrcode.QRCode(
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=8,
+            border=3,
+        )
+        qr.add_data(value)
+        qr.make(fit=True)
+        image = qr.make_image(image_factory=qrcode.image.svg.SvgPathImage)
+        output = io.BytesIO()
+        image.save(output)
+        return "data:image/svg+xml;base64," + base64.b64encode(output.getvalue()).decode("ascii")
+    except Exception as exc:
+        log.error(
+            "QR generation failed for %s: %s",
+            value,
+            exc,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        return _qr_placeholder_data_uri()
+
+
+def _login_link_cards():
+    """Build freshly generated QR cards for every currently available link."""
+    cards = []
+    seen = set()
+
+    def add(label, url):
+        clean = str(url or "").strip().rstrip("/")
+        if not clean or clean in seen:
+            return
+        seen.add(clean)
+        cards.append({
+            "label": str(label),
+            "url": clean,
+            "barcode_data_uri": _link_barcode_data_uri(clean),
+        })
+
+    # Stable/generated links first so the label describes the actual transport.
+    add("Local", globals().get("CURRENT_LOCAL_URL"))
+    add("Localhost", globals().get("CURRENT_LOCALHOST_URL"))
+    add("Cloudflared", globals().get("CLOUDFLARED_URL"))
+    onion = globals().get("TOR_ONION")
+    add("Tor", ("http://" + str(onion).strip()) if onion else None)
+
+    # Also include the URL currently used by the visitor when it is not already listed.
+    try:
+        add("Current link", request.url_root)
+    except Exception as exc:
+        log.error("Could not read current request URL for QR list: %s", exc)
+
+    return cards
+
+
+# ---------------------------
 # Routes: auth/home
 # ---------------------------
 
@@ -10292,7 +10710,7 @@ Returns:
 """
     if is_logged_in():
         return redirect(url_for("profiler"))
-    return render_template("landing.html", title="ButSystem")
+    return render_template("landing.html", title="ButSystem", login_link_cards=_login_link_cards())
 
 @app.route("/home")
 @login_required
@@ -10332,6 +10750,203 @@ def api_bootstrap():
     except Exception:
         prof = {"nickname": me, "bio": "", "links": []}
     return jsonify({"ok": True, "me": me, "profile": {"nickname": prof.get("nickname") or me}})
+
+# ---------------------------
+# Weather (Open-Meteo; no API key)
+# ---------------------------
+_WEATHER_CACHE: Dict[Tuple[float, float], Tuple[float, Dict[str, Any]]] = {}
+_WEATHER_SEARCH_CACHE: Dict[Tuple[str, str], Tuple[float, List[Dict[str, Any]]]] = {}
+_WEATHER_LOCK = threading.RLock()
+_WEATHER_TTL = 10 * 60
+_WEATHER_SEARCH_TTL = 60 * 60
+
+
+def _weather_json(url: str, timeout: int = 12) -> Dict[str, Any]:
+    req = urllib.request.Request(url, headers={"User-Agent": "ButSystem/Weather 1.0", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        raw = response.read(4 * 1024 * 1024)
+    data = json.loads(raw.decode("utf-8", errors="replace"))
+    if not isinstance(data, dict):
+        raise ValueError("invalid weather response")
+    return data
+
+
+def _weather_code(code: Any, lang: str, is_day: bool = True) -> Tuple[str, str]:
+    try:
+        code = int(code)
+    except Exception:
+        code = -1
+    labels_en = {
+        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
+        56: "Freezing drizzle", 57: "Heavy freezing drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain",
+        66: "Freezing rain", 67: "Heavy freezing rain", 71: "Light snow", 73: "Snow", 75: "Heavy snow",
+        77: "Snow grains", 80: "Light showers", 81: "Showers", 82: "Heavy showers",
+        85: "Snow showers", 86: "Heavy snow showers", 95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm with hail",
+    }
+    labels_el = {
+        0: "Καθαρός ουρανός", 1: "Κυρίως αίθριος", 2: "Λίγες νεφώσεις", 3: "Συννεφιά",
+        45: "Ομίχλη", 48: "Παγωμένη ομίχλη", 51: "Ασθενής ψιχάλα", 53: "Ψιχάλα", 55: "Έντονη ψιχάλα",
+        56: "Παγωμένη ψιχάλα", 57: "Έντονη παγωμένη ψιχάλα", 61: "Ασθενής βροχή", 63: "Βροχή", 65: "Ισχυρή βροχή",
+        66: "Παγωμένη βροχή", 67: "Ισχυρή παγωμένη βροχή", 71: "Ασθενής χιονόπτωση", 73: "Χιονόπτωση", 75: "Ισχυρή χιονόπτωση",
+        77: "Κόκκοι χιονιού", 80: "Ασθενείς μπόρες", 81: "Μπόρες", 82: "Ισχυρές μπόρες",
+        85: "Μπόρες χιονιού", 86: "Ισχυρές μπόρες χιονιού", 95: "Καταιγίδα", 96: "Καταιγίδα με χαλάζι", 99: "Ισχυρή καταιγίδα με χαλάζι",
+    }
+    if code == 0:
+        icon = "☀️" if is_day else "🌙"
+    elif code in (1, 2):
+        icon = "🌤️" if is_day else "☁️"
+    elif code == 3:
+        icon = "☁️"
+    elif code in (45, 48):
+        icon = "🌫️"
+    elif code in (51, 53, 55, 56, 57):
+        icon = "🌦️"
+    elif code in (61, 63, 65, 66, 67, 80, 81, 82):
+        icon = "🌧️"
+    elif code in (71, 73, 75, 77, 85, 86):
+        icon = "🌨️"
+    elif code in (95, 96, 99):
+        icon = "⛈️"
+    else:
+        icon = "🌡️"
+    labels = labels_el if lang == "el" else labels_en
+    return labels.get(code, "Άγνωστες συνθήκες" if lang == "el" else "Unknown conditions"), icon
+
+
+def _weather_daily_rows(raw: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
+    daily = raw.get("daily") if isinstance(raw.get("daily"), dict) else {}
+    dates = daily.get("time") or []
+    rows: List[Dict[str, Any]] = []
+    def at(key: str, idx: int, default=None):
+        values = daily.get(key) or []
+        return values[idx] if idx < len(values) else default
+    for idx, date in enumerate(dates[:14]):
+        code = at("weather_code", idx, -1)
+        description, icon = _weather_code(code, lang, True)
+        rows.append({
+            "date": date,
+            "weather_code": code,
+            "description": description,
+            "icon": icon,
+            "max_temperature": at("temperature_2m_max", idx),
+            "min_temperature": at("temperature_2m_min", idx),
+            "max_apparent_temperature": at("apparent_temperature_max", idx),
+            "min_apparent_temperature": at("apparent_temperature_min", idx),
+            "sunrise": at("sunrise", idx),
+            "sunset": at("sunset", idx),
+            "precipitation_sum": at("precipitation_sum", idx, 0),
+            "precipitation_probability": at("precipitation_probability_max", idx, 0),
+            "wind_speed_max": at("wind_speed_10m_max", idx, 0),
+            "wind_gusts_max": at("wind_gusts_10m_max", idx, 0),
+            "uv_index_max": at("uv_index_max", idx),
+        })
+    return rows
+
+
+@app.route("/weather")
+@login_required
+def weather_page():
+    return render_template("weather.html", title=_("Weather"))
+
+
+@app.route("/api/weather/search")
+@login_required
+def api_weather_search():
+    lang = (request.args.get("lang") or get_lang()).strip().lower()
+    lang = "el" if lang == "el" else "en"
+    query = (request.args.get("q") or "").strip()
+    if len(query) < 2 or len(query) > 100:
+        return jsonify({"ok": False, "error": "invalid_search"}), 400
+    if _rate_limit_hit("weather_search", _client_ip() or "?", limit=40, window_sec=60):
+        return jsonify({"ok": False, "error": "rate_limited"}), 429
+    key = (lang, query.casefold())
+    now = time.time()
+    with _WEATHER_LOCK:
+        cached = _WEATHER_SEARCH_CACHE.get(key)
+        if cached and now - cached[0] < _WEATHER_SEARCH_TTL:
+            return jsonify({"ok": True, "results": cached[1], "cached": True})
+    params = urllib.parse.urlencode({"name": query, "count": 10, "language": lang, "format": "json"})
+    try:
+        raw = _weather_json("https://geocoding-api.open-meteo.com/v1/search?" + params)
+        results = []
+        for item in (raw.get("results") or [])[:10]:
+            try:
+                lat, lon = float(item.get("latitude")), float(item.get("longitude"))
+            except Exception:
+                continue
+            name = str(item.get("name") or "").strip()
+            parts = [str(item.get(k) or "").strip() for k in ("admin1", "country")]
+            parts = [part for part in parts if part and part.casefold() != name.casefold()]
+            detail = ", ".join(parts)
+            label = ", ".join([part for part in (name, detail) if part])
+            results.append({"name": name or label, "detail": detail, "label": label, "latitude": lat, "longitude": lon, "timezone": item.get("timezone") or ""})
+        with _WEATHER_LOCK:
+            _WEATHER_SEARCH_CACHE[key] = (time.time(), results)
+        return jsonify({"ok": True, "results": results})
+    except Exception as exc:
+        log.exception("Weather location search failed: %s", exc)
+        return jsonify({"ok": False, "error": "weather_search_unavailable"}), 502
+
+
+@app.route("/api/weather/forecast", methods=["POST"])
+@login_required
+def api_weather_forecast():
+    if _rate_limit_hit("weather_forecast", _client_ip() or "?", limit=60, window_sec=60):
+        return jsonify({"ok": False, "error": "rate_limited"}), 429
+    payload = request.get_json(silent=True) or {}
+    try:
+        latitude = float(payload.get("latitude"))
+        longitude = float(payload.get("longitude"))
+    except Exception:
+        return jsonify({"ok": False, "error": "invalid_coordinates"}), 400
+    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
+        return jsonify({"ok": False, "error": "invalid_coordinates"}), 400
+    lang = "el" if str(payload.get("lang") or get_lang()).lower() == "el" else "en"
+    label = str(payload.get("label") or ("Τρέχουσα τοποθεσία" if lang == "el" else "Current location")).strip()[:160]
+    cache_key = (round(latitude, 4), round(longitude, 4))
+    now = time.time()
+    raw: Dict[str, Any]
+    with _WEATHER_LOCK:
+        cached = _WEATHER_CACHE.get(cache_key)
+        raw = cached[1] if cached and now - cached[0] < _WEATHER_TTL else {}
+    if not raw:
+        params = {
+            "latitude": f"{latitude:.6f}", "longitude": f"{longitude:.6f}", "timezone": "auto", "forecast_days": 14,
+            "temperature_unit": "celsius", "wind_speed_unit": "kmh", "precipitation_unit": "mm",
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max",
+        }
+        try:
+            raw = _weather_json("https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode(params))
+            with _WEATHER_LOCK:
+                _WEATHER_CACHE[cache_key] = (time.time(), raw)
+                if len(_WEATHER_CACHE) > 250:
+                    oldest = sorted(_WEATHER_CACHE.items(), key=lambda item: item[1][0])[:50]
+                    for old_key, _ in oldest:
+                        _WEATHER_CACHE.pop(old_key, None)
+        except Exception as exc:
+            log.exception("Weather forecast failed: %s", exc)
+            return jsonify({"ok": False, "error": "weather_unavailable"}), 502
+    current = raw.get("current") if isinstance(raw.get("current"), dict) else {}
+    description, icon = _weather_code(current.get("weather_code"), lang, bool(current.get("is_day", 1)))
+    normalized_current = {
+        "time": current.get("time"), "temperature": current.get("temperature_2m"), "apparent_temperature": current.get("apparent_temperature"),
+        "humidity": current.get("relative_humidity_2m"), "precipitation": current.get("precipitation"), "rain": current.get("rain"),
+        "showers": current.get("showers"), "snowfall": current.get("snowfall"), "cloud_cover": current.get("cloud_cover"),
+        "pressure": current.get("surface_pressure"), "wind_speed": current.get("wind_speed_10m"), "wind_direction": current.get("wind_direction_10m"),
+        "wind_gusts": current.get("wind_gusts_10m"), "weather_code": current.get("weather_code"), "description": description, "icon": icon,
+    }
+    return jsonify({
+        "ok": True,
+        "location": {"label": label, "latitude": latitude, "longitude": longitude, "timezone": raw.get("timezone") or "", "elevation": raw.get("elevation")},
+        "current": normalized_current,
+        "daily": _weather_daily_rows(raw, lang),
+        "generated_at": now_z(),
+        "source": "Open-Meteo",
+    })
+
+
 # ---------------------------
 # World News (RSS aggregation; cached)
 # ---------------------------
@@ -10391,6 +11006,61 @@ NEWS_TOPICS = [
 
     ("darkweb", {"en": "Dark Web", "el": "Dark Web"},
      {"en": "dark web OR darknet OR onion", "el": "dark web OR darknet OR onion"}),
+
+    ("world", {"en": "World", "el": "Κόσμος"},
+     {"en": "world news OR international news", "el": "παγκόσμια νέα OR διεθνείς ειδήσεις"}),
+    ("greece", {"en": "Greece", "el": "Ελλάδα"},
+     {"en": "Greece Greek news", "el": "Ελλάδα ελληνικές ειδήσεις"}),
+    ("technology", {"en": "Technology", "el": "Τεχνολογία"},
+     {"en": "technology news OR consumer technology", "el": "τεχνολογία OR τεχνολογικά νέα"}),
+    ("artificial_intelligence", {"en": "Artificial Intelligence", "el": "Τεχνητή Νοημοσύνη"},
+     {"en": "artificial intelligence OR generative AI OR machine learning", "el": "τεχνητή νοημοσύνη OR generative AI OR μηχανική μάθηση"}),
+    ("science", {"en": "Science", "el": "Επιστήμη"},
+     {"en": "science research discovery", "el": "επιστήμη έρευνα ανακάλυψη"}),
+    ("space", {"en": "Space", "el": "Διάστημα"},
+     {"en": "space NASA ESA astronomy", "el": "διάστημα NASA ESA αστρονομία"}),
+    ("business", {"en": "Business", "el": "Επιχειρήσεις"},
+     {"en": "business companies industry", "el": "επιχειρήσεις εταιρείες βιομηχανία"}),
+    ("economy", {"en": "Economy", "el": "Οικονομία"},
+     {"en": "economy inflation interest rates employment", "el": "οικονομία πληθωρισμός επιτόκια εργασία"}),
+    ("markets", {"en": "Markets", "el": "Αγορές"},
+     {"en": "stock market investing markets", "el": "χρηματιστήριο επενδύσεις αγορές"}),
+    ("jobs", {"en": "Jobs & Careers", "el": "Εργασία & Καριέρα"},
+     {"en": "jobs careers hiring workplace", "el": "εργασία καριέρα προσλήψεις εργασιακά"}),
+    ("health", {"en": "Health", "el": "Υγεία"},
+     {"en": "health medicine public health", "el": "υγεία ιατρική δημόσια υγεία"}),
+    ("environment", {"en": "Environment", "el": "Περιβάλλον"},
+     {"en": "environment climate nature pollution", "el": "περιβάλλον κλίμα φύση ρύπανση"}),
+    ("energy", {"en": "Energy", "el": "Ενέργεια"},
+     {"en": "energy electricity renewable energy oil gas", "el": "ενέργεια ηλεκτρισμός ανανεώσιμες πετρέλαιο φυσικό αέριο"}),
+    ("gaming", {"en": "Gaming", "el": "Gaming"},
+     {"en": "video games gaming PlayStation Xbox Nintendo PC mobile", "el": "βιντεοπαιχνίδια gaming PlayStation Xbox Nintendo PC κινητά"}),
+    ("android", {"en": "Android", "el": "Android"},
+     {"en": "Android phones apps updates", "el": "Android κινητά εφαρμογές ενημερώσεις"}),
+    ("linux", {"en": "Linux", "el": "Linux"},
+     {"en": "Linux open source Ubuntu Debian", "el": "Linux ανοιχτό λογισμικό Ubuntu Debian"}),
+    ("programming", {"en": "Programming", "el": "Προγραμματισμός"},
+     {"en": "software development programming Python JavaScript GitHub", "el": "ανάπτυξη λογισμικού προγραμματισμός Python JavaScript GitHub"}),
+    ("gadgets", {"en": "Gadgets", "el": "Gadgets"},
+     {"en": "smartphones laptops gadgets wearables", "el": "smartphones laptops gadgets wearables"}),
+    ("startups", {"en": "Startups", "el": "Startups"},
+     {"en": "startup funding venture capital entrepreneurs", "el": "startup χρηματοδότηση επιχειρηματικότητα"}),
+    ("robotics", {"en": "Robotics", "el": "Ρομποτική"},
+     {"en": "robotics robots automation", "el": "ρομποτική ρομπότ αυτοματισμός"}),
+    ("social_media", {"en": "Social Media", "el": "Κοινωνικά Δίκτυα"},
+     {"en": "social media TikTok Facebook Instagram X platform", "el": "κοινωνικά δίκτυα TikTok Facebook Instagram X πλατφόρμα"}),
+    ("telecom", {"en": "Telecom", "el": "Τηλεπικοινωνίες"},
+     {"en": "telecommunications 5G mobile networks broadband", "el": "τηλεπικοινωνίες 5G δίκτυα κινητής ευρυζωνικότητα"}),
+    ("transport", {"en": "Cars & Transport", "el": "Αυτοκίνητα & Μεταφορές"},
+     {"en": "cars electric vehicles transport aviation", "el": "αυτοκίνητα ηλεκτρικά οχήματα μεταφορές αεροπορία"}),
+    ("travel", {"en": "Travel", "el": "Ταξίδια"},
+     {"en": "travel tourism destinations airlines", "el": "ταξίδια τουρισμός προορισμοί αεροπορικές"}),
+    ("entertainment", {"en": "Entertainment", "el": "Ψυχαγωγία"},
+     {"en": "movies television music entertainment", "el": "ταινίες τηλεόραση μουσική ψυχαγωγία"}),
+    ("sports", {"en": "Sports", "el": "Αθλητισμός"},
+     {"en": "sports football basketball Formula 1 tennis", "el": "αθλητισμός ποδόσφαιρο μπάσκετ Formula 1 τένις"}),
+    ("education", {"en": "Education", "el": "Εκπαίδευση"},
+     {"en": "education schools universities students", "el": "εκπαίδευση σχολεία πανεπιστήμια μαθητές φοιτητές"}),
 ]
 
 
@@ -10509,43 +11179,58 @@ def _fetch_url(url: str, timeout: int = 7) -> bytes:
         return r.read()
 
 def _fetch_news_uncached(lang: str) -> List[Dict[str, str]]:
+    feeds = _news_feeds_for_lang(lang)
     items: List[Dict[str, str]] = []
-    for source, url, tkey, tlabel, is_google in _news_feeds_for_lang(lang):
+
+    def fetch_one(feed):
+        source, url, tkey, tlabel, is_google = feed
         try:
             xmlb = _fetch_url(url, timeout=7)
-            items.extend(_parse_rss_items(xmlb, source, tkey, tlabel, is_google))
+            return _parse_rss_items(xmlb, source, tkey, tlabel, is_google)
         except Exception:
-            continue
+            return []
 
-    # Sort by published date (best effort). If parsing fails, keep feed order.
-    def parse_dt(p: str) -> float:
-        p = (p or "").strip()
-        if not p:
+    # More interests means many feeds. Fetch concurrently so News does not become dramatically slower.
+    workers = min(12, max(4, len(feeds)))
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="ButSystemNews") as pool:
+        futures = [pool.submit(fetch_one, feed) for feed in feeds]
+        for future in as_completed(futures):
+            try:
+                items.extend(future.result())
+            except Exception:
+                continue
+
+    def parse_dt(published: str) -> float:
+        published = (published or "").strip()
+        if not published:
             return 0.0
         try:
             from email.utils import parsedate_to_datetime
-            dt = parsedate_to_datetime(p)
-            return dt.timestamp()
+            return parsedate_to_datetime(published).timestamp()
         except Exception:
             pass
         try:
-            dt = datetime.fromisoformat(p.replace("Z", "+00:00"))
-            return dt.timestamp()
+            return datetime.fromisoformat(published.replace("Z", "+00:00")).timestamp()
         except Exception:
             return 0.0
 
     items.sort(key=lambda it: parse_dt(it.get("published") or ""), reverse=True)
 
-    # Deduplicate by URL (keep the first occurrence)
+    # Deduplicate and keep enough stories from every interest instead of letting popular topics crowd out niche ones.
     seen = set()
-    uniq = []
-    for it in items:
-        u = (it.get("url") or "").strip()
-        if not u or u in seen:
+    per_topic: Dict[str, int] = {}
+    balanced: List[Dict[str, str]] = []
+    for item in items:
+        url = (item.get("url") or "").strip()
+        topic_key = str(item.get("topic_key") or "other")
+        if not url or url in seen or per_topic.get(topic_key, 0) >= 25:
             continue
-        seen.add(u)
-        uniq.append(it)
-    return uniq[:60]
+        seen.add(url)
+        per_topic[topic_key] = per_topic.get(topic_key, 0) + 1
+        balanced.append(item)
+        if len(balanced) >= 800:
+            break
+    return balanced
 
 def get_news_items(lang: str, force: bool = False) -> List[Dict[str, str]]:
     """Return cached news items (per-language)."""
@@ -11477,528 +12162,713 @@ def profile_pic(username: str):
 
 
 # ---------------------------
-# Files (NOT encrypted)
+# Files (advanced private per-user vault; stored plaintext)
 # ---------------------------
 
+FILE_CATEGORIES = (
+    ("all", "All"), ("folders", "Folders"), ("documents", "Documents"),
+    ("images", "Images"), ("videos", "Videos"), ("audio", "Audio"),
+    ("archives", "Archives"), ("code", "Code"), ("apps", "Applications"),
+    ("other", "Other"),
+)
+_FILE_DOC_EXTS = {".pdf", ".txt", ".md", ".rtf", ".doc", ".docx", ".odt", ".xls", ".xlsx", ".ods", ".ppt", ".pptx", ".odp", ".csv", ".epub"}
+_FILE_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff", ".heic", ".avif", ".svg"}
+_FILE_VIDEO_EXTS = {".mp4", ".webm", ".mkv", ".mov", ".avi", ".m4v", ".3gp", ".mpeg", ".mpg"}
+_FILE_AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".oga", ".m4a", ".aac", ".flac", ".opus", ".wma"}
+_FILE_ARCHIVE_EXTS = {".zip", ".7z", ".rar", ".tar", ".gz", ".bz2", ".xz", ".tgz", ".apk", ".jar"}
+_FILE_CODE_EXTS = {".py", ".js", ".ts", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".sh", ".bash", ".java", ".c", ".h", ".cpp", ".hpp", ".cs", ".go", ".rs", ".php", ".sql", ".ini", ".toml"}
+_FILE_APP_EXTS = {".apk", ".exe", ".msi", ".appimage", ".deb", ".rpm", ".dmg", ".ipa"}
+FILE_UPLOAD_CHUNK_BYTES = 16 * 1024 * 1024
+FILE_STORAGE_MAX_RATIO = 0.85
+FILE_META_LOCK = threading.RLock()
 
-def list_dir_entries(username: str, rel: str, sort: str, order: str):
-    """list_dir_entries.
 
-Route handler or application helper.
+def _file_category(path_or_name: str, is_dir: bool = False) -> str:
+    if is_dir:
+        return "folders"
+    ext = pathlib.Path(path_or_name).suffix.lower()
+    mime = guess_mime(path_or_name).lower()
+    if ext in _FILE_APP_EXTS:
+        return "apps"
+    if ext in _FILE_IMAGE_EXTS or mime.startswith("image/"):
+        return "images"
+    if ext in _FILE_VIDEO_EXTS or mime.startswith("video/"):
+        return "videos"
+    if ext in _FILE_AUDIO_EXTS or mime.startswith("audio/"):
+        return "audio"
+    if ext in _FILE_ARCHIVE_EXTS:
+        return "archives"
+    if ext in _FILE_CODE_EXTS:
+        return "code"
+    if ext in _FILE_DOC_EXTS or mime.startswith("text/"):
+        return "documents"
+    return "other"
 
-This docstring was expanded to make future maintenance easier.
 
-Args:
-    username: Parameter.
-    rel: Parameter.
-    sort: Parameter.
-    order: Parameter.
+def _category_label(key: str) -> str:
+    return dict(FILE_CATEGORIES).get(key, key.title())
 
-Returns:
-    Varies.
-"""
-    ap = abs_user_path(username, rel)
-    os.makedirs(ap, exist_ok=True)
-    if not os.path.isdir(ap):
+
+def _validate_entry_name(value: str) -> str:
+    name = (value or "").strip()
+    if not name or name in (".", "..") or len(name) > 255:
+        raise ValueError("bad_name")
+    if any(ch in name for ch in ("/", "\\", "\x00", "\n", "\r")):
+        raise ValueError("bad_name")
+    return name
+
+
+def _unique_destination(directory: str, filename: str) -> str:
+    candidate = os.path.join(directory, filename)
+    if not os.path.exists(candidate):
+        return candidate
+    p = pathlib.Path(filename)
+    stem, suffix = p.stem or p.name, p.suffix
+    idx = 2
+    while True:
+        candidate = os.path.join(directory, f"{stem} ({idx}){suffix}")
+        if not os.path.exists(candidate):
+            return candidate
+        idx += 1
+
+
+def _disk_allows_upload(target_dir: str, expected_total: int, already_written: int = 0) -> bool:
+    try:
+        usage = shutil.disk_usage(target_dir)
+        remaining = max(0, int(expected_total) - max(0, int(already_written)))
+        predicted = int(usage.used) + remaining
+        return usage.total > 0 and (predicted / usage.total) < FILE_STORAGE_MAX_RATIO and usage.free >= remaining
+    except Exception:
+        return False
+
+
+def _storage_stats(username: str) -> Dict[str, Any]:
+    root = user_root(username)
+    usage = shutil.disk_usage(root)
+    percent = round((usage.used / usage.total) * 100, 1) if usage.total else 0
+    return {"total": usage.total, "used": usage.used, "free": usage.free, "total_h": human_size(usage.total), "used_h": human_size(usage.used), "free_h": human_size(usage.free), "percent": percent}
+
+
+def _folder_size(path: str) -> int:
+    total = 0
+    for root, dirs, files_ in os.walk(path, followlinks=False):
+        dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(root, d))]
+        for name in files_:
+            fp = os.path.join(root, name)
+            try:
+                if not os.path.islink(fp):
+                    total += os.path.getsize(fp)
+            except Exception:
+                pass
+    return total
+
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while True:
+            block = fh.read(8 * 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _all_user_folders(username: str, exclude_rel: str = "") -> List[str]:
+    root = user_root(username)
+    exclude_rel = safe_relpath(exclude_rel)
+    output = []
+    for current, dirs, _files in os.walk(root, followlinks=False):
+        dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(current, d))]
+        rel = os.path.relpath(current, root).replace(os.sep, "/")
+        rel = "" if rel == "." else rel
+        if rel and not (exclude_rel and (rel == exclude_rel or rel.startswith(exclude_rel + "/"))):
+            output.append(rel)
+    return sorted(output, key=str.casefold)
+
+
+def _log_file_activity(owner: str, action: str, relpath: str, detail: str = "", actor: Optional[str] = None) -> None:
+    try:
+        conn = db_connect()
+        conn.execute("INSERT INTO file_activity(owner, actor, action, relpath, detail, created_at) VALUES(?,?,?,?,?,?)", (owner, actor or owner, action, safe_relpath(relpath), str(detail or "")[:2000], now_z()))
+        # Keep a useful history without allowing the SQLite table to grow forever.
+        conn.execute("DELETE FROM file_activity WHERE owner=? AND id NOT IN (SELECT id FROM file_activity WHERE owner=? ORDER BY id DESC LIMIT 5000)", (owner, owner))
+        conn.commit(); conn.close()
+    except Exception:
+        pass
+
+
+def _delete_file_metadata(owner: str, relpath: str) -> None:
+    relpath = safe_relpath(relpath)
+    like = relpath + "/%"
+    with FILE_META_LOCK:
+        conn = db_connect()
+        conn.execute("DELETE FROM file_comments WHERE owner=? AND (relpath=? OR relpath LIKE ?)", (owner, relpath, like))
+        conn.execute("UPDATE file_shares SET revoked=1 WHERE owner=? AND (relpath=? OR relpath LIKE ?)", (owner, relpath, like))
+        conn.commit(); conn.close()
+
+
+def _remap_file_metadata(owner: str, old_rel: str, new_rel: str) -> None:
+    old_rel, new_rel = safe_relpath(old_rel), safe_relpath(new_rel)
+    with FILE_META_LOCK:
+        conn = db_connect()
+        for table in ("file_comments", "file_shares"):
+            rows = conn.execute(f"SELECT id, relpath FROM {table} WHERE owner=? AND (relpath=? OR relpath LIKE ?)", (owner, old_rel, old_rel + "/%")).fetchall()
+            for row in rows:
+                suffix = row["relpath"][len(old_rel):]
+                conn.execute(f"UPDATE {table} SET relpath=? WHERE id=?", (new_rel + suffix, row["id"]))
+        conn.commit(); conn.close()
+
+
+def _parse_date_start(value: str) -> Optional[float]:
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").timestamp() if value else None
+    except Exception:
+        return None
+
+
+def _parse_date_end(value: str) -> Optional[float]:
+    try:
+        return (datetime.strptime(value, "%Y-%m-%d") + timedelta(days=1)).timestamp() if value else None
+    except Exception:
+        return None
+
+
+def list_dir_entries(username: str, rel: str, sort: str = "name", order: str = "asc", query: str = "", category: str = "all", size_min: int = 0, size_max: Optional[int] = None, date_from_ts: Optional[float] = None, date_to_ts: Optional[float] = None):
+    rel = safe_relpath(rel)
+    base = abs_user_path(username, rel)
+    os.makedirs(base, exist_ok=True)
+    if not os.path.isdir(base):
         raise ValueError("Not a directory")
-
-    entries = []
-    for name in os.listdir(ap):
-        full = os.path.join(ap, name)
+    query_cf = (query or "").strip().casefold()
+    rows = []
+    if query_cf:
+        iterator = []
+        for current, dirs, files_ in os.walk(base, followlinks=False):
+            dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(current, d))]
+            for name in dirs + files_:
+                iterator.append((current, name))
+    else:
+        iterator = [(base, name) for name in os.listdir(base)]
+    user_base = user_root(username)
+    for current, name in iterator:
+        full = os.path.join(current, name)
         try:
+            if os.path.islink(full):
+                continue
             st = os.stat(full)
         except Exception:
             continue
         is_dir = os.path.isdir(full)
-        kind = "Folder" if is_dir else guess_mime(name)
-        entries.append({"name": name, "is_dir": is_dir, "kind": kind, "size": st.st_size, "mtime": st.st_mtime})
-
-    reverse = (order == "desc")
-
-    def k_name(e):
-        """k_name.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    e: Parameter.
-
-Returns:
-    Varies.
-"""
-        return (0 if e["is_dir"] else 1, e["name"].lower())
-    def k_mtime(e):
-        """k_mtime.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    e: Parameter.
-
-Returns:
-    Varies.
-"""
-        return (0 if e["is_dir"] else 1, e["mtime"])
-    def k_size(e):
-        """k_size.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    e: Parameter.
-
-Returns:
-    Varies.
-"""
-        return (0 if e["is_dir"] else 1, e["size"])
-    def k_type(e):
-        """k_type.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    e: Parameter.
-
-Returns:
-    Varies.
-"""
-        return (0 if e["is_dir"] else 1, e["kind"].lower(), e["name"].lower())
-
-    if sort == "mtime":
-        entries.sort(key=k_mtime, reverse=reverse)
-    elif sort == "size":
-        entries.sort(key=k_size, reverse=reverse)
-    elif sort == "type":
-        entries.sort(key=k_type, reverse=reverse)
-    else:
-        entries.sort(key=k_name, reverse=reverse)
-
+        item_rel = os.path.relpath(full, user_base).replace(os.sep, "/")
+        parent_rel = os.path.dirname(item_rel).replace(os.sep, "/")
+        cat = _file_category(name, is_dir)
+        if query_cf and query_cf not in name.casefold() and query_cf not in item_rel.casefold():
+            continue
+        if category != "all" and cat != category:
+            continue
+        if not is_dir:
+            if st.st_size < max(0, int(size_min or 0)):
+                continue
+            if size_max is not None and st.st_size > int(size_max):
+                continue
+        if date_from_ts is not None and st.st_mtime < date_from_ts:
+            continue
+        if date_to_ts is not None and st.st_mtime >= date_to_ts:
+            continue
+        rows.append({"name": name, "relpath": item_rel, "display_parent": parent_rel if query_cf else "", "is_dir": is_dir, "category": cat, "kind": "Folder" if is_dir else guess_mime(name), "size": st.st_size, "mtime": st.st_mtime})
+    reverse = order == "desc"
+    key_map = {
+        "mtime": lambda e: (0 if e["is_dir"] else 1, e["mtime"], e["name"].casefold()),
+        "size": lambda e: (0 if e["is_dir"] else 1, e["size"], e["name"].casefold()),
+        "type": lambda e: (0 if e["is_dir"] else 1, e["category"], e["name"].casefold()),
+        "name": lambda e: (0 if e["is_dir"] else 1, e["name"].casefold()),
+    }
+    rows.sort(key=key_map.get(sort, key_map["name"]), reverse=reverse)
     class Obj: pass
     out = []
-    for e in entries:
+    for e in rows:
         o = Obj()
-        o.name = e["name"]
-        o.is_dir = e["is_dir"]
-        o.kind = e["kind"]
-        o.size_h = "-" if e["is_dir"] else human_size(int(e["size"]))
+        for key, value in e.items(): setattr(o, key, value)
+        o.category_label = _category_label(e["category"])
+        o.size_h = "—" if e["is_dir"] else human_size(int(e["size"]))
         o.mtime_h = datetime.fromtimestamp(e["mtime"]).isoformat(sep=" ", timespec="seconds")
         out.append(o)
     return out
 
+
 @app.route("/files")
 @login_required
 def files():
-    """files.
-
-Route handler or application helper.
-
-This docstring was expanded to make future maintenance easier.
-
-Returns:
-    Varies.
-"""
     rel = request.args.get("p", "") or ""
     sort = (request.args.get("sort") or "name").lower()
     order = (request.args.get("order") or "asc").lower()
-    if sort not in ("name", "mtime", "size", "type"):
-        sort = "name"
-    if order not in ("asc", "desc"):
-        order = "asc"
-
+    query = (request.args.get("q") or "").strip()
+    category = (request.args.get("category") or "all").lower()
+    if sort not in ("name", "mtime", "size", "type"): sort = "name"
+    if order not in ("asc", "desc"): order = "asc"
+    if category not in dict(FILE_CATEGORIES): category = "all"
+    try: size_min_mb = max(0, int(request.args.get("size_min") or 0))
+    except Exception: size_min_mb = 0
+    try:
+        raw_max = request.args.get("size_max")
+        size_max_mb = max(0, int(raw_max)) if raw_max not in (None, "") else None
+    except Exception: size_max_mb = None
+    date_from, date_to = request.args.get("date_from", ""), request.args.get("date_to", "")
     try:
         rel = safe_relpath(rel)
-        entries = list_dir_entries(current_user(), rel, sort, order)
+        entries = list_dir_entries(current_user(), rel, sort, order, query, category, size_min_mb * 1024 * 1024, None if size_max_mb is None else size_max_mb * 1024 * 1024, _parse_date_start(date_from), _parse_date_end(date_to))
     except Exception:
-        flash("Invalid path.")
-        return redirect(url_for("files"))
-
+        rel, entries = "", list_dir_entries(current_user(), "", sort, order)
+        flash("Could not open that folder.")
     parent = "/".join(rel.split("/")[:-1]) if rel else ""
-    return render_template("files.html", title="Files", relpath=rel, parent_relpath=parent,
-                           entries=entries, sort=sort, order=order)
+    return render_template("files.html", entries=entries, relpath=rel, parent_relpath=parent, sort=sort, order=order, query=query, category=category, categories=FILE_CATEGORIES, size_min=size_min_mb or "", size_max="" if size_max_mb is None else size_max_mb, date_from=date_from, date_to=date_to, folder_choices=_all_user_folders(current_user()), storage=_storage_stats(current_user()))
+
 
 @app.route("/mkdir", methods=["POST"])
 @login_required
 def mkdir():
-    """mkdir.
-
-Route handler or application helper.
-
-This docstring was expanded to make future maintenance easier.
-
-Returns:
-    Varies.
-"""
     rel = request.form.get("p", "") or ""
-    name = (request.form.get("name") or "").strip()
-    if not name:
-        return redirect(url_for("files", p=rel))
     try:
-        rel = safe_relpath(rel)
-        name = secure_filename(name)
-        if not name:
-            raise ValueError("bad name")
-        ap = abs_user_path(current_user(), rel)
-        newp = os.path.join(ap, name)
-        os.makedirs(newp, exist_ok=False)
+        rel = safe_relpath(rel); name = _validate_entry_name(request.form.get("name", "")); target = os.path.join(abs_user_path(current_user(), rel), name)
+        if os.path.exists(target): raise FileExistsError
+        os.makedirs(target)
+        item_rel = safe_relpath(f"{rel}/{name}" if rel else name)
+        _log_file_activity(current_user(), "folder_created", item_rel)
         flash("Folder created.")
-    except FileExistsError:
-        flash("Folder already exists.")
-    except Exception:
-        flash("Could not create folder.")
+    except FileExistsError: flash("Folder already exists.")
+    except Exception: flash("Could not create folder.")
     return redirect(url_for("files", p=rel))
+
 
 @app.route("/upload", methods=["POST"])
 @login_required
 def upload():
-    """Upload a file into the user vault (plaintext).
-
-    Per your request, vault files are stored without encryption. (Older installs
-    may still contain encrypted blobs; downloading them remains supported.)
-    """
-    rel = request.form.get("p", "") or ""
-    f = request.files.get("file")
-    if not f or not f.filename:
-        flash("No file selected.")
-        return redirect(url_for("files", p=rel))
-
-    # Enforce vault file limit (333MB).
-    fsz = _filestorage_size(f)
-    if fsz is not None and fsz > FILES_MAX_BYTES:
-        flash("File too large (max 333MB).")
-        return redirect(url_for("files", p=rel))
-
-    try:
-        rel = safe_relpath(rel)
-        filename = _validate_vault_upload_filename(f.filename, getattr(f, "mimetype", None))
-        if not filename:
-            raise ValueError("bad filename")
-
-        dest_dir = abs_user_path(current_user(), rel)
-        os.makedirs(dest_dir, exist_ok=True)
-        dest_path = os.path.join(dest_dir, filename)
-
-        size = _save_plain_upload(f, dest_path)
-        if int(size) > FILES_MAX_BYTES:
-            try:
-                os.remove(dest_path)
-            except Exception:
-                pass
-            flash("File too large (max 333MB).")
-            return redirect(url_for("files", p=rel))
-        flash("Uploaded.")
-    except ValueError as ve:
-        if str(ve) in ("forbidden_type", "unsupported_type"):
-            flash("Forbidden file type.")
-        else:
-            flash("Upload failed.")
-    except Exception as e:
-        log.exception("Upload failed: %s", e)
-        flash("Upload failed.")
-
+    rel = request.form.get("p", "") or ""; conflict = (request.form.get("conflict") or "keep").lower()
+    uploads = request.files.getlist("files") or request.files.getlist("file")
+    successes = 0
+    try: rel = safe_relpath(rel); dest_dir = abs_user_path(current_user(), rel); os.makedirs(dest_dir, exist_ok=True)
+    except Exception: flash("Upload failed."); return redirect(url_for("files"))
+    for f in uploads:
+        if not f or not f.filename: continue
+        try:
+            name = _validate_vault_upload_filename(f.filename, getattr(f, "mimetype", None)); size = _filestorage_size(f)
+            if size is not None and size > FILES_MAX_BYTES: raise ValueError("too_large")
+            original = os.path.join(dest_dir, name)
+            if os.path.exists(original):
+                if conflict == "cancel": continue
+                destination = original if conflict == "replace" else _unique_destination(dest_dir, name)
+            else: destination = original
+            if size is not None and not _disk_allows_upload(dest_dir, size): raise ValueError("storage")
+            written = _save_plain_upload(f, destination)
+            if written > FILES_MAX_BYTES: os.remove(destination); raise ValueError("too_large")
+            item_rel = os.path.relpath(destination, user_root(current_user())).replace(os.sep, "/")
+            _log_file_activity(current_user(), "file_uploaded", item_rel, human_size(written)); successes += 1
+        except ValueError as exc:
+            if str(exc) == "too_large": flash("File too large (maximum 10 GB).")
+            elif str(exc) == "storage": flash("Upload stopped because storage would reach 85% usage.")
+            else: flash("Upload failed.")
+        except Exception as exc: log.exception("Upload failed: %s", exc); flash("Upload failed.")
+    if successes: flash(f"Uploaded {successes} file(s).")
     return redirect(url_for("files", p=rel))
 
-# ---------------------------
-# Fast/resumable upload API (chunked)
-# ---------------------------
 
-UPLOAD_LOCK = threading.Lock()
+UPLOAD_LOCK = threading.RLock()
 
-def _upload_meta_path(upload_id: str) -> str:
-    """_upload_meta_path.
+def _upload_meta_path(upload_id: str) -> str: return os.path.join(TMP_UPLOAD_DIR, f"{upload_id}.json")
+def _upload_tmp_path(upload_id: str) -> str: return os.path.join(TMP_UPLOAD_DIR, f"{upload_id}.part")
 
-Internal helper function.
+def _cleanup_stale_file_uploads(max_age: int = 24 * 60 * 60) -> None:
+    cutoff = time.time() - max_age
+    os.makedirs(TMP_UPLOAD_DIR, exist_ok=True)
+    for name in os.listdir(TMP_UPLOAD_DIR):
+        if not (name.endswith(".part") or name.endswith(".json") or name.startswith("vault-download-")): continue
+        path = os.path.join(TMP_UPLOAD_DIR, name)
+        try:
+            if os.path.getmtime(path) < cutoff: os.remove(path)
+        except Exception: pass
 
-This docstring was added automatically to improve maintainability.
-
-Args:
-    upload_id: Parameter.
-
-Returns:
-    Varies.
-"""
-    return os.path.join(TMP_UPLOAD_DIR, f"{upload_id}.json")
-
-def _upload_tmp_path(upload_id: str) -> str:
-    """_upload_tmp_path.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Args:
-    upload_id: Parameter.
-
-Returns:
-    Varies.
-"""
-    return os.path.join(TMP_UPLOAD_DIR, f"{upload_id}.part")
 
 @app.route("/api/upload/init", methods=["POST"])
 @login_required
 def api_upload_init():
-    """api_upload_init.
-
-Internal helper function.
-
-This docstring was added automatically to improve maintainability.
-
-Returns:
-    Varies.
-"""
+    _cleanup_stale_file_uploads()
     data = request.get_json(silent=True) or {}
-    rel = data.get("p", "") or ""
-    filename = secure_filename((data.get("filename") or "").strip())
-    total = int(data.get("total_chunks") or 0)
-    if not filename or total <= 0 or total > 5000:
-        return jsonify({"ok": False, "error": "bad_request"}), 400
     try:
-        filename = _validate_vault_upload_filename(filename)
-    except ValueError:
-        return jsonify({"ok": False, "error": "forbidden_type"}), 400
-    try:
-        rel = safe_relpath(rel)
-    except Exception:
-        return jsonify({"ok": False, "error": "bad_path"}), 400
-
-    upload_id = base64.urlsafe_b64encode(os.urandom(18)).decode("ascii").rstrip("=")
-    meta = {
-        "u": current_user(),
-        "p": rel,
-        "filename": filename,
-        "total_chunks": total,
-        "received": [],
-        "created_at": now_z(),
-    }
+        rel = safe_relpath(data.get("p", "") or ""); filename = _validate_vault_upload_filename((data.get("filename") or "").strip()); total = int(data.get("total_chunks") or 0); total_size = int(data.get("total_size") or 0)
+    except Exception: return jsonify({"ok": False, "error": "bad_request"}), 400
+    conflict = (data.get("conflict") or "keep").lower()
+    if conflict not in ("keep", "replace", "cancel"): conflict = "keep"
+    expected = max(1, (total_size + FILE_UPLOAD_CHUNK_BYTES - 1) // FILE_UPLOAD_CHUNK_BYTES)
+    if not filename or total != expected or total > 5000 or total_size < 0: return jsonify({"ok": False, "error": "bad_request"}), 400
+    if total_size > FILES_MAX_BYTES: return jsonify({"ok": False, "error": "too_large", "max": FILES_MAX_BYTES}), 413
+    dest_dir = abs_user_path(current_user(), rel); os.makedirs(dest_dir, exist_ok=True)
+    original = os.path.join(dest_dir, filename)
+    if os.path.exists(original):
+        if conflict == "cancel": return jsonify({"ok": False, "error": "exists"}), 409
+        destination = original if conflict == "replace" else _unique_destination(dest_dir, filename)
+    else: destination = original
+    if not _disk_allows_upload(dest_dir, total_size): return jsonify({"ok": False, "error": "storage_full"}), 507
+    upload_id = secrets.token_urlsafe(24)
+    meta = {"u": current_user(), "p": rel, "filename": os.path.basename(destination), "destination": destination, "replace": conflict == "replace", "total_chunks": total, "total_size": total_size, "received": 0, "created_at": now_z()}
     os.makedirs(TMP_UPLOAD_DIR, exist_ok=True)
-    with open(_upload_meta_path(upload_id), "w", encoding="utf-8") as f:
-        json.dump(meta, f)
-    return jsonify({"ok": True, "upload_id": upload_id})
+    temp_meta = _upload_meta_path(upload_id) + ".tmp"
+    with open(temp_meta, "w", encoding="utf-8") as fh: json.dump(meta, fh)
+    os.replace(temp_meta, _upload_meta_path(upload_id))
+    return jsonify({"ok": True, "upload_id": upload_id, "filename": meta["filename"]})
+
+
+@app.route("/api/upload/cancel", methods=["POST"])
+@login_required
+def api_upload_cancel():
+    data = request.get_json(silent=True) or {}
+    upload_id = (data.get("upload_id") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", upload_id):
+        return jsonify({"ok": False, "error": "bad_request"}), 400
+    meta_path = _upload_meta_path(upload_id)
+    with UPLOAD_LOCK:
+        try:
+            meta = json.loads(open(meta_path, "r", encoding="utf-8").read())
+        except Exception:
+            meta = None
+        if meta and meta.get("u") != current_user():
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        for fp in (_upload_tmp_path(upload_id), meta_path, meta_path + ".tmp"):
+            try:
+                if os.path.exists(fp):
+                    os.remove(fp)
+            except Exception:
+                pass
+    return jsonify({"ok": True})
+
 
 @app.route("/api/upload/chunk", methods=["POST"])
 @login_required
 def api_upload_chunk():
-    """Upload a single vault chunk (sequential, resumable).
-
-    Notes:
-      - We require sequential chunk indices (0..total-1) because we append to a temp file.
-      - Duplicate/retried chunks are safely ignored (won't corrupt the file).
-      - Total size is capped at FILES_MAX_BYTES.
-    """
     upload_id = (request.form.get("upload_id") or "").strip()
-    try:
-        idx = int(request.form.get("index") or 0)
-        total = int(request.form.get("total") or 0)
-    except Exception:
-        return jsonify({"ok": False, "error": "bad_request"}), 400
-
+    try: idx = int(request.form.get("index") or 0); total = int(request.form.get("total") or 0)
+    except Exception: return jsonify({"ok": False, "error": "bad_request"}), 400
     chunk = request.files.get("chunk")
-    if not upload_id or total <= 0 or chunk is None or total > 5000:
-        return jsonify({"ok": False, "error": "bad_request"}), 400
-    if idx < 0 or idx >= total:
-        return jsonify({"ok": False, "error": "bad_index"}), 400
-
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", upload_id or "") or chunk is None: return jsonify({"ok": False, "error": "bad_request"}), 400
     meta_path = _upload_meta_path(upload_id)
-    if not os.path.exists(meta_path):
-        return jsonify({"ok": False, "error": "not_found"}), 404
-
-    done = False
-    received_n = 0
-
     with UPLOAD_LOCK:
-        try:
-            meta = json.loads(open(meta_path, "r", encoding="utf-8").read() or "{}")
-        except Exception:
-            return jsonify({"ok": False, "error": "bad_meta"}), 400
-        if meta.get("u") != current_user():
-            return jsonify({"ok": False, "error": "forbidden"}), 403
-        if int(meta.get("total_chunks") or 0) != total:
-            return jsonify({"ok": False, "error": "bad_total"}), 400
-
-        rec = sorted(set(int(x) for x in (meta.get("received") or [])))
-        expected = len(rec)
-
-        # If the client retried a chunk we already have, acknowledge without rewriting.
-        if idx < expected:
-            received_n = expected
-            done = (received_n >= total)
-            return jsonify({"ok": True, "done": done, "received": received_n, "total": total})
-
-        # Enforce sequential upload order (prevents corruption and index-skipping).
-        if idx != expected:
-            return jsonify({"ok": False, "error": "out_of_order", "expected": expected}), 409
-
-        # Append chunk to temp file
-        tmp_path = _upload_tmp_path(upload_id)
-        os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
-        mode = "ab" if os.path.exists(tmp_path) else "wb"
-        with open(tmp_path, mode) as out:
-            shutil.copyfileobj(chunk.stream, out, length=8 * 1024 * 1024)
-
-        # Enforce 333MB total cap for vault uploads.
-        try:
-            cur_bytes = int(os.path.getsize(tmp_path))
-        except Exception:
-            cur_bytes = 0
-        if cur_bytes > FILES_MAX_BYTES:
-            # Cleanup and reject the upload.
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
-            try:
-                os.remove(meta_path)
-            except Exception:
-                pass
-            return jsonify({"ok": False, "error": "too_large", "max": FILES_MAX_BYTES}), 413
-
-        rec.append(idx)
-        meta["received"] = rec
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f)
-
-        received_n = len(rec)
-        done = (received_n >= total)
-
+        try: meta = json.loads(open(meta_path, "r", encoding="utf-8").read())
+        except Exception: return jsonify({"ok": False, "error": "not_found"}), 404
+        if meta.get("u") != current_user(): return jsonify({"ok": False, "error": "forbidden"}), 403
+        if total != int(meta.get("total_chunks") or 0) or idx != int(meta.get("received") or 0): return jsonify({"ok": False, "error": "out_of_order", "expected": int(meta.get("received") or 0)}), 409
+        tmp_path = _upload_tmp_path(upload_id); mode = "ab" if os.path.exists(tmp_path) else "wb"
+        with open(tmp_path, mode) as out: shutil.copyfileobj(chunk.stream, out, length=8 * 1024 * 1024)
+        written = os.path.getsize(tmp_path)
+        if written > int(meta.get("total_size") or 0) or written > FILES_MAX_BYTES or not _disk_allows_upload(os.path.dirname(meta["destination"]), int(meta["total_size"]), written):
+            for fp in (tmp_path, meta_path):
+                try: os.remove(fp)
+                except Exception: pass
+            return jsonify({"ok": False, "error": "storage_or_size"}), 507
+        meta["received"] = idx + 1
+        temp_meta = meta_path + ".tmp"
+        with open(temp_meta, "w", encoding="utf-8") as fh: json.dump(meta, fh)
+        os.replace(temp_meta, meta_path)
+        done = meta["received"] >= total
         if done:
-            # Finalize once we have all chunks.
-            rel = safe_relpath(meta.get("p") or "")
-            dest_dir = abs_user_path(current_user(), rel)
-            os.makedirs(dest_dir, exist_ok=True)
-            dest_path = os.path.join(dest_dir, meta.get("filename") or "upload.bin")
-            os.replace(tmp_path, dest_path)
-            try:
-                os.remove(meta_path)
-            except Exception:
-                pass
+            if written != int(meta.get("total_size") or 0): return jsonify({"ok": False, "error": "size_mismatch"}), 400
+            destination = meta["destination"]
+            if os.path.exists(destination) and not meta.get("replace"):
+                destination = _unique_destination(os.path.dirname(destination), os.path.basename(destination))
+            os.replace(tmp_path, destination); os.remove(meta_path)
+            item_rel = os.path.relpath(destination, user_root(current_user())).replace(os.sep, "/")
+            _log_file_activity(current_user(), "file_uploaded", item_rel, human_size(written))
+        return jsonify({"ok": True, "done": done, "received": meta["received"], "total": total})
 
-    return jsonify({"ok": True, "done": done, "received": received_n, "total": total})
+
+@app.route("/files/rename", methods=["GET", "POST"])
+@login_required
+def file_rename():
+    rel = request.values.get("p", "") or ""
+    try:
+        rel = safe_relpath(rel); source = abs_user_path(current_user(), rel)
+        if not rel or not os.path.exists(source): raise ValueError
+    except Exception: abort(404)
+    parent = "/".join(rel.split("/")[:-1])
+    if request.method == "POST":
+        try:
+            new_name = _validate_entry_name(request.form.get("new_name", "")); destination = os.path.join(os.path.dirname(source), new_name)
+            if os.path.exists(destination): raise FileExistsError
+            os.rename(source, destination); new_rel = safe_relpath(f"{parent}/{new_name}" if parent else new_name); _remap_file_metadata(current_user(), rel, new_rel); _log_file_activity(current_user(), "entry_renamed", new_rel, f"from /{rel}"); flash("Entry renamed."); return redirect(url_for("files", p=parent))
+        except FileExistsError: flash("An entry with that name already exists.")
+        except Exception: flash("Rename failed.")
+    return render_template("file_rename.html", relpath=rel, parent_relpath=parent, name=os.path.basename(source))
+
+
+@app.route("/files/move", methods=["GET", "POST"])
+@login_required
+def file_move():
+    rel = request.values.get("p", "") or ""
+    try:
+        rel = safe_relpath(rel); source = abs_user_path(current_user(), rel)
+        if not rel or not os.path.exists(source): raise ValueError
+    except Exception: abort(404)
+    parent = "/".join(rel.split("/")[:-1])
+    if request.method == "POST":
+        try:
+            destination_rel = safe_relpath(request.form.get("destination", "") or ""); destination_dir = abs_user_path(current_user(), destination_rel)
+            if not os.path.isdir(destination_dir): raise ValueError
+            if os.path.isdir(source) and (destination_dir == source or destination_dir.startswith(source + os.sep)): raise ValueError("inside_self")
+            destination = os.path.join(destination_dir, os.path.basename(source))
+            if os.path.exists(destination): raise FileExistsError
+            shutil.move(source, destination); new_rel = safe_relpath(f"{destination_rel}/{os.path.basename(source)}" if destination_rel else os.path.basename(source)); _remap_file_metadata(current_user(), rel, new_rel); _log_file_activity(current_user(), "entry_moved", new_rel, f"from /{rel}"); flash("Entry moved."); return redirect(url_for("files", p=destination_rel))
+        except FileExistsError: flash("An entry with that name already exists in the destination.")
+        except Exception: flash("Move failed.")
+    return render_template("file_move.html", relpath=rel, parent_relpath=parent, folder_choices=_all_user_folders(current_user(), rel if os.path.isdir(source) else ""))
+
 
 @app.route("/delete", methods=["POST"])
 @login_required
 def delete():
-    """delete.
-
-Route handler or application helper.
-
-This docstring was expanded to make future maintenance easier.
-
-Returns:
-    Varies.
-"""
-    rel = request.form.get("p", "") or ""
-    is_dir = request.form.get("is_dir", "0") == "1"
+    rel = request.form.get("p", "") or ""; parent = ""
     try:
-        rel = safe_relpath(rel)
-        if rel == "":
-            raise ValueError("refuse_root")
-        ap = abs_user_path(current_user(), rel)
-        if is_dir:
-            shutil.rmtree(ap)
-            flash("Folder deleted.")
-        else:
-            os.remove(ap)
-            flash("File deleted.")
-    except ValueError as ve:
-        if str(ve) == "refuse_root":
-            flash("Cannot delete the vault root folder.")
-        else:
-            flash("Delete failed.")
-    except Exception:
-        flash("Delete failed.")
-    parent = "/".join(rel.split("/")[:-1]) if rel else ""
+        rel = safe_relpath(rel); parent = "/".join(rel.split("/")[:-1]) if rel else ""
+        if not rel: raise ValueError("root")
+        target = abs_user_path(current_user(), rel)
+        if os.path.isdir(target): shutil.rmtree(target)
+        else: os.remove(target)
+        _delete_file_metadata(current_user(), rel); _log_file_activity(current_user(), "entry_deleted", rel); flash("Entry deleted.")
+    except Exception: flash("Delete failed.")
     return redirect(url_for("files", p=parent))
+
+
+def _zip_paths(owner: str, relpaths: List[str], archive_label: str) -> str:
+    os.makedirs(TMP_UPLOAD_DIR, exist_ok=True)
+    estimated = 0
+    for rel in relpaths:
+        target = abs_user_path(owner, safe_relpath(rel))
+        if os.path.isdir(target):
+            estimated += _folder_size(target)
+        elif os.path.isfile(target):
+            estimated += os.path.getsize(target)
+    usage = shutil.disk_usage(TMP_UPLOAD_DIR)
+    # ZIP creation needs temporary local space. Use a conservative source-size estimate.
+    if estimated > usage.free or (usage.total and ((usage.used + estimated) / usage.total) >= 0.95):
+        raise OSError("Not enough temporary storage to create ZIP")
+    fd, zip_path = tempfile.mkstemp(prefix="vault-download-", suffix=".zip", dir=TMP_UPLOAD_DIR); os.close(fd)
+    root = user_root(owner)
+    with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+        for rel in relpaths:
+            rel = safe_relpath(rel); target = abs_user_path(owner, rel)
+            if not os.path.exists(target): continue
+            if os.path.isfile(target):
+                arcname = rel or os.path.basename(target)
+                if is_encrypted_file(target):
+                    with archive.open(arcname, "w") as out:
+                        for block in aesgcm_decrypt_generator(target): out.write(block)
+                else: archive.write(target, arcname=arcname)
+            else:
+                base_parent = os.path.dirname(target)
+                for current, dirs, files_ in os.walk(target, followlinks=False):
+                    dirs[:] = [d for d in dirs if not os.path.islink(os.path.join(current, d))]
+                    for name in files_:
+                        fp = os.path.join(current, name)
+                        if os.path.islink(fp): continue
+                        arcname = os.path.relpath(fp, base_parent).replace(os.sep, "/")
+                        if is_encrypted_file(fp):
+                            with archive.open(arcname, "w") as out:
+                                for block in aesgcm_decrypt_generator(fp): out.write(block)
+                        else: archive.write(fp, arcname=arcname)
+    return zip_path
+
+
+def _send_temporary_zip(zip_path: str, download_name: str):
+    response = send_file(zip_path, as_attachment=True, download_name=download_name, conditional=True, max_age=0)
+    response.headers["Cache-Control"] = "no-store"
+    def cleanup():
+        try:
+            if os.path.exists(zip_path):
+                os.remove(zip_path)
+        except Exception:
+            pass
+    response.call_on_close(cleanup)
+    return response
+
+
+@app.route("/files/bulk", methods=["POST"])
+@login_required
+def file_bulk_action():
+    entries = list(dict.fromkeys(request.form.getlist("entry")))[:500]; action = request.form.get("action", "download"); return_p = safe_relpath(request.form.get("return_p", "") or "")
+    if not entries: flash("Select at least one entry."); return redirect(url_for("files", p=return_p))
+    if action == "download":
+        try:
+            path = _zip_paths(current_user(), entries, "selected")
+        except Exception:
+            flash("Not enough temporary storage to create the ZIP archive.")
+            return redirect(url_for("files", p=return_p))
+        _log_file_activity(current_user(), "bulk_download", return_p, f"{len(entries)} entries")
+        return _send_temporary_zip(path, "ButSystem-selected-files.zip")
+    if action == "delete":
+        count = 0
+        for rel in entries:
+            try:
+                rel = safe_relpath(rel); target = abs_user_path(current_user(), rel)
+                if os.path.isdir(target): shutil.rmtree(target)
+                else: os.remove(target)
+                _delete_file_metadata(current_user(), rel); count += 1
+            except Exception: pass
+        _log_file_activity(current_user(), "bulk_delete", return_p, f"{count} entries"); flash(f"Deleted {count} entries."); return redirect(url_for("files", p=return_p))
+    if action == "move":
+        destination_rel = safe_relpath(request.form.get("destination", "") or ""); destination_dir = abs_user_path(current_user(), destination_rel); count = 0
+        if not os.path.isdir(destination_dir): flash("Invalid destination."); return redirect(url_for("files", p=return_p))
+        for rel in entries:
+            try:
+                rel = safe_relpath(rel); source = abs_user_path(current_user(), rel)
+                if os.path.isdir(source) and (destination_dir == source or destination_dir.startswith(source + os.sep)): continue
+                destination = _unique_destination(destination_dir, os.path.basename(source)); shutil.move(source, destination); new_rel = os.path.relpath(destination, user_root(current_user())).replace(os.sep, "/"); _remap_file_metadata(current_user(), rel, new_rel); count += 1
+            except Exception: pass
+        _log_file_activity(current_user(), "bulk_move", destination_rel, f"{count} entries"); flash(f"Moved {count} entries."); return redirect(url_for("files", p=destination_rel))
+    flash("Unknown bulk action."); return redirect(url_for("files", p=return_p))
+
 
 @app.route("/download")
 @login_required
 def download():
-    """Download a vault file."""
-    p = request.args.get("p", "") or ""
+    rel = request.args.get("p", "") or ""
     try:
-        p = safe_relpath(p)
-        ap = abs_user_path(current_user(), p)
-        if os.path.isdir(ap):
-            flash("Cannot download a folder.")
-            return redirect(url_for("files", p="/".join(p.split("/")[:-1])))
+        rel = safe_relpath(rel); target = abs_user_path(current_user(), rel)
+        if not rel or not os.path.exists(target): abort(404)
+        if os.path.isdir(target):
+            zip_path = _zip_paths(current_user(), [rel], os.path.basename(target)); _log_file_activity(current_user(), "folder_downloaded", rel); return _send_temporary_zip(zip_path, os.path.basename(target) + ".zip")
+        mime = guess_mime(os.path.basename(target)); _log_file_activity(current_user(), "file_downloaded", rel, human_size(os.path.getsize(target)))
+        if is_encrypted_file(target):
+            response = Response(aesgcm_decrypt_generator(target), mimetype=mime); response.headers["Content-Disposition"] = f'attachment; filename="{os.path.basename(target)}"'
+        else: response = send_file(target, mimetype=mime, as_attachment=True, download_name=os.path.basename(target), conditional=True, max_age=0)
+        response.headers["Cache-Control"] = "no-store"; return response
+    except Exception as exc:
+        if getattr(exc, "code", None) == 404: raise
+        log.exception("Download failed: %s", exc); flash("Download failed."); return redirect(url_for("files"))
 
-        if not os.path.exists(ap):
-            flash("File not found.")
-            return redirect(url_for("files", p="/".join(p.split("/")[:-1])))
 
-        filename = os.path.basename(ap)
-        mime = guess_mime(filename)
+@app.route("/files/details")
+@login_required
+def file_details():
+    rel = request.args.get("p", "") or ""
+    try:
+        rel = safe_relpath(rel); target = abs_user_path(current_user(), rel); st = os.stat(target)
+        if not rel: raise ValueError
+    except Exception: abort(404)
+    is_dir = os.path.isdir(target); size = _folder_size(target) if is_dir else st.st_size; category = _file_category(target, is_dir)
+    checksum = _sha256_file(target) if request.args.get("checksum") == "1" and not is_dir else ""
+    conn = db_connect(); comments = conn.execute("SELECT id, author, body, created_at FROM file_comments WHERE owner=? AND relpath=? ORDER BY id DESC", (current_user(), rel)).fetchall(); shares_rows = conn.execute("SELECT id, token, pw_hash, expires_at FROM file_shares WHERE owner=? AND relpath=? AND revoked=0 ORDER BY id DESC", (current_user(), rel)).fetchall(); conn.close()
+    now = datetime.now(timezone.utc)
+    shares = []
+    for row in shares_rows:
+        expired = False
+        try: expired = bool(row["expires_at"] and datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")) <= now)
+        except Exception: expired = False
+        if not expired: shares.append(type("Obj", (), {"id": row["id"], "url": url_for("public_share", token=row["token"], _external=True), "protected": bool(row["pw_hash"]), "expires_at": row["expires_at"]})())
+    info = type("Obj", (), {"name": os.path.basename(target), "is_dir": is_dir, "kind": "Folder" if is_dir else "File", "category": _category_label(category), "mime": "inode/directory" if is_dir else guess_mime(target), "size": size, "size_h": human_size(size), "created": datetime.fromtimestamp(getattr(st, "st_birthtime", st.st_ctime)).isoformat(sep=" ", timespec="seconds"), "modified": datetime.fromtimestamp(st.st_mtime).isoformat(sep=" ", timespec="seconds")})()
+    return render_template("file_details.html", relpath=rel, parent_relpath="/".join(rel.split("/")[:-1]), info=info, checksum=checksum, comments=comments, shares=shares)
 
-        if is_encrypted_file(ap):
-            gen = aesgcm_decrypt_generator(ap)
-            resp = Response(gen, mimetype=mime)
-            resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+@app.route("/files/comments/add", methods=["POST"])
+@login_required
+def file_comment_add():
+    rel = safe_relpath(request.form.get("p", "") or ""); body = (request.form.get("body") or "").strip()
+    try:
+        if not body or len(body) > 2000 or not os.path.exists(abs_user_path(current_user(), rel)): raise ValueError
+        conn = db_connect(); conn.execute("INSERT INTO file_comments(owner, relpath, author, body, created_at) VALUES(?,?,?,?,?)", (current_user(), rel, current_user(), body, now_z())); conn.commit(); conn.close(); _log_file_activity(current_user(), "comment_added", rel); flash("Comment added.")
+    except Exception: flash("Could not add comment.")
+    return redirect(url_for("file_details", p=rel))
+
+
+@app.route("/files/comments/<int:cid>/delete", methods=["POST"])
+@login_required
+def file_comment_delete(cid: int):
+    rel = safe_relpath(request.form.get("p", "") or ""); conn = db_connect(); conn.execute("DELETE FROM file_comments WHERE id=? AND owner=?", (cid, current_user())); conn.commit(); conn.close(); _log_file_activity(current_user(), "comment_deleted", rel); flash("Comment deleted."); return redirect(url_for("file_details", p=rel))
+
+
+@app.route("/files/share/create", methods=["POST"])
+@login_required
+def file_share_create():
+    rel = safe_relpath(request.form.get("p", "") or "")
+    try:
+        if not rel or not os.path.exists(abs_user_path(current_user(), rel)): raise ValueError
+        hours = max(1, min(720, int(request.form.get("hours") or 24))); password = request.form.get("password") or ""; token = secrets.token_urlsafe(32); expires = (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat(timespec="seconds").replace("+00:00", "Z")
+        conn = db_connect(); conn.execute("INSERT INTO file_shares(token, owner, relpath, pw_hash, expires_at, created_at, revoked) VALUES(?,?,?,?,?,?,0)", (token, current_user(), rel, generate_password_hash(password) if password else None, expires, now_z())); conn.commit(); conn.close(); _log_file_activity(current_user(), "share_created", rel, f"expires {expires}"); flash("Share link created.")
+    except Exception: flash("Could not create share link.")
+    return redirect(url_for("file_details", p=rel))
+
+
+@app.route("/files/share/<int:sid>/revoke", methods=["POST"])
+@login_required
+def file_share_revoke(sid: int):
+    conn = db_connect(); row = conn.execute("SELECT relpath FROM file_shares WHERE id=? AND owner=?", (sid, current_user())).fetchone(); conn.execute("UPDATE file_shares SET revoked=1 WHERE id=? AND owner=?", (sid, current_user())); conn.commit(); conn.close(); rel = row["relpath"] if row else ""; _log_file_activity(current_user(), "share_revoked", rel); flash("Share link revoked."); return redirect(url_for("file_details", p=rel) if rel else url_for("files"))
+
+
+def _load_public_share(token: str):
+    conn = db_connect(); row = conn.execute("SELECT * FROM file_shares WHERE token=? AND revoked=0", (token,)).fetchone(); conn.close()
+    if not row: return None
+    try:
+        if row["expires_at"] and datetime.fromisoformat(row["expires_at"].replace("Z", "+00:00")) <= datetime.now(timezone.utc): return None
+        target = abs_user_path(row["owner"], row["relpath"])
+        if not os.path.exists(target): return None
+    except Exception: return None
+    return row, target
+
+
+@app.route("/s/<token>", methods=["GET", "POST"])
+def public_share(token: str):
+    loaded = _load_public_share(token)
+    if not loaded: abort(404)
+    row, target = loaded; access_key = "share:" + token
+    locked = bool(row["pw_hash"] and not session.get(access_key))
+    if request.method == "POST" and locked:
+        try:
+            limited = _rate_limit_hit("share_password", f"{token}:{_client_ip()}", 10, 10 * 60)
+        except Exception:
+            limited = False
+        if limited:
+            abort(429)
+        if check_password_hash(row["pw_hash"], request.form.get("password") or ""):
+            session[access_key] = True
+            locked = False
         else:
-            from flask import send_file
-            resp = send_file(
-                ap,
-                mimetype=mime,
-                as_attachment=True,
-                download_name=filename,
-                conditional=True,
-                max_age=0,
-            )
+            flash("Incorrect password.")
+    size = _folder_size(target) if os.path.isdir(target) else os.path.getsize(target)
+    return render_template("public_share.html", locked=locked, token=token, name=os.path.basename(target), kind="Folder" if os.path.isdir(target) else "File", size_h=human_size(size), expires_at=row["expires_at"])
 
-        resp.headers["Cache-Control"] = "no-store"
-        return resp
-    except Exception as e:
-        log.exception("Download failed: %s", e)
-        flash("Download failed.")
-        return redirect(url_for("files"))
+
+@app.route("/s/<token>/download")
+def public_share_download(token: str):
+    loaded = _load_public_share(token)
+    if not loaded: abort(404)
+    row, target = loaded
+    if row["pw_hash"] and not session.get("share:" + token): return redirect(url_for("public_share", token=token))
+    if os.path.isdir(target):
+        path = _zip_paths(row["owner"], [row["relpath"]], os.path.basename(target)); _log_file_activity(row["owner"], "share_folder_downloaded", row["relpath"], actor="public"); return _send_temporary_zip(path, os.path.basename(target) + ".zip")
+    _log_file_activity(row["owner"], "share_file_downloaded", row["relpath"], actor="public")
+    if is_encrypted_file(target):
+        response = Response(aesgcm_decrypt_generator(target), mimetype=guess_mime(target)); response.headers["Content-Disposition"] = f'attachment; filename="{os.path.basename(target)}"'; return response
+    return send_file(target, as_attachment=True, download_name=os.path.basename(target), conditional=True, max_age=0)
+
+
+@app.route("/files/activity")
+@login_required
+def file_activity():
+    conn = db_connect(); activity = conn.execute("SELECT action, relpath, detail, created_at FROM file_activity WHERE owner=? ORDER BY id DESC LIMIT 300", (current_user(),)).fetchall(); conn.close(); return render_template("file_activity.html", activity=activity)
+
 
 @app.route("/view")
 @login_required
 def view_file():
-    """View a vault file.
-
-    For safety, we allow inline rendering only for non-active content types
-    (images/video/audio/pdf/text). HTML/SVG/XML are forced to download to
-    prevent stored XSS on the app origin.
-    """
-    p = request.args.get("p", "") or ""
+    rel = request.args.get("p", "") or ""
     try:
-        p = safe_relpath(p)
-        ap = abs_user_path(current_user(), p)
-        if os.path.isdir(ap) or (not os.path.exists(ap)):
-            abort(404)
+        rel = safe_relpath(rel); target = abs_user_path(current_user(), rel)
+        if os.path.isdir(target) or not os.path.exists(target): abort(404)
+        filename = os.path.basename(target); mime = guess_mime(filename); inline_ok = is_inline_safe(mime, filename)
+        if is_encrypted_file(target): response = Response(aesgcm_decrypt_generator(target), mimetype=mime if inline_ok else "application/octet-stream")
+        else: response = send_file(target, mimetype=mime if inline_ok else "application/octet-stream", as_attachment=not inline_ok, conditional=True, max_age=0)
+        response.headers["Content-Disposition"] = f'{"inline" if inline_ok else "attachment"}; filename="{filename}"'; response.headers["Cache-Control"] = "no-store"; return response
+    except Exception as exc:
+        if getattr(exc, "code", None) == 404: raise
+        log.exception("View failed: %s", exc); flash("Open failed."); return redirect(url_for("files"))
 
-        filename = os.path.basename(ap)
-        mime = guess_mime(filename)
-        inline_ok = is_inline_safe(mime, filename)
-
-        from flask import send_file
-
-        if is_encrypted_file(ap):
-            gen = aesgcm_decrypt_generator(ap)
-            resp = Response(gen, mimetype=(mime if inline_ok else "application/octet-stream"))
-        else:
-            resp = send_file(
-                ap,
-                mimetype=(mime if inline_ok else "application/octet-stream"),
-                as_attachment=(not inline_ok),
-                conditional=True,
-                max_age=0,
-            )
-
-        disp_type = "inline" if inline_ok else "attachment"
-        resp.headers["Content-Disposition"] = f'{disp_type}; filename="{filename}"'
-        resp.headers["Cache-Control"] = "no-store"
-        return resp
-    except Exception as e:
-        log.exception("View failed: %s", e)
-        flash("Open failed.")
-        return redirect(url_for("files"))
 
 # ---------------------------
 # Admin panel (kick / delete users)
@@ -17181,8 +18051,11 @@ Returns:
     threading.Thread(target=start_cloudflared, args=(port,), daemon=True).start()
     threading.Thread(target=start_tor_hidden_service, args=(port,), daemon=True).start()
 
+    global CURRENT_LOCAL_URL, CURRENT_LOCALHOST_URL
     local_url = f"https://{lan}:{port}"
     localhost_url = f"https://127.0.0.1:{port}"
+    CURRENT_LOCAL_URL = local_url
+    CURRENT_LOCALHOST_URL = localhost_url
 
     deadline = time.time() + 180
     while time.time() < deadline:
@@ -17197,6 +18070,8 @@ Returns:
     print(f"LOCALHOST:   {localhost_url}")
     print(f"CLOUDFLARED: {CLOUDFLARED_URL or ('UNAVAILABLE (see ' + LOG_PATH + ')')}")
     print(f"TOR:         {('http://' + TOR_ONION) if TOR_ONION else ('UNAVAILABLE (see ' + LOG_PATH + ')')}")
+    print("-" * 72)
+    _activate_termux_error_monitor()
 
     try:
         while True:
