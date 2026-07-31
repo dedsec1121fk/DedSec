@@ -2341,6 +2341,7 @@ bash Setup.sh
 
 <a id="greek-other-tools"></a>
 
+- [Dark-Moon](https://github.com/ASCIT31/Dark-Moon) - Ανοιχτού κώδικα πλατφόρμα (GPL-3.0) για αυτόνομες δοκιμές διείσδυσης με τεχνητή νοημοσύνη, self-hosted με MCP server, που καλύπτει web, API, Active Directory και Kubernetes, με ενσωματωμένο Privacy Gateway.
 <h2>Άλλα Εργαλεία</h2>
 
 
