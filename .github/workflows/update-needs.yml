@@ -39,6 +39,15 @@ jobs:
 
       - name: Prepare maintenance environment
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libffi-dev \
+            libssl-dev \
+            libxml2-dev \
+            libxslt1-dev \
+            zlib1g-dev
           python -m pip install --upgrade pip setuptools wheel packaging
 
       - name: Build complete replacement in staging
