@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.parse
@@ -29,6 +30,9 @@ MODULES = NEEDS / "Modules"
 PACKAGES = NEEDS / "Packages"
 USER_AGENT = "DedSec-Dependency-Maintainer/1.0"
 MAX_GITHUB_FILE = 45 * 1024 * 1024
+SOURCE_REPOSITORY_OVERRIDES = {
+    "psd-tools": "https://github.com/psd-tools/psd-tools",
+}
 
 REPOSITORIES = (
     (
@@ -100,6 +104,93 @@ def download(url: str, destination: Path, *, attempts: int = 3) -> None:
     raise RuntimeError(f"Could not download {url} after {attempts} attempts: {last_error}")
 
 
+
+def canonical_distribution_name(name: str) -> str:
+    return re.sub(r"[-_.]+", "-", name).strip("-").lower()
+
+
+def github_repository_url(distribution: str, payload: dict[str, object]) -> str | None:
+    canonical = canonical_distribution_name(distribution)
+    override = SOURCE_REPOSITORY_OVERRIDES.get(canonical)
+    if override:
+        return override.rstrip("/")
+
+    info = payload.get("info", {})
+    if not isinstance(info, dict):
+        return None
+    candidates: list[str] = []
+    project_urls = info.get("project_urls", {})
+    if isinstance(project_urls, dict):
+        preferred_keys = ("source", "source code", "repository", "code", "homepage")
+        ordered = sorted(
+            project_urls.items(),
+            key=lambda item: (
+                preferred_keys.index(str(item[0]).strip().lower())
+                if str(item[0]).strip().lower() in preferred_keys
+                else len(preferred_keys)
+            ),
+        )
+        candidates.extend(str(value) for _key, value in ordered if value)
+    home_page = info.get("home_page")
+    if home_page:
+        candidates.append(str(home_page))
+
+    for candidate in candidates:
+        match = re.match(r"https?://github\.com/([^/]+)/([^/#?]+)", candidate.strip())
+        if not match:
+            continue
+        owner, repository = match.groups()
+        repository = repository.removesuffix(".git")
+        if owner and repository:
+            return f"https://github.com/{owner}/{repository}"
+    return None
+
+
+def validate_python_source_archive(path: Path) -> None:
+    try:
+        with tarfile.open(path, mode="r:*") as archive:
+            members = archive.getmembers()
+    except (tarfile.TarError, OSError) as exc:
+        raise RuntimeError(f"Invalid source archive {path.name}: {exc}") from exc
+
+    metadata_names = {"pyproject.toml", "setup.py", "setup.cfg"}
+    if not any(Path(member.name).name in metadata_names for member in members if member.isfile()):
+        raise RuntimeError(f"Source archive lacks Python build metadata: {path.name}")
+
+
+def download_github_source_archive(
+    distribution: str,
+    version: str,
+    payload: dict[str, object],
+    destination: Path,
+) -> Path:
+    repository_url = github_repository_url(distribution, payload)
+    if not repository_url:
+        raise RuntimeError(
+            f"PyPI provides no source distribution and no GitHub source repository "
+            f"was found for {distribution}=={version}"
+        )
+
+    filename = f"{canonical_distribution_name(distribution)}-{version}.tar.gz"
+    target = destination / filename
+    errors: list[str] = []
+    for tag in (f"v{version}", version):
+        encoded_tag = urllib.parse.quote(tag, safe="")
+        url = f"{repository_url}/archive/refs/tags/{encoded_tag}.tar.gz"
+        try:
+            download(url, target)
+            validate_python_source_archive(target)
+            print(f"Saved verified GitHub source archive: {target} ({tag})", flush=True)
+            return target
+        except Exception as exc:
+            target.unlink(missing_ok=True)
+            errors.append(f"{url}: {exc}")
+
+    raise RuntimeError(
+        f"Could not obtain a usable source archive for {distribution}=={version}: "
+        + " | ".join(errors)
+    )
+
 def download_pypi_sdist(
     distribution: str,
     destination: Path,
@@ -112,7 +203,8 @@ def download_pypi_sdist(
     projects, including lxml, then require native development headers even
     though we only want to archive their untouched source distribution. PyPI's
     JSON API exposes the exact source file and checksum, so the maintenance job
-    can download and verify it directly.
+    can download and verify it directly. If a release publishes only platform
+    wheels, its immutable GitHub tag archive is validated and stored instead.
     """
     quoted_name = urllib.parse.quote(distribution, safe="")
     if version is None:
@@ -130,8 +222,14 @@ def download_pypi_sdist(
         item for item in payload.get("urls", []) if item.get("packagetype") == "sdist"
     ]
     if not candidates:
-        suffix = f"=={resolved_version}" if resolved_version else ""
-        raise RuntimeError(f"PyPI provides no source distribution for {distribution}{suffix}")
+        if not resolved_version:
+            raise RuntimeError(f"PyPI did not report a version for {distribution}")
+        return download_github_source_archive(
+            distribution,
+            resolved_version,
+            payload,
+            destination,
+        )
 
     # Prefer the conventional tar.gz source archive when more than one format
     # is published, while remaining compatible with ZIP-only projects.
