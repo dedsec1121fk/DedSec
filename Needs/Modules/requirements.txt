@@ -1,5 +1,5 @@
 # Complete Python dependency set for the DedSec Project.
-# Intentionally unpinned so Needs/update.sh can update to compatible current releases.
+# Intentionally unpinned so Setup.sh --update-only can update to compatible current releases.
 # Generated from a static audit of all Python files in this repository.
 
 beautifulsoup4
