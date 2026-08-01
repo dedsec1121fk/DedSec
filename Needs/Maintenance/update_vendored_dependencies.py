@@ -100,6 +100,66 @@ def download(url: str, destination: Path, *, attempts: int = 3) -> None:
     raise RuntimeError(f"Could not download {url} after {attempts} attempts: {last_error}")
 
 
+def download_pypi_sdist(
+    distribution: str,
+    destination: Path,
+    *,
+    version: str | None = None,
+) -> Path:
+    """Download a source distribution without invoking a package build backend.
+
+    ``pip download --no-binary`` may execute PEP 517 metadata hooks. Some
+    projects, including lxml, then require native development headers even
+    though we only want to archive their untouched source distribution. PyPI's
+    JSON API exposes the exact source file and checksum, so the maintenance job
+    can download and verify it directly.
+    """
+    quoted_name = urllib.parse.quote(distribution, safe="")
+    if version is None:
+        metadata_url = f"https://pypi.org/pypi/{quoted_name}/json"
+    else:
+        quoted_version = urllib.parse.quote(version, safe="")
+        metadata_url = f"https://pypi.org/pypi/{quoted_name}/{quoted_version}/json"
+
+    request = urllib.request.Request(metadata_url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=180) as response:
+        payload = json.load(response)
+
+    resolved_version = version or str(payload.get("info", {}).get("version", "")).strip()
+    candidates = [
+        item for item in payload.get("urls", []) if item.get("packagetype") == "sdist"
+    ]
+    if not candidates:
+        suffix = f"=={resolved_version}" if resolved_version else ""
+        raise RuntimeError(f"PyPI provides no source distribution for {distribution}{suffix}")
+
+    # Prefer the conventional tar.gz source archive when more than one format
+    # is published, while remaining compatible with ZIP-only projects.
+    candidates.sort(
+        key=lambda item: (
+            0 if str(item.get("filename", "")).endswith(".tar.gz") else 1,
+            str(item.get("filename", "")),
+        )
+    )
+    selected = candidates[0]
+    filename = str(selected.get("filename", "")).strip()
+    url = str(selected.get("url", "")).strip()
+    expected_sha256 = str(selected.get("digests", {}).get("sha256", "")).strip().lower()
+    if not filename or not url or not expected_sha256:
+        raise RuntimeError(f"Incomplete PyPI source metadata for {distribution}")
+
+    target = destination / filename
+    download(url, target)
+    actual_sha256 = sha256(target).lower()
+    if actual_sha256 != expected_sha256:
+        target.unlink(missing_ok=True)
+        raise RuntimeError(
+            f"Checksum mismatch for {filename}: expected {expected_sha256}, got {actual_sha256}"
+        )
+    print(f"Saved verified PyPI source archive: {target}", flush=True)
+    return target
+
+
 def parse_control(text: str) -> list[dict[str, str]]:
     records: list[dict[str, str]] = []
     for block in re.split(r"\n\s*\n", text.strip()):
@@ -170,21 +230,11 @@ def refresh_python(stage: Path) -> dict[str, object]:
             platform_wheels.append((str(distribution), str(version), wheel_path))
 
         for distribution, version, wheel_path in platform_wheels:
+            # Fetch the untouched sdist from PyPI instead of asking pip to
+            # prepare metadata. Metadata preparation can execute native build
+            # checks (for example lxml requiring libxml2/libxslt headers).
+            download_pypi_sdist(distribution, stage, version=version)
             wheel_path.unlink()
-            run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "download",
-                    "--disable-pip-version-check",
-                    "--no-deps",
-                    "--no-binary=:all:",
-                    "--dest",
-                    str(stage),
-                    f"{distribution}=={version}",
-                ]
-            )
 
         # Common PEP 517 build backends are cached as well. This makes source
         # builds much more reliable when Setup is run with limited connectivity.
@@ -221,20 +271,7 @@ def refresh_python(stage: Path) -> dict[str, object]:
                     ]
                 )
             except subprocess.CalledProcessError:
-                run(
-                    [
-                        sys.executable,
-                        "-m",
-                        "pip",
-                        "download",
-                        "--disable-pip-version-check",
-                        "--no-deps",
-                        "--no-binary=:all:",
-                        "--dest",
-                        str(stage),
-                        helper,
-                    ]
-                )
+                download_pypi_sdist(helper, stage)
         resolution = "full-portable-runtime-closure"
     except (subprocess.CalledProcessError, RuntimeError) as exc:
         raise RuntimeError(
