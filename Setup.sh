@@ -355,9 +355,21 @@ fi
 cd "$ROOT_DIR" || exit 1
 SCRIPT_PATH="./Scripts/Settings.py"
 
+run_settings_on_terminal() {
+  # Dependency output is logged through tee, but curses must use the real
+  # interactive terminal. Otherwise Settings.py receives a pipe and exits or
+  # cannot read arrow keys correctly.
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    "$PYTHON_BIN" "$SCRIPT_PATH" </dev/tty >/dev/tty 2>/dev/tty
+  else
+    # Non-Termux/non-interactive fallback. This keeps useful errors visible.
+    "$PYTHON_BIN" "$SCRIPT_PATH"
+  fi
+}
+
 echo "[launch] Starting the DedSec menu with: python $SCRIPT_PATH"
 if [ -f "$SCRIPT_PATH" ]; then
-  "$PYTHON_BIN" "$SCRIPT_PATH"
+  run_settings_on_terminal
   EXEC_STATUS=$?
 else
   echo "[error] Script file not found at $SCRIPT_PATH. Cannot execute." >&2
@@ -373,7 +385,7 @@ if [ "$EXEC_STATUS" -ne 0 ]; then
 
   echo "[launch] Retrying the DedSec menu..."
   if [ -f "$SCRIPT_PATH" ]; then
-    "$PYTHON_BIN" "$SCRIPT_PATH"
+    run_settings_on_terminal
     FINAL_STATUS=$?
     if [ "$FINAL_STATUS" -eq 0 ]; then
       echo "[success] Settings.py completed successfully after the retry."
