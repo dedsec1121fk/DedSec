@@ -838,6 +838,46 @@ def safe_curses_addstr(stdscr, y, x, text, attr=0):
     except Exception:
         pass
 
+
+def safe_curses_wrapper(func, *args, **kwargs):
+    """Run a curses UI without allowing terminal-cleanup errors to crash it.
+
+    Some Termux/Python combinations report ``ERR`` from ``nocbreak()`` or
+    ``endwin()`` even after the menu function completed normally. The standard
+    ``curses.wrapper`` turns that cleanup condition into an exception and loses
+    the menu result. This wrapper preserves real UI exceptions while treating
+    terminal restoration as best-effort.
+    """
+    stdscr = None
+    try:
+        stdscr = curses.initscr()
+        try:
+            curses.noecho()
+        except curses.error:
+            pass
+        try:
+            curses.cbreak()
+        except curses.error:
+            pass
+        try:
+            stdscr.keypad(True)
+        except curses.error:
+            pass
+        return func(stdscr, *args, **kwargs)
+    finally:
+        if stdscr is not None:
+            cleanup_steps = (
+                lambda: stdscr.keypad(False),
+                curses.echo,
+                curses.nocbreak,
+                curses.endwin,
+            )
+            for cleanup in cleanup_steps:
+                try:
+                    cleanup()
+                except Exception:
+                    pass
+
 # ------------------------------
 
 # --- File Type Detection Helper ---
@@ -2824,7 +2864,7 @@ def choose_language(stdscr):
             return None
 
 def change_language():
-    language = curses.wrapper(choose_language)
+    language = safe_curses_wrapper(choose_language)
     if language is None:
         print(_("No language selected. Returning to settings menu..."))
         return
@@ -3305,7 +3345,7 @@ def run_grid_menu():
              
         friendly_names = [entry[0] for entry in entries]
         
-        selected_index = curses.wrapper(lambda stdscr: draw_grid_menu(stdscr, friendly_names, len(friendly_names)))
+        selected_index = safe_curses_wrapper(lambda stdscr: draw_grid_menu(stdscr, friendly_names, len(friendly_names)))
         
         if selected_index is None:
             print(_("No selection made. Exiting."))
@@ -18475,7 +18515,7 @@ def launch_pipboy():
             for error in errors:
                 print(" - " + error)
             return False
-        curses.wrapper(pipboy_curses)
+        safe_curses_wrapper(pipboy_curses)
         success = True
     except KeyboardInterrupt:
         success = True
@@ -18573,7 +18613,7 @@ def run_settings_list_menu():
             elif key in [ord('q'), ord('Q')]:
                 return None
     
-    return curses.wrapper(menu)
+    return safe_curses_wrapper(menu)
 
 def run_settings_grid_menu():
     """Settings menu using grid style"""
@@ -18718,7 +18758,7 @@ def run_settings_grid_menu():
 
     menu_options = get_settings_options()
     
-    return curses.wrapper(lambda stdscr: draw_settings_grid_menu(stdscr, menu_options))
+    return safe_curses_wrapper(lambda stdscr: draw_settings_grid_menu(stdscr, menu_options))
 
 def run_settings_number_menu():
     """Settings menu using number style"""
