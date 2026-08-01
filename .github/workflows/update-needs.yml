@@ -62,17 +62,27 @@ jobs:
         run: |
           python Needs/verify_needs.py --cache
 
+      - name: Pack verified replacement for artifact upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="$RUNNER_TEMP/dedsec-needs-${GITHUB_RUN_ID}.tar"
+          tar -cf "$artifact" \
+            Needs/Modules/Cache \
+            Needs/Packages/Cache \
+            Needs/Packages/package-lock-*.json \
+            Needs/Packages/download-plan-*.tsv
+          tar -tf "$artifact" >/dev/null
+          echo "DEDSEC_NEEDS_ARTIFACT=$artifact" >> "$GITHUB_ENV"
+
       - name: Preserve verified replacement as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dedsec-needs-${{ github.run_id }}
-          path: |
-            Needs/Modules/Cache
-            Needs/Packages/Cache
-            Needs/Packages/package-lock-*.json
-            Needs/Packages/download-plan-*.tsv
+          path: ${{ env.DEDSEC_NEEDS_ARTIFACT }}
           compression-level: 0
           retention-days: 14
+          if-no-files-found: error
 
       - name: Commit refreshed caches
         shell: bash
