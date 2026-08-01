@@ -120,7 +120,7 @@ Run:
 cd DedSec && bash Setup.sh
 ```
 
-The script will handle the complete installation.
+The script checks the local dependency cache first, updates or downloads anything missing, creates the one-time project-only Downloads save when required, and then opens the DedSec menu automatically.
 
 ##### 5. Complete the post-setup configuration
 
@@ -130,9 +130,9 @@ After setup finishes, do the following:
 - change the **menu style**
 - for new users, **list** or **numbered** menu styles are the best choices
 - choose your **language**
-- run the **Save DedSec Project** option on your first run so you create a fresh project save backup
-- **Save DedSec Project** may take a while depending on your internet connection, and the terminal may stay blank until it is ready
-- run **Save DedSec Project** again a few times every year to keep your saved DedSec Project package fresh and ready to restore if needed
+- the setup automatically creates `~/storage/downloads/DedSec Project.zip` once before the first menu launch, as long as Android Downloads permission is available
+- use the menu's **Save DedSec Project** option later whenever you want to create or refresh the broader manual project backup
+- a manual **Save DedSec Project** operation may take a while depending on your internet connection, and the terminal may stay blank until it is ready
 - fully close Termux from your phone's **notification panel** using the **exit button**
 - open Termux again
 
@@ -159,10 +159,16 @@ Then pull the newest changes:
 git pull
 ```
 
-If needed, run setup again:
+Run setup again so the consolidated dependency manager checks local files, updates dependencies, and opens the menu:
 
 ```bash
 bash Setup.sh
+```
+
+To update dependencies without opening the menu, use:
+
+```bash
+bash Setup.sh --update-only
 ```
 
 This is useful after major project changes, new dependencies, or menu updates.
@@ -191,9 +197,9 @@ bash Setup.sh
 
 - Keep an internet connection enabled during the first install.
 - The first installation can take longer than normal because packages and tools may need to download.
-- On your first run, open **Settings.py** and use **Save DedSec Project** so your project backup package is created immediately.
-- **Save DedSec Project** may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
-- Run **Save DedSec Project** a few times every year to refresh that backup package and help keep your DedSec Project ready to recover.
+- Before the first automatic menu launch, `Setup.sh` attempts to create the project-only `DedSec Project.zip` in Android Downloads.
+- If storage permission is unavailable, the prompt remains visible and the next normal setup run retries the one-time save.
+- Use the menu's **Save DedSec Project** option later when you want to create or refresh the broader manual backup. That operation may take a while depending on your internet connection.
 - If storage access was denied earlier, run `termux-setup-storage` again.
 - If Git is missing, run `pkg install git -y`.
 - If you are already inside the DedSec folder, you do not need to clone the repository again.
@@ -247,7 +253,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **About:** shows the latest DedSec Project update date, Termux storage usage, DedSec Project size, hardware details, internal storage, processor, RAM, carrier, kernel version, Android version, device model, manufacturer, uptime, battery status, and current Termux user.
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
-- **Update Packages & Modules:** refreshes Termux packages and Python modules used by the project, including developer, networking, web, media, cryptography, API, and utility dependencies.
+- **Update Packages & Modules:** runs the consolidated `Setup.sh --no-run` dependency routine, which checks local Termux packages and Python modules first, updates installed items, and downloads anything still missing without opening a second menu process.
 - **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
@@ -288,15 +294,15 @@ After installation, the most important settings are:
 1. choose your preferred language
 2. choose your menu style
 3. customize the prompt if you want
-4. run **Save DedSec Project** on your first run
+4. confirm that the automatic one-time `DedSec Project.zip` save completed, then use **Save DedSec Project** later only when you want the broader manual backup
 5. connect GitHub only if you want GitHub stats, prompt syncing, or Sponsors-Only access
 6. enable or disable menu auto-start depending on how you use Termux
 7. use **Update Packages & Modules** when dependencies need refreshing
 8. use **VPN & Tor Utilities** only when you want those optional network controls
 
-### Save DedSec Project Reminder
+### Automatic and Manual Save Reminder
 
-Use **Save DedSec Project** on your first run, then run it again a few times every year so your saved DedSec Project package stays fresh and ready if you ever need to restore it. It may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
+`Setup.sh` automatically creates the one-time project-only `DedSec Project.zip` before the first menu launch. The separate **Save DedSec Project** menu option remains available for the broader manual backup and can be run again whenever you want to refresh it. A manual save may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 
 </details>
 
@@ -1410,7 +1416,7 @@ git clone https://github.com/dedsec1121fk/DedSec
 cd DedSec && bash Setup.sh
 ```
 
-Το script θα αναλάβει την πλήρη εγκατάσταση.
+Το script ελέγχει πρώτα το τοπικό dependency cache, ενημερώνει ή κατεβάζει ό,τι λείπει, δημιουργεί όταν χρειάζεται το one-time project-only save στα Downloads και μετά ανοίγει αυτόματα το DedSec menu.
 
 ##### 5. Ολοκλήρωσε τη ρύθμιση μετά το setup
 
@@ -1420,9 +1426,9 @@ cd DedSec && bash Setup.sh
 - άλλαξε το **στυλ του μενού**
 - για νέους χρήστες, τα **list** ή **numbered** menu styles είναι οι καλύτερες επιλογές
 - διάλεξε τη **γλώσσα** σου
-- τρέξε την επιλογή **Save DedSec Project** στο πρώτο σου άνοιγμα ώστε να δημιουργήσεις ένα φρέσκο project save backup
-- το **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί
-- τρέχε ξανά το **Save DedSec Project** λίγες φορές κάθε χρόνο ώστε να διατηρείς το αποθηκευμένο πακέτο του DedSec Project ενημερωμένο και έτοιμο για επαναφορά αν χρειαστεί
+- το setup δημιουργεί αυτόματα μία φορά το `~/storage/downloads/DedSec Project.zip` πριν από το πρώτο άνοιγμα του menu, εφόσον υπάρχει άδεια πρόσβασης στα Android Downloads
+- χρησιμοποίησε αργότερα την επιλογή **Save DedSec Project** του menu όταν θέλεις να δημιουργήσεις ή να ανανεώσεις το ευρύτερο manual project backup
+- ένα manual **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί
 - κλείσε τελείως το Termux από το **πάνελ ειδοποιήσεων** του κινητού σου χρησιμοποιώντας το **κουμπί εξόδου**
 - άνοιξε ξανά το Termux
 
@@ -1449,13 +1455,19 @@ cd ~/DedSec
 git pull
 ```
 
-Αν χρειάζεται, τρέξε ξανά το setup:
+Τρέξε ξανά το setup ώστε ο ενιαίος dependency manager να ελέγξει τα τοπικά αρχεία, να ενημερώσει dependencies και να ανοίξει το menu:
 
 ```bash
 bash Setup.sh
 ```
 
-Αυτό είναι χρήσιμο μετά από μεγάλες αλλαγές στο project, νέες εξαρτήσεις ή ενημερώσεις στο μενού.
+Για ενημέρωση dependencies χωρίς να ανοίξει το menu, χρησιμοποίησε:
+
+```bash
+bash Setup.sh --update-only
+```
+
+Αυτό είναι χρήσιμο μετά από μεγάλες αλλαγές στο project, νέα dependencies ή menu updates.
 
 #### Επιλογή 3: Άνοιγμα του Project Αργότερα Χωρίς Νέα Εγκατάσταση
 
@@ -1481,9 +1493,9 @@ bash Setup.sh
 
 - Κράτα ενεργή τη σύνδεση στο internet κατά την πρώτη εγκατάσταση.
 - Η πρώτη εγκατάσταση μπορεί να πάρει περισσότερο χρόνο από το συνηθισμένο, επειδή ίσως χρειαστεί να κατέβουν πακέτα και εργαλεία.
-- Στο πρώτο σου άνοιγμα, μπες στο **Settings.py** και χρησιμοποίησε το **Save DedSec Project** ώστε να δημιουργηθεί αμέσως το πακέτο backup του project σου.
-- Το **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
-- Τρέχε το **Save DedSec Project** λίγες φορές κάθε χρόνο για να ανανεώνεις αυτό το backup package και να βοηθάς το DedSec Project να παραμένει έτοιμο για επαναφορά.
+- Πριν από το πρώτο αυτόματο άνοιγμα του menu, το `Setup.sh` προσπαθεί να δημιουργήσει το project-only `DedSec Project.zip` στα Android Downloads.
+- Αν δεν υπάρχει storage permission, το prompt παραμένει ορατό και η επόμενη κανονική εκτέλεση του setup ξαναδοκιμάζει το one-time save.
+- Χρησιμοποίησε αργότερα την επιλογή **Save DedSec Project** του menu όταν θέλεις να δημιουργήσεις ή να ανανεώσεις το ευρύτερο manual backup. Αυτή η διαδικασία μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου.
 - Αν η πρόσβαση αποθήκευσης είχε απορριφθεί νωρίτερα, τρέξε ξανά `termux-setup-storage`.
 - Αν λείπει το Git, τρέξε `pkg install git -y`.
 - Αν βρίσκεσαι ήδη μέσα στον φάκελο DedSec, δεν χρειάζεται να ξανακάνεις clone το repository.
@@ -1537,7 +1549,7 @@ bash Setup.sh
 - **About:** εμφανίζει την τελευταία ενημέρωση του DedSec Project, τον χώρο που χρησιμοποιεί το Termux, το μέγεθος του DedSec Project, στοιχεία hardware, internal storage, processor, RAM, carrier, kernel version, Android version, device model, manufacturer, uptime, battery status και τον τρέχοντα Termux user.
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
-- **Update Packages & Modules:** ανανεώνει Termux packages και Python modules που χρησιμοποιεί το project, συμπεριλαμβανομένων developer, networking, web, media, cryptography, API και utility dependencies.
+- **Update Packages & Modules:** εκτελεί την ενιαία dependency διαδικασία `Setup.sh --no-run`, η οποία ελέγχει πρώτα τα τοπικά Termux packages και Python modules, ενημερώνει τα εγκατεστημένα στοιχεία και κατεβάζει ό,τι λείπει χωρίς να ανοίξει δεύτερο menu process.
 - **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
@@ -1578,15 +1590,15 @@ bash Setup.sh
 1. διάλεξε την προτιμώμενη γλώσσα
 2. διάλεξε menu style
 3. άλλαξε το prompt αν θέλεις
-4. τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα
+4. επιβεβαίωσε ότι ολοκληρώθηκε το αυτόματο one-time `DedSec Project.zip` save και χρησιμοποίησε αργότερα το **Save DedSec Project** μόνο όταν θέλεις το ευρύτερο manual backup
 5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats, prompt syncing ή Sponsors-Only access
 6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux
 7. χρησιμοποίησε το **Update Packages & Modules** όταν χρειάζεται ανανέωση dependencies
 8. χρησιμοποίησε το **VPN & Tor Utilities** μόνο όταν θέλεις αυτά τα προαιρετικά network controls
 
-### Υπενθύμιση για το Save DedSec Project
+### Υπενθύμιση Αυτόματου και Manual Save
 
-Χρησιμοποίησε το **Save DedSec Project** στο πρώτο σου άνοιγμα και μετά τρέχε το ξανά λίγες φορές κάθε χρόνο, ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει ενημερωμένο και έτοιμο αν χρειαστεί επαναφορά. Μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
+Το `Setup.sh` δημιουργεί αυτόματα το one-time project-only `DedSec Project.zip` πριν από το πρώτο άνοιγμα του menu. Η ξεχωριστή επιλογή **Save DedSec Project** παραμένει διαθέσιμη για το ευρύτερο manual backup και μπορείς να την τρέχεις ξανά όταν θέλεις να το ανανεώσεις. Ένα manual save μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
 
 </details>
 
