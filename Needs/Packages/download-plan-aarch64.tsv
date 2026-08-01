@@ -8,7 +8,7 @@ binutils	2.47	main	false	2445400	332175eb2621c591f4ef80e335ddd42af8fef0d34cccd28
 brotli	1.2.0	main	false	340592	db1502601d40fb44e6085ad8bfd9311a8b472e98db831ceec9d404c5708bb52c	https://packages.termux.dev/apt/termux-main/pool/main/b/brotli/brotli_1.2.0_aarch64.deb
 bzip2	1.0.8-8	main	false	26152	7b904d820c34b6c043067ca3c8cb67465413ea5eae3f529a0e05a9ae0df2b89a	https://packages.termux.dev/apt/termux-main/pool/main/b/bzip2/bzip2_1.0.8-8_aarch64.deb
 c-ares	1.34.8	main	false	194924	7681fc23e822d7988ba8b2adf3468f93ae68f724dda365cff1385096a9fa87e6	https://packages.termux.dev/apt/termux-main/pool/main/c/c-ares/c-ares_1.34.8_aarch64.deb
-ca-certificates	1:2026.07.16	main	false	104212	93dc49a8009012c29510081b8f07f30c57af9b10b1dae4f541231d8ee785b37a	https://packages.termux.dev/apt/termux-main/pool/main/c/ca-certificates/ca-certificates_1:2026.07.16_all.deb
+ca-certificates	1:2026.07.16	main	false	104212	93dc49a8009012c29510081b8f07f30c57af9b10b1dae4f541231d8ee785b37a	https://packages.termux.dev/apt/termux-main/pool/main/c/ca-certificates/ca-certificates_1%3A2026.07.16_all.deb
 clang	21.1.8-3	main	false	30740228	9fb565013b96ce10abd8f8f217aaebb48f72873f53acbf8886329bcea841a21c	https://packages.termux.dev/apt/termux-main/pool/main/c/clang/clang_21.1.8-3_aarch64.deb
 cloudflared	2026.7.3-1	main	false	6486420	08e6f2d12a32937879288b92b1ce1c0e990e1e4068be7d9655eda45aea4791af	https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb
 cmake	4.4.2	main	false	10628408	37b47dd69c771d3cab8fb45f6c9505ad8006a9fc05abfdfcd694f163e047ca25	https://packages.termux.dev/apt/termux-main/pool/main/c/cmake/cmake_4.4.2_aarch64.deb
@@ -23,7 +23,7 @@ ffmpeg	8.1.2-3	main	false	10975132	3553393285d5d37ff7319056a6d574e72765557a286fa
 fftw	3.3.11	main	false	1004996	0a5140986bbfc69dbfa8f939f78521fb3dc02a193b6c822b7218dae44d99ffd5	https://packages.termux.dev/apt/termux-main/pool/main/f/fftw/fftw_3.3.11_aarch64.deb
 file	5.48-1	main	false	411880	2c77db1192a0e098afbb88aa9d3ccb0b289ff667110c9fdbe9b49212509ef40b	https://packages.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb
 findutils	4.10.0-1	main	false	251356	a7e9c3db936370077b5a8b012f4d47e994dd64192cc6e4a12ad9f99e82d3fcb5	https://packages.termux.dev/apt/termux-main/pool/main/f/findutils/findutils_4.10.0-1_aarch64.deb
-fmt	1:11.2.0	main	false	168612	0377ac55cc99e409a5a2ba55a7cacf86fc1f79f330c2998801e293e95cac1996	https://packages.termux.dev/apt/termux-main/pool/main/f/fmt/fmt_1:11.2.0_aarch64.deb
+fmt	1:11.2.0	main	false	168612	0377ac55cc99e409a5a2ba55a7cacf86fc1f79f330c2998801e293e95cac1996	https://packages.termux.dev/apt/termux-main/pool/main/f/fmt/fmt_1%3A11.2.0_aarch64.deb
 fontconfig	2.18.2	main	false	137680	f8770203011f61389251e2fcfc5738cb2caeb7d852cb70e80637a7749affd44b	https://packages.termux.dev/apt/termux-main/pool/main/f/fontconfig/fontconfig_2.18.2_aarch64.deb
 freetype	2.14.3	main	false	412340	670d27d8f53ef2d887b67f8b82fa480f7132b65ac2264a39b3c5b4db637ee285	https://packages.termux.dev/apt/termux-main/pool/main/f/freetype/freetype_2.14.3_aarch64.deb
 fribidi	1.0.16-1	main	false	64408	a15369457781dbe0af15344d9d184f22ad5da4a7546f94c44c3614646d1f6904	https://packages.termux.dev/apt/termux-main/pool/main/f/fribidi/fribidi_1.0.16-1_aarch64.deb
@@ -73,7 +73,7 @@ libc++	29	main	false	334828	bb9f12113c137aa0e8513bb51cc49fe77a5ce3ca39ab9e92c57d
 libcaca	0.99.beta20-3	main	false	249056	1b02d089bb2aa918dcf7ff19fe3b7c119b07c5e532922897eb88b3ef934e0eeb	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcaca/libcaca_0.99.beta20-3_aarch64.deb
 libcairo	1.18.4-2	main	false	485284	ea7a4341c6c3186fec785e1395bda26b4d99cddb0f73cffcbe8c38a8bc2fa68f	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcairo/libcairo_1.18.4-2_aarch64.deb
 libcap	2.69-1	main	true	74288	775df17dd5cb13459cb4849b36cdf66165578c623cd38af571601814d787e1b2	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcap/libcap_2.69-1_aarch64.deb
-libcap-ng	2:0.9.3	main	false	38896	4b8085605029eb4a88eacb4850e28a4294bd0bef865dbe00271d98f99234d1e5	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcap-ng/libcap-ng_2:0.9.3_aarch64.deb
+libcap-ng	2:0.9.3	main	false	38896	4b8085605029eb4a88eacb4850e28a4294bd0bef865dbe00271d98f99234d1e5	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcap-ng/libcap-ng_2%3A0.9.3_aarch64.deb
 libcompiler-rt	21.1.8-3	main	false	3024604	89de02f642e34fa6494ad16105bd08510bd1dbdbe4fdb2b297aaa4f4e8e534b6	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcompiler-rt/libcompiler-rt_21.1.8-3_aarch64.deb
 libcrypt	0.2-6	main	false	8880	6c283eed576b98cc3568f99638156f8588f77d979579d03bef8683d6eb8601e1	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcrypt/libcrypt_0.2-6_aarch64.deb
 libcurl	8.21.0	main	false	1017056	ad644c7e16183d40eaf0f55df339021a69b25cc9b390e9634251e681be1ddcb8	https://packages.termux.dev/apt/termux-main/pool/main/libc/libcurl/libcurl_8.21.0_aarch64.deb
@@ -89,7 +89,7 @@ libexpat	2.8.2	main	false	95536	6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a1
 libffi	3.5.2	main	false	31128	8c8c1d6ffb049d8496a21c1202d9b4dc9145140886fdbb45716684565f4ed3f5	https://packages.termux.dev/apt/termux-main/pool/main/libf/libffi/libffi_3.5.2_aarch64.deb
 libflac	1.5.0-1	main	false	202828	d1d6fcac6fd6d15c36f34464cb01d5e2140e321d8448dfc396cd7eb1536b1f6c	https://packages.termux.dev/apt/termux-main/pool/main/libf/libflac/libflac_1.5.0-1_aarch64.deb
 libgcrypt	1.12.2	main	false	513176	52283f62c1160fb4fbde5e37772617cf99abe3d27e5d98b2cb4c6f04b22d7d90	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgcrypt/libgcrypt_1.12.2_aarch64.deb
-libgd	1:2.3.3-7	main	false	126060	6453d3e80a96333638889e4c325aff2f33d478c53cb51062b84d4ae176d9f4d7	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgd/libgd_1:2.3.3-7_aarch64.deb
+libgd	1:2.3.3-7	main	false	126060	6453d3e80a96333638889e4c325aff2f33d478c53cb51062b84d4ae176d9f4d7	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgd/libgd_1%3A2.3.3-7_aarch64.deb
 libgmp	6.3.0-2	main	false	328368	5a3c1325638946ca212ddcb89bffb2c4459b4c90757d6e69f820e176534037fa	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgmp/libgmp_6.3.0-2_aarch64.deb
 libgnutls	3.8.13-1	main	true	776696	eb12f2cf82923caf288edd99bc4c19a9dd0cf1de4a03855ff4457a1bbdae146d	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgnutls/libgnutls_3.8.13-1_aarch64.deb
 libgpg-error	1.61	main	false	121284	452afa22fe36e4d79679e91eae6e22855dd1f855e2a7e1840736279b26611d8f	https://packages.termux.dev/apt/termux-main/pool/main/libg/libgpg-error/libgpg-error_1.61_aarch64.deb
@@ -154,12 +154,12 @@ libvidstab	1.1.1-3	main	false	259744	4611cb90ee015b02bf69b5da9031aff64ae1ec11589
 libvmaf	3.2.0-1	main	false	190648	a94f2338b1193603ba8ecd6cddbb29b85b0b3c0b4e35bc16ceacb18309672a22	https://packages.termux.dev/apt/termux-main/pool/main/libv/libvmaf/libvmaf_3.2.0-1_aarch64.deb
 libvo-amrwbenc	0.1.3-2	main	false	52344	aa913ca492246ed1e6ce57a3c52fe856c323cbb6e8dbdb6904b80214551f6e00	https://packages.termux.dev/apt/termux-main/pool/main/libv/libvo-amrwbenc/libvo-amrwbenc_0.1.3-2_aarch64.deb
 libvorbis	1.3.7-4	main	false	261740	6bfd70c4b570b85594bd06116b75a6f8109ec58cbc123e938b630a6eefdedf4e	https://packages.termux.dev/apt/termux-main/pool/main/libv/libvorbis/libvorbis_1.3.7-4_aarch64.deb
-libvpx	1:1.16.0	main	false	864244	d3c3c2a5ee7ace0e4cd6a4f10ffe6877bdb4cf44b137c5fe41b489148e0aebf1	https://packages.termux.dev/apt/termux-main/pool/main/libv/libvpx/libvpx_1:1.16.0_aarch64.deb
+libvpx	1:1.16.0	main	false	864244	d3c3c2a5ee7ace0e4cd6a4f10ffe6877bdb4cf44b137c5fe41b489148e0aebf1	https://packages.termux.dev/apt/termux-main/pool/main/libv/libvpx/libvpx_1%3A1.16.0_aarch64.deb
 libwayland	1.25.0-1	main	false	127376	1f98af1db541027082b57998a6cd62da0c73701d656210c41283f77cccfb3ed6	https://packages.termux.dev/apt/termux-main/pool/main/libw/libwayland/libwayland_1.25.0-1_aarch64.deb
 libwebp	1.6.0-rc1-0	main	false	329496	80fa46bec4faad0ccfd969df5acfd501d813ca9d112b5c49f3f91390e987f3a9	https://packages.termux.dev/apt/termux-main/pool/main/libw/libwebp/libwebp_1.6.0-rc1-0_aarch64.deb
 libwebrtc-audio-processing	1.3-5	main	false	409056	136f87d3c8aec04b94392a10174851936d21402f2f28aacdefd2cfd05ced367c	https://packages.termux.dev/apt/termux-main/pool/main/libw/libwebrtc-audio-processing/libwebrtc-audio-processing_1.3-5_aarch64.deb
 libx11	1.8.13-1	main	false	1909956	a18c5cf3cfe2670bf1cb4243e3140a0b7639350a4175b5229c969402fdb12e9f	https://packages.termux.dev/apt/termux-main/pool/main/libx/libx11/libx11_1.8.13-1_aarch64.deb
-libx264	1:0.164.3191-1	main	false	396540	fe98852cb06ce1c963a54284179d8cda42af2fa82afcac09f7d81e6de4d9bbc1	https://packages.termux.dev/apt/termux-main/pool/main/libx/libx264/libx264_1:0.164.3191-1_aarch64.deb
+libx264	1:0.164.3191-1	main	false	396540	fe98852cb06ce1c963a54284179d8cda42af2fa82afcac09f7d81e6de4d9bbc1	https://packages.termux.dev/apt/termux-main/pool/main/libx/libx264/libx264_1%3A0.164.3191-1_aarch64.deb
 libx265	4.2	main	false	1587380	c101bea9b03d06e778af7b49eb2c145b87499a2bdfb1cda5ae9b0daf997967c5	https://packages.termux.dev/apt/termux-main/pool/main/libx/libx265/libx265_4.2_aarch64.deb
 libxau	1.0.12-2	main	false	9120	2d86bed61ce89dd8fdb55e565aede10155f2ce3adaccb61d5f1375aec3314083	https://packages.termux.dev/apt/termux-main/pool/main/libx/libxau/libxau_1.0.12-2_aarch64.deb
 libxcb	1.17.0-1	main	false	913948	191c3642b6a8c754bc75b69b94a81858ecb5f18766dc085aff55559b8087ad34	https://packages.termux.dev/apt/termux-main/pool/main/libx/libxcb/libxcb_1.17.0-1_aarch64.deb
@@ -177,7 +177,7 @@ littlecms	2.19.1	main	false	143396	274f732a186563beca204f5d016d30cac8e5c24f7c439
 lld	21.1.8-3	main	false	2812212	6299c8fdff59dcff972f6b444805bcdb211c2bd797a64d2ddb3875e699f30630	https://packages.termux.dev/apt/termux-main/pool/main/l/lld/lld_21.1.8-3_aarch64.deb
 llvm	21.1.8-3	main	false	14911960	2d17e4dde485cae71e6872d19ce1d44555789208708b4e0fd15ebf6818a146d3	https://packages.termux.dev/apt/termux-main/pool/main/l/llvm/llvm_21.1.8-3_aarch64.deb
 lua54	5.4.8-7	main	false	139308	281a3b66c7e61167653eb4fad384ad3eb4c218892d9b442bd95f881b46da923c	https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb
-luajit	1:2.1.1785192264+gfaaf663	main	false	292376	c669534e79a73014016004e45a6740a73a34cf56366ce182fe5d19c9940fc437	https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1:2.1.1785192264+gfaaf663_aarch64.deb
+luajit	1:2.1.1785192264+gfaaf663	main	false	292376	c669534e79a73014016004e45a6740a73a34cf56366ce182fe5d19c9940fc437	https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb
 make	4.4.1-1	main	false	240436	beb7ac00ee4f9958ec8e584ac1b2e1612c549425674ab2aa197d343594bcc5a3	https://packages.termux.dev/apt/termux-main/pool/main/m/make/make_4.4.1-1_aarch64.deb
 mesa-vulkan-icd-swrast	26.0.6-1	main	false	1818216	c42e8a714302568aa1f286a0e13485a21fc422494335bb6b0c588f1bb9e33b19	https://packages.termux.dev/apt/termux-main/pool/main/m/mesa-vulkan-icd-swrast/mesa-vulkan-icd-swrast_26.0.6-1_aarch64.deb
 mpv	0.41.0-2	main	false	1051004	c04905f23e72f93bfe604f096c1e55f37d7aee40b54e200919290f3350b6c826	https://packages.termux.dev/apt/termux-main/pool/main/m/mpv/mpv_0.41.0-2_aarch64.deb
@@ -194,8 +194,8 @@ openal-soft	1.25.2-1	main	false	666324	d9fa999d37d83ca014ecabaed114ac9bf1fc42cec
 openjpeg	2.5.4	main	false	149728	93ad32c8caa0eb8943e2dd86b5c2eaf48a767709a3fa069a5b670d948656c7d8	https://packages.termux.dev/apt/termux-main/pool/main/o/openjpeg/openjpeg_2.5.4_aarch64.deb
 openssh	10.4p1	main	false	960556	4d4b9b4c6f45db22ddd3fa1c003519f4a4d9fc41e13555c545f77cd90244eef5	https://packages.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb
 openssh-sftp-server	10.4p1	main	false	56376	3e722b0ee9607516e66d370b52f69ab4cee764a282b87510fc662b8eeb354501	https://packages.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb
-openssl	1:3.6.3	main	false	2478376	86760e9ce736f463236f2c15b1eb3a3fdcfc5778d0fd7077a917448dcc90f3aa	https://packages.termux.dev/apt/termux-main/pool/main/o/openssl/openssl_1:3.6.3_aarch64.deb
-openssl-tool	1:3.6.3	main	false	277884	5dd21b49c243ac26785fe85c85155b8c79de62f2cf1d35d15f6af79aebe6ce08	https://packages.termux.dev/apt/termux-main/pool/main/o/openssl-tool/openssl-tool_1:3.6.3_aarch64.deb
+openssl	1:3.6.3	main	false	2478376	86760e9ce736f463236f2c15b1eb3a3fdcfc5778d0fd7077a917448dcc90f3aa	https://packages.termux.dev/apt/termux-main/pool/main/o/openssl/openssl_1%3A3.6.3_aarch64.deb
+openssl-tool	1:3.6.3	main	false	277884	5dd21b49c243ac26785fe85c85155b8c79de62f2cf1d35d15f6af79aebe6ce08	https://packages.termux.dev/apt/termux-main/pool/main/o/openssl-tool/openssl-tool_1%3A3.6.3_aarch64.deb
 opusfile	0.12-4	main	false	42588	6792d9e3c12bc51f92af9d83229c3cec13c1889cb8836b03c49db60d44bfb3bf	https://packages.termux.dev/apt/termux-main/pool/main/o/opusfile/opusfile_0.12-4_aarch64.deb
 p11-kit	0.26.4-1	main	true	489888	877fdca98fc811459bf3735b99ff362b4002759ee72ae39c39bb585dc02f8f12	https://packages.termux.dev/apt/termux-main/pool/main/p/p11-kit/p11-kit_0.26.4-1_aarch64.deb
 pango	1.58.0	main	false	364324	a788d9dbe7c6dd92ffdde463a7424b05c2c14ee2cb63673de5a7bf8a48e88813	https://packages.termux.dev/apt/termux-main/pool/main/p/pango/pango_1.58.0_aarch64.deb
@@ -226,7 +226,7 @@ termux-am-socket	1.5.0-1	main	false	16132	dcf53ccb7e1ac46d50e1de9d5e182b748157ba
 termux-api	0.59.1-1	main	false	28896	2b45c985c49420467b3452fd10d5e570a108d20bb2057a13b4d47f5a147f6186	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-api/termux-api_0.59.1-1_aarch64.deb
 termux-auth	1.5.0-1	main	false	6996	917f431ae85368deccf3a859e66fa9c9e99d354a0e948fc5ba174ce0359b37a9	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-auth/termux-auth_1.5.0-1_aarch64.deb
 termux-core	0.4.0-1	main	false	198224	4f809d70eff0afa8c1beccbf4b5f65e0f59207867462a3a2f66b3e2fcd64b057	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-core/termux-core_0.4.0-1_aarch64.deb
-termux-exec	1:2.5.0-1	main	false	287356	fd6a06a6a74c6fba2d1cec56dc8b5726e6488918322b06fd19fe5cff34b28a5d	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-exec/termux-exec_1:2.5.0-1_aarch64.deb
+termux-exec	1:2.5.0-1	main	false	287356	fd6a06a6a74c6fba2d1cec56dc8b5726e6488918322b06fd19fe5cff34b28a5d	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-exec/termux-exec_1%3A2.5.0-1_aarch64.deb
 termux-tools	1.46.0+really1.45.0-1	main	false	33592	970fb05a835169f218ea73479eda0f2574f5f70c2af54119f42f77e97cee98e1	https://packages.termux.dev/apt/termux-main/pool/main/t/termux-tools/termux-tools_1.46.0+really1.45.0-1_aarch64.deb
 tor	0.4.9.11	main	false	3321768	3e4f7b031aa27604fb692f8b0d90e67be948980dd7cfc9372f3a1b17d0d9973c	https://packages.termux.dev/apt/termux-main/pool/main/t/tor/tor_0.4.9.11_aarch64.deb
 ttf-dejavu	2.37-8	main	false	2468280	3fa9352d528cb19aebcdd2de5d1fb0cb67b201be3ae264207fc1a277d2cfd6da	https://packages.termux.dev/apt/termux-main/pool/main/t/ttf-dejavu/ttf-dejavu_2.37-8_all.deb
