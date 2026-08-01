@@ -840,32 +840,30 @@ def safe_curses_addstr(stdscr, y, x, text, attr=0):
 
 
 def safe_curses_wrapper(func, *args, **kwargs):
-    """Run a curses UI without allowing terminal-cleanup errors to crash it.
+    """Run a curses UI while tolerating Termux cleanup-only errors.
 
-    Some Termux/Python combinations report ``ERR`` from ``nocbreak()`` or
-    ``endwin()`` even after the menu function completed normally. The standard
-    ``curses.wrapper`` turns that cleanup condition into an exception and loses
-    the menu result. This wrapper preserves real UI exceptions while treating
-    terminal restoration as best-effort.
+    Startup deliberately matches :func:`curses.wrapper`: ``noecho()``,
+    ``cbreak()`` and keypad mode must all succeed before the UI starts. Hiding
+    failures there leaves the terminal in canonical/echo mode, causing arrow
+    keys to appear as escape text such as ``^[OB`` and requiring Enter.
+
+    Some Termux/Python 3.14 combinations raise ``curses.error`` only while
+    restoring the terminal after the UI has already returned. Those cleanup
+    operations are best-effort so a valid menu result is not discarded.
     """
     stdscr = None
     try:
         stdscr = curses.initscr()
-        try:
-            curses.noecho()
-        except curses.error:
-            pass
-        try:
-            curses.cbreak()
-        except curses.error:
-            pass
-        try:
-            stdscr.keypad(True)
-        except curses.error:
-            pass
+        # Keep the original curses.wrapper startup semantics. Do not suppress
+        # these errors; the menu must never run with echo/canonical input active.
+        curses.noecho()
+        curses.cbreak()
+        stdscr.keypad(True)
         return func(stdscr, *args, **kwargs)
     finally:
         if stdscr is not None:
+            # Restore in the same logical order as curses.wrapper. Cleanup can
+            # return ERR on Termux even when the UI completed successfully.
             cleanup_steps = (
                 lambda: stdscr.keypad(False),
                 curses.echo,
@@ -875,7 +873,7 @@ def safe_curses_wrapper(func, *args, **kwargs):
             for cleanup in cleanup_steps:
                 try:
                     cleanup()
-                except Exception:
+                except curses.error:
                     pass
 
 # ------------------------------
