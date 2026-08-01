@@ -5,24 +5,25 @@ ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 MODULES_DIR="$ROOT_DIR/Needs/Modules"
 PACKAGES_DIR="$ROOT_DIR/Needs/Packages"
 LOG_DIR="$ROOT_DIR/Needs/Logs"
-RUN_SETTINGS=0
+RUN_SETTINGS=1
 REQUIRED_ONLY=0
 SKIP_REPOSITORY_REFRESH=0
 
 for arg in "$@"; do
   case "$arg" in
     --run) RUN_SETTINGS=1 ;;
+    --no-run) RUN_SETTINGS=0 ;;
     --required-only) REQUIRED_ONLY=1 ;;
     --skip-system-update|--skip-repository-refresh) SKIP_REPOSITORY_REFRESH=1 ;;
     -h|--help)
       cat <<'EOF'
-Usage: bash Needs/install.sh [--run] [--required-only] [--skip-repository-refresh]
+Usage: bash Needs/install.sh [--run|--no-run] [--required-only] [--skip-repository-refresh]
 
 The installer performs four stages:
   1. Inspect and verify vendored files in Needs/Modules and Needs/Packages.
   2. Install newer or missing dependencies from those local files first.
   3. Update installed dependencies and download anything still missing.
-  4. Optionally launch Scripts/Settings.py with --run.
+  4. Launch Scripts/Settings.py by default. Use --no-run for dependency-only maintenance.
 EOF
       exit 0
       ;;
@@ -306,5 +307,14 @@ if [ "$RUN_SETTINGS" -eq 1 ]; then
     warn "The first-run Downloads save could not be created. Setup will retry it on the next run."
   fi
 
-  exec "$PYTHON_BIN" "$ROOT_DIR/Scripts/Settings.py"
+  SETTINGS_SCRIPT="$ROOT_DIR/Scripts/Settings.py"
+  if [ ! -f "$SETTINGS_SCRIPT" ]; then
+    echo "[error] Cannot start the menu because this file is missing:" >&2
+    echo "$SETTINGS_SCRIPT" >&2
+    exit 1
+  fi
+
+  echo "[launch] Starting the DedSec menu..."
+  cd "$ROOT_DIR" || exit 1
+  exec "$PYTHON_BIN" "$SETTINGS_SCRIPT"
 fi
