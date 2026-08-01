@@ -1,0 +1,3 @@
+# Existing Setup.sh / Settings.py declarations retained in requirements.txt.
+blessed
+mutagen

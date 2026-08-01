@@ -1,0 +1,587 @@
+{
+  "generated_by": "initial portable bootstrap from installed universal wheels; Sunday workflow replaces it with current PyPI artifacts",
+  "resolution": "partial-universal-wheel-bootstrap",
+  "files": [
+    {
+      "name": "anyio-4.13.0-py3-none-any.whl",
+      "size": 386716,
+      "sha256": "7255ecfe20a1fa801266cfc2a00176eefc2577fe067e7e5de8c9287b64ae2858"
+    },
+    {
+      "name": "beautifulsoup4-4.14.3-py3-none-any.whl",
+      "size": 267374,
+      "sha256": "27056203863eab6dd629eb4c2656ba552441e5eec181411b82905a251d1b7c1e"
+    },
+    {
+      "name": "cairocffi-1.7.1-py3-none-any.whl",
+      "size": 200458,
+      "sha256": "42aae2f3c836b331930e29e9d25a5c6384a58230240670d346d46df7500ff725"
+    },
+    {
+      "name": "CairoSVG-2.8.2-py3-none-any.whl",
+      "size": 132243,
+      "sha256": "9b8957ec8818b7edcd03bea4177a7b26fa5e520758370a208816ed67642050e3"
+    },
+    {
+      "name": "certifi-2026.5.20-py3-none-any.whl",
+      "size": 136881,
+      "sha256": "b7588b00e9ae893789c600e2eb3cc9219f7e616ea9672c6858859448fa541a16"
+    },
+    {
+      "name": "charset_normalizer-3.4.7-py3-none-any.whl",
+      "size": 140370,
+      "sha256": "0b12cbd711dddd2d1b0fb77fe94e985f27dd7e2d8be9696e5a646c8bac94c27f"
+    },
+    {
+      "name": "cssselect2-0.9.0-py3-none-any.whl",
+      "size": 44543,
+      "sha256": "a77686bde6a9a4826dca57f4b52590c129ce139f955db0cb89caeb3ce9643730"
+    },
+    {
+      "name": "defusedxml-0.7.1-py3-none-any.whl",
+      "size": 48750,
+      "sha256": "7dc737065de1c64ace86eb0e62814688f27ff58ee674218cab53e747d576ae3f"
+    },
+    {
+      "name": "dnspython-2.8.0-py3-none-any.whl",
+      "size": 948923,
+      "sha256": "61c1a474eddd24f5dc1d69e9a776ad0e5335dce40a6958b26dd6b763910c8e7a"
+    },
+    {
+      "name": "geographiclib-2.1-py3-none-any.whl",
+      "size": 102863,
+      "sha256": "877fcb5116f7b61a260dcb3202364402fdf2f0086eca6faa32488f1dd5e9fef4"
+    },
+    {
+      "name": "geopy-2.4.1-py3-none-any.whl",
+      "size": 337298,
+      "sha256": "9dbc58a0b8f02892a75c6e51627715e31db7580c77a04e67953d53ad3506847a"
+    },
+    {
+      "name": "h11-0.16.0-py3-none-any.whl",
+      "size": 78833,
+      "sha256": "9d6066f88e5a18e905bf90196fb128f0970e96727293e7e5ad64eb0560f9ed54"
+    },
+    {
+      "name": "httpcore-1.0.9-py3-none-any.whl",
+      "size": 236747,
+      "sha256": "3f539a29da4b07dae0b53caf1851c85e65adb61f9005df73b393e2ea57ea9c63"
+    },
+    {
+      "name": "httpx-0.28.1-py3-none-any.whl",
+      "size": 220157,
+      "sha256": "3a18ab988ff79a02911c27d338e609ece5bf5df8777ddc2cf1a0796574cdcf95"
+    },
+    {
+      "name": "idna-3.17-py3-none-any.whl",
+      "size": 127886,
+      "sha256": "3c014dcda712cc5c664fc29210dbd90599864d9928982cd2f3790969dc20e6f7"
+    },
+    {
+      "name": "Jinja2-3.1.6-py3-none-any.whl",
+      "size": 420125,
+      "sha256": "4170804a18090273f74372f96f0a744409ab122305b6caa28762c5ff370c3754"
+    },
+    {
+      "name": "markdown_it_py-4.2.0-py3-none-any.whl",
+      "size": 237521,
+      "sha256": "dd0ff4cf921add2212aa40a2edbb4779decee38151c8553f80c34eb5099c969f"
+    },
+    {
+      "name": "MarkupSafe-3.0.3-py3-none-any.whl",
+      "size": 18148,
+      "sha256": "551b1188d5a93254b69c9cd096234a3bcd61553ef5e7b9071a04a4837cb23032"
+    },
+    {
+      "name": "mdurl-0.1.2-py3-none-any.whl",
+      "size": 21132,
+      "sha256": "86237815f66f6c61b38a00be8632ff593b348b8080f4194b079f288c138a99f3"
+    },
+    {
+      "name": "mutagen-1.47.0-py3-none-any.whl",
+      "size": 572648,
+      "sha256": "138bea21328c56add99883867c674927d8d85feae5fbcae55248ff7095e83e4d"
+    },
+    {
+      "name": "odfpy-1.4.1-py3-none-any.whl",
+      "size": 322477,
+      "sha256": "d11bda87b3c45929039c4122bd49673367885e75d4f943ce31c7806faef80d38"
+    },
+    {
+      "name": "pycountry-24.6.1-py3-none-any.whl",
+      "size": 6356750,
+      "sha256": "1232904f2a9f9872bee2054047441f37d7f17eace83d17f931a63a39d9304dae"
+    },
+    {
+      "name": "pydub-0.25.1-py3-none-any.whl",
+      "size": 96510,
+      "sha256": "b41693e8d97cdc6339cf25f33106fc16c533e337314f2c0de9bc444ce86a8681"
+    },
+    {
+      "name": "Pygments-2.20.0-py3-none-any.whl",
+      "size": 3103849,
+      "sha256": "8be9725d1b034357a02a72ede106388934c09796a59d4c9a1c2dfebb1cae051c"
+    },
+    {
+      "name": "python_dateutil-2.9.0.post0-py3-none-any.whl",
+      "size": 366417,
+      "sha256": "925fca4c300547d32e7b0940b92c7c4adba72222aac492961b18b04ae7c49399"
+    },
+    {
+      "name": "python_docx-1.2.0-py3-none-any.whl",
+      "size": 592658,
+      "sha256": "53f89c6c6b00aef02fed8978f3d3925bc51a42f843ba95664aec73e4c8c083b8"
+    },
+    {
+      "name": "python_dotenv-1.2.2-py3-none-any.whl",
+      "size": 48875,
+      "sha256": "b28b65086e6ea26fbd1e2345d9c62991588d4bfb4c0d19c9e2617b550b3b9ba9"
+    },
+    {
+      "name": "python_pptx-1.0.2-py3-none-any.whl",
+      "size": 975742,
+      "sha256": "a5759ddde3b1d594eca43e0d680b9a2170ead30814d3bc736c3a7b861d44dece"
+    },
+    {
+      "name": "pytz-2026.2-py3-none-any.whl",
+      "size": 542491,
+      "sha256": "76c6a10e9874ab36d2475bc4b6bdc96152a784a78729ec10a2ff6613bc9844d5"
+    },
+    {
+      "name": "qrcode-8.2-py3-none-any.whl",
+      "size": 133652,
+      "sha256": "e4e0a86a79d18b6312ebd187fab7fbd4873ce7221ed0eba4b6a3233b66ff8f76"
+    },
+    {
+      "name": "rarfile-4.2-py3-none-any.whl",
+      "size": 87906,
+      "sha256": "e84405ae5703999d602aaa9387010ece9ae9adbf9b040ec8bc5454ee322df6d1"
+    },
+    {
+      "name": "reportlab-4.4.9-py3-none-any.whl",
+      "size": 3575036,
+      "sha256": "87b7fc05d3e8d28d5a0ac113e5380bef9ea39853b492d6f224df435c50e33170"
+    },
+    {
+      "name": "requests-2.32.5-py3-none-any.whl",
+      "size": 165268,
+      "sha256": "f9fb3f7f58ab39a9e2422f54c9604fabb7664a29f9c21bc6867c05946abe9eb7"
+    },
+    {
+      "name": "rich-15.0.0-py3-none-any.whl",
+      "size": 896354,
+      "sha256": "53a1bc44e67c47572444b9d934027ed0c520e38f8632ff1080c4ffdc05d707e5"
+    },
+    {
+      "name": "six-1.17.0-py3-none-any.whl",
+      "size": 29605,
+      "sha256": "1c65c200d31e0f83ee221b94ac18b0bf7c834d9fcf9560d08fc206f6683af58f"
+    },
+    {
+      "name": "soupsieve-2.8.4-py3-none-any.whl",
+      "size": 107878,
+      "sha256": "ef865a349836ec50493080ad953849178f71aee012f8410b39ef7efa59b6101b"
+    },
+    {
+      "name": "tinycss2-1.5.1-py3-none-any.whl",
+      "size": 78853,
+      "sha256": "5c85d6e588eb63118c7fabbe74bac8d146d56d14e81689459facdfa24d71695d"
+    },
+    {
+      "name": "typing_extensions-4.15.0-py3-none-any.whl",
+      "size": 112521,
+      "sha256": "58f514d5cd986d14bce77e5086c10ca7f2c21140440f80a641707d265876e397"
+    },
+    {
+      "name": "urllib3-2.7.0-py3-none-any.whl",
+      "size": 351925,
+      "sha256": "b1837eed180f98a007a44ac16a15e427e6d122d58860b9b1cdbd4c4cc319be88"
+    },
+    {
+      "name": "webencodings-0.5.1-py3-none-any.whl",
+      "size": 28390,
+      "sha256": "30f3cf6c84dc88fec43def0263519462d138dbde904879b554d4394dd08d7e2d"
+    },
+    {
+      "name": "websocket_client-1.9.0-py3-none-any.whl",
+      "size": 223469,
+      "sha256": "418e184e80dbf9c6e98179341919854ec84dc78652e05797b3e2217305924fe3"
+    },
+    {
+      "name": "xlsxwriter-3.2.9-py3-none-any.whl",
+      "size": 488373,
+      "sha256": "91bf2c4ed58105a113211077c7cab56cf2c30b2e55b85f298546e55d698e61bb"
+    }
+  ],
+  "distributions": [
+    {
+      "distribution": "anyio",
+      "version": "4.13.0",
+      "file": "anyio-4.13.0-py3-none-any.whl",
+      "sha256": "7255ecfe20a1fa801266cfc2a00176eefc2577fe067e7e5de8c9287b64ae2858",
+      "size": 386716,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "beautifulsoup4",
+      "version": "4.14.3",
+      "file": "beautifulsoup4-4.14.3-py3-none-any.whl",
+      "sha256": "27056203863eab6dd629eb4c2656ba552441e5eec181411b82905a251d1b7c1e",
+      "size": 267374,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "cairocffi",
+      "version": "1.7.1",
+      "file": "cairocffi-1.7.1-py3-none-any.whl",
+      "sha256": "42aae2f3c836b331930e29e9d25a5c6384a58230240670d346d46df7500ff725",
+      "size": 200458,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "CairoSVG",
+      "version": "2.8.2",
+      "file": "CairoSVG-2.8.2-py3-none-any.whl",
+      "sha256": "9b8957ec8818b7edcd03bea4177a7b26fa5e520758370a208816ed67642050e3",
+      "size": 132243,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "certifi",
+      "version": "2026.5.20",
+      "file": "certifi-2026.5.20-py3-none-any.whl",
+      "sha256": "b7588b00e9ae893789c600e2eb3cc9219f7e616ea9672c6858859448fa541a16",
+      "size": 136881,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "cssselect2",
+      "version": "0.9.0",
+      "file": "cssselect2-0.9.0-py3-none-any.whl",
+      "sha256": "a77686bde6a9a4826dca57f4b52590c129ce139f955db0cb89caeb3ce9643730",
+      "size": 44543,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "defusedxml",
+      "version": "0.7.1",
+      "file": "defusedxml-0.7.1-py3-none-any.whl",
+      "sha256": "7dc737065de1c64ace86eb0e62814688f27ff58ee674218cab53e747d576ae3f",
+      "size": 48750,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "dnspython",
+      "version": "2.8.0",
+      "file": "dnspython-2.8.0-py3-none-any.whl",
+      "sha256": "61c1a474eddd24f5dc1d69e9a776ad0e5335dce40a6958b26dd6b763910c8e7a",
+      "size": 948923,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "geographiclib",
+      "version": "2.1",
+      "file": "geographiclib-2.1-py3-none-any.whl",
+      "sha256": "877fcb5116f7b61a260dcb3202364402fdf2f0086eca6faa32488f1dd5e9fef4",
+      "size": 102863,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "geopy",
+      "version": "2.4.1",
+      "file": "geopy-2.4.1-py3-none-any.whl",
+      "sha256": "9dbc58a0b8f02892a75c6e51627715e31db7580c77a04e67953d53ad3506847a",
+      "size": 337298,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "h11",
+      "version": "0.16.0",
+      "file": "h11-0.16.0-py3-none-any.whl",
+      "sha256": "9d6066f88e5a18e905bf90196fb128f0970e96727293e7e5ad64eb0560f9ed54",
+      "size": 78833,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "httpcore",
+      "version": "1.0.9",
+      "file": "httpcore-1.0.9-py3-none-any.whl",
+      "sha256": "3f539a29da4b07dae0b53caf1851c85e65adb61f9005df73b393e2ea57ea9c63",
+      "size": 236747,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "httpx",
+      "version": "0.28.1",
+      "file": "httpx-0.28.1-py3-none-any.whl",
+      "sha256": "3a18ab988ff79a02911c27d338e609ece5bf5df8777ddc2cf1a0796574cdcf95",
+      "size": 220157,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "idna",
+      "version": "3.17",
+      "file": "idna-3.17-py3-none-any.whl",
+      "sha256": "3c014dcda712cc5c664fc29210dbd90599864d9928982cd2f3790969dc20e6f7",
+      "size": 127886,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "Jinja2",
+      "version": "3.1.6",
+      "file": "Jinja2-3.1.6-py3-none-any.whl",
+      "sha256": "4170804a18090273f74372f96f0a744409ab122305b6caa28762c5ff370c3754",
+      "size": 420125,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "markdown-it-py",
+      "version": "4.2.0",
+      "file": "markdown_it_py-4.2.0-py3-none-any.whl",
+      "sha256": "dd0ff4cf921add2212aa40a2edbb4779decee38151c8553f80c34eb5099c969f",
+      "size": 237521,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "mdurl",
+      "version": "0.1.2",
+      "file": "mdurl-0.1.2-py3-none-any.whl",
+      "sha256": "86237815f66f6c61b38a00be8632ff593b348b8080f4194b079f288c138a99f3",
+      "size": 21132,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "mutagen",
+      "version": "1.47.0",
+      "file": "mutagen-1.47.0-py3-none-any.whl",
+      "sha256": "138bea21328c56add99883867c674927d8d85feae5fbcae55248ff7095e83e4d",
+      "size": 572648,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "odfpy",
+      "version": "1.4.1",
+      "file": "odfpy-1.4.1-py3-none-any.whl",
+      "sha256": "d11bda87b3c45929039c4122bd49673367885e75d4f943ce31c7806faef80d38",
+      "size": 322477,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "pycountry",
+      "version": "24.6.1",
+      "file": "pycountry-24.6.1-py3-none-any.whl",
+      "sha256": "1232904f2a9f9872bee2054047441f37d7f17eace83d17f931a63a39d9304dae",
+      "size": 6356750,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "pydub",
+      "version": "0.25.1",
+      "file": "pydub-0.25.1-py3-none-any.whl",
+      "sha256": "b41693e8d97cdc6339cf25f33106fc16c533e337314f2c0de9bc444ce86a8681",
+      "size": 96510,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "Pygments",
+      "version": "2.20.0",
+      "file": "Pygments-2.20.0-py3-none-any.whl",
+      "sha256": "8be9725d1b034357a02a72ede106388934c09796a59d4c9a1c2dfebb1cae051c",
+      "size": 3103849,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "python-dateutil",
+      "version": "2.9.0.post0",
+      "file": "python_dateutil-2.9.0.post0-py3-none-any.whl",
+      "sha256": "925fca4c300547d32e7b0940b92c7c4adba72222aac492961b18b04ae7c49399",
+      "size": 366417,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "python-docx",
+      "version": "1.2.0",
+      "file": "python_docx-1.2.0-py3-none-any.whl",
+      "sha256": "53f89c6c6b00aef02fed8978f3d3925bc51a42f843ba95664aec73e4c8c083b8",
+      "size": 592658,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "python-dotenv",
+      "version": "1.2.2",
+      "file": "python_dotenv-1.2.2-py3-none-any.whl",
+      "sha256": "b28b65086e6ea26fbd1e2345d9c62991588d4bfb4c0d19c9e2617b550b3b9ba9",
+      "size": 48875,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "python-pptx",
+      "version": "1.0.2",
+      "file": "python_pptx-1.0.2-py3-none-any.whl",
+      "sha256": "a5759ddde3b1d594eca43e0d680b9a2170ead30814d3bc736c3a7b861d44dece",
+      "size": 975742,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "pytz",
+      "version": "2026.2",
+      "file": "pytz-2026.2-py3-none-any.whl",
+      "sha256": "76c6a10e9874ab36d2475bc4b6bdc96152a784a78729ec10a2ff6613bc9844d5",
+      "size": 542491,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "qrcode",
+      "version": "8.2",
+      "file": "qrcode-8.2-py3-none-any.whl",
+      "sha256": "e4e0a86a79d18b6312ebd187fab7fbd4873ce7221ed0eba4b6a3233b66ff8f76",
+      "size": 133652,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "rarfile",
+      "version": "4.2",
+      "file": "rarfile-4.2-py3-none-any.whl",
+      "sha256": "e84405ae5703999d602aaa9387010ece9ae9adbf9b040ec8bc5454ee322df6d1",
+      "size": 87906,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "reportlab",
+      "version": "4.4.9",
+      "file": "reportlab-4.4.9-py3-none-any.whl",
+      "sha256": "87b7fc05d3e8d28d5a0ac113e5380bef9ea39853b492d6f224df435c50e33170",
+      "size": 3575036,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "requests",
+      "version": "2.32.5",
+      "file": "requests-2.32.5-py3-none-any.whl",
+      "sha256": "f9fb3f7f58ab39a9e2422f54c9604fabb7664a29f9c21bc6867c05946abe9eb7",
+      "size": 165268,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "rich",
+      "version": "15.0.0",
+      "file": "rich-15.0.0-py3-none-any.whl",
+      "sha256": "53a1bc44e67c47572444b9d934027ed0c520e38f8632ff1080c4ffdc05d707e5",
+      "size": 896354,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "six",
+      "version": "1.17.0",
+      "file": "six-1.17.0-py3-none-any.whl",
+      "sha256": "1c65c200d31e0f83ee221b94ac18b0bf7c834d9fcf9560d08fc206f6683af58f",
+      "size": 29605,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "soupsieve",
+      "version": "2.8.4",
+      "file": "soupsieve-2.8.4-py3-none-any.whl",
+      "sha256": "ef865a349836ec50493080ad953849178f71aee012f8410b39ef7efa59b6101b",
+      "size": 107878,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "tinycss2",
+      "version": "1.5.1",
+      "file": "tinycss2-1.5.1-py3-none-any.whl",
+      "sha256": "5c85d6e588eb63118c7fabbe74bac8d146d56d14e81689459facdfa24d71695d",
+      "size": 78853,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "typing_extensions",
+      "version": "4.15.0",
+      "file": "typing_extensions-4.15.0-py3-none-any.whl",
+      "sha256": "58f514d5cd986d14bce77e5086c10ca7f2c21140440f80a641707d265876e397",
+      "size": 112521,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "urllib3",
+      "version": "2.7.0",
+      "file": "urllib3-2.7.0-py3-none-any.whl",
+      "sha256": "b1837eed180f98a007a44ac16a15e427e6d122d58860b9b1cdbd4c4cc319be88",
+      "size": 351925,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "webencodings",
+      "version": "0.5.1",
+      "file": "webencodings-0.5.1-py3-none-any.whl",
+      "sha256": "30f3cf6c84dc88fec43def0263519462d138dbde904879b554d4394dd08d7e2d",
+      "size": 28390,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "websocket-client",
+      "version": "1.9.0",
+      "file": "websocket_client-1.9.0-py3-none-any.whl",
+      "sha256": "418e184e80dbf9c6e98179341919854ec84dc78652e05797b3e2217305924fe3",
+      "size": 223469,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "xlsxwriter",
+      "version": "3.2.9",
+      "file": "xlsxwriter-3.2.9-py3-none-any.whl",
+      "sha256": "91bf2c4ed58105a113211077c7cab56cf2c30b2e55b85f298546e55d698e61bb",
+      "size": 488373,
+      "source": "repacked installed universal wheel"
+    },
+    {
+      "distribution": "MarkupSafe",
+      "version": "see filename",
+      "file": "MarkupSafe-3.0.3-py3-none-any.whl",
+      "sha256": "551b1188d5a93254b69c9cd096234a3bcd61553ef5e7b9071a04a4837cb23032",
+      "size": 18148,
+      "source": "pure-Python fallback repacked without optional native accelerator"
+    },
+    {
+      "distribution": "charset_normalizer",
+      "version": "see filename",
+      "file": "charset_normalizer-3.4.7-py3-none-any.whl",
+      "sha256": "0b12cbd711dddd2d1b0fb77fe94e985f27dd7e2d8be9696e5a646c8bac94c27f",
+      "size": 140370,
+      "source": "pure-Python fallback repacked without optional native accelerator"
+    }
+  ],
+  "not_available_in_build_environment": [
+    "blessed",
+    "cloudscraper",
+    "colorama",
+    "EbookLib",
+    "ExifRead",
+    "Flask",
+    "Flask-SocketIO",
+    "Markdown",
+    "paramiko",
+    "phonenumbers",
+    "psd-tools",
+    "py7zr",
+    "pycryptodome",
+    "PySocks",
+    "python-nmap",
+    "python-whois",
+    "speedtest-cli",
+    "striprtf",
+    "tldextract",
+    "validators",
+    "Werkzeug",
+    "zxcvbn"
+  ],
+  "platform_specific_not_repacked": [
+    "cffi",
+    "charset-normalizer",
+    "cryptography",
+    "lxml",
+    "MarkupSafe",
+    "Pillow",
+    "psutil"
+  ]
+}
