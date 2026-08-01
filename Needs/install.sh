@@ -46,6 +46,41 @@ read_manifest() {
 warn() { printf '[warning] %s\n' "$*"; }
 info() { printf '[info] %s\n' "$*"; }
 
+ensure_termux_storage() {
+  storage_downloads="$HOME/storage/downloads"
+
+  if [ -d "$storage_downloads" ] && [ -r "$storage_downloads" ] && [ -w "$storage_downloads" ]; then
+    info "Android internal-storage Downloads access is already configured."
+    return 0
+  fi
+
+  if ! command -v termux-setup-storage >/dev/null 2>&1; then
+    warn "termux-setup-storage is unavailable; the first-run Downloads save may fail."
+    return 1
+  fi
+
+  echo
+  echo "[storage] DedSec needs access to Android internal storage for the first-run save."
+  echo "[storage] A permission dialog or a y/n/Enter prompt may appear now."
+  echo "[storage] Read the visible prompt and press Enter or answer y/n as requested."
+  echo
+
+  # Do not redirect this command: Termux may require interactive confirmation.
+  if ! termux-setup-storage; then
+    warn "Android storage setup was not completed. It will be requested again next run."
+    return 1
+  fi
+
+  if [ -d "$storage_downloads" ] && [ -r "$storage_downloads" ] && [ -w "$storage_downloads" ]; then
+    info "Android internal-storage Downloads access is ready."
+    return 0
+  fi
+
+  warn "Storage permission was requested, but Downloads is not accessible yet."
+  warn "Grant Termux file access in Android settings, then run Setup.sh again."
+  return 1
+}
+
 PYTHON_BIN=""
 resolve_python() {
   if command -v python >/dev/null 2>&1; then
@@ -206,7 +241,7 @@ install_python_dependencies() {
 
 if command -v pkg >/dev/null 2>&1; then
   info "Termux environment detected."
-  termux-setup-storage >/dev/null 2>&1 || true
+  ensure_termux_storage || true
 
   # The vendored set is checked and installed before any network operation.
   install_local_termux_packages
