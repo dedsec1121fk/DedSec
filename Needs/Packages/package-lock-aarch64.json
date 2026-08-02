@@ -1,5 +1,5 @@
 {
-  "generated_at_utc": "2026-08-01T14:07:23Z",
+  "generated_at_utc": "2026-08-02T05:32:49Z",
   "generated_from": "verified Needs/Packages/Cache/cache-manifest.json",
   "architecture": "aarch64",
   "required_roots": [
@@ -64,7 +64,7 @@
     "avahi"
   ],
   "package_count": 245,
-  "total_size_bytes": 390133292,
+  "total_size_bytes": 390134176,
   "entries": [
     {
       "package": "aapt",
@@ -4875,28 +4875,28 @@
     {
       "package": "luajit",
       "optional": false,
-      "version": "1:2.1.1785192264+gfaaf663",
+      "version": "1:2.1.1785606157+g2808400",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb"
       ],
-      "sha256": "c669534e79a73014016004e45a6740a73a34cf56366ce182fe5d19c9940fc437",
-      "size": 292376,
-      "filename": "pool/main/l/luajit/luajit_1:2.1.1785192264+gfaaf663_aarch64.deb",
+      "sha256": "aef3334a6f43b80579c13a322a744c6d7fa4e6f5b91100ac730dad61530a78ea",
+      "size": 293260,
+      "filename": "pool/main/l/luajit/luajit_1:2.1.1785606157+g2808400_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "",
-      "file": "luajit_1:2.1.1785192264+gfaaf663_aarch64.deb",
+      "file": "luajit_1:2.1.1785606157+g2808400_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "luajit_1:2.1.1785192264+gfaaf663_aarch64.deb": "c669534e79a73014016004e45a6740a73a34cf56366ce182fe5d19c9940fc437"
+        "luajit_1:2.1.1785606157+g2808400_aarch64.deb": "aef3334a6f43b80579c13a322a744c6d7fa4e6f5b91100ac730dad61530a78ea"
       }
     },
     {
