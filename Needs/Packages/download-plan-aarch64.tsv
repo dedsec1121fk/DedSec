@@ -177,7 +177,7 @@ littlecms	2.19.1	main	false	143396	274f732a186563beca204f5d016d30cac8e5c24f7c439
 lld	21.1.8-3	main	false	2812212	6299c8fdff59dcff972f6b444805bcdb211c2bd797a64d2ddb3875e699f30630	https://packages.termux.dev/apt/termux-main/pool/main/l/lld/lld_21.1.8-3_aarch64.deb
 llvm	21.1.8-3	main	false	14911960	2d17e4dde485cae71e6872d19ce1d44555789208708b4e0fd15ebf6818a146d3	https://packages.termux.dev/apt/termux-main/pool/main/l/llvm/llvm_21.1.8-3_aarch64.deb
 lua54	5.4.8-7	main	false	139308	281a3b66c7e61167653eb4fad384ad3eb4c218892d9b442bd95f881b46da923c	https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb
-luajit	1:2.1.1785192264+gfaaf663	main	false	292376	c669534e79a73014016004e45a6740a73a34cf56366ce182fe5d19c9940fc437	https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785192264+gfaaf663_aarch64.deb
+luajit	1:2.1.1785606157+g2808400	main	false	293260	aef3334a6f43b80579c13a322a744c6d7fa4e6f5b91100ac730dad61530a78ea	https://packages.termux.dev/apt/termux-main/pool/main/l/luajit/luajit_1%3A2.1.1785606157+g2808400_aarch64.deb
 make	4.4.1-1	main	false	240436	beb7ac00ee4f9958ec8e584ac1b2e1612c549425674ab2aa197d343594bcc5a3	https://packages.termux.dev/apt/termux-main/pool/main/m/make/make_4.4.1-1_aarch64.deb
 mesa-vulkan-icd-swrast	26.0.6-1	main	false	1818216	c42e8a714302568aa1f286a0e13485a21fc422494335bb6b0c588f1bb9e33b19	https://packages.termux.dev/apt/termux-main/pool/main/m/mesa-vulkan-icd-swrast/mesa-vulkan-icd-swrast_26.0.6-1_aarch64.deb
 mpv	0.41.0-2	main	false	1051004	c04905f23e72f93bfe604f096c1e55f37d7aee40b54e200919290f3350b6c826	https://packages.termux.dev/apt/termux-main/pool/main/m/mpv/mpv_0.41.0-2_aarch64.deb
