@@ -1417,13 +1417,16 @@ def create_html_template(settings):
             }}
         }}
         
-        // Age Verification
+        // Age Verification - FIXED: auto-advance on "Yes"
         function confirmAge(isAdult) {{
             ageConfirmed = isAdult;
             
             if (isAdult) {{
+                // Enable and update the continue button for visual feedback
                 document.getElementById('continueBtn').disabled = false;
-                document.getElementById('continueBtn').textContent = 'Continue to Age Verification';
+                document.getElementById('continueBtn').textContent = '✅ Age confirmed – Proceeding...';
+                // Auto-advance to next step after a short delay
+                setTimeout(() => nextStep(), 500);
             }} else {{
                 if (confirm("You must be 18 or older to watch age-restricted content. You will be redirected to YouTube Kids.")) {{
                     window.location.href = 'https://www.youtubekids.com';

