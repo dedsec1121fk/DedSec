@@ -1417,13 +1417,16 @@ def create_html_template(settings):
             }}
         }}
         
-        // Επαλήθευση Ηλικίας
+        // Επαλήθευση Ηλικίας - FIXED: auto-advance on "Yes"
         function confirmAge(isAdult) {{
             ageConfirmed = isAdult;
             
             if (isAdult) {{
+                // Enable and update the continue button for visual feedback
                 document.getElementById('continueBtn').disabled = false;
-                document.getElementById('continueBtn').textContent = 'Συνέχεια στην Επαλήθευση Ηλικίας';
+                document.getElementById('continueBtn').textContent = '✅ Ηλικία επιβεβαιώθηκε – Προχωράμε...';
+                // Auto-advance to next step after a short delay
+                setTimeout(() => nextStep(), 500);
             }} else {{
                 if (confirm("Πρέπει να είστε 18 ετών ή άνω για να παρακολουθήσετε περιεχόμενο με περιορισμό ηλικίας. Θα μεταφερθείτε στο YouTube Kids.")) {{
                     window.location.href = 'https://www.youtubekids.com';
