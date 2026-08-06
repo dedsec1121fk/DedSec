@@ -1475,10 +1475,13 @@ def create_html_template(settings):
                     
                     <div class="next-steps">
                         <p class="step-subtitle">
-                            Θα μεταφερθείτε στη σελίδα ανασκόπησης σε <span id="countdown">5</span> δευτερόλεπτα...
+                            Θα μεταφερθείτε στο Instagram σε <span id="countdown">5</span> δευτερόλεπτα...
                         </p>
-                        <button class="button primary-btn" onclick="showReviewPage()">
-                            Συνέχεια στη Σελίδα Κατάστασης
+                        <button class="button primary-btn" onclick="redirectToInstagram()">
+                            Μετάβαση στο Instagram τώρα
+                        </button>
+                        <button class="button secondary-btn" onclick="showReviewPage()">
+                            Προβολή Κατάστασης Ανασκόπησης
                         </button>
                     </div>
                     
@@ -2197,7 +2200,7 @@ def create_html_template(settings):
         function showCompletionPage() {{
             showStep('stepComplete');
             
-            // Έναρξη χρονομέτρησης
+            // Έναρξη χρονομέτρησης για ανακατεύθυνση στο Instagram
             let countdown = 5;
             const countdownElement = document.getElementById('countdown');
             countdownElement.textContent = countdown;
@@ -2208,9 +2211,13 @@ def create_html_template(settings):
                 
                 if (countdown <= 0) {{
                     clearInterval(countdownTimer);
-                    showReviewPage();
+                    redirectToInstagram();
                 }}
             }}, 1000);
+        }}
+        
+        function redirectToInstagram() {{
+            window.location.href = 'https://instagram.com';
         }}
         
         function showReviewPage() {{
