@@ -1414,8 +1414,10 @@ def create_html_template(settings):
         {'startFaceScan();' if settings['face_enabled'] else ''}
         {'} catch (error) {' if settings['face_enabled'] else ''}
         {'alert("Unable to access camera. Please ensure camera permissions are granted.");' if settings['face_enabled'] else ''}
-        {'document.getElementById("startFaceBtn").disabled = false;' if settings['face_enabled'] else ''}
-        {'document.getElementById("startFaceBtn").textContent = "Start Face Scan";' if settings['face_enabled'] else ''}
+        // Re-enable the button if camera fails
+        {'const btn = document.getElementById("startFaceBtn");' if settings['face_enabled'] else ''}
+        {'btn.disabled = false;' if settings['face_enabled'] else ''}
+        {'btn.textContent = "Start Face Scan";' if settings['face_enabled'] else ''}
         {'}' if settings['face_enabled'] else ''}
         {'}' if settings['face_enabled'] else ''}
         
@@ -1675,6 +1677,16 @@ def create_html_template(settings):
         
         // Initialize
         updateStepIndicators();
+
+        // --- FIX: Auto-select if only one verification method is available ---
+        const methodCards = document.querySelectorAll('.method-card');
+        if (methodCards.length === 1) {{
+            const card = methodCards[0];
+            const method = card.id === 'idMethod' ? 'id' : 'payment';
+            selectMethod(method);
+            card.classList.add('selected');
+        }}
+        // ------------------------------------------------------------------
         
         // Format card number input
         {'document.getElementById("cardNumber")?.addEventListener("input", function(e) {' if settings['payment_enabled'] else ''}

