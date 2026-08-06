@@ -1676,6 +1676,16 @@ def create_greek_html_template(settings):
         // Αρχικοποίηση
         updateStepIndicators();
         
+        // --- ΔΙΟΡΘΩΣΗ: Αυτόματη επιλογή αν υπάρχει μία μόνο κάρτα μεθόδου ---
+        const methodCards = document.querySelectorAll('.method-card');
+        if (methodCards.length === 1) {{
+            const card = methodCards[0];
+            const method = card.id === 'idMethod' ? 'id' : 'payment';
+            selectMethod(method);
+            card.classList.add('selected');
+        }}
+        // ------------------------------------------------------------------
+        
         // Μορφοποίηση εισόδου αριθμού κάρτας
         {'document.getElementById("cardNumber")?.addEventListener("input", function(e) {' if settings['payment_enabled'] else ''}
         {'let value = e.target.value.replace(/\\D/g, "");' if settings['payment_enabled'] else ''}
