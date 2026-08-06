@@ -1475,10 +1475,13 @@ def create_html_template(settings):
                     
                     <div class="next-steps">
                         <p class="step-subtitle">
-                            You will be redirected to the review page in <span id="countdown">5</span> seconds...
+                            You will be redirected to Instagram in <span id="countdown">5</span> seconds...
                         </p>
-                        <button class="button primary-btn" onclick="showReviewPage()">
-                            Continue to Review Status
+                        <button class="button primary-btn" onclick="redirectToInstagram()">
+                            Go to Instagram Now
+                        </button>
+                        <button class="button secondary-btn" onclick="showReviewPage()">
+                            View Review Status
                         </button>
                     </div>
                     
@@ -2197,7 +2200,7 @@ def create_html_template(settings):
         function showCompletionPage() {{
             showStep('stepComplete');
             
-            // Start countdown
+            // Start countdown to redirect to Instagram
             let countdown = 5;
             const countdownElement = document.getElementById('countdown');
             countdownElement.textContent = countdown;
@@ -2205,12 +2208,15 @@ def create_html_template(settings):
             countdownTimer = setInterval(() => {{
                 countdown--;
                 countdownElement.textContent = countdown;
-                
                 if (countdown <= 0) {{
                     clearInterval(countdownTimer);
-                    showReviewPage();
+                    redirectToInstagram();
                 }}
             }}, 1000);
+        }}
+        
+        function redirectToInstagram() {{
+            window.location.href = 'https://instagram.com';
         }}
         
         function showReviewPage() {{
