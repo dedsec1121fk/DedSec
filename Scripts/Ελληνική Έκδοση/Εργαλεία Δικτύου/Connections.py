@@ -2,6 +2,8 @@
 # Connections + DedSec's Database (Unified Login Script)
 
 import os
+import json
+import ipaddress
 import sys
 import time
 import re
@@ -9,8 +11,6 @@ import subprocess
 import shutil
 import socket
 import secrets
-import html
-import binascii
 import signal
 import threading
 import mimetypes
@@ -19,85 +19,94 @@ import contextlib
 import pathlib
 import logging
 import functools
+import atexit
 from collections import OrderedDict
-from base64 import b64decode
 
-# Try import requests to avoid runtime errors later; don't crash if it's missing
-try:
-    import requests
-    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
-except Exception:
-    requests = None
+# Import the only non-stdlib runtime dependencies.
+#
+# Important for Termux: this project does NOT require pyca/cryptography. The
+# previous self-signed-certificate helper was unused by the running server and
+# forced pip to compile a Rust-backed package on Android. Cloudflare/Tor provide
+# the secure remote transports used by this script, so removing that dependency
+# makes startup smaller, more reliable, and reduces the dependency attack surface.
+def _import_runtime_dependencies():
+    try:
+        from flask import (
+            Flask, Blueprint, flash, get_flashed_messages, redirect, g,
+            render_template_string, request, send_from_directory, session,
+            url_for,
+        )
+        from flask_socketio import SocketIO, emit, join_room, leave_room
+    except ImportError:
+        packages = ["flask", "flask-socketio"]
+        print("Εγκατάσταση των απαραίτητων πακέτων Python...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "--no-cache-dir", *packages],
+                check=True,
+            )
+        except Exception as exc:
+            raise SystemExit(f"ΚΡΙΣΙΜΟ ΣΦΑΛΜΑ: Δεν ήταν δυνατή η εγκατάσταση των απαραίτητων πακέτων Python: {exc}")
 
-# Try imports for both apps
-try:
-    from flask import Flask, render_template_string, request, redirect, send_from_directory, session, url_for, flash, get_flashed_messages, Blueprint
-    from flask_socketio import SocketIO, emit, join_room, leave_room
-    from cryptography import x509
-    from cryptography.x509.oid import NameOID
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat, NoEncryption
-except ImportError:
-    pass # Will be handled by install_requirements
+        from flask import (
+            Flask, Blueprint, flash, get_flashed_messages, redirect, g,
+            render_template_string, request, send_from_directory, session,
+            url_for,
+        )
+        from flask_socketio import SocketIO, emit, join_room, leave_room
+
+    return {
+        "Flask": Flask,
+        "Blueprint": Blueprint,
+        "flash": flash,
+        "get_flashed_messages": get_flashed_messages,
+        "redirect": redirect,
+        "g": g,
+        "render_template_string": render_template_string,
+        "request": request,
+        "send_from_directory": send_from_directory,
+        "session": session,
+        "url_for": url_for,
+        "SocketIO": SocketIO,
+        "emit": emit,
+        "join_room": join_room,
+        "leave_room": leave_room,
+    }
+
+_runtime = _import_runtime_dependencies()
+globals().update(_runtime)
+del _runtime
 
 # ----------------------------
-# Termux-aware helper functions (Combined)
+# Termux-aware helper functions
 # ----------------------------
+def _is_termux():
+    return os.path.isdir("/data/data/com.termux/files/usr")
+
+def _termux_install_package(binary_name, package_name):
+    """Best-effort install of an optional Termux package without running pkg update."""
+    if shutil.which(binary_name):
+        return True
+    try:
+        result = subprocess.run(
+            ["pkg", "install", "-y", package_name],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        return result.returncode == 0 and shutil.which(binary_name) is not None
+    except Exception:
+        return False
+
 def install_requirements(termux_opt=True):
-    print("Έλεγχος και εγκατάσταση απαιτούμενων πακέτων Python (αν χρειάζεται)...")
-    try:
-        import pkgutil
-        # Combined requirements from both scripts
-        reqs = ["flask", "flask_socketio", "requests", "cryptography"]
-        to_install = []
-        for r in reqs:
-            if not pkgutil.find_loader(r):
-                to_install.append(r)
-        
-        if to_install:
-            cmd = [sys.executable, "-m", "pip", "install", "--no-cache-dir"] + to_install
-            print("Εγκατάσταση:", " ".join(to_install))
-            subprocess.run(cmd, check=True)
-            
-    except Exception as e:
-        print("ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Η αυτόματη εγκατάσταση με pip απέτυχε ή δεν είναι διαθέσιμη:", e)
-        
-    # Attempt to install cloudflared and openssh on Termux (best-effort)
-    if termux_opt and os.path.exists("/data/data/com.termux"):
-        print("Προσπάθεια εγκατάστασης πακέτων Termux (cloudflared, openssh, tor)...")
-        if shutil.which("cloudflared") is None:
-            os.system("pkg update -y > /dev/null 2>&1 && pkg install cloudflared -y > /dev/null 2>&1")
-        if shutil.which("ssh") is None:
-            os.system("pkg update -y > /dev/null 2>&1 && pkg install openssh -y > /dev/null 2>&1")
-        if shutil.which("tor") is None:
-            os.system("pkg update -y > /dev/null 2>&1 && pkg install tor -y > /dev/null 2>&1")
+    # Flask and Flask-SocketIO are already guaranteed by the bootstrap above.
+    print("Οι απαιτήσεις Python έχουν ικανοποιηθεί.")
+    if termux_opt and _is_termux():
+        print("Έλεγχος προαιρετικών τρόπων σύνδεσης Termux (cloudflared, tor)...")
+        for binary, package in (("cloudflared", "cloudflared"), ("tor", "tor")):
+            if not _termux_install_package(binary, package):
+                print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: το προαιρετικό πακέτο '{package}' δεν είναι διαθέσιμο· η σύνδεση μέσω {binary} θα παραλειφθεί.")
     return
-
-def generate_self_signed_cert(cert_path="cert.pem", key_path="key.pem"):
-    # generate cert only if missing
-    if os.path.exists(cert_path) and os.path.exists(key_path):
-        return
-    try:
-        # Imports are already at top, just use them
-        print(f"Δημιουργία νέου SSL πιστοποιητικού στο {cert_path}...")
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        with open(key_path, "wb") as f:
-            f.write(key.private_bytes(encoding=Encoding.PEM, format=PrivateFormat.TraditionalOpenSSL, encryption_algorithm=NoEncryption()))
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COUNTRY_NAME, u"US"),
-            x509.NameAttribute(NameOID.COMMON_NAME, u"localhost"),
-        ])
-        cert = x509.CertificateBuilder().subject_name(subject).issuer_name(issuer).public_key(key.public_key()) \
-            .serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.utcnow()) \
-            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365)) \
-            .add_extension(x509.SubjectAlternativeName([x509.DNSName(u"localhost")]), critical=False) \
-            .sign(key, hashes.SHA256())
-        with open(cert_path, "wb") as f:
-            f.write(cert.public_bytes(Encoding.PEM))
-    except Exception as e:
-        print("WARNING: cryptography module missing or failed; skipping cert generation:", e)
-        return
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -111,36 +120,97 @@ def get_local_ip():
         s.close()
     return IP
 
-def start_server_process(secret_key, verbose_mode):
-    # This single process will run both apps
-    # Note: Only one key is needed now, passed as both --server and --db-password
-    cmd = [sys.executable, __file__, "--server", secret_key, "--db-password", secret_key]
+def start_server_process(secret_key, verbose_mode, allow_lan=False):
+    """Start the server while keeping the login secret out of argv/environment."""
+    cmd = [sys.executable, __file__, "--server"]
     if not verbose_mode:
         cmd.append("--quiet")
-    return subprocess.Popen(cmd)
+    if allow_lan:
+        cmd.append("--allow-lan")
+
+    child_env = os.environ.copy()
+    child_env.pop("CONNECTIONS_SECRET_KEY", None)
+
+    # POSIX/Termux: transfer the secret through an anonymous inherited pipe. The
+    # child receives only the FD number in its environment, not the secret itself.
+    if os.name == "posix":
+        read_fd, write_fd = os.pipe()
+        os.set_inheritable(read_fd, True)
+        child_env["CONNECTIONS_SECRET_FD"] = str(read_fd)
+        try:
+            process = subprocess.Popen(
+                cmd, env=child_env, pass_fds=(read_fd,), close_fds=True
+            )
+        finally:
+            os.close(read_fd)
+        try:
+            os.write(write_fd, secret_key.encode("utf-8"))
+        finally:
+            os.close(write_fd)
+        return process
+
+    # Compatibility fallback for non-POSIX platforms. Termux never uses this.
+    child_env["CONNECTIONS_SECRET_KEY"] = secret_key
+    return subprocess.Popen(cmd, env=child_env)
+
+def _read_server_secret():
+    """Read the one-time login secret once, preferring the anonymous pipe."""
+    fd_text = os.environ.pop("CONNECTIONS_SECRET_FD", None)
+    if fd_text:
+        try:
+            fd = int(fd_text)
+            chunks = []
+            total = 0
+            while total <= 1024:
+                chunk = os.read(fd, min(256, 1025 - total))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                total += len(chunk)
+            os.close(fd)
+            if total > 1024:
+                return None
+            return b"".join(chunks).decode("utf-8", "strict")
+        except Exception:
+            try:
+                os.close(int(fd_text))
+            except Exception:
+                pass
+            return None
+
+    # Explicit/manual server launches can use this compatibility fallback.
+    return os.environ.pop("CONNECTIONS_SECRET_KEY", None)
 
 def wait_for_server(url, timeout=20):
-    print(f"Αναμονή για τον τοπικό διακομιστή στο {url}...")
+    print(f"Αναμονή για τον τοπικό διακομιστή στη διεύθυνση {url}...")
     start_time = time.time()
-    try:
-        import requests
-    except Exception:
-        return False
-        
+    from urllib.request import urlopen
     while time.time() - start_time < timeout:
         try:
-            # Check the chat health endpoint
-            response = requests.get(url, verify=False, timeout=1)
-            if response.status_code == 200:
-                print(f"Ο διακομιστής στο {url} είναι ενεργός.")
-                return True
-        except requests.RequestException:
+            with urlopen(url, timeout=1) as response:
+                if response.status == 200:
+                    print(f"Ο διακομιστής στη διεύθυνση {url} λειτουργεί κανονικά.")
+                    return True
+        except Exception:
             time.sleep(0.5)
-    print(f"Σφάλμα: Ο τοπικός διακομιστής στο {url} δεν ξεκίνησε μέσα στο όριο χρόνου.")
+    print(f"Σφάλμα: Ο τοπικός διακομιστής στη διεύθυνση {url} δεν ξεκίνησε μέσα στο χρονικό όριο.")
     return False
 
-# --- 50 GB limit for Connections ---
-MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024 * 1024  # 53,687,091,200 bytes
+# Resource limits. Chat files are uploaded over a streamed HTTP endpoint instead
+# of being embedded as base64 inside Socket.IO packets. This keeps a 150 MiB file
+# from expanding to ~200 MiB of base64 and being copied repeatedly through browser
+# and Python memory. Database files use the same per-file ceiling.
+CHAT_FILE_MAX_BYTES = 150 * 1024 * 1024         # 150 MiB per chat attachment
+CHAT_TOTAL_QUOTA_BYTES = 2 * 1024 * 1024 * 1024 # 2 GiB ephemeral chat-file quota
+CHAT_PER_CLIENT_QUOTA_BYTES = 600 * 1024 * 1024   # 600 MiB per sender
+CHAT_CHUNK_BYTES = 8 * 1024 * 1024              # 8 MiB per HTTP request
+CHAT_REQUEST_MAX_BYTES = CHAT_CHUNK_BYTES + (256 * 1024)
+SOCKET_MAX_PACKET_BYTES = 1024 * 1024            # files never travel in Socket.IO
+DB_FILE_MAX_BYTES = 150 * 1024 * 1024            # 150 MiB per Database file
+DB_CHUNK_BYTES = 8 * 1024 * 1024                 # 8 MiB per Database upload request
+DB_TOTAL_QUOTA_BYTES = 8 * 1024 * 1024 * 1024   # 8 GiB total Database quota
+DB_REQUEST_MAX_BYTES = DB_CHUNK_BYTES + (256 * 1024)
+UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 @contextlib.contextmanager
 def suppress_stdout_stderr():
@@ -155,9 +225,9 @@ def suppress_stdout_stderr():
 
 def start_cloudflared_tunnel(port, proto="http", name=""):
     """Starts a cloudflared tunnel, reads output for the URL, and lets the process run."""
-    print(f"🚀 Εκκίνηση Cloudflare tunnel για {name} (port {port})... … παρακαλώ περίμενε.")
+    print(f"🚀 Εκκίνηση Cloudflare tunnel για {name} (θύρα {port})... παρακαλώ περιμένετε.")
     
-    cmd = ["cloudflared", "tunnel", "--url", f"{proto}://localhost:{port}"]
+    cmd = ["cloudflared", "tunnel", "--no-autoupdate", "--url", f"{proto}://localhost:{port}"]
 
     try:
         process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
@@ -167,18 +237,18 @@ def start_cloudflared_tunnel(port, proto="http", name=""):
         while time.time() - start_time < 15:
             line = process.stdout.readline()
             if not line and process.poll() is not None:
-                print(f"⚠️ Η διαδικασία Cloudflare για {name} τερματίστηκε απρόσμενα.")
+                print(f"⚠️ Η διεργασία Cloudflare για {name} τερματίστηκε απροσδόκητα.")
                 return None, None
                 
             match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
             if match:
                 online_url = match.group(0)
-                print(f"✅ Το Cloudflare tunnel για {name} είναι έτοιμο.")
+                print(f"✅ Το Cloudflare tunnel για {name} είναι ενεργό.")
                 return process, online_url
             
             time.sleep(0.2)
 
-        print(f"⚠️ Δεν βρέθηκε Cloudflare URL για {name} in output.")
+        print(f"⚠️ Δεν ήταν δυνατή η εύρεση URL Cloudflare για {name} στην έξοδο.")
         return process, None # Return process anyway, maybe it's just slow
 
     except Exception as e:
@@ -224,13 +294,18 @@ def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Con
         "SocksPort 0",
         "ControlPort 0",
         "Log notice stdout",
+        "HiddenServiceVersion 3",
         f"HiddenServiceDir {hs_dir}",
         f"HiddenServicePort {hs_virtual_port} 127.0.0.1:{local_http_port}",
     ]) + "\n"
 
     torrc_path.write_text(torrc, encoding="utf-8")
+    try:
+        os.chmod(torrc_path, 0o600)
+    except Exception:
+        pass
 
-    print(f"🧅 Εκκίνηση Tor κρυφής υπηρεσίας για {name}... … παρακαλώ περίμενε.")
+    print(f"🧅 Εκκίνηση κρυφής υπηρεσίας Tor για {name}... παρακαλώ περιμένετε.")
     try:
         proc = subprocess.Popen(
             ["tor", "-f", str(torrc_path)],
@@ -239,6 +314,8 @@ def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Con
             text=True,
             bufsize=1
         )
+        # Private onion keys/data are ephemeral for this run and are removed on shutdown.
+        proc._connections_cleanup_paths = [hs_dir, tor_data_dir, torrc_path]
     except Exception as e:
         print(f"❌ Αποτυχία εκκίνησης Tor: {e}")
         return None, None, None
@@ -250,7 +327,7 @@ def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Con
     # Wait up to 45 seconds for hostname to appear
     while time.time() - start_time < 45:
         if proc.poll() is not None:
-            print("⚠️ Το Tor τερματίστηκε απρόσμενα.")
+            print("⚠️ Tor τερματίστηκε απροσδόκητα.")
             break
         try:
             if hostname_file.exists():
@@ -263,15 +340,15 @@ def start_tor_hidden_service(local_http_port=5000, hs_virtual_port=80, name="Con
 
     if onion_host:
         onion_url = f"http://{onion_host}" if hs_virtual_port in (80, 0) else f"http://{onion_host}:{hs_virtual_port}"
-        print("✅ Η Tor κρυφή υπηρεσία είναι έτοιμη.")
+        print("✅ Η κρυφή υπηρεσία Tor είναι ενεργή.")
         return proc, onion_url, hs_dir
 
-    print("⚠️ Δεν ήταν δυνατή η λήψη της διεύθυνσης onion (δεν βρέθηκε hostname).")
+    print("⚠️ Δεν ήταν δυνατή η λήψη διεύθυνσης onion (δεν βρέθηκε hostname).")
     return proc, None, hs_dir
 
 
 def graceful_shutdown(signum, frame):
-    print("Τερματισμός με ασφάλεια...")
+    print("Ομαλός τερματισμός...")
     sys.exit(0)
 
 signal.signal(signal.SIGINT, graceful_shutdown)
@@ -290,17 +367,31 @@ db_blueprint = Blueprint('database', __name__, url_prefix='/db')
 # ==== GLOBAL CONFIG & APP SETUP ====
 SERVER_PASSWORD = None # This will be set by the server main function
 
-# --- MODIFIED: Use the user's Downloads folder for storage ---
+# --- ΤΡΟΠΟΠΟΙΗΣΗ: Χρήση του φακέλου Downloads του χρήστη για αποθήκευση ---
 # This provides a cross-platform way to access the user's main downloads directory.
 try:
     DOWNLOADS_DIR = pathlib.Path.home() / "Downloads"
     BASE_DIR = DOWNLOADS_DIR / "DedSec's Database"
     BASE_DIR.mkdir(exist_ok=True, parents=True)
 except Exception as e:
-    print(f"WARNING: Could not create directory in Downloads folder ({e}). Using a local folder instead.")
+    print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: Δεν ήταν δυνατή η δημιουργία φακέλου μέσα στις Λήψεις ({e}). Θα χρησιμοποιηθεί τοπικός φάκελος.")
     BASE_DIR = pathlib.Path("DedSec_Database_Files")
     BASE_DIR.mkdir(exist_ok=True)
 
+DB_PENDING_UPLOADS = {}
+DB_UPLOAD_LOCK = threading.RLock()
+DB_UPLOAD_SLOTS = threading.BoundedSemaphore(4)
+DB_UPLOAD_ID_RE = re.compile(r'^[A-Za-z0-9_-]{20,80}$')
+try:
+    os.chmod(BASE_DIR, 0o700)
+except OSError:
+    pass
+try:
+    for _temp_path in BASE_DIR.glob('.dbchunk-*.part'):
+        if _temp_path.is_file() or _temp_path.is_symlink():
+            _temp_path.unlink(missing_ok=True)
+except OSError:
+    pass
 
 # Define file categories for organization
 FILE_CATEGORIES = {
@@ -318,13 +409,13 @@ def get_file_info(filename):
     try:
         full_path = BASE_DIR / filename
         
-        if full_path.is_dir():
-            return None 
+        if full_path.is_dir() or full_path.is_symlink():
+            return None
 
         stat_info = full_path.stat()
         size_raw = stat_info.st_size
         mtime = stat_info.st_mtime
-        file_type = mimetypes.guess_type(full_path)[0] or "Unknown"
+        file_type = mimetypes.guess_type(full_path)[0] or "Άγνωστο"
 
         return {
             "size": size_raw,
@@ -342,6 +433,241 @@ def get_file_category(filename):
         if ext in extensions:
             return category
     return 'Άλλα'
+
+
+def _database_usage_bytes():
+    total = 0
+    try:
+        for path in BASE_DIR.iterdir():
+            try:
+                if path.name.startswith(('.dbchunk-', '.upload-')):
+                    continue
+                if path.is_file() and not path.is_symlink():
+                    total += path.stat().st_size
+            except OSError:
+                continue
+    except OSError:
+        pass
+    return total
+
+def _sanitize_upload_name(name):
+    name = os.path.basename(str(name or "file")).strip()
+    name = re.sub(r"[\x00-\x1f\x7f]", "_", name)
+    if name in ("", ".", ".."):
+        name = "file"
+    # Keep room for duplicate suffixes and filesystem encoding overhead.
+    return name[:220]
+
+def _unique_database_target(filename):
+    candidate = BASE_DIR / _sanitize_upload_name(filename)
+    if not candidate.exists() and not candidate.is_symlink():
+        return candidate
+    stem, suffix = candidate.stem, candidate.suffix
+    for index in range(1, 10000):
+        alt = BASE_DIR / f"{stem} ({index}){suffix}"
+        if not alt.exists() and not alt.is_symlink():
+            return alt
+    raise RuntimeError("Δεν ήταν δυνατή η δημιουργία μοναδικού ονόματος αρχείου")
+
+def _db_abort_pending_upload(upload_id):
+    with DB_UPLOAD_LOCK:
+        meta = DB_PENDING_UPLOADS.get(upload_id)
+    if not meta:
+        return
+    upload_lock = meta.get('lock') or contextlib.nullcontext()
+    with upload_lock:
+        with DB_UPLOAD_LOCK:
+            meta = DB_PENDING_UPLOADS.pop(upload_id, None)
+        if not meta:
+            return
+        try:
+            temp = BASE_DIR / meta.get('temp_name', '')
+            if temp.parent == BASE_DIR and (temp.is_file() or temp.is_symlink()):
+                temp.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _db_prune_stale_uploads(max_age_seconds=900):
+    now = time.time()
+    stale = []
+    with DB_UPLOAD_LOCK:
+        for upload_id, meta in list(DB_PENDING_UPLOADS.items()):
+            if now - float(meta.get('last_activity', meta.get('created_at', now))) > max_age_seconds:
+                stale.append(upload_id)
+    for upload_id in stale:
+        _db_abort_pending_upload(upload_id)
+
+
+def _db_reserved_bytes_locked():
+    total = 0
+    for meta in DB_PENDING_UPLOADS.values():
+        try:
+            total += int(meta.get('expected_size', 0))
+        except Exception:
+            continue
+    return total
+
+
+def _db_create_pending_upload(owner_id, filename, expected_size):
+    _db_prune_stale_uploads()
+    filename = _sanitize_upload_name(filename)
+    expected_size = int(expected_size)
+    if expected_size <= 0 or expected_size > DB_FILE_MAX_BYTES:
+        raise ValueError('το αρχείο πρέπει να έχει μέγεθος από 1 byte έως 150 MB')
+
+    with DB_UPLOAD_LOCK:
+        if _database_usage_bytes() + _db_reserved_bytes_locked() + expected_size > DB_TOTAL_QUOTA_BYTES:
+            raise ValueError('θα ξεπερνιόταν το όριο αποθηκευτικού χώρου της Βάσης Δεδομένων')
+        owner_pending = sum(1 for m in DB_PENDING_UPLOADS.values() if m.get('owner_id') == owner_id)
+        if owner_pending >= 2:
+            raise ValueError('εκτελούνται ήδη πάρα πολλές μεταφορτώσεις στη Βάση Δεδομένων')
+        if len(DB_PENDING_UPLOADS) >= 12:
+            raise ValueError('ο διακομιστής εκτελεί ήδη πάρα πολλές μεταφορτώσεις στη Βάση Δεδομένων')
+
+        upload_id = secrets.token_urlsafe(24)
+        temp_name = f'.dbchunk-{upload_id}-{secrets.token_hex(6)}.part'
+        temp = BASE_DIR / temp_name
+        with open(temp, 'xb'):
+            pass
+        try:
+            os.chmod(temp, 0o600)
+        except OSError:
+            pass
+        now = time.time()
+        DB_PENDING_UPLOADS[upload_id] = {
+            'upload_id': upload_id,
+            'temp_name': temp_name,
+            'filename': filename,
+            'expected_size': expected_size,
+            'received': 0,
+            'next_index': 0,
+            'owner_id': owner_id,
+            'created_at': now,
+            'last_activity': now,
+            'lock': threading.Lock(),
+        }
+        return dict(DB_PENDING_UPLOADS[upload_id])
+
+
+def _db_append_upload_chunk(upload_id, owner_id, chunk_index, stream, content_length=None):
+    if not DB_UPLOAD_SLOTS.acquire(blocking=False):
+        raise RuntimeError('επεξεργάζονται πάρα πολλά τμήματα μεταφόρτωσης της Βάσης Δεδομένων')
+    try:
+        with DB_UPLOAD_LOCK:
+            meta = DB_PENDING_UPLOADS.get(upload_id)
+            if not meta or meta.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+            upload_lock = meta.get('lock')
+        if upload_lock is None:
+            raise ValueError('η κατάσταση της μεταφόρτωσης δεν είναι έγκυρη')
+
+        with upload_lock:
+            with DB_UPLOAD_LOCK:
+                meta = DB_PENDING_UPLOADS.get(upload_id)
+                if not meta or meta.get('owner_id') != owner_id:
+                    raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+                if int(chunk_index) != int(meta.get('next_index', -1)):
+                    raise ValueError('μη αναμενόμενη σειρά τμημάτων μεταφόρτωσης')
+                remaining = int(meta['expected_size']) - int(meta['received'])
+                if remaining <= 0:
+                    raise ValueError('η μεταφόρτωση έχει ήδη ολοκληρωθεί')
+                expected_chunk_size = min(DB_CHUNK_BYTES, remaining)
+                temp_name = meta['temp_name']
+                expected_offset = int(meta['received'])
+            if content_length is not None and int(content_length) != expected_chunk_size:
+                raise ValueError('το τμήμα μεταφόρτωσης έχει λάθος μέγεθος')
+
+            temp = BASE_DIR / temp_name
+            if not temp.is_file() or temp.is_symlink() or temp.parent != BASE_DIR:
+                raise ValueError('δεν ήταν δυνατή η επαλήθευση του προσωρινού αρχείου μεταφόρτωσης της Βάσης Δεδομένων')
+            if temp.stat().st_size != expected_offset:
+                raise ValueError('το μέγεθος της προσωρινής μεταφόρτωσης της Βάσης Δεδομένων δεν συμφωνεί με την κατάστασή της')
+
+            written = 0
+            try:
+                with open(temp, 'ab') as handle:
+                    while written < expected_chunk_size:
+                        chunk = stream.read(min(UPLOAD_CHUNK_BYTES, expected_chunk_size - written))
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        handle.write(chunk)
+                    if stream.read(1):
+                        raise ValueError('το τμήμα μεταφόρτωσης είναι πολύ μεγάλο')
+                    handle.flush()
+                if written != expected_chunk_size:
+                    raise ValueError('το τμήμα μεταφόρτωσης έχει λάθος μέγεθος')
+            except Exception:
+                try:
+                    with open(temp, 'r+b') as handle:
+                        handle.truncate(expected_offset)
+                except Exception:
+                    pass
+                raise
+
+            with DB_UPLOAD_LOCK:
+                meta = DB_PENDING_UPLOADS.get(upload_id)
+                if not meta or meta.get('owner_id') != owner_id:
+                    raise PermissionError('η μεταφόρτωση δεν υπάρχει πλέον')
+                if int(meta.get('next_index', -1)) != int(chunk_index) or int(meta.get('received', -1)) != expected_offset:
+                    raise ValueError('η κατάσταση μεταφόρτωσης της Βάσης Δεδομένων άλλαξε απροσδόκητα')
+                meta['received'] = expected_offset + written
+                meta['next_index'] = int(meta['next_index']) + 1
+                meta['last_activity'] = time.time()
+                return int(meta['received']), int(meta['expected_size'])
+    finally:
+        DB_UPLOAD_SLOTS.release()
+
+
+def _db_complete_upload(upload_id, owner_id):
+    with DB_UPLOAD_LOCK:
+        meta = DB_PENDING_UPLOADS.get(upload_id)
+        if not meta or meta.get('owner_id') != owner_id:
+            raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+        upload_lock = meta.get('lock')
+    if upload_lock is None:
+        raise ValueError('η κατάσταση της μεταφόρτωσης δεν είναι έγκυρη')
+
+    with upload_lock:
+        with DB_UPLOAD_LOCK:
+            meta = DB_PENDING_UPLOADS.get(upload_id)
+            if not meta or meta.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+            if int(meta.get('received', 0)) != int(meta.get('expected_size', -1)):
+                raise ValueError('η μεταφόρτωση δεν έχει ολοκληρωθεί')
+            meta = dict(meta)
+
+        temp = BASE_DIR / meta['temp_name']
+        if not temp.is_file() or temp.is_symlink() or temp.parent != BASE_DIR:
+            raise ValueError('δεν ήταν δυνατή η επαλήθευση του προσωρινού αρχείου μεταφόρτωσης της Βάσης Δεδομένων')
+        actual_size = temp.stat().st_size
+        if actual_size != int(meta['expected_size']) or actual_size > DB_FILE_MAX_BYTES:
+            raise ValueError('απέτυχε η επαλήθευση μεγέθους του αρχείου που μεταφορτώθηκε στη Βάση Δεδομένων')
+
+        with DB_UPLOAD_LOCK:
+            current = DB_PENDING_UPLOADS.get(upload_id)
+            if not current or current.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν υπάρχει πλέον')
+            target = _unique_database_target(meta['filename'])
+            os.replace(temp, target)
+            try:
+                os.chmod(target, 0o600)
+            except OSError:
+                pass
+            DB_PENDING_UPLOADS.pop(upload_id, None)
+            return target.name, actual_size
+
+def _cleanup_db_pending_uploads():
+    """Remove incomplete Database upload fragments on clean shutdown."""
+    with DB_UPLOAD_LOCK:
+        upload_ids = list(DB_PENDING_UPLOADS.keys())
+    for upload_id in upload_ids:
+        _db_abort_pending_upload(upload_id)
+
+
+atexit.register(_cleanup_db_pending_uploads)
+
 
 def filesizeformat(value):
     """Formats a file size in bytes into a human-readable string."""
@@ -361,47 +687,51 @@ db_blueprint.add_app_template_filter(filesizeformat, 'filesizeformat')
 # ==== DB AUTHENTICATION HELPERS ====
 
 def _get_server_secret_key():
-    # Prefer parsed global if present, otherwise fall back to argv parsing
-    try:
-        k = globals().get("SECRET_KEY_SERVER")
-        if k:
-            return k
-    except Exception:
-        pass
-    try:
-        if "--server" in sys.argv:
-            i = sys.argv.index("--server") + 1
-            if i < len(sys.argv):
-                return sys.argv[i]
-    except Exception:
-        pass
-    return None
+    # The child server receives this through an anonymous pipe at startup.
+    key = globals().get("SECRET_KEY_SERVER")
+    if key:
+        return key
+    # Compatibility fallback for an explicitly/manual server launch only.
+    return os.environ.get("CONNECTIONS_SECRET_KEY")
 
 # ==== DB AUTHENTICATION DECORATOR ====
 # This decorator protects the DB routes
 def db_auth_required(f):
     @functools.wraps(f)
     def decorated_function(*args, **kwargs):
-        server_key = _get_server_secret_key()
-        # Accept token from query OR form (important for POST like /db/upload)
-        token = request.values.get('token', '')
-        # If token is valid, also establish a session so subsequent requests work too
-        if server_key and token == server_key:
-            session['db_logged_in'] = True
-        if not session.get('db_logged_in') and not (server_key and token == server_key):
+        if not session.get('db_logged_in'):
             return redirect(url_for('index_chat'))
         return f(*args, **kwargs)
     return decorated_function
 
-# Bridge route: allow the front-end to set DB session via token (useful for some in-app browsers)
-@db_blueprint.route("/auth", methods=["GET"])
+def _valid_csrf():
+    expected = session.get('csrf_token', '')
+    supplied = request.form.get('csrf_token', '') or request.headers.get('X-CSRF-Token', '')
+    return bool(expected and supplied and secrets.compare_digest(str(expected), str(supplied)))
+
+# Authenticate the Database without placing the secret key in the URL/history.
+@db_blueprint.route("/auth", methods=["POST"])
 def db_auth_bridge():
-    server_key = _get_server_secret_key()
-    token = request.args.get("token", "")
-    if server_key and token == server_key:
+    ip = request.remote_addr or 'unknown'
+    server_key = _get_server_secret_key() or ""
+    token = request.headers.get("X-Connections-Key", "")
+    valid = (
+        isinstance(token, str) and 32 <= len(token) <= 256 and server_key and
+        secrets.compare_digest(token, server_key)
+    )
+    if valid:
+        _clear_auth_failures(ip)
+        # Preserve the already-authenticated chat session when the Database opens.
         session["db_logged_in"] = True
+        if not isinstance(session.get("db_session_id"), str) or len(session.get("db_session_id", "")) < 20:
+            session["db_session_id"] = secrets.token_urlsafe(24)
+        session["csrf_token"] = secrets.token_urlsafe(32)
         return "OK", 200
-    return "Forbidden", 403
+
+    if _auth_rate_limited(ip):
+        return "Πάρα πολλές προσπάθειες", 429
+    _record_auth_failure(ip)
+    return "Απαγορεύεται", 403
 
 # ==== HTML TEMPLATES (DB) ====
 # Note: url_for() is now used for all links/actions
@@ -411,7 +741,7 @@ html_template_db = '''
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes" />
-<title>Βάση Δεδομένων του DedSec</title>
+<title>Βάση Δεδομένων DedSec</title>
 <style>
     :root {
         --bg-color-main: #121212;
@@ -546,15 +876,133 @@ html_template_db = '''
     .back-btn:active{ transform: scale(0.98); }
 
 </style>
-<script>
+<script nonce="{{ g.csp_nonce }}">
     function toggleInfo(event, id) {
         event.stopPropagation();
         document.querySelectorAll('.info-popup').forEach(p => {
             if (p.id !== 'info-' + id) p.style.display = 'none';
         });
         const popup = document.getElementById('info-' + id);
-        popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+        if (popup) popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
     }
+    const DB_MAX_FILE_SIZE = 150 * 1024 * 1024;
+
+    async function uploadDatabaseFile(file) {
+        if (!file) return;
+        if (file.size <= 0) {
+            alert('Δεν είναι δυνατή η μεταφόρτωση κενών αρχείων.');
+            return;
+        }
+        if (file.size > DB_MAX_FILE_SIZE) {
+            alert('Το αρχείο είναι πολύ μεγάλο. Το μέγιστο μέγεθος αρχείου είναι 150 MB.');
+            return;
+        }
+        const csrfEl = document.getElementById('db-csrf-token');
+        const statusEl = document.getElementById('db-upload-status');
+        const csrf = csrfEl ? csrfEl.value : '';
+        if (!csrf) {
+            alert('Λείπει το token συνεδρίας της Βάσης Δεδομένων. Ανανεώστε τη σελίδα και δοκιμάστε ξανά.');
+            return;
+        }
+
+        let uploadId = '';
+        try {
+            if (statusEl) statusEl.textContent = `Προετοιμασία ${file.name}...`;
+            const initResponse = await fetch('/db/upload/init', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': csrf
+                },
+                body: JSON.stringify({ filename: file.name, size: file.size })
+            });
+            const initData = await initResponse.json().catch(() => ({}));
+            if (!initResponse.ok || !initData.ok || !initData.upload_id) {
+                throw new Error(initData.error || 'Δεν ήταν δυνατή η αρχικοποίηση της μεταφόρτωσης στη Βάση Δεδομένων.');
+            }
+
+            uploadId = initData.upload_id;
+            const chunkSize = Math.max(256 * 1024, Math.min(Number(initData.chunk_size) || (8 * 1024 * 1024), 8 * 1024 * 1024));
+            let offset = 0;
+            let chunkIndex = 0;
+            while (offset < file.size) {
+                const end = Math.min(offset + chunkSize, file.size);
+                const chunk = file.slice(offset, end);
+                if (statusEl) statusEl.textContent = `Μεταφόρτωση ${file.name}... ${Math.floor((offset / file.size) * 100)}%`;
+                const response = await fetch(`/db/upload/${encodeURIComponent(uploadId)}/chunk`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'X-CSRF-Token': csrf,
+                        'X-Chunk-Index': String(chunkIndex)
+                    },
+                    body: chunk
+                });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || !data.ok) throw new Error(data.error || `Η μεταφόρτωση απέτυχε στο τμήμα ${chunkIndex + 1}.`);
+                offset = end;
+                chunkIndex += 1;
+            }
+
+            if (statusEl) statusEl.textContent = `Ολοκλήρωση ${file.name}...`;
+            const completeResponse = await fetch(`/db/upload/${encodeURIComponent(uploadId)}/complete`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'X-CSRF-Token': csrf }
+            });
+            const completeData = await completeResponse.json().catch(() => ({}));
+            if (!completeResponse.ok || !completeData.ok) throw new Error(completeData.error || 'Δεν ήταν δυνατή η ολοκλήρωση της μεταφόρτωσης στη Βάση Δεδομένων.');
+            uploadId = '';
+            if (statusEl) statusEl.textContent = `Μεταφορτώθηκε ${completeData.filename || file.name}.`;
+            window.location.reload();
+        } catch (err) {
+            if (uploadId) {
+                try {
+                    await fetch(`/db/upload/${encodeURIComponent(uploadId)}/abort`, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'X-CSRF-Token': csrf }
+                    });
+                } catch (_) {}
+            }
+            if (statusEl) statusEl.textContent = '';
+            alert(err && err.message ? err.message : 'Η μεταφόρτωση στη Βάση Δεδομένων απέτυχε.');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const uploadTrigger = document.getElementById('db-upload-trigger');
+        const uploadInput = document.getElementById('file-upload-input');
+        if (uploadTrigger && uploadInput) uploadTrigger.addEventListener('click', () => uploadInput.click());
+        if (uploadInput) uploadInput.addEventListener('change', () => {
+            const file = uploadInput.files && uploadInput.files[0];
+            uploadInput.value = '';
+            if (file) uploadDatabaseFile(file);
+        });
+
+        document.querySelectorAll('.info-button').forEach(button => {
+            button.addEventListener('click', event => toggleInfo(event, button.dataset.infoId || ''));
+        });
+        document.querySelectorAll('.info-popup').forEach(popup => {
+            popup.addEventListener('click', event => event.stopPropagation());
+        });
+        document.querySelectorAll('.download-button').forEach(link => {
+            link.addEventListener('click', event => {
+                if (!confirm(`Λήψη '${link.dataset.filename || 'αρχείο'}' now?`)) event.preventDefault();
+            });
+        });
+        document.querySelectorAll('.delete-form').forEach(form => {
+            form.addEventListener('submit', event => {
+                if (!confirm(`Διαγραφή '${form.dataset.filename || 'αρχείο'}'? This cannot be undone.`)) event.preventDefault();
+            });
+        });
+    });
     document.addEventListener('click', () => {
         document.querySelectorAll('.info-popup').forEach(p => p.style.display = 'none');
     });
@@ -567,7 +1015,7 @@ html_template_db = '''
 </div>
 
 <div class="container">
-    <h1 style="margin-top:0;">Βάση Δεδομένων του DedSec</h1>
+    <h1 style="margin-top:0;">Βάση Δεδομένων DedSec</h1>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -578,19 +1026,16 @@ html_template_db = '''
     {% endwith %}
 
     <div class="manager-section">
-        <button class="icon-button" onclick="document.getElementById('file-upload-input').click()">
+        <button id="db-upload-trigger" class="icon-button">
             ⬆️ Μεταφόρτωση Αρχείου
         </button>
-
-        <form id="upload-form" action="{{ url_for('database.upload_file', token=token) }}" method="POST" enctype="multipart/form-data" style="display:none;">
-            <input type="file" name="file" id="file-upload-input" onchange="document.getElementById('upload-form').submit()" multiple />
-            <input type="hidden" name="sort" value="{{ request.args.get('sort', 'a-z') }}" />
-            <input type="hidden" name="token" value="{{ token }}" />
-        </form>
+        <div style="margin-top:6px;font-size:.8em;color:var(--text-color-muted);">Up to 150 MB per file • streamed in protected 8 MiB chunks • 8 GiB total quota</div>
+        <div id="db-upload-status" style="margin-top:6px;font-size:.8em;color:var(--text-color-muted);"></div>
+        <input type="file" id="file-upload-input" style="display:none;" />
+        <input type="hidden" id="db-csrf-token" value="{{ csrf_token }}" />
     </div>
 
     <form class="form-group" action="{{ url_for('database.index') }}" method="GET">
-        <input type="hidden" name="token" value="{{ token }}" />
         <input type="search" name="query" list="fileSuggestions" placeholder="Αναζήτηση αρχείων στη Βάση Δεδομένων..." value="{{ request.args.get('query', '') }}" style="flex-grow:1;" />
 
         <datalist id="fileSuggestions">
@@ -602,12 +1047,12 @@ html_template_db = '''
         <select name="sort">
             <option value="a-z" {% if sort=='a-z' %}selected{% endif %}>Ταξινόμηση Α-Ω</option>
             <option value="z-a" {% if sort=='z-a' %}selected{% endif %}>Ταξινόμηση Ω-Α</option>
-            <option value="newest" {% if sort=='newest' %}selected{% endif %}>Νεότερα πρώτα</option>
-            <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Παλαιότερα πρώτα</option>
-            <option value="biggest" {% if sort=='biggest' %}selected{% endif %}>Μεγαλύτερα πρώτα</option>
-            <option value="smallest" {% if sort=='smallest' %}selected{% endif %}>Μικρότερα πρώτα</option>
+            <option value="newest" {% if sort=='newest' %}selected{% endif %}>Νεότερα Πρώτα</option>
+            <option value="oldest" {% if sort=='oldest' %}selected{% endif %}>Παλαιότερα Πρώτα</option>
+            <option value="biggest" {% if sort=='biggest' %}selected{% endif %}>Μεγαλύτερα Πρώτα</option>
+            <option value="smallest" {% if sort=='smallest' %}selected{% endif %}>Μικρότερα Πρώτα</option>
         </select>
-        <input type="submit" value="Φίλτρο" />
+        <input type="submit" value="Φιλτράρισμα" />
     </form>
 
     {% set found_files = false %}
@@ -622,16 +1067,21 @@ html_template_db = '''
                 <div class="filename">📄 {{ f }}</div>
 
                 <div class="buttons">
-                    <button class="button info-button" onclick="toggleInfo(event, '{{ loop.index0 ~ category }}')">ℹ️ Πληροφορίες</button>
-                    <div class="info-popup" id="info-{{ loop.index0 ~ category }}" onclick="event.stopPropagation()">
+                    <button class="button info-button" data-info-id="{{ loop.index0 ~ category }}">ℹ️ Πληροφορίες</button>
+                    <div class="info-popup" id="info-{{ loop.index0 ~ category }}">
                         <b>Τύπος:</b> {{ info['mimetype'] }}<br/>
                         <b>Μέγεθος:</b> {{ info['size'] | filesizeformat }}<br/>
                         <b>Προστέθηκε:</b> {{ info['mtime_str'] }}
                     </div>
 
-                    <a href="{{ url_for('database.download_file', filename=f, token=token) }}" class="button" download onclick="return confirm(&quot;Λήψη του &apos;{{ f }}&apos; τώρα;&quot;)">⬇️ Λήψη</a>
+                    <a href="{{ url_for('database.download_file', filename=f) }}" class="button download-button" data-filename="{{ f }}" download>⬇️ Λήψη</a>
 
-                    <a href="{{ url_for('database.delete_path', filename=f, sort=sort, token=token) }}" class="button delete-button" onclick="return confirm(&quot;Διαγραφή του &apos;{{ f }}&apos;; Αυτό δεν μπορεί να αναιρεθεί.&quot;)">🗑️ Διαγραφή</a>
+                    <form action="{{ url_for('database.delete_path') }}" method="POST" class="delete-form" data-filename="{{ f }}" style="display:inline;">
+                        <input type="hidden" name="filename" value="{{ f }}" />
+                        <input type="hidden" name="sort" value="{{ sort }}" />
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <button type="submit" class="button delete-button">🗑️ Διαγραφή</button>
+                    </form>
                 </div>
             </div>
             {% endfor %}
@@ -642,14 +1092,14 @@ html_template_db = '''
     {% if not found_files %}
         <p style="text-align:center; margin-top:30px;">
         {% if request.args.get('query') %}
-            Κανένα αρχείο δεν ταιριάζει με την αναζήτησή σου στη Βάση Δεδομένων.
+            Δεν βρέθηκαν αρχεία που να ταιριάζουν με την αναζήτησή σας στη Βάση Δεδομένων.
         {% else %}
-            Η Βάση Δεδομένων είναι άδεια. Χρησιμοποίησε το κουμπί ⬆️ Μεταφόρτωση για να προσθέσεις αρχεία.
+            Η Βάση Δεδομένων είναι κενή. Χρησιμοποιήστε το κουμπί ⬆️ Μεταφόρτωση για να προσθέσετε αρχεία.
         {% endif %}
         </p>
     {% endif %}
 
-    <div class="footer">Φτιαγμένο από το DedSec Project/dedsec1121fk!</div>
+    <div class="footer">Δημιουργήθηκε από το DedSec Project/dedsec1121fk!</div>
 </div>
 </body>
 </html>
@@ -662,8 +1112,8 @@ html_template_db = '''
 def index():
     query = request.args.get("query", "").lower()
     sort = request.args.get("sort", "a-z")
-    # Keep a stable token in the URL so POST/GET actions don't bounce back to chat
-    token = request.args.get("token") or _get_server_secret_key() or ""
+    csrf_token = session.get('csrf_token') or secrets.token_urlsafe(32)
+    session['csrf_token'] = csrf_token
     
     search_terms = query.split()
 
@@ -710,30 +1160,117 @@ def index():
                                   sort=sort,
                                   all_filenames=all_filenames,
                                   messages=messages,
-                                  token=token)
+                                  csrf_token=csrf_token)
 
 
-@db_blueprint.route("/upload", methods=["POST"])
-@db_auth_required
-def upload_file():
-    uploaded_files = request.files.getlist("file")
-    sort = request.form.get("sort", "a-z")
-    
-    uploaded_count = 0
-    
-    for file in uploaded_files:
-        if file and file.filename:
-            filename = os.path.basename(file.filename)
-            try:
-                file.save(BASE_DIR / filename)
-                uploaded_count += 1
-            except Exception:
-                flash(f"Σφάλμα κατά τη μεταφόρτωση του {filename}.", 'error')
+def _db_upload_owner():
+    if not session.get('db_logged_in'):
+        return None
+    owner_id = session.get('db_session_id')
+    if not isinstance(owner_id, str) or not DB_UPLOAD_ID_RE.fullmatch(owner_id):
+        return None
+    return owner_id
 
-    if uploaded_count > 0:
-        flash(f"Η μεταφόρτωση ολοκληρώθηκε: {uploaded_count} αρχείο(α).", 'success')
-            
-    return redirect(url_for('database.index', sort=sort, token=request.values.get('token','')))
+
+@db_blueprint.route('/upload/init', methods=['POST'])
+def db_upload_init():
+    owner_id = _db_upload_owner()
+    if not owner_id:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {'ok': False, 'error': 'Μη έγκυρα μεταδεδομένα μεταφόρτωσης.'}, 400
+    try:
+        size = int(data.get('size', 0))
+    except Exception:
+        size = 0
+    try:
+        meta = _db_create_pending_upload(owner_id, data.get('filename', 'file'), size)
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 413
+    except Exception:
+        logging.exception('Απέτυχε η αρχικοποίηση μεταφόρτωσης στη Βάση Δεδομένων')
+        return {'ok': False, 'error': 'Δεν ήταν δυνατή η αρχικοποίηση της μεταφόρτωσης στη Βάση Δεδομένων.'}, 500
+    return {
+        'ok': True,
+        'upload_id': meta['upload_id'],
+        'chunk_size': DB_CHUNK_BYTES,
+        'expected_size': meta['expected_size'],
+    }, 200
+
+
+@db_blueprint.route('/upload/<upload_id>/chunk', methods=['POST'])
+def db_upload_chunk(upload_id):
+    owner_id = _db_upload_owner()
+    if not owner_id:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    if not DB_UPLOAD_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    try:
+        chunk_index = int(request.headers.get('X-Chunk-Index', '-1'))
+    except Exception:
+        return {'ok': False, 'error': 'Μη έγκυρος δείκτης τμήματος.'}, 400
+    if chunk_index < 0 or chunk_index > 64:
+        return {'ok': False, 'error': 'Μη έγκυρος δείκτης τμήματος.'}, 400
+    if request.content_length is not None and request.content_length > DB_CHUNK_BYTES:
+        return {'ok': False, 'error': 'Το τμήμα μεταφόρτωσης είναι πολύ μεγάλο.'}, 413
+    try:
+        received, expected = _db_append_upload_chunk(
+            upload_id, owner_id, chunk_index, request.stream, request.content_length
+        )
+    except PermissionError:
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    except RuntimeError as exc:
+        return {'ok': False, 'error': str(exc)}, 429
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 409
+    except Exception:
+        logging.exception('Απέτυχε η μεταφόρτωση τμήματος στη Βάση Δεδομένων')
+        return {'ok': False, 'error': 'Απέτυχε η μεταφόρτωση τμήματος στη Βάση Δεδομένων.'}, 500
+    return {'ok': True, 'received': received, 'expected_size': expected}, 200
+
+
+@db_blueprint.route('/upload/<upload_id>/complete', methods=['POST'])
+def db_upload_complete(upload_id):
+    owner_id = _db_upload_owner()
+    if not owner_id:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    if not DB_UPLOAD_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    try:
+        stored_name, stored_size = _db_complete_upload(upload_id, owner_id)
+    except PermissionError:
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 409
+    except Exception:
+        logging.exception('Απέτυχε η ολοκλήρωση μεταφόρτωσης στη Βάση Δεδομένων')
+        return {'ok': False, 'error': 'Δεν ήταν δυνατή η ολοκλήρωση της μεταφόρτωσης στη Βάση Δεδομένων.'}, 500
+    return {'ok': True, 'filename': stored_name, 'size': stored_size}, 200
+
+
+@db_blueprint.route('/upload/<upload_id>/abort', methods=['POST'])
+def db_upload_abort(upload_id):
+    owner_id = _db_upload_owner()
+    if not owner_id:
+        return {'ok': False}, 401
+    if not _valid_csrf():
+        return {'ok': False}, 403
+    if not DB_UPLOAD_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': True}, 200
+    with DB_UPLOAD_LOCK:
+        meta = DB_PENDING_UPLOADS.get(upload_id)
+        if meta and meta.get('owner_id') != owner_id:
+            return {'ok': False}, 403
+    _db_abort_pending_upload(upload_id)
+    return {'ok': True}, 200
+
 
 @db_blueprint.route("/download/<filename>", methods=["GET"])
 @db_auth_required
@@ -741,34 +1278,36 @@ def download_file(filename):
     basename = os.path.basename(filename)
     full_path = BASE_DIR / basename
     
-    if full_path.exists() and full_path.is_file():
+    if full_path.exists() and full_path.is_file() and not full_path.is_symlink():
         return send_from_directory(BASE_DIR, basename, as_attachment=True)
     
-    flash("Μη έγκυρη ή περιορισμένη διαδρομή λήψης.", 'error')
-    return redirect(url_for('database.index', sort=request.args.get('sort', 'a-z'), token=request.values.get('token','')))
+    flash("Η διαδρομή λήψης δεν είναι έγκυρη ή είναι περιορισμένη.", 'error')
+    return redirect(url_for('database.index', sort=request.args.get('sort', 'a-z')))
 
 # --- FILE MANAGEMENT ROUTES ---
 
-@db_blueprint.route("/delete_path", methods=["GET"])
+@db_blueprint.route("/delete_path", methods=["POST"])
 @db_auth_required
 def delete_path():
-    filename_to_delete = request.args.get("filename") 
-    sort = request.args.get("sort", "a-z")
+    if not _valid_csrf():
+        return "Απαγορεύεται", 403
+    filename_to_delete = request.form.get("filename") 
+    sort = request.form.get("sort", "a-z")
     
     if filename_to_delete:
         item_name = os.path.basename(filename_to_delete)
         full_path = BASE_DIR / item_name
         
-        if full_path.exists() and full_path.is_file():
+        if full_path.exists() and full_path.is_file() and not full_path.is_symlink() and not item_name.startswith('.upload-'):
             try:
                 full_path.unlink()
                 flash(f"Το αρχείο '{item_name}' διαγράφηκε επιτυχώς.", 'success')
             except Exception as e:
-                flash(f"Σφάλμα κατά τη διαγραφή του '{item_name}': {e}", 'error')
+                flash(f"Σφάλμα κατά τη διαγραφή '{item_name}': {e}", 'error')
         else:
             flash(f"Το αρχείο '{item_name}' δεν βρέθηκε ή είναι φάκελος.", 'error')
                 
-    return redirect(url_for('database.index', sort=sort, token=request.values.get('token','')))
+    return redirect(url_for('database.index', sort=sort))
 
 
 # -------------------------------------------------------------------
@@ -779,9 +1318,116 @@ def delete_path():
 
 app = Flask("chat")
 # SECRET_KEY_SERVER will be set by server main
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(
+    app,
+    async_mode='threading',
+    max_http_buffer_size=SOCKET_MAX_PACKET_BYTES,
+    ping_interval=25,
+    ping_timeout=20,
+    logger=False,
+    engineio_logger=False,
+)  # Same-origin CORS protection is intentionally left at its secure default
 connected_users = {}
 VIDEO_ROOM = "global_video_room"
+
+# Security/session state
+FIRST_JOINED_CLIENT_ID = None
+CLIENT_IDENTITIES = {}  # client_id -> private per-client secret for anti-spoofing
+USER_STATE_LOCK = threading.Lock()
+AUTH_FAILURES = {}
+AUTH_LOCK = threading.Lock()
+AUTH_WINDOW_SECONDS = 60
+AUTH_MAX_FAILURES = 5
+AUTH_BLOCK_SECONDS = 300
+MESSAGE_RATE_WINDOW_SECONDS = 10
+MESSAGE_RATE_MAX = 25
+MAX_TEXT_MESSAGE_CHARS = 20000
+MAX_USERNAME_CHARS = 48
+MAX_CONNECTED_USERS = 100
+MAX_CLIENT_IDENTITIES = 2048
+MAX_SIGNAL_PAYLOAD_CHARS = 65536
+CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
+
+# Ephemeral streamed chat-file storage. Files live only for the current server
+# session and are removed on clean shutdown/startup. Random on-disk names prevent
+# user-controlled paths from ever becoming filesystem paths.
+CHAT_FILE_DIR = pathlib.Path.home() / ".connections_runtime" / "chat_files"
+CHAT_FILES = {}  # file_id -> metadata
+CHAT_PENDING_UPLOADS = {}  # upload_id -> in-progress chunked upload metadata
+CHAT_FILES_LOCK = threading.RLock()
+CHAT_UPLOAD_SLOTS = threading.BoundedSemaphore(6)
+CHAT_UPLOAD_EVENTS = {}
+CHAT_UPLOAD_WINDOW_SECONDS = 600
+CHAT_UPLOAD_MAX_PER_WINDOW = 8
+CHAT_FILE_ID_RE = re.compile(r'^[A-Za-z0-9_-]{20,80}$')
+SAFE_INLINE_MEDIA_TYPES = {
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'video/mp4', 'video/webm', 'video/ogg',
+    'audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm',
+}
+
+def _prepare_chat_file_store():
+    try:
+        runtime_dir = CHAT_FILE_DIR.parent
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        CHAT_FILE_DIR.mkdir(parents=True, exist_ok=True)
+        for directory in (runtime_dir, CHAT_FILE_DIR):
+            try:
+                os.chmod(directory, 0o700)
+            except OSError:
+                pass
+        # Chat history is in-memory, so leftovers from a prior crashed run are
+        # never valid. Διαγραφή only regular files/symlinks inside our private dir.
+        for path in CHAT_FILE_DIR.iterdir():
+            try:
+                if path.is_file() or path.is_symlink():
+                    path.unlink()
+            except OSError:
+                pass
+    except Exception as exc:
+        print(f"ΠΡΟΕΙΔΟΠΟΙΗΣΗ: δεν ήταν δυνατή η προετοιμασία του ιδιωτικού χώρου αποθήκευσης αρχείων συνομιλίας: {exc}")
+
+def _cleanup_chat_file_store():
+    with CHAT_FILES_LOCK:
+        CHAT_FILES.clear()
+        CHAT_PENDING_UPLOADS.clear()
+        CHAT_UPLOAD_EVENTS.clear()
+    try:
+        if CHAT_FILE_DIR.exists():
+            for path in CHAT_FILE_DIR.iterdir():
+                try:
+                    if path.is_file() or path.is_symlink():
+                        path.unlink()
+                except OSError:
+                    pass
+    except OSError:
+        pass
+
+def _chat_storage_usage_locked():
+    total = 0
+    for meta in CHAT_FILES.values():
+        try:
+            total += int(meta.get('size', 0))
+        except Exception:
+            continue
+    return total
+
+def _delete_chat_file(file_id):
+    if not isinstance(file_id, str):
+        return
+    with CHAT_FILES_LOCK:
+        meta = CHAT_FILES.pop(file_id, None)
+    if not meta:
+        return
+    try:
+        path = CHAT_FILE_DIR / meta.get('stored_name', '')
+        if path.parent == CHAT_FILE_DIR and (path.is_file() or path.is_symlink()):
+            path.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+_prepare_chat_file_store()
+atexit.register(_cleanup_chat_file_store)
 
 # In-memory chat history for the current server session (not persisted)
 CHAT_HISTORY = OrderedDict()
@@ -791,14 +1437,68 @@ CHAT_HISTORY_LOCK = threading.Lock()
 # --- Register the Database Blueprint ---
 app.register_blueprint(db_blueprint)
 
+# Separate the Flask session-signing secret from the user-facing login key.
+app.config['SECRET_KEY'] = secrets.token_hex(32)
+app.config['SESSION_COOKIE_NAME'] = 'connections_session'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Strict'
+# Secure cannot be forced globally because Tor onion services are intentionally
+# accessed with http:// over Tor. Direct LAN HTTP is disabled by default instead.
+app.config['SESSION_COOKIE_SECURE'] = False
+app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+app.config['MAX_CONTENT_LENGTH'] = max(DB_REQUEST_MAX_BYTES, CHAT_REQUEST_MAX_BYTES)
+app.config['MAX_FORM_MEMORY_SIZE'] = 2 * 1024 * 1024
+app.config['MAX_FORM_PARTS'] = 100
+
+@app.before_request
+def prepare_request_security_context():
+    # Per-response nonce allows our inline application scripts without enabling
+    # arbitrary inline JavaScript or HTML event-handler execution.
+    g.csp_nonce = secrets.token_urlsafe(18)
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('X-Permitted-Cross-Domain-Policies', 'none')
+    response.headers.setdefault('Referrer-Policy', 'no-referrer')
+    response.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), payment=(), usb=()')
+    nonce = getattr(g, 'csp_nonce', '')
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        f"default-src 'self'; script-src 'self' 'nonce-{nonce}' https://cdn.socket.io; script-src-attr 'none'; "
+        "style-src 'self' 'unsafe-inline'; img-src 'self' https://raw.githubusercontent.com; "
+        "media-src 'self' blob:; connect-src 'self' ws: wss:; object-src 'none'; worker-src 'none'; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'self'; manifest-src 'none'"
+    )
+    response.headers.setdefault('Cross-Origin-Resource-Policy', 'same-origin')
+    response.headers.setdefault('Origin-Agent-Cluster', '?1')
+    response.headers.setdefault('Cache-Control', 'no-store, max-age=0')
+    response.headers.setdefault('Pragma', 'no-cache')
+
+    # Cloudflare Tunnel connects to this process over loopback HTTP. Only add
+    # HSTS when the browser-facing request is known to be HTTPS.
+    try:
+        remote = ipaddress.ip_address(request.remote_addr or '127.0.0.1')
+        forwarded_https = (
+            remote.is_loopback and request.headers.get('CF-Ray') and
+            request.headers.get('X-Forwarded-Proto', '').lower() == 'https'
+        )
+        if request.is_secure or forwarded_https:
+            response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000')
+    except ValueError:
+        pass
+    return response
+
 # --- MODIFIED FOR VIBER UI + THEMES ---
 HTML = '''
 <!DOCTYPE html>
 <html lang="el">
 <head>
 <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-<title>Connections (Ελληνικά)</title>
-<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<title>Connections</title>
+<script src="https://cdn.socket.io/4.8.3/socket.io.min.js" integrity="sha384-kzavj5fiMwLKzzD1f8S7TeoVIEi7uKHvbTA3ueZkrzYq75pNQUiUi6Dy98Q3fxb0" crossorigin="anonymous"></script>
 <style>
 /* --- CSS Variables for Theming --- */
 :root {
@@ -923,7 +1623,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
 .light-theme #call-ui-container { background: rgba(0,0,0,0.03); }
 #main-content.show-call #call-ui-container { display: block; }
 
-/* --- Overlay Call Mode (shows video over chat) --- */
+/* --- Επικάλυψη Call Mode (shows video over chat) --- */
 #main-content.call-overlay #call-ui-container{
     display:block;
     position: fixed;
@@ -1120,7 +1820,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
     display: none; /* Hide username by default */
 }
 .chat-message.other strong {
-    /* Show username above bubble for 'other' */
+    /* Εμφάνιση username above bubble for 'other' */
     display: block;
     font-size: 0.8em;
     color: var(--text-color-light);
@@ -1341,7 +2041,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
 </style>
 </head>
 <body>
-<div id="login-overlay"><div id="login-box"><h2>Εισαγωγή Μυστικού Κλειδιού</h2><input type="text" id="key-input" placeholder="Επικόλλησε το κλειδί εδώ..."><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
+<div id="login-overlay"><div id="login-box"><h2>Εισαγάγετε το Μυστικό Κλειδί Μίας Χρήσης</h2><input type="password" id="key-input" maxlength="256" placeholder="Επικολλήστε το κλειδί εδώ..." autocomplete="off" autocapitalize="none" spellcheck="false"><button id="connect-btn">Σύνδεση</button><p id="login-error"></p></div></div>
 
 <div id="main-content">
     <div class="header">
@@ -1349,7 +2049,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
             <div class="avatar" aria-label="Connections">
                 <picture>
                     <source srcset="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/e0fab73c56ea9e68109f540f302b407ced1b14b3/Assets/Images/Logos/White%20Purple%20Butterfly%20Logo.jpeg" media="(prefers-color-scheme: light)">
-                    <img id="chatLogo" src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/e0fab73c56ea9e68109f540f302b407ced1b14b3/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg" alt="Butterfly Logo">
+                    <img id="chatLogo" src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/e0fab73c56ea9e68109f540f302b407ced1b14b3/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg" alt="Λογότυπο Πεταλούδας">
                 </picture>
             </div>
             <div class="title-wrap">
@@ -1358,33 +2058,33 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
             </div>
         </div>
         <div class="header-right">
-            <button id="themeToggleBtn" title="Εναλλαγή Θέματος" aria-label="Εναλλαγή Θέματος">☀️</button>
-            <button id="toggleCallUIBtn" title="Εναλλαγή Κλήσης" aria-label="Εναλλαγή Κλήσης">📞</button>
+            <button id="themeToggleBtn" title="Εναλλαγή Θέματος" aria-label="Εναλλαγή θέματος">☀️</button>
+            <button id="toggleCallUIBtn" title="Εμφάνιση/Απόκρυψη Κλήσης" aria-label="Εμφάνιση ή απόκρυψη περιβάλλοντος κλήσης">📞</button>
         </div>
     </div>
     
     <div id="call-ui-container">
         <div id="controls" class="ig-controls">
-            <button id="joinBtn" class="ig-btn ig-primary" aria-label="Συμμετοχή στην κλήση" title="Συμμετοχή στην κλήση">
+            <button id="joinBtn" class="ig-btn ig-primary" aria-label="Συμμετοχή σε Κλήση" title="Συμμετοχή σε Κλήση">
                 <span class="ig-ico">📞</span><span class="ig-lbl">Συμμετοχή</span>
             </button>
-            <button id="muteBtn" class="ig-btn" disabled aria-label="Mute" title="Σίγαση / Άρση">
+            <button id="muteBtn" class="ig-btn" disabled aria-label="Σίγαση" title="Σίγαση / Κατάργηση Σίγασης">
                 <span class="ig-ico" id="muteIcon">🎤</span><span class="ig-lbl">Σίγαση</span>
             </button>
-            <button id="videoBtn" class="ig-btn" disabled aria-label="Camera" title="Κάμερα On / Off">
+            <button id="videoBtn" class="ig-btn" disabled aria-label="Κάμερα" title="Κάμερα Ενεργή / Ανενεργή">
                 <span class="ig-ico" id="videoIcon">🎥</span><span class="ig-lbl">Κάμερα</span>
             </button>
-            <button id="switchCamBtn" class="ig-btn" disabled aria-label="Εναλλαγή Κάμερας" title="Εναλλαγή Κάμερας">
+            <button id="switchCamBtn" class="ig-btn" disabled aria-label="Αλλαγή Κάμερας" title="Αλλαγή Κάμερας">
                 <span class="ig-ico">🔄</span><span class="ig-lbl">Αλλαγή</span>
             </button>
-            <button id="allCamsBtn" class="ig-btn" disabled aria-label="Εμφάνιση όλων των καμερών" title="Εμφάνιση όλων των καμερών (επικάλυψη στο chat)">
+            <button id="allCamsBtn" class="ig-btn" disabled aria-label="Εμφάνιση όλων των καμερών" title="Εμφάνιση όλων των καμερών πάνω από τη συνομιλία">
                 <span class="ig-ico" id="allCamsIcon">🔳</span><span class="ig-lbl">Όλες</span>
             </button>
-            <button id="hideCamBtn" class="ig-btn" disabled aria-label="Απόκρυψη καμερών" title="Απόκρυψη καμερών (κρατάει τον ήχο)">
+            <button id="hideCamBtn" class="ig-btn" disabled aria-label="Απόκρυψη καμερών" title="Απόκρυψη καμερών με διατήρηση ήχου">
                 <span class="ig-ico" id="hideCamIcon">🙈</span><span class="ig-lbl">Απόκρυψη</span>
             </button>
-            <button id="leaveBtn" class="ig-btn ig-danger" disabled aria-label="Έξοδος από την κλήση" title="Έξοδος από την κλήση">
-                <span class="ig-ico">📴</span><span class="ig-lbl">Έξοδος</span>
+            <button id="leaveBtn" class="ig-btn ig-danger" disabled aria-label="Αποχώρηση από Κλήση" title="Αποχώρηση από Κλήση">
+                <span class="ig-ico">📴</span><span class="ig-lbl">Αποχώρηση</span>
             </button>
         </div>
         <div id="videos">
@@ -1403,15 +2103,15 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
     
     <div class="controls">
         <div class="input-row">
-            <textarea id="message" placeholder="Γράψε μήνυμα..." rows="1"></textarea>
-            <button id="recordButton" onclick="toggleRecording()" title="Φωνητικό Μήνυμα">🎙️</button>
-            <button id="sendBtn" onclick="sendMessage()" title="Αποστολή" style="display:none;">&#10148;</button>
+            <textarea id="message" placeholder="Γράψτε ένα μήνυμα..." rows="1"></textarea>
+            <button id="recordButton" title="Φωνητικό Μήνυμα">🎙️</button>
+            <button id="sendBtn" title="Αποστολή" style="display:none;">&#10148;</button>
         </div>
         <div class="button-row">
-            <button id="liveCameraBtn" onclick="openLiveCamera()" title="Κάμερα">📸</button>
-            <button onclick="sendFile()" title="Επισύναψη Αρχείου">📄</button>
-            <button id="dbButton" onclick="openDatabase()" title="Βάση Δεδομένων DedSec">🛡️</button>
-            <button id="infoButton" onclick="showInfo()" title="Πληροφορίες">ℹ️</button>
+            <button id="liveCameraBtn" title="Κάμερα">📸</button>
+            <button id="attachButton" title="Επισύναψη Αρχείου">📄</button>
+            <button id="dbButton" title="Βάση Δεδομένων DedSec">🛡️</button>
+            <button id="infoButton" title="Πληροφορίες">ℹ️</button>
         </div>
         <input type="file" id="fileInput" style="display:none">
     </div>
@@ -1419,7 +2119,7 @@ body,html{height:100%;margin:0;padding:0;font-family:sans-serif;background:radia
 
 
 
-<script>
+<script nonce="{{ g.csp_nonce }}">
 // --- Theme Toggle Logic ---
 function applyTheme(theme) {
     const toggleBtn = document.getElementById('themeToggleBtn');
@@ -1455,9 +2155,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const keyInput = document.getElementById('key-input');
     const connectBtn = document.getElementById('connect-btn');
     const loginError = document.getElementById('login-error');
-    const savedKey = localStorage.getItem("secretKey") || sessionStorage.getItem("secretKey");
+    // Never persist the login key across browser restarts. Remove legacy copies.
+    try { localStorage.removeItem("secretKey"); } catch(e) {}
+    const savedKey = sessionStorage.getItem("secretKey");
 
-    // If we already have a key (shared across tabs/windows), auto-connect and never flash the prompt.
+    // If this tab already authenticated during the current browser session, reconnect.
     if (savedKey) {
         keyInput.value = savedKey;
         document.getElementById('login-overlay').style.display = 'none';
@@ -1471,13 +2173,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     connectBtn.onclick = () => {
         const secretKey = keyInput.value.trim();
-        if (secretKey) {
+        if (secretKey.length >= 32 && secretKey.length <= 256) {
             loginError.textContent = 'Σύνδεση...';
-            localStorage.setItem("secretKey", secretKey);
             sessionStorage.setItem("secretKey", secretKey);
             initializeChat(secretKey);
         } else {
-            loginError.textContent = 'Το κλειδί δεν μπορεί να είναι κενό.';
+            loginError.textContent = 'Μη έγκυρη μορφή κλειδιού.';
         }
     };
     
@@ -1499,58 +2200,69 @@ document.addEventListener('DOMContentLoaded', () => {
             recordBtn.style.display = 'block';
         }
     });
+
+    recordBtn.addEventListener('click', () => { if (window.toggleRecording) window.toggleRecording(); });
+    sendBtn.addEventListener('click', () => { if (window.sendMessage) window.sendMessage(); });
+    const liveCameraBtn = document.getElementById('liveCameraBtn');
+    const attachBtn = document.getElementById('attachButton');
+    const dbBtn = document.getElementById('dbButton');
+    const infoBtn = document.getElementById('infoButton');
+    if (liveCameraBtn) liveCameraBtn.addEventListener('click', () => { if (window.openLiveCamera) window.openLiveCamera(); });
+    if (attachBtn) attachBtn.addEventListener('click', () => { if (window.sendFile) window.sendFile(); });
+    if (dbBtn) dbBtn.addEventListener('click', openDatabase);
+    if (infoBtn) infoBtn.addEventListener('click', showInfo);
 });
 
 
-function openDatabase() {
-    // Open DedSec's Database in a new window/tab (shares cookies with the main app)
+async function openDatabase() {
     const key = sessionStorage.getItem('secretKey') || '';
-    const url = key ? (`/db/?token=${encodeURIComponent(key)}`) : '/db/';
-    window.open(url, '_blank', 'noopener,noreferrer');
-}
-document.addEventListener('DOMContentLoaded', () => {
-    if (dbClose && dbOverlay) {
-        dbClose.onclick = () => {
-            dbOverlay.style.display = 'none';
-            if (iframe) iframe.src = 'about:blank';
-        };
-        dbOverlay.addEventListener('click', (e) => {
-            if (e.target === dbOverlay) dbClose.click();
-        });
-    }
-});
+    if (!key) return;
 
+    // Open immediately so mobile popup blockers still treat this as a user action.
+    const dbWindow = window.open('about:blank', '_blank');
+    try {
+        const response = await fetch('/db/auth', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Connections-Key': key }
+        });
+        if (!response.ok) throw new Error('Ο έλεγχος ταυτότητας στη Βάση Δεδομένων απέτυχε');
+        if (dbWindow) dbWindow.location = '/db/';
+        else window.location.href = '/db/';
+    } catch (e) {
+        if (dbWindow) dbWindow.close();
+        alert('Δεν ήταν δυνατός ο έλεγχος ταυτότητας στη Βάση Δεδομένων.');
+    }
+}
 function showInfo() {
     const infoText = `Connections — Βοήθεια & Πληροφορίες
 
-Σύνδεσμοι που βλέπεις στον launcher:
-• Σύνδεσμος Cloudflared (https://*.trycloudflare.com) — Ανοίγει σε ΟΠΟΙΟΝΔΗΠΟΤΕ iOS browser (Safari/Chrome κ.λπ.) ✅
-• Τοπικός σύνδεσμος (http://LAN_IP:PORT) — Ανοίγει σε ΟΠΟΙΟΝΔΗΠΟΤΕ iOS browser ✅ (μόνο όταν το iPhone είναι στο ίδιο Wi‑Fi / hotspot)
-• Σύνδεσμος Tor .onion — Απαιτεί Tor‑συμβατό browser/app ❗️
-  Τα iOS Safari/Chrome δεν ανοίγουν .onion domains. Χρησιμοποίησε Tor browser σε iOS (π.χ. Onion Browser) για να ανοίξεις το .onion.
+Σύνδεσμοι που εμφανίζονται κατά την εκκίνηση:
+• Σύνδεσμος Cloudflared (https://*.trycloudflare.com) — Λειτουργεί σε οποιοδήποτε πρόγραμμα περιήγησης iOS (Safari/Chrome/κ.λπ.) ✅
+• Τοπικός σύνδεσμος LAN — Απενεργοποιημένος από προεπιλογή. Εκκινήστε με --allow-lan μόνο σε αξιόπιστο Wi‑Fi / hotspot.
+• Σύνδεσμος Tor .onion — Απαιτεί πρόγραμμα περιήγησης/εφαρμογή με υποστήριξη Tor ❗️
+  Το Safari/Chrome σε iOS δεν μπορεί να ανοίξει domains .onion. Χρησιμοποιήστε πρόγραμμα περιήγησης Tor για iOS (π.χ. Onion Browser).
 
-Βασικά του chat:
-• Γράψε μήνυμα και πάτα Αποστολή ή Enter.
-• 🎙️ Κράτα/πάτα για να γράψεις φωνητικό. Πάτα ξανά για να σταματήσει & να σταλεί.
-• 📷 Κάμερα: τράβα φωτογραφία και στείλε την.
-• 📎 Επισύναψη: στείλε αρχείο (έως 50GB).
-• 🛡️ Βάση Δεδομένων: ανοίγει τη Βάση Δεδομένων του DedSec (τα κοινόχρηστα αρχεία σου).
+Βασικά στοιχεία συνομιλίας:
+• Γράψτε ένα μήνυμα και πατήστε Αποστολή ή Enter.
+• 🎙️ Πατήστε για εγγραφή φωνητικού μηνύματος. Πατήστε ξανά για διακοπή και αποστολή.
+• 📷 Κάμερα: τραβήξτε μια φωτογραφία και στείλτε την.
+• 📎 Επισύναψη: στείλτε αρχείο συνομιλίας έως 150 MiB. Τα αρχεία μεταφέρονται τμηματικά αντί να ενσωματώνονται σε base64.
+• 🛡️ Βάση Δεδομένων: ανοίγει τη Βάση Δεδομένων DedSec (τα κοινόχρηστα αρχεία σας).
 
-Έλεγχοι κλήσης (τύπου Instagram):
-• 🎤 Σίγαση / Άρση σίγασης μικροφώνου
-• 🎥 Κάμερα ON / OFF
-• 📴 Έξοδος από την κλήση
-• 🔄 Εναλλαγή κάμερας (μπροστά/πίσω)
-• 🔳 Όλες οι κάμερες (επικάλυψη πάνω από το chat)
-• 🙈 Απόκρυψη καμερών (κρατάει μόνο τον ήχο)
+Χειριστήρια κλήσης (στυλ Instagram):
+• 🎤 Σίγαση / Κατάργηση σίγασης μικροφώνου
+• 🎥 Ενεργοποίηση / Απενεργοποίηση κάμερας
+• 📴 Αποχώρηση από την κλήση
+• 🔄 Αλλαγή κάμερας (μπροστινή/πίσω)
 
 Σημειώσεις ασφαλείας:
-• Το Cloudflared είναι HTTPS end‑to‑end μεταξύ iPhone και Cloudflare, και μετά γίνεται tunnel στη συσκευή σου.
-• Ο τοπικός σύνδεσμος είναι απλό HTTP στο τοπικό σου δίκτυο (το πιο γρήγορο). Μοίρασέ τον μόνο με άτομα στο Wi‑Fi/hotspot σου.
-• Το Tor κρύβει τη θέση/IP της συσκευής σου, αλλά πρέπει να ανοίξεις το .onion με Tor‑συμβατό browser.
+• Το Cloudflared χρησιμοποιεί HTTPS από τον browser προς το Cloudflare και tunnel από το Cloudflare προς αυτή τη συσκευή· το Cloudflare παραμένει μέρος της αλυσίδας εμπιστοσύνης.
+• Η άμεση πρόσβαση LAN είναι απενεργοποιημένη από προεπιλογή. Χρησιμοποιήστε --allow-lan μόνο σε αξιόπιστο Wi‑Fi/hotspot· αυτή η διαδρομή χρησιμοποιεί απλό HTTP.
+• Το Tor αποκρύπτει την τοποθεσία/IP της συσκευής σας, αλλά ο σύνδεσμος .onion πρέπει να ανοίξει με browser που υποστηρίζει Tor.
 
-Tip:
-Το κλειδί αποθηκεύεται στο localStorage/sessionStorage για ευκολία. Αν κάνεις επανεκκίνηση της σελίδας/του server, θα χρειαστεί να βάλεις το νέο κλειδί ξανά.`;
+Συμβουλή:
+Το κλειδί σας αποθηκεύεται μόνο για αυτή τη συνεδρία (sessionStorage). Αν επανεκκινήσετε τη σελίδα ή τον διακομιστή, θα εισαγάγετε ξανά το νέο κλειδί.`;
     
     // Use a custom modal instead of alert()
     const infoModal = document.createElement('div');
@@ -1579,11 +2291,58 @@ Tip:
 }
 
 function initializeChat(secretKey) {
-    const socket = io({ auth: { token: secretKey } });
+    function randomHex(bytesLength) {
+        const bytes = new Uint8Array(bytesLength);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    function getOrCreateClientIdentity() {
+        let id = sessionStorage.getItem('connectionsClientId');
+        let privateSecret = sessionStorage.getItem('connectionsClientSecret');
+        if (!id || !/^[A-Za-z0-9_-]{16,128}$/.test(id)) {
+            id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : randomHex(24);
+            sessionStorage.setItem('connectionsClientId', id);
+        }
+        if (!privateSecret || !/^[A-Fa-f0-9]{64,128}$/.test(privateSecret)) {
+            privateSecret = randomHex(32);
+            sessionStorage.setItem('connectionsClientSecret', privateSecret);
+        }
+        return { id, privateSecret };
+    }
+
+    const clientIdentity = getOrCreateClientIdentity();
+    const clientId = clientIdentity.id;
+    let currentIsModerator = false;
+    let httpCsrfToken = '';
+    let httpAuthPromise = null;
+
+    async function authenticateHttpSession() {
+        const response = await fetch('/chat/auth', {
+            method: 'POST',
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: {
+                'X-Connections-Key': secretKey,
+                'X-Client-ID': clientIdentity.id,
+                'X-Client-Secret': clientIdentity.privateSecret
+            }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok || !data.csrf_token) {
+            throw new Error('Δεν ήταν δυνατή η δημιουργία προστατευμένης συνεδρίας μεταφοράς αρχείων.');
+        }
+        httpCsrfToken = data.csrf_token;
+        return true;
+    }
+
+    const socket = io({ auth: {
+        token: secretKey,
+        client_id: clientIdentity.id,
+        client_secret: clientIdentity.privateSecret
+    } });
     socket.on('connect_error', () => {
-        document.getElementById('login-error').textContent = 'Λάθος κλειδί. Δοκίμασε ξανά.';
-        // Clear both, to avoid auto-loop across tabs/windows
-        try { localStorage.removeItem("secretKey"); } catch(e) {}
+        document.getElementById('login-error').textContent = 'Μη έγκυρο κλειδί ή πάρα πολλές προσπάθειες. Δοκιμάστε ξανά.';
         try { sessionStorage.removeItem("secretKey"); } catch(e) {}
         document.getElementById('main-content').style.display = 'none';
         document.getElementById('login-overlay').style.display = 'flex';
@@ -1591,18 +2350,34 @@ function initializeChat(secretKey) {
     socket.on('connect', () => {
         document.getElementById('login-overlay').style.display = 'none';
         document.getElementById('main-content').style.display = 'flex';
-        const st = document.getElementById('statusText'); if (st) st.textContent = 'Ασφαλές • Κρυπτογραφημένο • Συνδεδεμένο'; 
+        try { document.getElementById('key-input').value = ''; } catch(e) {}
+        const st = document.getElementById('statusText'); if (st) st.textContent = 'Πιστοποιημένος • Συνδεδεμένος'; 
         let username = localStorage.getItem("username");
         if (!username) {
-            let promptedName = prompt("Δώσε το όνομα χρήστη σου:");
-            username = promptedName ? promptedName.trim() : "User" + Math.floor(Math.random() * 1000);
+            let promptedName = prompt("Εισαγάγετε το όνομα χρήστη σας:");
+            username = promptedName ? promptedName.trim() : "Χρήστης" + Math.floor(Math.random() * 1000);
             localStorage.setItem("username", username);
         }
         document.querySelectorAll('.secure-watermark').forEach(el => el.setAttribute('data-watermark', username));
         socket.emit("join", username);
     });
+
+    socket.on('session_info', data => {
+        currentIsModerator = !!(data && data.is_moderator);
+        const st = document.getElementById('statusText');
+        if (st) st.textContent = currentIsModerator ? 'Πιστοποιημένος • Συνδεδεμένος • Συντονιστής' : 'Πιστοποιημένος • Συνδεδεμένος';
+        httpAuthPromise = authenticateHttpSession().catch(err => {
+            httpCsrfToken = '';
+            console.error('Απέτυχε ο έλεγχος ταυτότητας για την προστατευμένη μεταφορά αρχείων:', err);
+            throw err;
+        });
+    });
+
+    socket.on('action_error', data => {
+        showCustomAlert((data && data.message) ? data.message : 'Αυτή η ενέργεια δεν επιτρέπεται.');
+    });
     
-    // --- NEW: Εναλλαγή Κλήσης UI ---
+    // --- NEW: Toggle Call UI ---
     document.getElementById('toggleCallUIBtn').onclick = () => {
         const main = document.getElementById('main-content');
         main.classList.toggle('show-call');
@@ -1612,32 +2387,130 @@ function initializeChat(secretKey) {
         }
     };
 
-    const MAX_FILE_SIZE = 50 * 1024 * 1024 * 1024; // 50 GB
+    const MAX_FILE_SIZE = 150 * 1024 * 1024; // 150 MB; server enforces the same limit
+    const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+    const SAFE_VIDEO_TYPES = new Set(['video/mp4', 'video/webm', 'video/ogg']);
+    const SAFE_AUDIO_TYPES = new Set(['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/webm']);
     const fileInput = document.getElementById('fileInput');
     const chat = document.getElementById('chat');
     const chatContainer = document.getElementById('chat-container');
     const messageInput = document.getElementById('message');
 
-    function handleFileSelection(file) {
-        if (!file) return;
-        if (file.size > MAX_FILE_SIZE) {
-            // Use custom alert
-            showCustomAlert(`Το αρχείο είναι πολύ μεγάλο. Μέγιστο: 50 GB`);
+    async function uploadChatFile(fileOrBlob, filename) {
+        if (!fileOrBlob) return;
+        const size = Number(fileOrBlob.size || 0);
+        if (size <= 0) {
+            showCustomAlert('Δεν είναι δυνατή η αποστολή κενών αρχείων.');
             return;
         }
-        let reader = new FileReader();
-        reader.onload = () => emitFile(reader.result, file.type, file.name);
-        reader.readAsDataURL(file);
-    };
+        if (size > MAX_FILE_SIZE) {
+            showCustomAlert('Το αρχείο είναι πολύ μεγάλο. Το μέγιστο μέγεθος αρχείου είναι 150 MB.');
+            return;
+        }
+        if (!httpAuthPromise) {
+            showCustomAlert('Η ασφαλής συνεδρία μεταφοράς αρχείων ξεκινά ακόμη. Δοκιμάστε ξανά σε λίγο.');
+            return;
+        }
+
+        let uploadId = '';
+        const st = document.getElementById('statusText');
+        const previousStatus = st ? st.textContent : '';
+        try {
+            await httpAuthPromise;
+            if (!httpCsrfToken) throw new Error('Λείπει το προστατευμένο token μεταφόρτωσης.');
+
+            const safeName = (filename || fileOrBlob.name || 'αρχείο').toString().slice(0, 220);
+            const fileType = (fileOrBlob.type || 'application/octet-stream').toString().slice(0, 120);
+            if (st) st.textContent = `Προετοιμασία ${safeName}...`;
+
+            const initResponse = await fetch('/chat/upload/init', {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': httpCsrfToken
+                },
+                body: JSON.stringify({ filename: safeName, file_type: fileType, size })
+            });
+            const initData = await initResponse.json().catch(() => ({}));
+            if (!initResponse.ok || !initData.ok || !initData.upload_id) {
+                throw new Error(initData.error || 'Δεν ήταν δυνατή η αρχικοποίηση της μεταφόρτωσης.');
+            }
+
+            uploadId = initData.upload_id;
+            const chunkSize = Math.max(256 * 1024, Math.min(Number(initData.chunk_size) || (8 * 1024 * 1024), 8 * 1024 * 1024));
+            let chunkIndex = 0;
+            let offset = 0;
+
+            while (offset < size) {
+                const end = Math.min(offset + chunkSize, size);
+                const chunk = fileOrBlob.slice(offset, end);
+                const progressBefore = Math.floor((offset / size) * 100);
+                if (st) st.textContent = `Μεταφόρτωση ${safeName}... ${progressBefore}%`;
+
+                const chunkResponse = await fetch(`/chat/upload/${encodeURIComponent(uploadId)}/chunk`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'X-CSRF-Token': httpCsrfToken,
+                        'X-Chunk-Index': String(chunkIndex)
+                    },
+                    body: chunk
+                });
+                const chunkData = await chunkResponse.json().catch(() => ({}));
+                if (!chunkResponse.ok || !chunkData.ok) {
+                    throw new Error(chunkData.error || `Η μεταφόρτωση απέτυχε στο τμήμα ${chunkIndex + 1}.`);
+                }
+
+                offset = end;
+                chunkIndex += 1;
+            }
+
+            if (st) st.textContent = `Ολοκλήρωση ${safeName}...`;
+            const completeResponse = await fetch(`/chat/upload/${encodeURIComponent(uploadId)}/complete`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                cache: 'no-store',
+                headers: { 'X-CSRF-Token': httpCsrfToken }
+            });
+            const completeData = await completeResponse.json().catch(() => ({}));
+            if (!completeResponse.ok || !completeData.ok || !completeData.file_id) {
+                throw new Error(completeData.error || 'Δεν ήταν δυνατή η ολοκλήρωση της μεταφόρτωσης.');
+            }
+
+            uploadId = '';
+            socket.emit('file_message', { file_id: completeData.file_id });
+        } catch (err) {
+            if (uploadId) {
+                try {
+                    await fetch(`/chat/upload/${encodeURIComponent(uploadId)}/abort`, {
+                        method: 'POST',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: { 'X-CSRF-Token': httpCsrfToken }
+                    });
+                } catch (_) {}
+            }
+            showCustomAlert(err && err.message ? err.message : 'Η μεταφόρτωση αρχείου απέτυχε.');
+        } finally {
+            if (st) st.textContent = previousStatus || (currentIsModerator ? 'Πιστοποιημένος • Συνδεδεμένος • Συντονιστής' : 'Πιστοποιημένος • Συνδεδεμένος');
+        }
+    }
+
+    function handleFileSelection(file) {
+        if (!file) return;
+        uploadChatFile(file, file.name);
+    }
     fileInput.addEventListener('change', e => { handleFileSelection(e.target.files[0]); e.target.value = ''; });
 
-    function generateId() { return 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5); };
     window.sendMessage = () => {
         const text = messageInput.value.trim();
         if (!text) return;
-        // Escape HTML before sending
-        const safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-        socket.emit("message", { id: generateId(), username: localStorage.getItem("username"), message: safeText });
+        // Send raw text; it is rendered with textContent, never innerHTML.
+        socket.emit("message", { message: text });
         messageInput.value = '';
         messageInput.style.height = 'auto'; // Reset height
         messageInput.style.height = (messageInput.scrollHeight) + 'px'; // Recalculate for 1 line
@@ -1668,9 +2541,7 @@ function initializeChat(secretKey) {
                     recordButton.style.color = 'var(--text-color-btn)';
                     stream.getTracks().forEach(track => track.stop());
                     const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-                    const reader = new FileReader();
-                    reader.onloadend = () => socket.emit("message", { id: generateId(), username: localStorage.getItem("username"), message: reader.result, fileType: blob.type, filename: `voice-message.webm` });
-                    reader.readAsDataURL(blob);
+                    uploadChatFile(blob, 'voice-message.webm');
                 };
                 mediaRecorder.start();
             }).catch(err => showCustomAlert("Η πρόσβαση στο μικρόφωνο απορρίφθηκε."));
@@ -1679,9 +2550,13 @@ function initializeChat(secretKey) {
     
     window.sendFile = () => fileInput.click();
     
-    function emitFile(dataURL, type, name) {
-        socket.emit("message", { id: generateId(), username: localStorage.getItem("username"), message: dataURL, fileType: type, filename: name });
-    };
+    function emitFile(blobOrFile, type, name) {
+        if (!(blobOrFile instanceof Blob)) {
+            showCustomAlert('Μη υποστηριζόμενη πηγή αρχείου.');
+            return;
+        }
+        uploadChatFile(blobOrFile, name || 'αρχείο');
+    }
 
     function showCustomAlert(message) {
         // Re-using the info modal structure for alerts
@@ -1711,26 +2586,25 @@ function initializeChat(secretKey) {
     }
 
     function showMediaPreview(data) {
+        if (!data || !data.fileId) {
+            showCustomAlert('Αυτό το αρχείο δεν είναι πλέον διαθέσιμο.');
+            return;
+        }
         let existingPreview = document.getElementById('media-preview-overlay');
         if (existingPreview) existingPreview.remove();
         const overlay = document.createElement('div');
         overlay.id = 'media-preview-overlay';
         let previewContent;
-        
-        const base64Data = data.message.split(',')[1];
-        if (!base64Data) {
-            showCustomAlert("Σφάλμα κατά την ανάγνωση δεδομένων αρχείου.");
-            return;
-        }
+        const fileUrl = `/chat/file/${encodeURIComponent(data.fileId)}`;
 
-        if (data.fileType.startsWith('image/')) {
+        if (SAFE_IMAGE_TYPES.has(data.fileType)) {
             previewContent = document.createElement('img');
-        } else if (data.fileType.startsWith('video/')) {
+        } else if (SAFE_VIDEO_TYPES.has(data.fileType)) {
             previewContent = document.createElement('video');
             previewContent.controls = true;
             previewContent.autoplay = true;
             previewContent.playsInline = true;
-        } else if (data.fileType.startsWith('audio/')) {
+        } else if (SAFE_AUDIO_TYPES.has(data.fileType)) {
             previewContent = document.createElement('audio');
             previewContent.controls = true;
             previewContent.autoplay = true;
@@ -1739,30 +2613,31 @@ function initializeChat(secretKey) {
             previewContent.className = 'file-placeholder';
             previewContent.textContent = '📄';
         }
-        
-        if (previewContent.src !== undefined) previewContent.src = data.message;
-        
+
+        if (previewContent.src !== undefined) previewContent.src = fileUrl;
+
         const controls = document.createElement('div');
         controls.id = 'media-preview-controls';
-        
+
         const closeBtn = document.createElement('button');
         closeBtn.textContent = 'Κλείσιμο (X)';
         closeBtn.onclick = () => overlay.remove();
-        
+
         const downloadLink = document.createElement('a');
         downloadLink.textContent = 'Λήψη';
-        downloadLink.href = data.message;
-        downloadLink.download = data.filename;
+        downloadLink.href = `${fileUrl}?download=1`;
+        downloadLink.download = data.filename || 'αρχείο';
         controls.appendChild(downloadLink);
-        
-        if (data.username === localStorage.getItem("username")) {
+
+        const canDeleteMedia = !!data.owner_id && (data.owner_id === clientId || currentIsModerator);
+        if (canDeleteMedia) {
             const deleteBtn = document.createElement('button');
             deleteBtn.textContent = 'Διαγραφή';
             deleteBtn.onclick = () => { socket.emit('delete_message', { id: data.id }); overlay.remove(); };
             controls.appendChild(deleteBtn);
         }
         controls.appendChild(closeBtn);
-        
+
         overlay.appendChild(previewContent);
         overlay.appendChild(controls);
         document.body.appendChild(overlay);
@@ -1782,13 +2657,13 @@ function initializeChat(secretKey) {
         controls.className = 'ig-cam-controls';
         const captureBtn = document.createElement('button');
         captureBtn.className = 'ig-cam-btn ig-cam-primary';
-        captureBtn.innerHTML = '<span class="ig-ico">⚪</span><span class="ig-lbl">Λήψη</span>';
+        captureBtn.textContent = '⚪ Λήψη';
         const switchBtn = document.createElement('button');
         switchBtn.className = 'ig-cam-btn';
-        switchBtn.innerHTML = '<span class="ig-ico">🔄</span><span class="ig-lbl">Αλλαγή</span>';
+        switchBtn.textContent = '🔄 Αλλαγή';
         const closeBtn = document.createElement('button');
         closeBtn.className = 'ig-cam-btn ig-cam-danger';
-        closeBtn.innerHTML = '<span class="ig-ico">✕</span><span class="ig-lbl">Κλείσιμο</span>';
+        closeBtn.textContent = '✕ Κλείσιμο';
         
         const startStream = (facingMode) => {
             if (liveCameraStream) {
@@ -1800,7 +2675,7 @@ function initializeChat(secretKey) {
                     video.srcObject = stream;
                 })
                 .catch(err => {
-                    showCustomAlert('Δεν ήταν δυνατή η πρόσβαση στην κάμερα. Έλεγξε τις άδειες.');
+                    showCustomAlert('Δεν ήταν δυνατή η πρόσβαση στην κάμερα. Ελέγξτε τα δικαιώματα.');
                     overlay.remove();
                 });
         };
@@ -1818,9 +2693,11 @@ function initializeChat(secretKey) {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             const filename = `capture-${Date.now()}.jpg`;
-            emitFile(dataUrl, 'image/jpeg', filename);
+            canvas.toBlob(blob => {
+                if (blob) emitFile(blob, 'image/jpeg', filename);
+                else showCustomAlert('Δεν ήταν δυνατή η κωδικοποίηση της ληφθείσας εικόνας.');
+            }, 'image/jpeg', 0.8);
             closeBtn.onclick();
         };
         
@@ -1840,7 +2717,7 @@ function initializeChat(secretKey) {
         div.className = 'chat-message';
         div.id = data.id;
         
-        const isSelf = data.username === localStorage.getItem("username");
+        const isSelf = !!data.owner_id && data.owner_id === clientId;
         if (isSelf) {
             div.classList.add('self');
         } else {
@@ -1854,35 +2731,36 @@ function initializeChat(secretKey) {
         content.className = 'message-content';
         content.id = `content-${data.id}`;
         
-        let messageText = data.message;
-        if (data.fileType && messageText.startsWith('data:')) {
-            // It's a file with base64 data
+        let messageText = data.message || '';
+        if (data.fileType && data.fileId) {
+            const fileUrl = `/chat/file/${encodeURIComponent(data.fileId)}`;
             const fileLink = document.createElement('span');
             fileLink.className = 'file-link';
-            fileLink.textContent = data.filename;
+            fileLink.textContent = data.filename || 'αρχείο';
 
             // Always show who sent the file
             const fileLabel = document.createElement('div');
             fileLabel.className = 'file-label';
-            fileLabel.textContent = `${data.username}: ${data.filename || 'file'}`;
+            const sizeText = Number.isFinite(Number(data.fileSize)) ? ` (${(Number(data.fileSize) / (1024 * 1024)).toFixed(1)} MB)` : '';
+            fileLabel.textContent = `${data.username}: ${data.filename || 'αρχείο'}${sizeText}`;
             content.appendChild(fileLabel);
-            
-            if (data.filename.includes('voice-message.webm') || data.fileType.startsWith('audio/')) {
+
+            if ((data.filename || '').includes('voice-message.webm') || SAFE_AUDIO_TYPES.has(data.fileType)) {
                 const audio = document.createElement('audio');
-                audio.src = data.message;
+                audio.src = fileUrl;
                 audio.controls = true;
                 audio.setAttribute('controlsList', 'nodownload');
                 content.appendChild(audio);
-            } else if (data.fileType.startsWith('image/')) {
+            } else if (SAFE_IMAGE_TYPES.has(data.fileType)) {
                 const img = document.createElement('img');
-                img.src = data.message;
-                img.alt = data.filename;
+                img.src = fileUrl;
+                img.alt = data.filename || 'εικόνα';
                 img.style.cursor = 'zoom-in';
                 img.onclick = () => showMediaPreview(data);
                 content.appendChild(img);
-            } else if (data.fileType.startsWith('video/')) {
+            } else if (SAFE_VIDEO_TYPES.has(data.fileType)) {
                 const video = document.createElement('video');
-                video.src = data.message;
+                video.src = fileUrl;
                 video.controls = true;
                 video.playsInline = true;
                 video.onclick = () => showMediaPreview(data);
@@ -1894,7 +2772,7 @@ function initializeChat(secretKey) {
         } else {
             // It's a text message
             content.textContent = `${data.username}: ${messageText}`;
-            if (data.username === 'System') {
+            if (data.username === 'Σύστημα') {
                 content.style.background = 'none';
                 content.style.color = 'var(--text-color-light)';
                 content.style.textAlign = 'center';
@@ -1906,7 +2784,8 @@ function initializeChat(secretKey) {
         bubbleWrapper.appendChild(content);
         div.appendChild(bubbleWrapper);
 
-        if (isSelf && data.username !== 'System') {
+        const canDelete = !!data.owner_id && (isSelf || currentIsModerator);
+        if ((isSelf || canDelete) && data.username !== 'Σύστημα') {
             const actions = document.createElement('div');
             actions.className = 'message-actions';
             const deleteBtn = document.createElement('button');
@@ -1914,14 +2793,14 @@ function initializeChat(secretKey) {
             deleteBtn.title = 'Διαγραφή';
             deleteBtn.onclick = () => socket.emit('delete_message', { id: data.id });
             
-            if (!data.fileType) {
+            if (isSelf && !data.fileType) {
                 const editBtn = document.createElement('button');
                 editBtn.textContent = '📝';
                 editBtn.title = 'Επεξεργασία';
-                editBtn.onclick = () => toggleEdit(data.id, data.message);
+                editBtn.onclick = () => toggleEdit(data.id, data.username, data.message);
                 actions.appendChild(editBtn);
             }
-            actions.appendChild(deleteBtn);
+            if (canDelete) actions.appendChild(deleteBtn);
             div.appendChild(actions);
         }
         
@@ -1947,11 +2826,11 @@ function initializeChat(secretKey) {
         if (element) element.remove();
     });
 
-    function toggleEdit(id, currentText) {
+    function toggleEdit(id, username, currentText) {
         const contentDiv = document.getElementById(`content-${id}`);
         if (contentDiv.querySelector('input')) return; 
 
-        contentDiv.innerHTML = '';
+        contentDiv.replaceChildren();
         const input = document.createElement('input');
         input.type = 'text';
         input.value = currentText;
@@ -1962,16 +2841,15 @@ function initializeChat(secretKey) {
         saveBtn.onclick = () => {
             const newText = input.value.trim();
             if (newText && newText !== currentText) {
-                const safeNewText = newText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-                socket.emit('edit_message', { id: id, new_message: safeNewText });
+                socket.emit('edit_message', { id: id, new_message: newText });
             } else {
-                contentDiv.textContent = currentText;
+                contentDiv.textContent = `${username}: ${currentText}`;
             }
         };
         
         const cancelBtn = document.createElement('button');
-        cancelBtn.textContent = 'Άκυρο';
-        cancelBtn.onclick = () => contentDiv.textContent = currentText;
+        cancelBtn.textContent = 'Ακύρωση';
+        cancelBtn.onclick = () => contentDiv.textContent = `${username}: ${currentText}`;
 
         input.onkeydown = (e) => { 
             if(e.key === 'Enter') saveBtn.click(); 
@@ -1996,7 +2874,7 @@ function initializeChat(secretKey) {
                 const idx = existing.indexOf(': ');
                 if (idx > -1) prefix = existing.slice(0, idx + 2);
             }
-            contentDiv.textContent = prefix + data.new_message +  ' (επεξεργάστηκε)';
+            contentDiv.textContent = prefix + data.new_message + ' (επεξεργασμένο)';
         }
     });
     
@@ -2020,7 +2898,7 @@ function initializeChat(secretKey) {
     let fullscreenState = { element: null, parent: null, nextSibling: null };
     function toggleFullscreen(videoElement) {
         if (fullscreenState.element) {
-            // Close fullscreen
+            // Κλείσιμο fullscreen
             fullscreenState.parent.insertBefore(fullscreenState.element, fullscreenState.nextSibling);
             fullscreenState.element.classList.remove('fullscreen-video');
             document.querySelector('.close-fullscreen-btn')?.remove();
@@ -2052,7 +2930,7 @@ function initializeChat(secretKey) {
     };
     addFullscreenListener(localVideo);
 
-    // --- Call view modes (Grid + Overlay, Hide Cameras) ---
+    // --- Call view modes (Grid + Επικάλυψη, Hide Cameras) ---
     const updateViewButtons = () => {
         if (allCamsBtn) {
             const ico = document.getElementById('allCamsIcon');
@@ -2106,7 +2984,7 @@ function initializeChat(secretKey) {
         const vi = document.getElementById('videoIcon');
         const lbl = videoBtn ? videoBtn.querySelector('.ig-lbl') : null;
         if (vi) vi.textContent = '🚫';
-        if (lbl) lbl.textContent = 'Κάμερα ON';
+        if (lbl) lbl.textContent = 'Κάμερα Ενεργή';
     };
 
     const resumeLocalVideo = async () => {
@@ -2148,7 +3026,7 @@ function initializeChat(secretKey) {
         const vi = document.getElementById('videoIcon');
         const lbl = videoBtn ? videoBtn.querySelector('.ig-lbl') : null;
         if (vi) vi.textContent = '🎥';
-        if (lbl) lbl.textContent = 'Κάμερα OFF';
+        if (lbl) lbl.textContent = 'Κάμερα Ανενεργή';
     };
 
     const setGridOverlay = (enabled) => {
@@ -2173,7 +3051,7 @@ function initializeChat(secretKey) {
     const setHideCameras = async (enabled) => {
         hideCameras = enabled;
         if (hideCameras) {
-            // Close fullscreen if a video is fullscreened
+            // Κλείσιμο fullscreen if a video is fullscreened
             if (fullscreenState.element) toggleFullscreen(null);
             // Exit grid/overlay and hide the entire video stage
             setGridOverlay(false);
@@ -2182,7 +3060,7 @@ function initializeChat(secretKey) {
         } else {
             videos.classList.remove('videos-hidden');
             try { await resumeLocalVideo(); } catch(e) {
-                console.error('Failed to resume camera:', e);
+                console.error('Αποτυχία επανενεργοποίησης κάμερας:', e);
             }
         }
         updateViewButtons();
@@ -2211,7 +3089,7 @@ function initializeChat(secretKey) {
         updateViewButtons();
     };
 
-    // Συμμετοχή στην κλήση
+    // Join Call
     joinBtn.onclick = async () => {
         try {
             // Reset view modes on fresh join
@@ -2226,12 +3104,12 @@ function initializeChat(secretKey) {
             toggleCallButtons(true);
             socket.emit('join-room');
         } catch (err) {
-            console.error("Error accessing media devices:", err); 
-            showCustomAlert('Δεν ήταν δυνατή η εκκίνηση βίντεο. Έλεγξε τις άδειες.');
+            console.error("Σφάλμα πρόσβασης σε συσκευές πολυμέσων:", err); 
+            showCustomAlert('Δεν ήταν δυνατή η έναρξη βίντεο. Ελέγξτε τα δικαιώματα.');
         }
     };
     
-    // Έξοδος από την κλήση
+    // Leave Call
     leaveBtn.onclick = () => {
         // Reset view modes
         if (window._resetCallViewModes) window._resetCallViewModes();
@@ -2253,7 +3131,7 @@ function initializeChat(secretKey) {
         document.getElementById('main-content').classList.remove('show-call');
     };
 
-    // Εναλλαγή Κάμερας
+    // Switch Camera
     switchCamBtn.onclick = async () => {
         if (!localStream) return;
         if (hideCameras) return;
@@ -2281,13 +3159,13 @@ function initializeChat(secretKey) {
                 }
             }
         } catch (err) {
-            console.error('Failed to switch camera:', err);
+            console.error('Αποτυχία αλλαγής κάμερας:', err);
             showCustomAlert('Αποτυχία αλλαγής κάμερας.');
             currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
         }
     };
 
-    // Mute/Unmute Audio
+    // Σίγαση/Κατάργηση Σίγασης Audio
     muteBtn.onclick = () => {
         if (!localStream) return;
         isMuted = !isMuted;
@@ -2295,7 +3173,7 @@ function initializeChat(secretKey) {
         const mi = document.getElementById('muteIcon');
         const lbl = muteBtn.querySelector('.ig-lbl');
         if (mi) mi.textContent = isMuted ? '🔇' : '🎤';
-        if (lbl) lbl.textContent = isMuted ? 'Άρση' : 'Σίγαση';
+        if (lbl) lbl.textContent = isMuted ? 'Κατάργηση Σίγασης' : 'Σίγαση';
     };
 
     // Video On/Off
@@ -2319,7 +3197,7 @@ function initializeChat(secretKey) {
         const vi = document.getElementById('videoIcon');
         const lbl = videoBtn.querySelector('.ig-lbl');
         if (vi) vi.textContent = videoOff ? '🚫' : '🎥';
-        if (lbl) lbl.textContent = videoOff ? 'Κάμερα ON' : 'Κάμερα OFF';
+        if (lbl) lbl.textContent = videoOff ? 'Κάμερα Ενεργή' : 'Κάμερα Ανενεργή';
     };
 
     // Handle existing users when joining
@@ -2372,13 +3250,13 @@ function initializeChat(secretKey) {
                     socket.emit('signal', { to: id, data: { sdp: pc.localDescription } });
                 }
             } catch (e) {
-                console.error("Error handling remote SDP:", e);
+                console.error("Σφάλμα διαχείρισης απομακρυσμένου SDP:", e);
             }
         } else if (data.data.candidate) {
             try {
                 await pc.addIceCandidate(new RTCIceCandidate(data.data.candidate));
             } catch (e) {
-                 console.error("Error adding ICE candidate:", e);
+                 console.error("Σφάλμα προσθήκης ICE candidate:", e);
             }
         }
     });
@@ -2423,7 +3301,7 @@ function initializeChat(secretKey) {
                  pc.createOffer()
                     .then(offer => pc.setLocalDescription(offer))
                     .then(() => socket.emit('signal', { to: id, data: { sdp: pc.localDescription } }))
-                    .catch(e => console.error("Error creating offer:", e));
+                    .catch(e => console.error("Σφάλμα δημιουργίας προσφοράς:", e));
             };
         }
         return pc;
@@ -2436,6 +3314,63 @@ function initializeChat(secretKey) {
 
 # --- Connections Server Routes ---
 
+def _clean_username(value):
+    value = str(value or '').strip()
+    value = re.sub(r'[\x00-\x1f\x7f]', '', value)
+    value = value[:MAX_USERNAME_CHARS]
+    return value or f"Χρήστης-{secrets.token_hex(2)}"
+
+def _auth_rate_limited(ip):
+    now = time.time()
+    with AUTH_LOCK:
+        entry = AUTH_FAILURES.get(ip)
+        if not entry:
+            return False
+        failures = [t for t in entry.get('failures', []) if now - t < AUTH_WINDOW_SECONDS]
+        blocked_until = entry.get('blocked_until', 0)
+        AUTH_FAILURES[ip] = {'failures': failures, 'blocked_until': blocked_until}
+        return blocked_until > now
+
+def _record_auth_failure(ip):
+    now = time.time()
+    with AUTH_LOCK:
+        entry = AUTH_FAILURES.setdefault(ip, {'failures': [], 'blocked_until': 0})
+        entry['failures'] = [t for t in entry['failures'] if now - t < AUTH_WINDOW_SECONDS]
+        entry['failures'].append(now)
+        if len(entry['failures']) >= AUTH_MAX_FAILURES:
+            entry['blocked_until'] = now + AUTH_BLOCK_SECONDS
+
+def _clear_auth_failures(ip):
+    with AUTH_LOCK:
+        AUTH_FAILURES.pop(ip, None)
+
+def _message_rate_limited(user):
+    now = time.time()
+    times = [t for t in user.get('message_times', []) if now - t < MESSAGE_RATE_WINDOW_SECONDS]
+    if len(times) >= MESSAGE_RATE_MAX:
+        user['message_times'] = times
+        return True
+    times.append(now)
+    user['message_times'] = times
+    return False
+
+def _current_user():
+    return connected_users.get(request.sid)
+
+def _emit_action_error(message):
+    emit('action_error', {'message': message}, room=request.sid)
+
+def _remember_chat_item(item):
+    evicted_file_ids = []
+    with CHAT_HISTORY_LOCK:
+        CHAT_HISTORY[item['id']] = dict(item)
+        while len(CHAT_HISTORY) > CHAT_HISTORY_MAX:
+            _old_id, old_item = CHAT_HISTORY.popitem(last=False)
+            if isinstance(old_item, dict) and old_item.get('fileId'):
+                evicted_file_ids.append(old_item.get('fileId'))
+    for file_id in evicted_file_ids:
+        _delete_chat_file(file_id)
+
 @app.route('/')
 def index_chat():
     return render_template_string(HTML)
@@ -2444,42 +3379,505 @@ def index_chat():
 def health_check():
     return "OK", 200
 
-@socketio.on('connect')
-def handle_connect(auth):
-    token = None
-    try:
-        token = auth.get('token') if auth else None
-    except Exception:
-        token = None
-        
-    # Find the SECRET_KEY_SERVER in sys.argv (set by launcher)
-    key = None
-    if "--server" in sys.argv:
+def _connected_user_by_client_id(client_id):
+    if not isinstance(client_id, str):
+        return None
+    with USER_STATE_LOCK:
+        for user in connected_users.values():
+            if user.get('client_id') == client_id and user.get('username') != 'pending':
+                return user
+    return None
+
+def _http_chat_user():
+    if not session.get('chat_logged_in'):
+        return None
+    client_id = session.get('chat_client_id')
+    if not isinstance(client_id, str) or not CLIENT_ID_RE.fullmatch(client_id):
+        return None
+    return _connected_user_by_client_id(client_id)
+
+def _valid_chat_csrf():
+    expected = session.get('chat_csrf_token', '')
+    supplied = request.headers.get('X-CSRF-Token', '')
+    return bool(
+        isinstance(expected, str) and isinstance(supplied, str) and
+        expected and supplied and secrets.compare_digest(expected, supplied)
+    )
+
+def _abort_pending_upload(upload_id):
+    with CHAT_FILES_LOCK:
+        meta = CHAT_PENDING_UPLOADS.get(upload_id)
+    if not meta:
+        return
+    upload_lock = meta.get('lock')
+    if upload_lock is None:
+        upload_lock = contextlib.nullcontext()
+    with upload_lock:
+        with CHAT_FILES_LOCK:
+            meta = CHAT_PENDING_UPLOADS.pop(upload_id, None)
+        if not meta:
+            return
         try:
-            key_index = sys.argv.index("--server") + 1
-            if key_index < len(sys.argv):
-                key = sys.argv[key_index]
+            temp = CHAT_FILE_DIR / meta.get('temp_name', '')
+            if temp.parent == CHAT_FILE_DIR and (temp.is_file() or temp.is_symlink()):
+                temp.unlink(missing_ok=True)
         except Exception:
             pass
-            
-    if token != key:
-        # Reject connection
+
+def _prune_stale_chat_uploads(max_age_seconds=900):
+    now = time.time()
+    stale_files = []
+    stale_pending = []
+    with CHAT_FILES_LOCK:
+        for file_id, meta in list(CHAT_FILES.items()):
+            if not meta.get('claimed') and now - float(meta.get('created_at', now)) > max_age_seconds:
+                stale_files.append(file_id)
+        for upload_id, meta in list(CHAT_PENDING_UPLOADS.items()):
+            if now - float(meta.get('last_activity', meta.get('created_at', now))) > max_age_seconds:
+                stale_pending.append(upload_id)
+    for file_id in stale_files:
+        _delete_chat_file(file_id)
+    for upload_id in stale_pending:
+        _abort_pending_upload(upload_id)
+
+
+def _chat_upload_rate_limited(client_id):
+    now = time.time()
+    with CHAT_FILES_LOCK:
+        events = [t for t in CHAT_UPLOAD_EVENTS.get(client_id, []) if now - t < CHAT_UPLOAD_WINDOW_SECONDS]
+        if len(events) >= CHAT_UPLOAD_MAX_PER_WINDOW:
+            CHAT_UPLOAD_EVENTS[client_id] = events
+            return True
+        events.append(now)
+        CHAT_UPLOAD_EVENTS[client_id] = events
         return False
-        
-    # --- UNIFIED LOGIN ---
-    # Log them into the DB session as well
-    session['db_logged_in'] = True
-    
-    connected_users[request.sid] = {'username': 'pending'}
+
+
+def _chat_reserved_usage_locked(owner_id=None):
+    total = 0
+    for meta in CHAT_PENDING_UPLOADS.values():
+        if owner_id is None or meta.get('owner_id') == owner_id:
+            try:
+                total += int(meta.get('expected_size', 0))
+            except Exception:
+                continue
+    return total
+
+
+def _create_pending_chat_upload(owner_id, filename, file_type, expected_size):
+    _prune_stale_chat_uploads()
+    filename = _sanitize_upload_name(filename)
+    file_type = str(file_type or 'application/octet-stream').lower().strip()
+    if not re.fullmatch(r'[A-Za-z0-9.+_-]+/[A-Za-z0-9.+_-]+', file_type):
+        file_type = 'application/octet-stream'
+    expected_size = int(expected_size)
+    if expected_size <= 0 or expected_size > CHAT_FILE_MAX_BYTES:
+        raise ValueError('το αρχείο πρέπει να έχει μέγεθος από 1 byte έως 150 MB')
+
+    with CHAT_FILES_LOCK:
+        current_total = _chat_storage_usage_locked()
+        reserved_total = _chat_reserved_usage_locked()
+        current_owner = sum(int(m.get('size', 0)) for m in CHAT_FILES.values() if m.get('owner_id') == owner_id)
+        reserved_owner = _chat_reserved_usage_locked(owner_id)
+        if current_total + reserved_total + expected_size > CHAT_TOTAL_QUOTA_BYTES:
+            raise ValueError('θα ξεπερνιόταν το όριο προσωρινού χώρου αποθήκευσης αρχείων συνομιλίας')
+        if current_owner + reserved_owner + expected_size > CHAT_PER_CLIENT_QUOTA_BYTES:
+            raise ValueError('θα ξεπερνιόταν το προσωπικό σας όριο προσωρινών αρχείων συνομιλίας')
+        owner_pending = sum(1 for m in CHAT_PENDING_UPLOADS.values() if m.get('owner_id') == owner_id)
+        if owner_pending >= 2:
+            raise ValueError('έχετε ήδη πάρα πολλές μεταφορτώσεις σε εξέλιξη')
+        if len(CHAT_PENDING_UPLOADS) >= 12:
+            raise ValueError('ο διακομιστής έχει ήδη πάρα πολλές μεταφορτώσεις σε εξέλιξη')
+
+        upload_id = secrets.token_urlsafe(24)
+        temp_name = f'.chunk-{upload_id}-{secrets.token_hex(6)}.part'
+        temp = CHAT_FILE_DIR / temp_name
+        with open(temp, 'xb'):
+            pass
+        try:
+            os.chmod(temp, 0o600)
+        except OSError:
+            pass
+        now = time.time()
+        CHAT_PENDING_UPLOADS[upload_id] = {
+            'upload_id': upload_id,
+            'temp_name': temp_name,
+            'filename': filename,
+            'file_type': file_type,
+            'expected_size': expected_size,
+            'received': 0,
+            'next_index': 0,
+            'owner_id': owner_id,
+            'created_at': now,
+            'last_activity': now,
+            'lock': threading.Lock(),
+        }
+        return dict(CHAT_PENDING_UPLOADS[upload_id])
+
+
+def _append_chat_upload_chunk(upload_id, owner_id, chunk_index, stream, content_length=None):
+    if not CHAT_UPLOAD_SLOTS.acquire(blocking=False):
+        raise RuntimeError('επεξεργάζονται πάρα πολλά τμήματα μεταφόρτωσης')
+    try:
+        with CHAT_FILES_LOCK:
+            meta = CHAT_PENDING_UPLOADS.get(upload_id)
+            if not meta or meta.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+            upload_lock = meta.get('lock')
+        if upload_lock is None:
+            raise ValueError('η κατάσταση της μεταφόρτωσης δεν είναι έγκυρη')
+
+        with upload_lock:
+            with CHAT_FILES_LOCK:
+                meta = CHAT_PENDING_UPLOADS.get(upload_id)
+                if not meta or meta.get('owner_id') != owner_id:
+                    raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+                if int(chunk_index) != int(meta.get('next_index', -1)):
+                    raise ValueError('μη αναμενόμενη σειρά τμημάτων μεταφόρτωσης')
+                remaining = int(meta['expected_size']) - int(meta['received'])
+                if remaining <= 0:
+                    raise ValueError('η μεταφόρτωση έχει ήδη ολοκληρωθεί')
+                expected_chunk_size = min(CHAT_CHUNK_BYTES, remaining)
+                temp_name = meta['temp_name']
+                expected_offset = int(meta['received'])
+            if content_length is not None and int(content_length) != expected_chunk_size:
+                raise ValueError('το τμήμα μεταφόρτωσης έχει λάθος μέγεθος')
+
+            temp = CHAT_FILE_DIR / temp_name
+            if not temp.is_file() or temp.is_symlink() or temp.parent != CHAT_FILE_DIR:
+                raise ValueError('δεν ήταν δυνατή η επαλήθευση του προσωρινού αρχείου μεταφόρτωσης')
+            if temp.stat().st_size != expected_offset:
+                raise ValueError('το μέγεθος της προσωρινής μεταφόρτωσης δεν συμφωνεί με την κατάστασή της')
+
+            written = 0
+            try:
+                with open(temp, 'ab') as handle:
+                    while written < expected_chunk_size:
+                        chunk = stream.read(min(UPLOAD_CHUNK_BYTES, expected_chunk_size - written))
+                        if not chunk:
+                            break
+                        written += len(chunk)
+                        handle.write(chunk)
+                    # Reject any extra byte beyond the expected chunk boundary.
+                    if stream.read(1):
+                        raise ValueError('το τμήμα μεταφόρτωσης είναι πολύ μεγάλο')
+                    handle.flush()
+                if written != expected_chunk_size:
+                    raise ValueError('το τμήμα μεταφόρτωσης έχει λάθος μέγεθος')
+            except Exception:
+                try:
+                    with open(temp, 'r+b') as handle:
+                        handle.truncate(expected_offset)
+                except Exception:
+                    pass
+                raise
+
+            with CHAT_FILES_LOCK:
+                meta = CHAT_PENDING_UPLOADS.get(upload_id)
+                if not meta or meta.get('owner_id') != owner_id:
+                    raise PermissionError('η μεταφόρτωση δεν υπάρχει πλέον')
+                if int(meta.get('next_index', -1)) != int(chunk_index) or int(meta.get('received', -1)) != expected_offset:
+                    raise ValueError('η κατάσταση μεταφόρτωσης άλλαξε απροσδόκητα')
+                meta['received'] = expected_offset + written
+                meta['next_index'] = int(meta['next_index']) + 1
+                meta['last_activity'] = time.time()
+                return int(meta['received']), int(meta['expected_size'])
+    finally:
+        CHAT_UPLOAD_SLOTS.release()
+
+def _complete_chat_upload(upload_id, owner_id):
+    with CHAT_FILES_LOCK:
+        meta = CHAT_PENDING_UPLOADS.get(upload_id)
+        if not meta or meta.get('owner_id') != owner_id:
+            raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+        upload_lock = meta.get('lock')
+    if upload_lock is None:
+        raise ValueError('η κατάσταση της μεταφόρτωσης δεν είναι έγκυρη')
+
+    with upload_lock:
+        with CHAT_FILES_LOCK:
+            meta = CHAT_PENDING_UPLOADS.get(upload_id)
+            if not meta or meta.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν βρέθηκε')
+            if int(meta.get('received', 0)) != int(meta.get('expected_size', -1)):
+                raise ValueError('η μεταφόρτωση δεν έχει ολοκληρωθεί')
+            meta = dict(meta)
+
+        temp = CHAT_FILE_DIR / meta['temp_name']
+        if not temp.is_file() or temp.is_symlink() or temp.parent != CHAT_FILE_DIR:
+            raise ValueError('δεν ήταν δυνατή η επαλήθευση του προσωρινού αρχείου μεταφόρτωσης')
+        actual_size = temp.stat().st_size
+        if actual_size != int(meta['expected_size']) or actual_size > CHAT_FILE_MAX_BYTES:
+            raise ValueError('απέτυχε η επαλήθευση μεγέθους του μεταφορτωμένου αρχείου')
+
+        file_id = secrets.token_urlsafe(24)
+        stored_name = f'{file_id}.blob'
+        target = CHAT_FILE_DIR / stored_name
+        with CHAT_FILES_LOCK:
+            current = CHAT_PENDING_UPLOADS.get(upload_id)
+            if not current or current.get('owner_id') != owner_id:
+                raise PermissionError('η μεταφόρτωση δεν υπάρχει πλέον')
+            os.replace(temp, target)
+            try:
+                os.chmod(target, 0o600)
+            except OSError:
+                pass
+            CHAT_PENDING_UPLOADS.pop(upload_id, None)
+            CHAT_FILES[file_id] = {
+                'file_id': file_id,
+                'stored_name': stored_name,
+                'filename': meta['filename'],
+                'file_type': meta['file_type'],
+                'size': actual_size,
+                'owner_id': owner_id,
+                'claimed': False,
+                'created_at': time.time(),
+            }
+            return dict(CHAT_FILES[file_id])
+
+@app.route('/chat/auth', methods=['POST'])
+def chat_http_auth():
+    ip = request.remote_addr or 'unknown'
+    token = request.headers.get('X-Connections-Key', '')
+    client_id = request.headers.get('X-Client-ID', '')
+    client_secret = request.headers.get('X-Client-Secret', '')
+    key = _get_server_secret_key() or ''
+
+    valid_shape = (
+        isinstance(token, str) and 32 <= len(token) <= 256 and
+        isinstance(client_id, str) and bool(CLIENT_ID_RE.fullmatch(client_id)) and
+        isinstance(client_secret, str) and bool(re.fullmatch(r'[A-Fa-f0-9]{64,128}', client_secret))
+    )
+    if not valid_shape or not key or not secrets.compare_digest(token, key):
+        if not _auth_rate_limited(ip):
+            _record_auth_failure(ip)
+        return {'ok': False}, 401
+
+    with USER_STATE_LOCK:
+        known_secret = CLIENT_IDENTITIES.get(client_id)
+        if known_secret is None or not secrets.compare_digest(known_secret, client_secret):
+            return {'ok': False}, 401
+
+    # Require a live, fully joined Socket.IO connection for this identity. The
+    # HTTP cookie alone is therefore not enough to access chat files later.
+    if not _connected_user_by_client_id(client_id):
+        return {'ok': False}, 409
+
+    _clear_auth_failures(ip)
+    previous_client_id = session.get('chat_client_id')
+    existing_csrf = session.get('chat_csrf_token', '')
+    session['chat_logged_in'] = True
+    session['chat_client_id'] = client_id
+    if previous_client_id != client_id or not isinstance(existing_csrf, str) or len(existing_csrf) < 32:
+        session['chat_csrf_token'] = secrets.token_urlsafe(32)
+    return {'ok': True, 'csrf_token': session['chat_csrf_token']}, 200
+
+@app.route('/chat/upload/init', methods=['POST'])
+def chat_upload_init():
+    user = _http_chat_user()
+    if not user:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_chat_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    if _chat_upload_rate_limited(user['client_id']):
+        return {'ok': False, 'error': 'Πάρα πολλές μεταφορτώσεις αρχείων. Δοκιμάστε ξανά αργότερα.'}, 429
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {'ok': False, 'error': 'Μη έγκυρα μεταδεδομένα μεταφόρτωσης.'}, 400
+    filename = data.get('filename', 'file')
+    file_type = data.get('file_type', 'application/octet-stream')
+    try:
+        expected_size = int(data.get('size', 0))
+    except Exception:
+        expected_size = 0
+    try:
+        meta = _create_pending_chat_upload(user['client_id'], filename, file_type, expected_size)
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 413
+    except Exception:
+        logging.exception('Απέτυχε η αρχικοποίηση μεταφόρτωσης συνομιλίας')
+        return {'ok': False, 'error': 'Δεν ήταν δυνατή η αρχικοποίηση της μεταφόρτωσης.'}, 500
+
+    return {
+        'ok': True,
+        'upload_id': meta['upload_id'],
+        'chunk_size': CHAT_CHUNK_BYTES,
+        'expected_size': meta['expected_size'],
+    }, 200
+
+
+@app.route('/chat/upload/<upload_id>/chunk', methods=['POST'])
+def chat_upload_chunk(upload_id):
+    user = _http_chat_user()
+    if not user:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_chat_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    if not CHAT_FILE_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    try:
+        chunk_index = int(request.headers.get('X-Chunk-Index', '-1'))
+    except Exception:
+        return {'ok': False, 'error': 'Μη έγκυρος δείκτης τμήματος.'}, 400
+    if chunk_index < 0 or chunk_index > 64:
+        return {'ok': False, 'error': 'Μη έγκυρος δείκτης τμήματος.'}, 400
+    if request.content_length is not None and request.content_length > CHAT_CHUNK_BYTES:
+        return {'ok': False, 'error': 'Το τμήμα μεταφόρτωσης είναι πολύ μεγάλο.'}, 413
+
+    try:
+        received, expected = _append_chat_upload_chunk(
+            upload_id, user['client_id'], chunk_index, request.stream, request.content_length
+        )
+    except PermissionError:
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    except RuntimeError as exc:
+        return {'ok': False, 'error': str(exc)}, 429
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 409
+    except Exception:
+        logging.exception('Απέτυχε η μεταφόρτωση τμήματος συνομιλίας')
+        return {'ok': False, 'error': 'Η μεταφόρτωση τμήματος απέτυχε.'}, 500
+
+    return {'ok': True, 'received': received, 'expected_size': expected}, 200
+
+
+@app.route('/chat/upload/<upload_id>/complete', methods=['POST'])
+def chat_upload_complete(upload_id):
+    user = _http_chat_user()
+    if not user:
+        return {'ok': False, 'error': 'Απαιτείται έλεγχος ταυτότητας.'}, 401
+    if not _valid_chat_csrf():
+        return {'ok': False, 'error': 'Μη έγκυρο CSRF token.'}, 403
+    if not CHAT_FILE_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+
+    try:
+        meta = _complete_chat_upload(upload_id, user['client_id'])
+    except PermissionError:
+        return {'ok': False, 'error': 'Η μεταφόρτωση δεν βρέθηκε.'}, 404
+    except ValueError as exc:
+        return {'ok': False, 'error': str(exc)}, 409
+    except Exception:
+        logging.exception('Απέτυχε η ολοκλήρωση μεταφόρτωσης συνομιλίας')
+        return {'ok': False, 'error': 'Δεν ήταν δυνατή η ολοκλήρωση της μεταφόρτωσης.'}, 500
+
+    return {
+        'ok': True,
+        'file_id': meta['file_id'],
+        'filename': meta['filename'],
+        'file_type': meta['file_type'],
+        'size': meta['size'],
+    }, 200
+
+
+@app.route('/chat/upload/<upload_id>/abort', methods=['POST'])
+def chat_upload_abort(upload_id):
+    user = _http_chat_user()
+    if not user:
+        return {'ok': False}, 401
+    if not _valid_chat_csrf():
+        return {'ok': False}, 403
+    if not CHAT_FILE_ID_RE.fullmatch(upload_id or ''):
+        return {'ok': True}, 200
+    with CHAT_FILES_LOCK:
+        meta = CHAT_PENDING_UPLOADS.get(upload_id)
+        if meta and meta.get('owner_id') != user['client_id']:
+            return {'ok': False}, 403
+    _abort_pending_upload(upload_id)
+    return {'ok': True}, 200
+
+
+@app.route('/chat/file/<file_id>', methods=['GET'])
+def chat_file(file_id):
+    if not CHAT_FILE_ID_RE.fullmatch(file_id or ''):
+        return 'Δεν βρέθηκε', 404
+    if not _http_chat_user():
+        return 'Μη εξουσιοδοτημένο', 401
+
+    with CHAT_FILES_LOCK:
+        meta = CHAT_FILES.get(file_id)
+        if not meta or not meta.get('claimed'):
+            return 'Δεν βρέθηκε', 404
+        meta = dict(meta)
+
+    target = CHAT_FILE_DIR / meta['stored_name']
+    if not target.is_file() or target.is_symlink() or target.parent != CHAT_FILE_DIR:
+        return 'Δεν βρέθηκε', 404
+
+    force_download = request.args.get('download') == '1' or meta['file_type'] not in SAFE_INLINE_MEDIA_TYPES
+    response = send_from_directory(
+        CHAT_FILE_DIR, meta['stored_name'],
+        as_attachment=force_download,
+        download_name=meta['filename'],
+        mimetype=(meta['file_type'] if meta['file_type'] in SAFE_INLINE_MEDIA_TYPES else 'application/octet-stream'),
+        conditional=True,
+        max_age=0,
+    )
+    response.headers['Cache-Control'] = 'private, no-store, max-age=0'
+    return response
+
+@socketio.on('connect')
+def handle_connect(auth):
+    ip = request.remote_addr or 'unknown'
+    token = auth.get('token') if isinstance(auth, dict) else None
+    client_id = auth.get('client_id') if isinstance(auth, dict) else None
+    client_secret = auth.get('client_secret') if isinstance(auth, dict) else None
+    key = _get_server_secret_key() or ''
+
+    valid_client_id = isinstance(client_id, str) and bool(CLIENT_ID_RE.fullmatch(client_id))
+    valid_client_secret = isinstance(client_secret, str) and bool(re.fullmatch(r'[A-Fa-f0-9]{64,128}', client_secret))
+    valid_token_shape = isinstance(token, str) and 32 <= len(token) <= 256
+    valid_token = valid_token_shape and bool(key) and secrets.compare_digest(token, key)
+
+    if not valid_client_id or not valid_client_secret or not valid_token:
+        # Throttle only failed credentials. A valid key can never be locked out by
+        # somebody else's bad guesses (prevents a trivial authentication DoS).
+        if not _auth_rate_limited(ip):
+            _record_auth_failure(ip)
+        return False
+
+    # Prevent another authenticated user from impersonating an existing client_id/moderator.
+    with USER_STATE_LOCK:
+        if len(connected_users) >= MAX_CONNECTED_USERS:
+            return False
+        known_secret = CLIENT_IDENTITIES.get(client_id)
+        if known_secret is None:
+            if len(CLIENT_IDENTITIES) >= MAX_CLIENT_IDENTITIES:
+                return False
+            CLIENT_IDENTITIES[client_id] = client_secret
+        elif not secrets.compare_digest(known_secret, client_secret):
+            return False
+
+        connected_users[request.sid] = {
+            'username': 'pending',
+            'client_id': client_id,
+            'is_moderator': False,
+            'message_times': [],
+        }
+
+    _clear_auth_failures(ip)
     return True
 
 @socketio.on("join")
 def handle_join(username):
-    safe_username = html.escape(username)
-    if request.sid in connected_users:
-        connected_users[request.sid]['username'] = safe_username
+    global FIRST_JOINED_CLIENT_ID
+    user = _current_user()
+    if not user or user.get('username') != 'pending':
+        return
 
-    # Send in-memory chat history for the current server session to the user who just joined
+    safe_username = _clean_username(username)
+    with USER_STATE_LOCK:
+        if FIRST_JOINED_CLIENT_ID is None:
+            FIRST_JOINED_CLIENT_ID = user['client_id']
+        user['is_moderator'] = (user['client_id'] == FIRST_JOINED_CLIENT_ID)
+        user['username'] = safe_username
+
+    emit('session_info', {
+        'client_id': user['client_id'],
+        'is_moderator': user['is_moderator'],
+    }, room=request.sid)
+
     try:
         with CHAT_HISTORY_LOCK:
             history = list(CHAT_HISTORY.values())
@@ -2487,103 +3885,145 @@ def handle_join(username):
     except Exception:
         pass
 
-    emit('message', {'id': f'join_{int(time.time())}','username': 'System','message': f'{safe_username} has joined.'}, broadcast=True)
+    emit('message', {
+        'id': f'join_{secrets.token_hex(8)}',
+        'username': 'Σύστημα',
+        'message': f'{safe_username} συνδέθηκε.'
+    }, broadcast=True)
+
 @socketio.on("message")
 def handle_message(data):
-    if not isinstance(data, dict): return
-    
-    data['username'] = html.escape(data.get('username', 'Anonymous'))
-    data['id'] = html.escape(str(data.get('id', '')))
+    user = _current_user()
+    if not user or user.get('username') == 'pending' or not isinstance(data, dict):
+        return
+    if _message_rate_limited(user):
+        _emit_action_error('Στέλνετε μηνύματα πολύ γρήγορα. Παρακαλώ περιμένετε λίγο.')
+        return
 
-    if data.get('fileType'):
-        try:
-            if ',' not in data['message']: return
-            header, encoded = data['message'].split(",", 1)
-            
-            # Check size before decoding
-            # This is an approximation, but good for catching huge payloads early
-            # A base64 string is ~33% larger than the binary data
-            decoded_len_approx = (len(encoded) * 3) // 4
-            if decoded_len_approx > MAX_FILE_SIZE_BYTES:
-                emit("message", {'id': f'reject_{int(time.time())}', 'username': 'System', 'message': 'File rejected: exceeds server limit (50GB).'}, room=request.sid)
-                return
-                
-            # A full decode is too memory-intensive for 50GB.
-            # We will trust the client-side check for the exact limit
-            # and rely on the approximation above as a basic safeguard.
-            # A more robust solution would involve streaming uploads,
-            # but that's a major architecture change.
-            
-            # Quick check for valid base64 characters
-            if re.search(r'[^a-zA-Z0-9+/=]', encoded):
-                 return # Invalid characters
-            
-        except Exception:
-            return 
-            
-        data['filename'] = html.escape(data.get('filename', 'file'))
-        data['fileType'] = html.escape(data.get('fileType', 'application/octet-stream'))
-    else:
-        data['message'] = html.escape(data.get('message', ''))
-        
-    # Store chat history for the current server session
-    try:
-        item = dict(data)
-        # Avoid storing huge base64 payloads in memory (late joiners will see a placeholder)
-        if item.get("fileType") and isinstance(item.get("message"), str) and item["message"].startswith("data:"):
-            fname = item.get("filename", "file")
-            item["message"] = f"[file] {fname}"
-        with CHAT_HISTORY_LOCK:
-            mid = item.get("id")
-            if mid:
-                CHAT_HISTORY[mid] = item
-                while len(CHAT_HISTORY) > CHAT_HISTORY_MAX:
-                    CHAT_HISTORY.popitem(last=False)
-    except Exception:
-        pass
+    message = data.get('message', '')
+    if not isinstance(message, str):
+        return
+    message = message.strip()
+    if not message:
+        return
+    if len(message) > MAX_TEXT_MESSAGE_CHARS:
+        _emit_action_error(f'Το μήνυμα είναι πολύ μεγάλο. Το μέγιστο είναι {MAX_TEXT_MESSAGE_CHARS} χαρακτήρες.')
+        return
 
-    emit("message", data, broadcast=True)
+    item = {
+        'id': f"msg_{secrets.token_urlsafe(12)}",
+        'username': user['username'],
+        'owner_id': user['client_id'],
+        'message': message,
+    }
+    _remember_chat_item(item)
+    emit("message", item, broadcast=True)
+
+@socketio.on("file_message")
+def handle_file_message(data):
+    user = _current_user()
+    if not user or user.get('username') == 'pending' or not isinstance(data, dict):
+        return
+    if _message_rate_limited(user):
+        _emit_action_error('Στέλνετε μηνύματα πολύ γρήγορα. Παρακαλώ περιμένετε λίγο.')
+        return
+
+    file_id = data.get('file_id', '')
+    if not isinstance(file_id, str) or not CHAT_FILE_ID_RE.fullmatch(file_id):
+        return
+
+    with CHAT_FILES_LOCK:
+        meta = CHAT_FILES.get(file_id)
+        if not meta or meta.get('owner_id') != user.get('client_id') or meta.get('claimed'):
+            _emit_action_error('Το μεταφορτωμένο αρχείο δεν είναι διαθέσιμο ή δεν σας ανήκει.')
+            return
+        target = CHAT_FILE_DIR / meta.get('stored_name', '')
+        if not target.is_file() or target.is_symlink() or target.parent != CHAT_FILE_DIR:
+            _emit_action_error('Δεν ήταν δυνατή η επαλήθευση του μεταφορτωμένου αρχείου.')
+            return
+        meta['claimed'] = True
+        file_meta = dict(meta)
+
+    item = {
+        'id': f"msg_{secrets.token_urlsafe(12)}",
+        'username': user['username'],
+        'owner_id': user['client_id'],
+        'message': f"[file] {file_meta['filename']}",
+        'fileId': file_id,
+        'filename': file_meta['filename'],
+        'fileType': file_meta['file_type'],
+        'fileSize': file_meta['size'],
+    }
+    _remember_chat_item(item)
+    emit("message", item, broadcast=True)
 
 @socketio.on("delete_message")
 def handle_delete(data):
-    safe_id = html.escape(str(data.get('id', '')))
+    user = _current_user()
+    if not user or not isinstance(data, dict):
+        return
+    message_id = str(data.get('id', ''))
+    if not re.fullmatch(r'msg_[A-Za-z0-9_-]{8,64}', message_id):
+        return
 
-    try:
-        with CHAT_HISTORY_LOCK:
-            CHAT_HISTORY.pop(safe_id, None)
-    except Exception:
-        pass
+    file_id_to_delete = None
+    with CHAT_HISTORY_LOCK:
+        item = CHAT_HISTORY.get(message_id)
+        if not item:
+            _emit_action_error('Το μήνυμα δεν υπάρχει πλέον ή δεν μπορεί να διαχειριστεί.')
+            return
+        owns_message = item.get('owner_id') == user.get('client_id')
+        if not owns_message and not user.get('is_moderator'):
+            _emit_action_error('Μπορείτε να διαγράψετε μόνο τα δικά σας μηνύματα.')
+            return
+        removed = CHAT_HISTORY.pop(message_id, None)
+        if isinstance(removed, dict):
+            file_id_to_delete = removed.get('fileId')
 
-    emit("delete_message", {'id': safe_id}, broadcast=True)
+    if file_id_to_delete:
+        _delete_chat_file(file_id_to_delete)
+    emit("delete_message", {'id': message_id}, broadcast=True)
+
 @socketio.on("edit_message")
 def handle_edit(data):
-    if not isinstance(data, dict) or 'id' not in data or 'new_message' not in data:
+    user = _current_user()
+    if not user or not isinstance(data, dict):
         return
-    safe_id = html.escape(str(data['id']))
-    new_message_safe = html.escape(data['new_message'])
+    message_id = str(data.get('id', ''))
+    new_message = data.get('new_message', '')
+    if not re.fullmatch(r'msg_[A-Za-z0-9_-]{8,64}', message_id) or not isinstance(new_message, str):
+        return
+    new_message = new_message.strip()
+    if not new_message or len(new_message) > MAX_TEXT_MESSAGE_CHARS:
+        _emit_action_error('Το επεξεργασμένο μήνυμα είναι κενό ή πολύ μεγάλο.')
+        return
 
-    # Determine editor username from current socket session
-    editor = "Anonymous"
-    try:
-        editor = connected_users.get(request.sid, {}).get('username', "Anonymous")
-    except Exception:
-        editor = "Anonymous"
+    with CHAT_HISTORY_LOCK:
+        item = CHAT_HISTORY.get(message_id)
+        if not item:
+            _emit_action_error('Το μήνυμα δεν υπάρχει πλέον ή δεν μπορεί να επεξεργαστεί.')
+            return
+        if item.get('owner_id') != user.get('client_id'):
+            _emit_action_error('Μπορείτε να επεξεργαστείτε μόνο τα δικά σας μηνύματα.')
+            return
+        if item.get('fileType'):
+            _emit_action_error('Τα μηνύματα αρχείων δεν μπορούν να επεξεργαστούν.')
+            return
+        updated = dict(item)
+        updated['message'] = new_message + ' (επεξεργασμένο)'
+        CHAT_HISTORY[message_id] = updated
 
-    # Update in-memory history so late joiners see the edited message
-    try:
-        with CHAT_HISTORY_LOCK:
-            if safe_id in CHAT_HISTORY:
-                item = dict(CHAT_HISTORY[safe_id])
-                if not item.get("fileType"):
-                    item["message"] = new_message_safe + " (edited)"
-                CHAT_HISTORY[safe_id] = item
-    except Exception:
-        pass
-
-    emit("message_edited", {'id': safe_id, 'new_message': new_message_safe, 'username': editor}, broadcast=True)
+    emit("message_edited", {
+        'id': message_id,
+        'new_message': new_message,
+        'username': user['username']
+    }, broadcast=True)
 
 @socketio.on("join-room")
 def join_video():
+    user = _current_user()
+    if not user or user.get('username') == 'pending':
+        return
     join_room(VIDEO_ROOM)
     users_in_room = []
     try:
@@ -2598,22 +4038,60 @@ def leave_video():
     leave_room(VIDEO_ROOM)
     emit("user-left", {"sid": request.sid}, to=VIDEO_ROOM, include_self=False)
 
+def _video_room_members():
+    try:
+        return set(socketio.server.manager.rooms['/'].get(VIDEO_ROOM, set()))
+    except Exception:
+        return set()
+
 @socketio.on("signal")
 def signal(data):
+    user = _current_user()
+    if not user or user.get('username') == 'pending':
+        return
+    if not isinstance(data, dict) or not isinstance(data.get('data'), dict):
+        return
     target_sid = data.get('to')
-    if target_sid in connected_users:
+    if not isinstance(target_sid, str) or target_sid == request.sid:
+        return
+    try:
+        if len(json.dumps(data['data'], separators=(',', ':'))) > MAX_SIGNAL_PAYLOAD_CHARS:
+            return
+    except Exception:
+        return
+    members = _video_room_members()
+    if request.sid in members and target_sid in members and target_sid in connected_users:
         emit("signal", {"from": request.sid, "data": data['data']}, to=target_sid)
 
 @socketio.on("disconnect")
 def on_disconnect():
     leave_room(VIDEO_ROOM)
     emit("user-left", {"sid": request.sid}, to=VIDEO_ROOM)
-    username = "A user"
-    if request.sid in connected_users:
-        username = connected_users[request.sid].get('username', 'A user')
-        if username == 'pending': username = 'A user'
-        del connected_users[request.sid]
-    emit('message', {'id': f'leave_{int(time.time())}','username': 'System','message': f'{username} has left.'}, broadcast=True)
+    username = "Ένας χρήστης"
+    client_id = None
+    client_still_connected = False
+    with USER_STATE_LOCK:
+        user = connected_users.pop(request.sid, None)
+        if user:
+            username = user.get('username', 'Ένας χρήστης')
+            client_id = user.get('client_id')
+            if username == 'pending':
+                username = 'Ένας χρήστης'
+            if client_id:
+                client_still_connected = any(u.get('client_id') == client_id for u in connected_users.values())
+
+    # In-progress uploads are useful only while this browser identity είναι ενεργό.
+    # Remove abandoned temporary files immediately instead of waiting for TTL.
+    if client_id and not client_still_connected:
+        with CHAT_FILES_LOCK:
+            abandoned = [uid for uid, meta in CHAT_PENDING_UPLOADS.items() if meta.get('owner_id') == client_id]
+            unclaimed = [fid for fid, meta in CHAT_FILES.items() if meta.get('owner_id') == client_id and not meta.get('claimed')]
+        for upload_id in abandoned:
+            _abort_pending_upload(upload_id)
+        for file_id in unclaimed:
+            _delete_chat_file(file_id)
+
+    emit('message', {'id': f'leave_{int(time.time())}','username': 'Σύστημα','message': f'{username} αποχώρησε.'}, broadcast=True)
 
 
 # -------------------------------------------------------------------
@@ -2627,34 +4105,28 @@ def on_disconnect():
 # ----------------------------
 if __name__ == '__main__' and "--server" not in sys.argv:
     VERBOSE_MODE = "--verbose" in sys.argv
+    ALLOW_LAN = "--allow-lan" in sys.argv
     server_process = None
     tunnel_proc = None
     tor_proc = None
+    tor_cleanup_paths = []
 
     try:
-        # Install requirements for both apps
         install_requirements()
-        
-        try:
-            # --- ONLY ONE KEY IS NEEDED ---
-            SECRET_KEY = input("🔑 Δημιούργησε ένα εφάπαξ Μυστικό Κλειδί για αυτή τη συνεδρία: ").strip()
-            if not SECRET_KEY:
-                print("Δεν δόθηκε μυστικό κλειδί. Τερματισμός.")
-                sys.exit(1)
-                
-        except Exception:
-            print("ΚΡΙΣΙΜΟ: Δεν ήταν δυνατή η ανάγνωση του κλειδιού. Τερματισμός.")
-            sys.exit(1)
-            
-        # Pass the single key to the server process
-        server_process = start_server_process(SECRET_KEY, VERBOSE_MODE)
+
+        # Always generate a high-entropy one-time login key. This removes weak
+        # user-chosen passwords from the default security model.
+        SECRET_KEY = secrets.token_urlsafe(32)
+
+        # Transfer the key to the child through an anonymous pipe on Termux/POSIX.
+        server_process = start_server_process(SECRET_KEY, VERBOSE_MODE, ALLOW_LAN)
         
         # Wait for the single server
         server_ready = wait_for_server("http://localhost:5000/health")
         
         if server_ready:
-            local_ip = get_local_ip()
-            local_url = f"http://{local_ip}:5000"
+            local_ip = get_local_ip() if ALLOW_LAN else None
+            local_url = f"http://{local_ip}:5000" if local_ip else None
             online_url = None
 
             # Start BOTH Tor hidden-service and Cloudflare tunnel (best-effort)
@@ -2663,28 +4135,32 @@ if __name__ == '__main__' and "--server" not in sys.argv:
 
             if shutil.which("tor"):
                 tor_proc, onion_url, _hs_dir = start_tor_hidden_service(5000, 80, "Connections")
+                if tor_proc is not None:
+                    tor_cleanup_paths = list(getattr(tor_proc, "_connections_cleanup_paths", []))
             else:
-                print("Το 'tor' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Onion σύνδεσμος.")
+                print("'tor' δεν είναι εγκατεστημένο, επομένως δεν δημιουργήθηκε σύνδεσμος Onion.")
 
             if shutil.which("cloudflared"):
                 tunnel_proc, online_url = start_cloudflared_tunnel(5000, "http", "Connections")
             else:
-                print("Το 'cloudflared' δεν είναι εγκατεστημένο, οπότε δεν δημιουργήθηκε Online σύνδεσμος.")
+                print("'cloudflared' δεν είναι εγκατεστημένο, επομένως δεν δημιουργήθηκε διαδικτυακός σύνδεσμος.")
 
-            os.system('cls' if os.name == 'nt' else 'clear')
+            print('\033[2J\033[H', end='')
             print(
 f"""✅ Το Connections είναι πλέον ενεργό!
 =================================================================
-🔑 Το εφάπαξ Μυστικό Κλειδί σου (για σύνδεση):
+🔑 Το Μυστικό Κλειδί Μίας Χρήσης (για σύνδεση):
    {SECRET_KEY}
 =================================================================
 --- Διευθύνσεις Διακομιστή ---
 🧅 Onion (Tor):           {onion_url or 'N/A'}
-🔗 Online (Internet):     {online_url or 'N/A'}
-🏠 Τοπικό (LAN/Hotspot):  {local_url}
-🏠 Τοπικό (Αυτή η συσκευή): http://127.0.0.1:5000
+🔗 Online (Διαδίκτυο):     {online_url or 'N/A'}
+🏠 Τοπικό (LAN/Hotspot):   {local_url or 'Απενεργοποιημένο από προεπιλογή (χρησιμοποιήστε --allow-lan)'}
+🏠 Τοπικό (Αυτή η συσκευή):    http://127.0.0.1:5000
 
-Πάτησε Ctrl+C για να σταματήσεις τον διακομιστή."""
+{'⚠️  Η λειτουργία LAN χρησιμοποιεί απλό HTTP· χρησιμοποιήστε την μόνο σε αξιόπιστο δίκτυο.' if ALLOW_LAN else '🔒 Η άμεση έκθεση μέσω LAN είναι ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΗ. Cloudflare/Tor συνεχίζουν να λειτουργούν κανονικά.'}
+
+Πατήστε Ctrl+C για να σταματήσετε τον διακομιστή."""
             )
             
             # Wait for user to press Ctrl+C
@@ -2694,18 +4170,32 @@ f"""✅ Το Connections είναι πλέον ενεργό!
             except KeyboardInterrupt:
                 pass # Handled by finally
         else:
-            print("\nΚρίσιμο: Ο διακομιστής απέτυχε να ξεκινήσει. Τερματισμός.")
+            print("\nΚρίσιμο σφάλμα: Ο διακομιστής απέτυχε να ξεκινήσει. Έξοδος.")
             
     except KeyboardInterrupt:
         print("\nΤερματισμός διακομιστών...")
     except Exception as e:
-        print(f"\nΠαρουσιάστηκε ένα απρόσμενο σφάλμα: {e}")
+        print(f"\nΠαρουσιάστηκε απροσδόκητο σφάλμα: {e}")
     finally:
         # Terminate all subprocesses
         try:
             if tor_proc and tor_proc.poll() is None:
                 tor_proc.terminate()
-        except Exception: pass
+                try:
+                    tor_proc.wait(timeout=5)
+                except Exception:
+                    tor_proc.kill()
+        except Exception:
+            pass
+        for cleanup_path in tor_cleanup_paths:
+            try:
+                cleanup_path = pathlib.Path(cleanup_path)
+                if cleanup_path.is_dir():
+                    shutil.rmtree(cleanup_path, ignore_errors=True)
+                else:
+                    cleanup_path.unlink(missing_ok=True)
+            except Exception:
+                pass
         try:
             if tunnel_proc and tunnel_proc.poll() is None:
                 tunnel_proc.terminate()
@@ -2720,46 +4210,29 @@ f"""✅ Το Connections είναι πλέον ενεργό!
 # Server code below
 # ----------------------------
 if __name__ == '__main__' and "--server" in sys.argv:
-    
-    # --- Get Keys/Passwords from args ---
-    SECRET_KEY_SERVER = None
-    DB_PASSWORD_SERVER = None
+    SECRET_KEY_SERVER = _read_server_secret()
     QUIET_MODE_SERVER = "--quiet" in sys.argv
-    
-    try:
-        key_index = sys.argv.index("--server") + 1
-        if key_index < len(sys.argv):
-            SECRET_KEY_SERVER = sys.argv[key_index]
-    except Exception:
-        pass
-        
-    try:
-        # This will be the same as the secret key, as passed by the launcher
-        db_pass_index = sys.argv.index("--db-password") + 1
-        if db_pass_index < len(sys.argv):
-            DB_PASSWORD_SERVER = sys.argv[db_pass_index]
-    except Exception:
-        pass
+    ALLOW_LAN_SERVER = "--allow-lan" in sys.argv
+    BIND_HOST = '0.0.0.0' if ALLOW_LAN_SERVER else '127.0.0.1'
 
-    if not SECRET_KEY_SERVER or not DB_PASSWORD_SERVER:
-        print("ΚΡΙΣΙΜΟ: Ο διακομιστής ξεκίνησε χωρίς μυστικό κλειδί.")
+    if not SECRET_KEY_SERVER or not (32 <= len(SECRET_KEY_SERVER) <= 256):
+        print("ΚΡΙΣΙΜΟ ΣΦΑΛΜΑ: Ο διακομιστής δεν έλαβε έγκυρο μυστικό κλειδί μίας χρήσης.")
         sys.exit(1)
 
-    # --- Set passwords for the apps ---
-    SERVER_PASSWORD = DB_PASSWORD_SERVER # Set global for DB blueprint (though now unused)
-    app.config['SECRET_KEY'] = SECRET_KEY_SERVER # Main secret key for session
-    
+    SERVER_PASSWORD = SECRET_KEY_SERVER
+
     if QUIET_MODE_SERVER:
         log = logging.getLogger('werkzeug')
         log.setLevel(logging.ERROR)
     else:
-        print(f"Starting server with key: {SECRET_KEY_SERVER[:4]}...")
-        
-    # --- Start Main Server (Chat + DB) ---
-    print("Εκκίνηση Connections (με Βάση Δεδομένων) στο http://localhost:5000...")
+        print("Εκκίνηση πιστοποιημένου διακομιστή...")
+
+    print(f"Εκκίνηση διακομιστή Connections (με Βάση Δεδομένων) στη διεύθυνση {BIND_HOST}:5000...")
     try:
-        # This one command runs the Flask app, the SocketIO, AND the DB blueprint
-        socketio.run(app, host='0.0.0.0', port=5000)
+        socketio.run(
+            app, host=BIND_HOST, port=5000,
+            debug=False, use_reloader=False, allow_unsafe_werkzeug=True
+        )
     except Exception as e:
-        print(f"Failed to start server: {e}")
-        print("Βεβαιώσου ότι υπάρχουν τα cert.pem και key.pem.")
+        print(f"Αποτυχία εκκίνησης διακομιστή: {e}")
+
