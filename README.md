@@ -573,9 +573,9 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 
 
-**What It Helps With:** Running your own chat, video-call, and large-file-sharing space when you want the workflow under your control.
+**What It Helps With:** Running your own authenticated chat, video-call, and file-sharing space from Termux with server-enforced message ownership and access controls.
 
-**Description:** Secure chat/file-sharing server. Video calls, file sharing (50GB limit). Unified application combining Butterfly Chat and DedSec's Database with single secret key authentication. Provides real-time messaging, file sharing, video calls, and integrated file management. Features 50GB file uploads, WebRTC video calls, cloudflare tunneling, and unified login system. Use only on systems you own or have explicit permission to test.
+**Description:** Self-hosted Connections server for Termux combining real-time chat, WebRTC video calls, chunked file sharing, and DedSec's Database in one authenticated interface. Supports files up to 150 MB, a strong automatically generated one-time secret key, Cloudflare and Tor access, rate limiting, CSRF-protected Database actions, server-controlled identities and message ownership, and moderator controls where the first user to join can delete any message while other users can delete or edit only their own. Chat files are transferred in protected chunks instead of oversized Socket.IO/Base64 messages, and LAN exposure is disabled by default unless explicitly enabled. Use only on systems and networks you own or are authorized to operate.
 
 **Save Location:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
 
@@ -2335,9 +2335,9 @@ bash Setup.sh
 
 
 
-**Τι Βοηθά Να Λύσεις:** Λειτουργία δικού σου χώρου chat, video call και κοινής χρήσης μεγάλων αρχείων όταν θέλεις η ροή να παραμένει υπό τον έλεγχό σου.
+**Τι Βοηθά Να Λύσεις:** Λειτουργία δικού σου πιστοποιημένου χώρου chat, video call και κοινής χρήσης αρχείων από το Termux, με έλεγχο ιδιοκτησίας μηνυμάτων και δικαιωμάτων πρόσβασης από τον server.
 
-**Περιγραφή:** Ασφαλής διακομιστής συνομιλίας/κοινής χρήσης αρχείων. Κλήσεις βίντεο, κοινή χρήση αρχείων (όριο 50GB). Ενοποιημένη εφαρμογή που συνδυάζει το Butterfly Chat και τη Βάση Δεδομένων DedSec με μοναδικό μυστικό κλειδί πιστοποίησης. Παρέχει ανταλλαγή μηνυμάτων σε πραγματικό χρόνο, κοινή χρήση αρχείων, κλήσεις βίντεο και ολοκληρωμένη διαχείριση αρχείων. Χρησιμοποίησέ το μόνο σε συστήματα που σου ανήκουν ή έχεις ρητή άδεια να ελέγξεις.
+**Περιγραφή:** Αυτοφιλοξενούμενος server Connections για Termux που συνδυάζει chat σε πραγματικό χρόνο, κλήσεις βίντεο WebRTC, μεταφορά αρχείων σε τμήματα και το DedSec's Database σε ένα ενιαίο περιβάλλον με πιστοποίηση. Υποστηρίζει αρχεία έως 150 MB, ισχυρό αυτόματα δημιουργημένο μυστικό κλειδί μίας χρήσης, πρόσβαση μέσω Cloudflare και Tor, περιορισμό ρυθμού αιτημάτων, ενέργειες Database με προστασία CSRF, ταυτότητες και ιδιοκτησία μηνυμάτων που ελέγχονται από τον server, καθώς και δικαιώματα moderator όπου ο πρώτος χρήστης που συνδέεται μπορεί να διαγράφει οποιοδήποτε μήνυμα, ενώ οι υπόλοιποι μπορούν να διαγράφουν ή να επεξεργάζονται μόνο τα δικά τους. Τα αρχεία του chat μεταφέρονται σε προστατευμένα τμήματα αντί για υπερβολικά μεγάλα Socket.IO/Base64 μηνύματα και η πρόσβαση μέσω LAN είναι απενεργοποιημένη από προεπιλογή, εκτός αν ενεργοποιηθεί ρητά. Χρησιμοποίησέ το μόνο σε συστήματα και δίκτυα που σου ανήκουν ή έχεις άδεια να διαχειρίζεσαι.
 
 **Τοποθεσία Αποθήκευσης:** `Τα κοινόχρηστα αρχεία αποθηκεύονται στο ~/Downloads/DedSec's Database/. Αν ο φάκελος δεν μπορεί να δημιουργηθεί, το fallback είναι ./DedSec_Database_Files/ στον τρέχοντα κατάλογο. Τα δεδομένα λειτουργίας του Tor αποθηκεύονται ξεχωριστά στο ~/.foxchat_tor/.`
 
