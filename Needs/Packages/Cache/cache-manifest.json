@@ -599,28 +599,28 @@
     {
       "package": "file",
       "optional": false,
-      "version": "5.48-1",
+      "version": "5.48-3",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/f/file/file_5.48-1_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/f/file/file_5.48-3_aarch64.deb"
       ],
-      "sha256": "2c77db1192a0e098afbb88aa9d3ccb0b289ff667110c9fdbe9b49212509ef40b",
-      "size": 411880,
-      "filename": "pool/main/f/file/file_5.48-1_aarch64.deb",
-      "depends": "zlib",
+      "sha256": "4ccf6730b375d8be61043a78c78c7875a2df5018bccd42d6dcd44d881702cf16",
+      "size": 17536,
+      "filename": "pool/main/f/file/file_5.48-3_aarch64.deb",
+      "depends": "libmagic (= 5.48-3)",
       "pre_depends": "",
       "provides": "",
-      "file": "file_5.48-1_aarch64.deb",
+      "file": "file_5.48-3_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "file_5.48-1_aarch64.deb": "2c77db1192a0e098afbb88aa9d3ccb0b289ff667110c9fdbe9b49212509ef40b"
+        "file_5.48-3_aarch64.deb": "4ccf6730b375d8be61043a78c78c7875a2df5018bccd42d6dcd44d881702cf16"
       }
     },
     {
@@ -1571,28 +1571,28 @@
     {
       "package": "libandroid-stub",
       "optional": false,
-      "version": "29-1",
+      "version": "29-2",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb"
       ],
-      "sha256": "e5b61eecd51e7131bb380554c80901c377ebcab0721466a06e80b17976479c4a",
-      "size": 16408,
-      "filename": "pool/main/liba/libandroid-stub/libandroid-stub_29-1_aarch64.deb",
+      "sha256": "17eab0b8fc1c9271b3f7aa0658564086feb082fa88f13aa3a03608f1fb3bb538",
+      "size": 23312,
+      "filename": "pool/main/liba/libandroid-stub/libandroid-stub_29-2_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "",
-      "file": "libandroid-stub_29-1_aarch64.deb",
+      "file": "libandroid-stub_29-2_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "libandroid-stub_29-1_aarch64.deb": "e5b61eecd51e7131bb380554c80901c377ebcab0721466a06e80b17976479c4a"
+        "libandroid-stub_29-2_aarch64.deb": "17eab0b8fc1c9271b3f7aa0658564086feb082fa88f13aa3a03608f1fb3bb538"
       }
     },
     {
@@ -2327,28 +2327,28 @@
     {
       "package": "libexpat",
       "optional": false,
-      "version": "2.8.2",
+      "version": "2.8.3",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb"
       ],
-      "sha256": "6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372",
-      "size": 95536,
-      "filename": "pool/main/libe/libexpat/libexpat_2.8.2_aarch64.deb",
+      "sha256": "86dac6db293a44dc2689d4a28fdba96e38fccd378a9c9ef17b4e840b4cf4d81c",
+      "size": 96240,
+      "filename": "pool/main/libe/libexpat/libexpat_2.8.3_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "",
-      "file": "libexpat_2.8.2_aarch64.deb",
+      "file": "libexpat_2.8.3_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "libexpat_2.8.2_aarch64.deb": "6f5eb2fd14b6fe4d7bb79bf7f0f3d7fc838fea07402477a172b147304366b372"
+        "libexpat_2.8.3_aarch64.deb": "86dac6db293a44dc2689d4a28fdba96e38fccd378a9c9ef17b4e840b4cf4d81c"
       }
     },
     {
@@ -2889,6 +2889,33 @@
       "parts": [],
       "stored_sha256": {
         "libmad_0.16.4-2_aarch64.deb": "4c80f7d460bb4895db93c457c3c090802ee4256edffeb2621736694b3ec04de8"
+      }
+    },
+    {
+      "package": "libmagic",
+      "optional": false,
+      "version": "5.48-3",
+      "architecture": "aarch64",
+      "cache_architecture": "aarch64",
+      "repository": "main",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+      "mirror_urls": [
+        "https://packages.termux.dev/apt/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb"
+      ],
+      "sha256": "e1ea626c31ac38e31023a61a1b1d347c60caaa860ff4e68f176e3a88806af2cb",
+      "size": 396656,
+      "filename": "pool/main/libm/libmagic/libmagic_5.48-3_aarch64.deb",
+      "depends": "zlib",
+      "pre_depends": "",
+      "provides": "",
+      "file": "libmagic_5.48-3_aarch64.deb",
+      "parts": [],
+      "stored_sha256": {
+        "libmagic_5.48-3_aarch64.deb": "e1ea626c31ac38e31023a61a1b1d347c60caaa860ff4e68f176e3a88806af2cb"
       }
     },
     {
@@ -3542,28 +3569,28 @@
     {
       "package": "libsndfile",
       "optional": false,
-      "version": "1.2.2-2",
+      "version": "1.2.2-3",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb"
       ],
-      "sha256": "f71cca07c3209d6baadd9bd51ab239d66ea89b5dc10bcb86637050b9463ad8da",
-      "size": 217128,
-      "filename": "pool/main/libs/libsndfile/libsndfile_1.2.2-2_aarch64.deb",
-      "depends": "libflac, libmp3lame, libogg, libopus, libvorbis",
+      "sha256": "1e1fb77b14ec26f3ff6ded069e9ec816ab7535ae5d074122c6727b0f59d8aff3",
+      "size": 223576,
+      "filename": "pool/main/libs/libsndfile/libsndfile_1.2.2-3_aarch64.deb",
+      "depends": "libflac, libmp3lame, libmpg123, libogg, libopus, libvorbis",
       "pre_depends": "",
       "provides": "",
-      "file": "libsndfile_1.2.2-2_aarch64.deb",
+      "file": "libsndfile_1.2.2-3_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "libsndfile_1.2.2-2_aarch64.deb": "f71cca07c3209d6baadd9bd51ab239d66ea89b5dc10bcb86637050b9463ad8da"
+        "libsndfile_1.2.2-3_aarch64.deb": "1e1fb77b14ec26f3ff6ded069e9ec816ab7535ae5d074122c6727b0f59d8aff3"
       }
     },
     {
@@ -4784,28 +4811,28 @@
     {
       "package": "lua54",
       "optional": false,
-      "version": "5.4.8-7",
+      "version": "5.4.8-10",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb"
       ],
-      "sha256": "281a3b66c7e61167653eb4fad384ad3eb4c218892d9b442bd95f881b46da923c",
-      "size": 139308,
-      "filename": "pool/main/l/lua54/lua54_5.4.8-7_aarch64.deb",
+      "sha256": "075d0dd3cb65f095ffce6181de5aed62b9867399eab10a855d6b167d3f43fbfc",
+      "size": 161412,
+      "filename": "pool/main/l/lua54/lua54_5.4.8-10_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "",
-      "file": "lua54_5.4.8-7_aarch64.deb",
+      "file": "lua54_5.4.8-10_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "lua54_5.4.8-7_aarch64.deb": "281a3b66c7e61167653eb4fad384ad3eb4c218892d9b442bd95f881b46da923c"
+        "lua54_5.4.8-10_aarch64.deb": "075d0dd3cb65f095ffce6181de5aed62b9867399eab10a855d6b167d3f43fbfc"
       }
     },
     {
@@ -5216,55 +5243,55 @@
     {
       "package": "openssh",
       "optional": false,
-      "version": "10.4p1",
+      "version": "10.5p1",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/o/openssh/openssh_10.4p1_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/o/openssh/openssh_10.5p1_aarch64.deb"
       ],
-      "sha256": "4d4b9b4c6f45db22ddd3fa1c003519f4a4d9fc41e13555c545f77cd90244eef5",
-      "size": 960556,
-      "filename": "pool/main/o/openssh/openssh_10.4p1_aarch64.deb",
+      "sha256": "110dcebd42eb4d147d7fdd132f8834e5cb5ff355ef9ed80385ad33698c984ebe",
+      "size": 962244,
+      "filename": "pool/main/o/openssh/openssh_10.5p1_aarch64.deb",
       "depends": "krb5, ldns, libandroid-support, libedit, openssh-sftp-server, openssl, termux-auth, zlib",
       "pre_depends": "",
       "provides": "",
-      "file": "openssh_10.4p1_aarch64.deb",
+      "file": "openssh_10.5p1_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "openssh_10.4p1_aarch64.deb": "4d4b9b4c6f45db22ddd3fa1c003519f4a4d9fc41e13555c545f77cd90244eef5"
+        "openssh_10.5p1_aarch64.deb": "110dcebd42eb4d147d7fdd132f8834e5cb5ff355ef9ed80385ad33698c984ebe"
       }
     },
     {
       "package": "openssh-sftp-server",
       "optional": false,
-      "version": "10.4p1",
+      "version": "10.5p1",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb"
       ],
-      "sha256": "3e722b0ee9607516e66d370b52f69ab4cee764a282b87510fc662b8eeb354501",
-      "size": 56376,
-      "filename": "pool/main/o/openssh-sftp-server/openssh-sftp-server_10.4p1_aarch64.deb",
+      "sha256": "73711b9de70dddf74dc4061ebd301473fb6229d67ed5af67c7dd333142650b6b",
+      "size": 56368,
+      "filename": "pool/main/o/openssh-sftp-server/openssh-sftp-server_10.5p1_aarch64.deb",
       "depends": "libandroid-support",
       "pre_depends": "",
       "provides": "",
-      "file": "openssh-sftp-server_10.4p1_aarch64.deb",
+      "file": "openssh-sftp-server_10.5p1_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "openssh-sftp-server_10.4p1_aarch64.deb": "3e722b0ee9607516e66d370b52f69ab4cee764a282b87510fc662b8eeb354501"
+        "openssh-sftp-server_10.5p1_aarch64.deb": "73711b9de70dddf74dc4061ebd301473fb6229d67ed5af67c7dd333142650b6b"
       }
     },
     {
@@ -5567,28 +5594,28 @@
     {
       "package": "pulseaudio",
       "optional": false,
-      "version": "17.0-3",
+      "version": "17.0-4",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb"
       ],
-      "sha256": "a5f891d4ce1110ad18e9a7bfccdc8cbd4474e65dea5b6f5ccfb921bd10420162",
-      "size": 848892,
-      "filename": "pool/main/p/pulseaudio/pulseaudio_17.0-3_aarch64.deb",
-      "depends": "dbus, libandroid-execinfo, libandroid-glob, libc++, libltdl, libsndfile, libsoxr, libwebrtc-audio-processing, speexdsp",
+      "sha256": "b119f3a5beb33273a6457e648a2ea501d6a507be8e99501737897c3ea07854cd",
+      "size": 848412,
+      "filename": "pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb",
+      "depends": "dbus, libandroid-stub, libandroid-execinfo, libandroid-glob, libc++, libltdl, libsndfile, libsoxr, libwebrtc-audio-processing, speexdsp",
       "pre_depends": "",
       "provides": "",
-      "file": "pulseaudio_17.0-3_aarch64.deb",
+      "file": "pulseaudio_17.0-4_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "pulseaudio_17.0-3_aarch64.deb": "a5f891d4ce1110ad18e9a7bfccdc8cbd4474e65dea5b6f5ccfb921bd10420162"
+        "pulseaudio_17.0-4_aarch64.deb": "b119f3a5beb33273a6457e648a2ea501d6a507be8e99501737897c3ea07854cd"
       }
     },
     {
@@ -5870,28 +5897,28 @@
     {
       "package": "sox",
       "optional": false,
-      "version": "14.4.2-28",
+      "version": "14.4.2-29",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/s/sox/sox_14.4.2-28_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/s/sox/sox_14.4.2-29_aarch64.deb"
       ],
-      "sha256": "4452c12bb589983e0eb858ca132d09789c7934418500474bb4e676a0a29cf94b",
-      "size": 496944,
-      "filename": "pool/main/s/sox/sox_14.4.2-28_aarch64.deb",
-      "depends": "file, libandroid-glob, libao, libflac, libiconv, libid3tag, libltdl, libmad, libmp3lame, libogg, libpng, libsndfile, libvorbis, opusfile, pulseaudio, zlib, wget",
+      "sha256": "a0e5d177485603dd7421854fad694ebfa542d1203406900b6cabdb72ee727c24",
+      "size": 499360,
+      "filename": "pool/main/s/sox/sox_14.4.2-29_aarch64.deb",
+      "depends": "libandroid-glob, libao, libflac, libiconv, libid3tag, libltdl, libmad, libmagic, libmp3lame, libogg, libpng, libsndfile, libvorbis, opusfile, pulseaudio, zlib, wget",
       "pre_depends": "",
       "provides": "",
-      "file": "sox_14.4.2-28_aarch64.deb",
+      "file": "sox_14.4.2-29_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "sox_14.4.2-28_aarch64.deb": "4452c12bb589983e0eb858ca132d09789c7934418500474bb4e676a0a29cf94b"
+        "sox_14.4.2-29_aarch64.deb": "a0e5d177485603dd7421854fad694ebfa542d1203406900b6cabdb72ee727c24"
       }
     },
     {

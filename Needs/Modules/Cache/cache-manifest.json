@@ -73,9 +73,9 @@
       "sha256": "dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be"
     },
     {
-      "name": "charset_normalizer-3.4.9.tar.gz",
-      "size": 152439,
-      "sha256": "673611bbd43f0810bec0b0f028ddeaaa501190339cac411f347ac76917c3ae7b"
+      "name": "charset_normalizer-3.5.0.tar.gz",
+      "size": 169295,
+      "sha256": "49bd5feb59b0bf3cbf6ebcf4352e371c95b9da9bacd4449f8b64d0ad2c10a26e"
     },
     {
       "name": "click-8.4.2-py3-none-any.whl",
@@ -168,9 +168,9 @@
       "sha256": "b49677dbdc597460cc22d01b27ab3696f5e16a21ecf2700fb01bc28e1f2a04a7"
     },
     {
-      "name": "hatchling-1.31.0-py3-none-any.whl",
-      "size": 77747,
-      "sha256": "aac80bec8b6fe35e8480f1c335be8910fa210a0e6f735a139be205dadcacb544"
+      "name": "hatchling-1.32.0-py3-none-any.whl",
+      "size": 78435,
+      "sha256": "0e17c9c3b9aa7c625acc8d0f5b622f107d5049af9ecf5ada4de1aada5be7cdbc"
     },
     {
       "name": "httpcore-1.0.9-py3-none-any.whl",
@@ -258,9 +258,9 @@
       "sha256": "4f077fe87d3fc7fba259aa63d8c026b18382ca6a42ef37c61e16f1b1b5b82fe7"
     },
     {
-      "name": "numpy-2.5.1.tar.gz",
-      "size": 20755553,
-      "sha256": "a48a113e6afea91f5608793bafa7ef2ad481fefbda87ec5069f483de61cb9fa3"
+      "name": "numpy-2.5.2.tar.gz",
+      "size": 20773161,
+      "sha256": "d482d171c406ae88c5b19cad3b6a1c4c5209f886ab74bc44c2c865c23f52d860"
     },
     {
       "name": "odfpy-1.4.1.tar.gz",
@@ -523,9 +523,9 @@
       "sha256": "63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50"
     },
     {
-      "name": "wheel-0.47.0-py3-none-any.whl",
-      "size": 32218,
-      "sha256": "212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced"
+      "name": "wheel-0.48.0-py3-none-any.whl",
+      "size": 33320,
+      "sha256": "3217dcc807155e45db462d7ef2431f5ddda0d7273b700d05a67b271ceb1287ab"
     },
     {
       "name": "wsproto-1.3.2-py3-none-any.whl",
