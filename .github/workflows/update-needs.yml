@@ -6,6 +6,8 @@ on:
     - cron: "17 4 * * 0"
   workflow_dispatch:
   push:
+    branches:
+      - main
     # Populate the real caches immediately after this system or its manifests change.
     paths:
       - ".github/workflows/update-needs.yml"
@@ -30,6 +32,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python
@@ -100,4 +103,9 @@ jobs:
             exit 0
           fi
           git commit -m "chore: refresh vendored dependencies"
-          git push
+
+          # The workflow can run for a long time, so main may have advanced
+          # while dependencies were being refreshed. Rebase before pushing.
+          git fetch origin main
+          git rebase origin/main
+          git push origin HEAD:main
