@@ -2,14 +2,17 @@
 set -uo pipefail
 
 # DedSec Project setup entry point.
-# Dependencies are installed directly from the configured Termux/PyPI repositories.
-# No vendored dependency cache is required.
+# This file is the canonical dependency source for the project.
+# This file is the canonical dependency source for the project setup.
+# Other dependency/update entry points should be synchronized with it.
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 RUN_SETTINGS=1
 REQUIRED_ONLY=0
 SKIP_REPOSITORY_REFRESH=0
 WARNINGS=0
+PYTHON_FAILURES=0
+OPTIONAL_TERMUX_FAILURES=0
 
 LOG_DIR="${HOME:-$ROOT_DIR}/.dedsec/logs"
 mkdir -p "$LOG_DIR"
@@ -24,23 +27,23 @@ Usage: bash Setup.sh [options]
 
 Default behavior:
   1. Refresh Termux package metadata and installed packages.
-  2. Install the DedSec Termux dependencies directly from Termux repositories.
-  3. Install the DedSec Python dependencies directly from PyPI.
-  4. Verify the core runtime.
-  5. Start the DedSec menu.
+  2. Install core Termux/build dependencies.
+  3. Install tool-specific Termux dependencies.
+  4. Install the Python dependencies used by active DedSec scripts.
+  5. Verify core and tool Python imports.
+  6. Start the DedSec menu.
 
 Options:
   --run                         Start the DedSec menu after dependency setup.
   --no-run, --update-only       Update dependencies without opening the menu.
-  --required-only               Skip optional Termux packages.
+  --required-only               Install/verify only the core runtime.
   --skip-system-update          Do not refresh/upgrade Termux repositories.
   --skip-repository-refresh     Same as --skip-system-update.
   -h, --help                    Show this help message.
 
-Examples:
-  bash Setup.sh
-  bash Setup.sh --update-only
-  bash Setup.sh --required-only
+Large feature-specific environments such as Mobile Desktop/Termux:X11,
+full proot desktop software, and Mobile Developer Setup language toolchains
+remain on-demand and are installed by their own tools.
 HELP
 }
 
@@ -51,6 +54,11 @@ warn() {
 
 info() {
   printf '[info] %s\n' "$*"
+}
+
+fatal() {
+  printf '[error] %s\n' "$*" >&2
+  exit 1
 }
 
 for arg in "$@"; do
@@ -74,39 +82,121 @@ done
 printf '[DedSec Setup] Project: %s\n' "$ROOT_DIR"
 printf '[DedSec Setup] Log: %s\n' "$LOG_FILE"
 
-if ! command -v pkg >/dev/null 2>&1; then
-  echo '[error] This setup is designed for Termux and requires the pkg command.' >&2
-  exit 1
-fi
+command -v pkg >/dev/null 2>&1 || \
+  fatal 'This setup is designed for Termux and requires the pkg command.'
 
-# Packages required by the main menu and common project tools.
+# Core runtime + native build libraries needed by Python packages used across
+# the project. Python modules with reliable Termux-native packages are kept
+# under pkg to avoid unnecessary source builds on Android.
 TERMUX_REQUIRED=(
-  clang curl git jq libffi libxml2 libxslt nano ncurses
-  openssl openssl-tool proot python python-pip rust unzip wget zip
+  binutils
+  ca-certificates
+  clang
+  curl
+  git
+  freetype
+  libcairo
+  libffi
+  libjpeg-turbo
+  libpng
+  libxml2
+  libxslt
+  make
+  ncurses
+  openssl
+  openssl-tool
+  pkg-config
+  python
+  python-cryptography
+  python-lxml
+  python-pillow
+  python-pip
+  rust
+  unzip
+  wget
+  zip
 )
 
-# Tool-specific packages. The default setup installs these too; --required-only skips them.
-TERMUX_OPTIONAL=(
-  aapt cloudflared ffmpeg fzf nodejs openssh termux-api tor
+# Active-tool dependencies. Failures here are reported clearly but do not
+# prevent the main menu from starting. Tools that need a missing item can
+# still retry installation when opened.
+TERMUX_TOOL_PACKAGES=(
+  aapt
+  cloudflared
+  espeak
+  ffmpeg
+  file
+  fzf
+  gh
+  iproute2
+  ncurses-utils
+  net-tools
+  nmap
+  nodejs
+  npm
+  openssh
+  termux-api
+  termux-tools
+  tor
+  unrar
+  whois
 )
 
-PYTHON_PACKAGES=(
-  blessed
-  bs4
-  cryptography
+# These are intentionally NOT installed globally by Setup.sh:
+#   avahi net-snmp samba                 -> Devices Finder deep scan only
+#   proot-distro pulseaudio x11-repo termux-x11 -> Mobile Desktop only
+#   large language/editor toolchains     -> Mobile Developer Setup only
+#   nano/jq                              -> convenience tools, not runtime deps
+
+# Minimal Python runtime needed by common DedSec networking/update paths.
+PYTHON_CORE_PACKAGES=(
+  requests
+  urllib3
+)
+
+# PyPI distributions directly used by active scripts. cryptography, lxml and
+# Pillow are installed above from Termux-native packages.
+PYTHON_TOOL_PACKAGES=(
+  beautifulsoup4
+  CairoSVG
+  cloudscraper
+  colorama
+  python-dateutil
+  dnspython
+  python-docx
+  python-dotenv
+  EbookLib
+  ExifRead
   flask
   flask-socketio
   geopy
-  mutagen
+  httpx
+  Jinja2
+  Markdown
+  MarkupSafe
+  odfpy
+  paramiko
   phonenumbers
-  pycountry
-  pydub
-  pycryptodome
-  requests
-  werkzeug
+  python-nmap
+  python-pptx
+  psd-tools
   psutil
-  pillow
-  pysocks
+  py7zr
+  pycountry
+  PySocks
+  pytz
+  qrcode
+  rarfile
+  reportlab
+  rich
+  speedtest-cli
+  striprtf
+  tldextract
+  validators
+  websocket-client
+  werkzeug
+  python-whois
+  zxcvbn
 )
 
 install_termux_package() {
@@ -119,14 +209,17 @@ install_termux_package() {
   fi
 
   info "Installing Termux package: $package"
-  if ! pkg install -y "$package"; then
-    if [ "$optional" -eq 1 ]; then
-      warn "Optional Termux package could not be installed: $package"
-    else
-      warn "Required Termux package could not be installed: $package"
-    fi
+  if pkg install -y "$package"; then
+    return 0
+  fi
+
+  if [ "$optional" -eq 1 ]; then
+    OPTIONAL_TERMUX_FAILURES=$((OPTIONAL_TERMUX_FAILURES + 1))
+    warn "Tool-specific Termux package could not be installed: $package"
     return 1
   fi
+
+  fatal "Required Termux package could not be installed: $package"
 }
 
 if [ "$SKIP_REPOSITORY_REFRESH" -eq 0 ]; then
@@ -138,11 +231,11 @@ if [ "$SKIP_REPOSITORY_REFRESH" -eq 0 ]; then
 fi
 
 for package in "${TERMUX_REQUIRED[@]}"; do
-  install_termux_package "$package" 0 || true
+  install_termux_package "$package" 0
 done
 
 if [ "$REQUIRED_ONLY" -eq 0 ]; then
-  for package in "${TERMUX_OPTIONAL[@]}"; do
+  for package in "${TERMUX_TOOL_PACKAGES[@]}"; do
     install_termux_package "$package" 1 || true
   done
 fi
@@ -154,75 +247,174 @@ elif command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN="$(command -v python3)"
 fi
 
-if [ -z "$PYTHON_BIN" ]; then
-  echo '[error] Python is unavailable after package installation.' >&2
-  exit 1
-fi
-
-if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
-  echo '[error] pip is unavailable after installing python/python-pip.' >&2
-  exit 1
-fi
+[ -n "$PYTHON_BIN" ] || fatal 'Python is unavailable after package installation.'
+"$PYTHON_BIN" -m pip --version >/dev/null 2>&1 || \
+  fatal 'pip is unavailable after installing python/python-pip.'
 
 PIP_FLAGS=()
 if "$PYTHON_BIN" -m pip help install 2>/dev/null | grep -q -- '--break-system-packages'; then
   PIP_FLAGS+=(--break-system-packages)
 fi
 
-# Termux manages pip through the python-pip package. Do not self-upgrade pip with pip.
+# Termux owns pip through python-pip. Never use pip to replace or upgrade pip itself.
 info 'Updating Python build helpers.'
-if ! "$PYTHON_BIN" -m pip install --upgrade setuptools wheel "${PIP_FLAGS[@]}"; then
+if ! "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade setuptools wheel; then
   warn 'setuptools/wheel could not be updated.'
 fi
 
-PYTHON_FAILURES=0
-for package in "${PYTHON_PACKAGES[@]}"; do
+install_python_package() {
+  local package="$1"
+  local optional="${2:-0}"
   info "Installing/updating Python package: $package"
-  if ! "$PYTHON_BIN" -m pip install --upgrade "$package" "${PIP_FLAGS[@]}"; then
-    warn "Python package could not be installed or updated: $package"
-    PYTHON_FAILURES=$((PYTHON_FAILURES + 1))
+  if "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade "$package"; then
+    return 0
   fi
+
+  PYTHON_FAILURES=$((PYTHON_FAILURES + 1))
+  if [ "$optional" -eq 1 ]; then
+    warn "Tool-specific Python package could not be installed or updated: $package"
+    return 1
+  fi
+  fatal "Required Python package could not be installed or updated: $package"
+}
+
+for package in "${PYTHON_CORE_PACKAGES[@]}"; do
+  install_python_package "$package" 0
 done
 
-# Verify the dependencies needed to start the main menu.
-if ! "$PYTHON_BIN" - <<'PY'
+if [ "$REQUIRED_ONLY" -eq 0 ]; then
+  for package in "${PYTHON_TOOL_PACKAGES[@]}"; do
+    install_python_package "$package" 1 || true
+  done
+fi
+
+# Verify imports by module name (distribution names and import names differ for
+# several packages: beautifulsoup4->bs4, Pillow->PIL, python-whois->whois,
+# websocket-client->websocket, PySocks->socks, etc.).
+VERIFY_MODE="core"
+[ "$REQUIRED_ONLY" -eq 0 ] && VERIFY_MODE="full"
+
+VERIFY_OUTPUT="$($PYTHON_BIN - "$VERIFY_MODE" <<'PY'
 import importlib
 import sys
 
-required = ("requests",)
+mode = sys.argv[1]
+core = [
+    "requests",
+    "urllib3",
+]
+
+tools = [
+    "PIL",
+    "bs4",
+    "cairosvg",
+    "cloudscraper",
+    "colorama",
+    "cryptography",
+    "dateutil",
+    "dns",
+    "docx",
+    "dotenv",
+    "ebooklib",
+    "exifread",
+    "flask",
+    "flask_socketio",
+    "geopy",
+    "httpx",
+    "jinja2",
+    "lxml",
+    "markdown",
+    "markupsafe",
+    "nmap",
+    "odf",
+    "paramiko",
+    "phonenumbers",
+    "pptx",
+    "psd_tools",
+    "psutil",
+    "py7zr",
+    "pycountry",
+    "pytz",
+    "qrcode",
+    "rarfile",
+    "reportlab",
+    "rich",
+    "socks",
+    "speedtest",
+    "striprtf",
+    "tldextract",
+    "validators",
+    "websocket",
+    "werkzeug",
+    "whois",
+    "zxcvbn",
+]
+
+names = core if mode == "core" else core + tools
 missing = []
-for name in required:
+for name in names:
     try:
         importlib.import_module(name)
-    except Exception:
-        missing.append(name)
+    except Exception as exc:
+        missing.append((name, f"{type(exc).__name__}: {exc}"))
 
 if missing:
-    print("[error] Missing core Python module(s): " + ", ".join(missing), file=sys.stderr)
-    raise SystemExit(1)
-print("[verify] Core Python runtime is ready.")
+    for name, reason in missing:
+        print(f"MISSING\t{name}\t{reason}")
+    raise SystemExit(3)
+
+print(f"OK\t{len(names)}")
 PY
-then
-  exit 1
+)"
+VERIFY_STATUS=$?
+
+if [ "$VERIFY_STATUS" -eq 0 ]; then
+  VERIFIED_COUNT="${VERIFY_OUTPUT#OK$'\t'}"
+  echo "[verify] Python imports ready: ${VERIFIED_COUNT}."
+else
+  echo '[warning] One or more Python imports are still unavailable:'
+  printf '%s\n' "$VERIFY_OUTPUT" | while IFS=$'\t' read -r kind module reason; do
+    [ "$kind" = 'MISSING' ] && printf '  - %s (%s)\n' "$module" "$reason"
+  done
+  if [ "$REQUIRED_ONLY" -eq 1 ]; then
+    fatal 'Core Python verification failed.'
+  fi
+  warn 'Full tool dependency verification is incomplete. See the missing modules above.'
 fi
 
-if [ ! -f "$ROOT_DIR/Scripts/Settings.py" ]; then
-  echo '[error] Scripts/Settings.py is missing.' >&2
-  exit 1
+# Verify the commands needed by the core setup itself.
+CORE_COMMANDS=(python git curl wget unzip zip openssl)
+for command_name in "${CORE_COMMANDS[@]}"; do
+  command -v "$command_name" >/dev/null 2>&1 || \
+    fatal "Required command is unavailable after setup: $command_name"
+done
+
+if [ "$REQUIRED_ONLY" -eq 0 ]; then
+  # Optional command checks provide an accurate final status instead of a false
+  # "everything verified" message when a tool package was unavailable.
+  OPTIONAL_COMMANDS=(aapt cloudflared espeak ffmpeg file fzf gh ip nmap node npm ssh tor unrar whois)
+  for command_name in "${OPTIONAL_COMMANDS[@]}"; do
+    if ! command -v "$command_name" >/dev/null 2>&1; then
+      warn "Tool command is unavailable: $command_name"
+    fi
+  done
 fi
+
+[ -f "$ROOT_DIR/Scripts/Settings.py" ] || fatal 'Scripts/Settings.py is missing.'
 
 if [ ! -d "$ROOT_DIR/Scripts/Ελληνική Έκδοση" ] && [ ! -d "$ROOT_DIR/Scripts/.Ελληνική Έκδοση" ]; then
   warn 'The Greek edition directory is missing.'
 fi
 
 echo
-if [ "$WARNINGS" -eq 0 ] && [ "$PYTHON_FAILURES" -eq 0 ]; then
+if [ "$WARNINGS" -eq 0 ] && [ "$PYTHON_FAILURES" -eq 0 ] && [ "$OPTIONAL_TERMUX_FAILURES" -eq 0 ]; then
   echo '[complete] DedSec dependencies were installed and verified successfully.'
 else
   echo "[complete with warnings] Setup finished with $WARNINGS warning(s). Review: $LOG_FILE"
 fi
 
 echo '[note] Termux:API commands also require the separate Termux:API Android application.'
+echo '[note] Mobile Desktop/X11 and deep-scan extras remain on-demand to avoid a very large default installation.'
 echo '[note] Use Settings -> Save DedSec Project when you want to create or refresh a backup.'
 
 if [ "$RUN_SETTINGS" -eq 0 ]; then
@@ -246,8 +438,9 @@ run_settings_on_terminal
 EXEC_STATUS=$?
 
 if [ "$EXEC_STATUS" -ne 0 ]; then
-  warn "Settings.py exited with code $EXEC_STATUS. Repairing requests and retrying once."
-  "$PYTHON_BIN" -m pip install --upgrade requests "${PIP_FLAGS[@]}" || warn 'The requests repair command failed.'
+  warn "Settings.py exited with code $EXEC_STATUS. Repairing requests/urllib3 and retrying once."
+  "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade requests urllib3 || \
+    warn 'The requests/urllib3 repair command failed.'
   echo '[launch] Retrying the DedSec menu...'
   run_settings_on_terminal
   exit $?
