@@ -3,7 +3,6 @@ name: DedSec Project History Cleanup
 on:
   workflow_dispatch:
   schedule:
-    # Runs every Sunday at 03:00 UTC in whichever repository contains this workflow.
     - cron: "0 3 * * 0"
 
 permissions:
@@ -22,17 +21,17 @@ jobs:
     env:
       LIMIT: 20M
       LIMIT_BYTES: "20971520"
-      WORK: "${{ runner.temp }}/dedsec-history-clean.git"
-      REPO_URL: "https://github.com/${{ github.repository }}.git"
-      AUTH_REPO_URL: "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-      TARGET_BRANCH: "${{ github.event.repository.default_branch }}"
 
     steps:
-      - name: Show target repository
+      - name: Initialize
+        shell: bash
         run: |
           set -euo pipefail
-          echo "Repository: $REPO_URL"
-          echo "Default branch: $TARGET_BRANCH"
+
+          WORK="$RUNNER_TEMP/dedsec-history-clean.git"
+
+          echo "WORK=$WORK" >> "$GITHUB_ENV"
+          echo "Repository: https://github.com/$GITHUB_REPOSITORY"
           echo "Historical blob limit: $LIMIT"
 
       - name: Set up Python
@@ -41,49 +40,70 @@ jobs:
           python-version: "3.x"
 
       - name: Install git-filter-repo
+        shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --no-cache-dir git-filter-repo
+
+          python -m pip install \
+            --disable-pip-version-check \
+            --no-cache-dir \
+            git-filter-repo
+
           git filter-repo --version
 
-      - name: Download repository history on GitHub runner
+      - name: Download complete repository history on GitHub runner
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
           rm -rf "$WORK"
 
-          # This happens only inside GitHub's temporary Ubuntu runner.
-          # It does not download repository history to the user's device.
-          git clone --bare "$AUTH_REPO_URL" "$WORK"
+          AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          git clone --bare "$AUTH_URL" "$WORK"
 
           cd "$WORK"
 
-          echo "Repository history downloaded on GitHub runner."
-          echo "Packed size before cleanup:"
+          TARGET_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+
+          if [ -z "$TARGET_BRANCH" ]; then
+            echo "ERROR: Could not determine the default branch."
+            exit 1
+          fi
+
+          echo "TARGET_BRANCH=$TARGET_BRANCH" >> "$GITHUB_ENV"
+
+          echo "Repository history downloaded on GitHub's temporary Linux runner."
+          echo "Default branch: $TARGET_BRANCH"
+          echo "Repository size before cleanup:"
           du -sh . || true
 
-      - name: Analyze history
+      - name: Analyze repository history
+        shell: bash
         run: |
           set -euo pipefail
-          cd "$WORK"
 
+          cd "$WORK"
           git filter-repo --analyze
 
           echo "History analysis completed."
 
-      - name: Protect current default branch files
+      - name: Check current default branch for files over 20 MiB
+        id: safety
+        shell: bash
         run: |
           set -euo pipefail
+
           cd "$WORK"
 
           BRANCH_REF="refs/heads/$TARGET_BRANCH"
 
           if ! git show-ref --verify --quiet "$BRANCH_REF"; then
-            echo "ERROR: Default branch ref was not found: $BRANCH_REF"
+            echo "ERROR: Branch does not exist: $BRANCH_REF"
             exit 1
           fi
-
-          echo "Checking current $TARGET_BRANCH for files larger than 20 MiB..."
 
           CURRENT_BIG="$(
             git ls-tree -r -l "$BRANCH_REF" |
@@ -91,38 +111,26 @@ jobs:
           )"
 
           if [ -n "$CURRENT_BIG" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+
             echo
             echo "CLEANUP SKIPPED SAFELY."
-            echo "The current $TARGET_BRANCH branch contains files larger than 20 MiB."
-            echo "Historical rewriting was not performed because those files are still in use."
+            echo "Current $TARGET_BRANCH contains files larger than 20 MiB:"
             echo
             echo "$CURRENT_BIG"
             echo
-            exit 0
-          fi
-
-          echo "Current $TARGET_BRANCH contains no files larger than 20 MiB."
-
-      - name: Re-check current branch before rewriting
-        id: safety
-        run: |
-          set -euo pipefail
-          cd "$WORK"
-
-          BRANCH_REF="refs/heads/$TARGET_BRANCH"
-
-          if git ls-tree -r -l "$BRANCH_REF" |
-             awk -v limit="$LIMIT_BYTES" '$4 != "-" && $4 > limit {found=1} END {exit !found}'; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "Current branch contains >20 MiB files; cleanup will be skipped."
+            echo "No history was rewritten."
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Current $TARGET_BRANCH contains no files larger than 20 MiB."
           fi
 
       - name: Remove historical blobs larger than 20 MiB
-        if: steps.safety.outputs.skip != 'true'
+        if: steps.safety.outputs.skip == 'false'
+        shell: bash
         run: |
           set -euo pipefail
+
           cd "$WORK"
 
           git filter-repo \
@@ -132,46 +140,57 @@ jobs:
           echo "History rewrite completed."
 
       - name: Garbage collect rewritten repository
-        if: steps.safety.outputs.skip != 'true'
+        if: steps.safety.outputs.skip == 'false'
+        shell: bash
         run: |
           set -euo pipefail
+
           cd "$WORK"
 
           git reflog expire --expire=now --all 2>/dev/null || true
           git gc --prune=now --aggressive
 
-          echo "Packed size after cleanup:"
+          echo "Repository size after cleanup:"
           du -sh . || true
 
       - name: Restore authenticated origin
-        if: steps.safety.outputs.skip != 'true'
+        if: steps.safety.outputs.skip == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
           cd "$WORK"
+
+          AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
           git remote remove origin 2>/dev/null || true
-          git remote add origin "$AUTH_REPO_URL"
+          git remote add origin "$AUTH_URL"
 
-      - name: Push rewritten branches and tags
-        if: steps.safety.outputs.skip != 'true'
+      - name: Force-push rewritten branches and tags
+        if: steps.safety.outputs.skip == 'false'
+        shell: bash
         run: |
           set -euo pipefail
+
           cd "$WORK"
 
-          echo "Pushing rewritten branches for $REPO_URL..."
+          echo "Force-pushing rewritten branches..."
           git push --force --all origin
 
-          echo "Pushing rewritten tags..."
+          echo "Force-pushing rewritten tags..."
           git push --force --tags origin
 
           echo
           echo "DONE."
-          echo "Repository: $REPO_URL"
+          echo "Repository: https://github.com/$GITHUB_REPOSITORY"
           echo "Historical blobs larger than $LIMIT were removed."
 
       - name: Cleanup skipped summary
         if: steps.safety.outputs.skip == 'true'
+        shell: bash
         run: |
-          echo "Workflow completed without rewriting history."
+          echo "Workflow finished without rewriting history."
           echo "Reason: current $TARGET_BRANCH contains one or more files larger than $LIMIT."
-          echo "Repository: $REPO_URL"
+          echo "Repository: https://github.com/$GITHUB_REPOSITORY"
