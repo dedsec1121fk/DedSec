@@ -109,6 +109,7 @@ TERMUX_REQUIRED=(
   python
   python-cryptography
   python-lxml
+  python-numpy
   python-pillow
   python-pip
   rust
@@ -154,8 +155,10 @@ PYTHON_CORE_PACKAGES=(
   urllib3
 )
 
-# PyPI distributions directly used by active scripts. cryptography, lxml and
-# Pillow are installed above from Termux-native packages.
+# PyPI distributions directly used by active scripts. cryptography, lxml,
+# NumPy and Pillow are installed/preloaded above from Termux-native packages.
+# For every remaining distribution, Setup tries a matching Termux python-*
+# package and a binary wheel before allowing pip to build from source.
 PYTHON_TOOL_PACKAGES=(
   beautifulsoup4
   CairoSVG
@@ -257,25 +260,155 @@ if "$PYTHON_BIN" -m pip help install 2>/dev/null | grep -q -- '--break-system-pa
 fi
 
 # Termux owns pip through python-pip. Never use pip to replace or upgrade pip itself.
-info 'Updating Python build helpers.'
-if ! "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade setuptools wheel; then
-  warn 'setuptools/wheel could not be updated.'
+# Prefer Termux-native build helpers too; only use a prebuilt wheel if the
+# corresponding Termux package is unavailable. Never compile these helpers.
+info 'Preparing Python build helpers without source compilation.'
+for helper in python-setuptools python-wheel; do
+  if apt-cache show "$helper" >/dev/null 2>&1; then
+    install_termux_package "$helper" 1 || true
+  fi
+done
+
+if ! "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade --only-binary=:all: setuptools wheel; then
+  warn 'setuptools/wheel could not be refreshed from prebuilt packages; existing versions will be used.'
 fi
+
+python_import_name() {
+  case "${1,,}" in
+    beautifulsoup4) printf '%s\n' bs4 ;;
+    cairosvg) printf '%s\n' cairosvg ;;
+    python-dateutil) printf '%s\n' dateutil ;;
+    dnspython) printf '%s\n' dns ;;
+    python-docx) printf '%s\n' docx ;;
+    python-dotenv) printf '%s\n' dotenv ;;
+    ebooklib) printf '%s\n' ebooklib ;;
+    exifread) printf '%s\n' exifread ;;
+    flask-socketio) printf '%s\n' flask_socketio ;;
+    jinja2) printf '%s\n' jinja2 ;;
+    markupsafe) printf '%s\n' markupsafe ;;
+    odfpy) printf '%s\n' odf ;;
+    python-nmap) printf '%s\n' nmap ;;
+    python-pptx) printf '%s\n' pptx ;;
+    psd-tools) printf '%s\n' psd_tools ;;
+    pysocks) printf '%s\n' socks ;;
+    speedtest-cli) printf '%s\n' speedtest ;;
+    websocket-client) printf '%s\n' websocket ;;
+    python-whois) printf '%s\n' whois ;;
+    *) printf '%s\n' "${1//-/_}" | tr '[:upper:]' '[:lower:]' ;;
+  esac
+}
+
+python_module_available() {
+  local module="$1"
+  "$PYTHON_BIN" - "$module" <<'PY' >/dev/null 2>&1
+import importlib
+import sys
+
+try:
+    importlib.import_module(sys.argv[1])
+except Exception:
+    raise SystemExit(1)
+PY
+}
+
+termux_package_available() {
+  local package="$1"
+  apt-cache show "$package" >/dev/null 2>&1
+}
+
+try_termux_native_python_package() {
+  local distribution="$1"
+  local module="$2"
+  local normalized candidate
+
+  normalized="${distribution,,}"
+  normalized="${normalized//_/-}"
+  normalized="${normalized//./-}"
+
+  # Termux Python packages normally use python-<distribution>. If the PyPI
+  # distribution already starts with python-, do not duplicate the prefix.
+  if [[ "$normalized" == python-* ]]; then
+    candidate="$normalized"
+  else
+    candidate="python-$normalized"
+  fi
+
+  # Known Termux naming aliases for distributions whose PyPI/import names do
+  # not map cleanly to the package repository naming convention.
+  case "${distribution,,}" in
+    pillow) candidate='python-pillow' ;;
+    cryptography) candidate='python-cryptography' ;;
+    lxml) candidate='python-lxml' ;;
+    numpy) candidate='python-numpy' ;;
+  esac
+
+  if ! termux_package_available "$candidate"; then
+    info "No Termux-native package published for $distribution ($candidate)."
+    return 1
+  fi
+
+  info "Trying Termux-native Python package first: $candidate"
+  if ! pkg install -y "$candidate"; then
+    warn "Termux-native candidate failed to install: $candidate"
+    return 1
+  fi
+
+  if python_module_available "$module"; then
+    info "Python dependency satisfied by Termux package: $candidate"
+    return 0
+  fi
+
+  warn "$candidate installed, but Python import '$module' is still unavailable."
+  return 1
+}
 
 install_python_package() {
   local package="$1"
   local optional="${2:-0}"
-  info "Installing/updating Python package: $package"
-  if "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade "$package"; then
+  local module
+  module="$(python_import_name "$package")"
+
+  # Avoid rebuilding anything that is already working. Termux-native packages
+  # are upgraded by pkg upgrade earlier in Setup.sh.
+  if python_module_available "$module"; then
+    info "Python dependency already available: $package (import $module)"
     return 0
+  fi
+
+  # First preference: a Termux-maintained python-* package. This avoids slow
+  # Android source builds for packages such as NumPy, Pillow, lxml and
+  # cryptography whenever Termux provides a compatible native package.
+  if try_termux_native_python_package "$package" "$module"; then
+    return 0
+  fi
+
+  # Second preference: a ready-made Python wheel. --only-binary prevents pip
+  # from silently starting a source compilation during this attempt.
+  info "Trying prebuilt Python wheel: $package"
+  if "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade --only-binary=:all: "$package"; then
+    if python_module_available "$module"; then
+      info "Python dependency installed from a binary wheel: $package"
+      return 0
+    fi
+  else
+    info "No usable binary wheel was available for $package."
+  fi
+
+  # Final fallback only: allow a source build. This is intentionally last
+  # because native builds can take a long time on Android/Termux.
+  info "Falling back to source-capable pip installation: $package"
+  if "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade "$package"; then
+    if python_module_available "$module"; then
+      return 0
+    fi
   fi
 
   PYTHON_FAILURES=$((PYTHON_FAILURES + 1))
   if [ "$optional" -eq 1 ]; then
-    warn "Tool-specific Python package could not be installed or updated: $package"
+    warn "Tool-specific Python package could not be installed: $package"
     return 1
   fi
-  fatal "Required Python package could not be installed or updated: $package"
+  fatal "Required Python package could not be installed: $package"
 }
 
 for package in "${PYTHON_CORE_PACKAGES[@]}"; do
@@ -414,6 +547,7 @@ else
 fi
 
 echo '[note] Termux:API commands also require the separate Termux:API Android application.'
+echo '[note] Python dependencies prefer Termux-native packages, then binary wheels, and compile from source only as a final fallback.'
 echo '[note] Mobile Desktop/X11 and deep-scan extras remain on-demand to avoid a very large default installation.'
 echo '[note] Use Settings -> Save DedSec Project when you want to create or refresh a backup.'
 
