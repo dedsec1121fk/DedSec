@@ -14,13 +14,19 @@ concurrency:
 
 jobs:
   clean-history:
-    name: Remove historical blobs over 20 MiB
+    name: Adaptive history cleanup with protected refs
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 240
 
     env:
-      LIMIT: 20M
-      LIMIT_BYTES: "20971520"
+      # Desired maximum packed Git history size.
+      TARGET_HISTORY_BYTES: "1200000000"
+
+      # Only historical blobs strictly larger than 20 MiB are eligible.
+      MIN_REMOVABLE_BLOB_BYTES: "20971520"
+
+      # Keep individual staging pushes well below GitHub's 2 GiB hard limit.
+      MAX_PUSH_CHUNK_BYTES: "1500000000"
 
     steps:
       - name: Initialize
@@ -31,8 +37,16 @@ jobs:
           WORK="$RUNNER_TEMP/dedsec-history-clean.git"
 
           echo "WORK=$WORK" >> "$GITHUB_ENV"
+
           echo "Repository: https://github.com/$GITHUB_REPOSITORY"
-          echo "Historical blob limit: $LIMIT"
+          echo "Target packed history: <= $TARGET_HISTORY_BYTES bytes"
+          echo "Historical removal floor: > $MIN_REMOVABLE_BLOB_BYTES bytes"
+          echo "Maximum staging push: $MAX_PUSH_CHUNK_BYTES bytes"
+          echo
+          echo "Protected:"
+          echo "  - every Git tag"
+          echo "  - GitHub Releases (no Release API mutation is performed)"
+          echo "  - the exact current default-branch file tree"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -51,7 +65,7 @@ jobs:
 
           git filter-repo --version
 
-      - name: Download complete repository history on GitHub runner
+      - name: Download repository history on GitHub runner
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,105 +76,423 @@ jobs:
 
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 
+          # A bare clone gives the runner all normal branch and tag refs.
+          # Releases themselves are not modified by this workflow.
           git clone --bare "$AUTH_URL" "$WORK"
 
           cd "$WORK"
 
-          TARGET_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+          DEFAULT_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 
-          if [ -z "$TARGET_BRANCH" ]; then
-            echo "ERROR: Could not determine the default branch."
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "ERROR: Could not determine the repository default branch."
             exit 1
           fi
 
-          echo "TARGET_BRANCH=$TARGET_BRANCH" >> "$GITHUB_ENV"
+          DEFAULT_REF="refs/heads/$DEFAULT_BRANCH"
 
-          echo "Repository history downloaded on GitHub's temporary Linux runner."
-          echo "Default branch: $TARGET_BRANCH"
-          echo "Repository size before cleanup:"
-          du -sh . || true
-
-      - name: Analyze repository history
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd "$WORK"
-          git filter-repo --analyze
-
-          echo "History analysis completed."
-
-      - name: Check current default branch for files over 20 MiB
-        id: safety
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          cd "$WORK"
-
-          BRANCH_REF="refs/heads/$TARGET_BRANCH"
-
-          if ! git show-ref --verify --quiet "$BRANCH_REF"; then
-            echo "ERROR: Branch does not exist: $BRANCH_REF"
+          if ! git show-ref --verify --quiet "$DEFAULT_REF"; then
+            echo "ERROR: Default branch does not exist: $DEFAULT_REF"
             exit 1
           fi
 
-          CURRENT_BIG="$(
-            git ls-tree -r -l "$BRANCH_REF" |
-            awk -v limit="$LIMIT_BYTES" '$4 != "-" && $4 > limit {print}'
-          )"
+          DEFAULT_TREE_BEFORE="$(git rev-parse "$DEFAULT_REF^{tree}")"
 
-          if [ -n "$CURRENT_BIG" ]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+          echo "DEFAULT_BRANCH=$DEFAULT_BRANCH" >> "$GITHUB_ENV"
+          echo "DEFAULT_REF=$DEFAULT_REF" >> "$GITHUB_ENV"
+          echo "DEFAULT_TREE_BEFORE=$DEFAULT_TREE_BEFORE" >> "$GITHUB_ENV"
 
-            echo
-            echo "CLEANUP SKIPPED SAFELY."
-            echo "Current $TARGET_BRANCH contains files larger than 20 MiB:"
-            echo
-            echo "$CURRENT_BIG"
-            echo
-            echo "No history was rewritten."
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "Current $TARGET_BRANCH contains no files larger than 20 MiB."
-          fi
+          # Save exact tag ref -> object mappings. These must never change.
+          git for-each-ref \
+            --sort=refname \
+            --format='%(refname) %(objectname)' \
+            refs/tags \
+            > "$RUNNER_TEMP/tags.before"
 
-      - name: Remove historical blobs larger than 20 MiB
-        if: steps.safety.outputs.skip == 'false'
+          # Save original branch tips for reporting/debugging.
+          git for-each-ref \
+            --sort=refname \
+            --format='%(refname) %(objectname)' \
+            refs/heads \
+            > "$RUNNER_TEMP/branches.before"
+
+          echo "Default branch: $DEFAULT_BRANCH"
+          echo "Protected default tree: $DEFAULT_TREE_BEFORE"
+          echo "Protected tags: $(wc -l < "$RUNNER_TEMP/tags.before")"
+          echo "Branches: $(wc -l < "$RUNNER_TEMP/branches.before")"
+
+      - name: Pack and measure initial history
         shell: bash
         run: |
           set -euo pipefail
-
-          cd "$WORK"
-
-          git filter-repo \
-            --strip-blobs-bigger-than "$LIMIT" \
-            --force
-
-          echo "History rewrite completed."
-
-      - name: Garbage collect rewritten repository
-        if: steps.safety.outputs.skip == 'false'
-        shell: bash
-        run: |
-          set -euo pipefail
-
           cd "$WORK"
 
           git reflog expire --expire=now --all 2>/dev/null || true
-          git gc --prune=now --aggressive
+          git gc --prune=now
 
-          echo "Repository size after cleanup:"
-          du -sh . || true
+          INITIAL_BYTES="$(du -sb objects | awk '{print $1}')"
+
+          echo "INITIAL_HISTORY_BYTES=$INITIAL_BYTES" >> "$GITHUB_ENV"
+          echo "Packed Git history before cleanup: $INITIAL_BYTES bytes"
+
+      - name: Build protected and eligible blob lists
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORK"
+
+          # Protect every blob in the CURRENT default branch checkout.
+          git ls-tree -r "$DEFAULT_REF" |
+            awk '$2 == "blob" {print $3}' |
+            sort -u \
+            > "$RUNNER_TEMP/protected-main-blobs.txt"
+
+          # Protect every object reachable from tags.
+          # Since GitHub Releases are based on tags, this prevents history
+          # cleanup from removing objects needed by those tagged snapshots.
+          if git for-each-ref --format='%(refname)' refs/tags | grep -q .; then
+            git rev-list --objects --tags |
+              awk '{print $1}' |
+              sort -u \
+              > "$RUNNER_TEMP/protected-tag-objects.txt"
+          else
+            : > "$RUNNER_TEMP/protected-tag-objects.txt"
+          fi
+
+          git rev-list --objects --branches \
+            > "$RUNNER_TEMP/branch-objects.txt"
+
+          awk '{print $1}' "$RUNNER_TEMP/branch-objects.txt" |
+            git cat-file --batch-check='%(objectname) %(objecttype) %(objectsize)' \
+            > "$RUNNER_TEMP/branch-object-meta.txt"
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          temp = Path(os.environ["RUNNER_TEMP"])
+          floor = int(os.environ["MIN_REMOVABLE_BLOB_BYTES"])
+
+          main_protected = set(
+              (temp / "protected-main-blobs.txt").read_text(
+                  encoding="utf-8", errors="replace"
+              ).split()
+          )
+
+          tag_protected = set(
+              (temp / "protected-tag-objects.txt").read_text(
+                  encoding="utf-8", errors="replace"
+              ).split()
+          )
+
+          paths = {}
+          for line in (temp / "branch-objects.txt").read_text(
+              encoding="utf-8", errors="replace"
+          ).splitlines():
+              if not line:
+                  continue
+              parts = line.split(" ", 1)
+              oid = parts[0]
+              path = parts[1] if len(parts) == 2 else ""
+              paths.setdefault(oid, path)
+
+          candidates = []
+
+          for line in (temp / "branch-object-meta.txt").read_text(
+              encoding="utf-8", errors="replace"
+          ).splitlines():
+              parts = line.split(" ", 2)
+              if len(parts) != 3:
+                  continue
+
+              oid, kind, size_text = parts
+
+              if kind != "blob":
+                  continue
+
+              try:
+                  size = int(size_text)
+              except ValueError:
+                  continue
+
+              if size <= floor:
+                  continue
+
+              if oid in main_protected:
+                  continue
+
+              if oid in tag_protected:
+                  continue
+
+              candidates.append((size, oid, paths.get(oid, "")))
+
+          candidates.sort(reverse=True)
+
+          output = temp / "eligible-large-history-blobs.tsv"
+
+          with output.open("w", encoding="utf-8") as handle:
+              for size, oid, path in candidates:
+                  handle.write(
+                      f"{size}\t{oid}\t{path.replace(chr(9), ' ')}\n"
+                  )
+
+          print(f"Eligible historical blobs: {len(candidates)}")
+          print(
+              "Eligible raw bytes: "
+              f"{sum(size for size, _, _ in candidates)}"
+          )
+
+          if candidates:
+              print("Largest eligible historical blobs:")
+              for size, oid, path in candidates[:20]:
+                  print(f"{size:>12}  {oid}  {path}")
+          PY
+
+      - name: Reduce history toward 1.5 GB without touching protected data
+        id: reduce
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORK"
+
+          CANDIDATES="$RUNNER_TEMP/eligible-large-history-blobs.tsv"
+          REMOVED="$RUNNER_TEMP/removed-large-history-blobs.tsv"
+          SELECTED_IDS="$RUNNER_TEMP/selected-blob-ids.txt"
+
+          : > "$REMOVED"
+
+          mapfile -t BRANCH_REFS < <(
+            git for-each-ref --format='%(refname)' refs/heads
+          )
+
+          if [ "${#BRANCH_REFS[@]}" -eq 0 ]; then
+            echo "ERROR: No branches were found."
+            exit 1
+          fi
+
+          REWROTE=false
+          TARGET_MET=false
+          PROTECTED_OVERRIDE=false
+          ITERATION=0
+
+          while true; do
+            ITERATION=$((ITERATION + 1))
+
+            git reflog expire --expire=now --all 2>/dev/null || true
+            git gc --prune=now
+
+            CURRENT_BYTES="$(du -sb objects | awk '{print $1}')"
+
+            echo
+            echo "Cleanup iteration: $ITERATION"
+            echo "Packed history: $CURRENT_BYTES bytes"
+            echo "Target:         $TARGET_HISTORY_BYTES bytes"
+
+            if [ "$CURRENT_BYTES" -le "$TARGET_HISTORY_BYTES" ]; then
+              TARGET_MET=true
+              echo "History target reached."
+              break
+            fi
+
+            if [ ! -s "$CANDIDATES" ]; then
+              PROTECTED_OVERRIDE=true
+              echo
+              echo "PROTECTED-DATA OVERRIDE."
+              echo "The repository is still above 1.2 GB, but there are no"
+              echo "remaining eligible historical blobs over 20 MiB that"
+              echo "can be removed without touching protected data."
+              echo
+              echo "The workflow will KEEP the protected data and continue."
+              break
+            fi
+
+            EXCESS=$((CURRENT_BYTES - TARGET_HISTORY_BYTES))
+            export EXCESS
+
+            # Remove the largest eligible blobs first. Select enough raw bytes
+            # to cover the current excess plus a margin, then repack/re-measure.
+            python - <<'PY'
+            import os
+            from pathlib import Path
+
+            temp = Path(os.environ["RUNNER_TEMP"])
+            excess = int(os.environ["EXCESS"])
+
+            source = temp / "eligible-large-history-blobs.tsv"
+            selected_ids = temp / "selected-blob-ids.txt"
+            selected_rows = temp / "selected-rows.tsv"
+            remaining_file = temp / "remaining-candidates.tsv"
+
+            rows = []
+
+            for raw in source.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines():
+                if not raw.strip():
+                    continue
+
+                size_text, oid, path = raw.split("\t", 2)
+                rows.append((int(size_text), oid, path))
+
+            # Raw blob size and packed Git size are not identical. Use a
+            # conservative 20% margin, with at least 64 MiB extra.
+            margin = max(64 * 1024 * 1024, excess // 5)
+            desired_raw = excess + margin
+
+            chosen = []
+            chosen_bytes = 0
+
+            for row in rows:
+                chosen.append(row)
+                chosen_bytes += row[0]
+                if chosen_bytes >= desired_raw:
+                    break
+
+            if not chosen:
+                raise SystemExit("No eligible blobs could be selected.")
+
+            selected_ids.write_text(
+                "".join(f"{oid}\n" for _, oid, _ in chosen),
+                encoding="utf-8",
+            )
+
+            selected_rows.write_text(
+                "".join(
+                    f"{size}\t{oid}\t{path}\n"
+                    for size, oid, path in chosen
+                ),
+                encoding="utf-8",
+            )
+
+            chosen_ids = {oid for _, oid, _ in chosen}
+
+            remaining_file.write_text(
+                "".join(
+                    f"{size}\t{oid}\t{path}\n"
+                    for size, oid, path in rows
+                    if oid not in chosen_ids
+                ),
+                encoding="utf-8",
+            )
+
+            print(
+                f"Selected {len(chosen)} largest eligible blobs "
+                f"({chosen_bytes} raw bytes)."
+            )
+            PY
+
+            cat "$RUNNER_TEMP/selected-rows.tsv" >> "$REMOVED"
+            mv "$RUNNER_TEMP/remaining-candidates.tsv" "$CANDIDATES"
+
+            git filter-repo \
+              --strip-blobs-with-ids "$SELECTED_IDS" \
+              --refs "${BRANCH_REFS[@]}" \
+              --force
+
+            REWROTE=true
+
+            # Verify that tag refs themselves were not changed.
+            git for-each-ref \
+              --sort=refname \
+              --format='%(refname) %(objectname)' \
+              refs/tags \
+              > "$RUNNER_TEMP/tags.after"
+
+            if ! cmp -s "$RUNNER_TEMP/tags.before" "$RUNNER_TEMP/tags.after"; then
+              echo "ERROR: A protected tag changed."
+              diff -u "$RUNNER_TEMP/tags.before" "$RUNNER_TEMP/tags.after" || true
+              exit 1
+            fi
+
+            # Verify that the exact current default-branch file tree is intact.
+            DEFAULT_TREE_AFTER="$(git rev-parse "$DEFAULT_REF^{tree}")"
+
+            if [ "$DEFAULT_TREE_AFTER" != "$DEFAULT_TREE_BEFORE" ]; then
+              echo "ERROR: Current default-branch files changed."
+              echo "Before: $DEFAULT_TREE_BEFORE"
+              echo "After:  $DEFAULT_TREE_AFTER"
+              exit 1
+            fi
+
+            if [ "$ITERATION" -ge 30 ]; then
+              echo "ERROR: Safety iteration limit reached."
+              exit 1
+            fi
+          done
+
+          git reflog expire --expire=now --all 2>/dev/null || true
+          git gc --prune=now
+
+          FINAL_BYTES="$(du -sb objects | awk '{print $1}')"
+
+          echo "rewrote=$REWROTE" >> "$GITHUB_OUTPUT"
+          echo "target_met=$TARGET_MET" >> "$GITHUB_OUTPUT"
+          echo "protected_override=$PROTECTED_OVERRIDE" >> "$GITHUB_OUTPUT"
+          echo "FINAL_HISTORY_BYTES=$FINAL_BYTES" >> "$GITHUB_ENV"
+
+          echo
+          echo "Final packed history after permitted cleanup: $FINAL_BYTES bytes"
+
+          if [ "$TARGET_MET" = true ]; then
+            echo "Result: <= 1.2 GB target achieved."
+          elif [ "$PROTECTED_OVERRIDE" = true ]; then
+            echo "Result: >1.2 GB is allowed because protected data prevents"
+            echo "further cleanup without violating protection rules."
+          fi
+
+      - name: Final protection verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$WORK"
+
+          DEFAULT_TREE_AFTER="$(git rev-parse "$DEFAULT_REF^{tree}")"
+
+          if [ "$DEFAULT_TREE_AFTER" != "$DEFAULT_TREE_BEFORE" ]; then
+            echo "ERROR: Current default-branch files changed."
+            exit 1
+          fi
+
+          git for-each-ref \
+            --sort=refname \
+            --format='%(refname) %(objectname)' \
+            refs/tags \
+            > "$RUNNER_TEMP/tags.final"
+
+          if ! cmp -s "$RUNNER_TEMP/tags.before" "$RUNNER_TEMP/tags.final"; then
+            echo "ERROR: Protected tags changed."
+            exit 1
+          fi
+
+          echo "Protection checks passed:"
+          echo "  - current $DEFAULT_BRANCH tree unchanged"
+          echo "  - all tag refs unchanged"
+          echo "  - no Release API operations performed"
+
+      - name: Show cleanup result
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Initial packed history: $INITIAL_HISTORY_BYTES bytes"
+          echo "Final packed history:   $FINAL_HISTORY_BYTES bytes"
+
+          if [ -s "$RUNNER_TEMP/removed-large-history-blobs.tsv" ]; then
+            echo
+            echo "Removed eligible historical blobs, largest first:"
+            cat "$RUNNER_TEMP/removed-large-history-blobs.tsv"
+          else
+            echo
+            echo "No eligible historical blobs were removed."
+          fi
 
       - name: Restore authenticated origin
-        if: steps.safety.outputs.skip == 'false'
+        if: steps.reduce.outputs.rewrote == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-
           cd "$WORK"
 
           AUTH_URL="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
@@ -168,29 +500,277 @@ jobs:
           git remote remove origin 2>/dev/null || true
           git remote add origin "$AUTH_URL"
 
-      - name: Force-push rewritten branches and tags
-        if: steps.safety.outputs.skip == 'false'
+      - name: Push rewritten history in safe chunks
+        if: steps.reduce.outputs.rewrote == 'true'
         shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-
           cd "$WORK"
 
-          echo "Force-pushing rewritten branches..."
-          git push --force --all origin
+          cat > "$RUNNER_TEMP/push_rewritten_history.py" <<'PY'
+          import hashlib
+          import os
+          import subprocess
+          import sys
+          import time
 
-          echo "Force-pushing rewritten tags..."
-          git push --force --tags origin
+          MAX_BYTES = int(os.environ["MAX_PUSH_CHUNK_BYTES"])
+          RUN_ID = os.environ["RUN_ID"]
+          WAIT_SECONDS = 12
 
-          echo
-          echo "DONE."
-          echo "Repository: https://github.com/$GITHUB_REPOSITORY"
-          echo "Historical blobs larger than $LIMIT were removed."
+          def capture(args):
+              return subprocess.check_output(
+                  args,
+                  text=True,
+                  stderr=subprocess.DEVNULL,
+              ).strip()
 
-      - name: Cleanup skipped summary
-        if: steps.safety.outputs.skip == 'true'
+          def lines(args):
+              result = capture(args)
+              return [x for x in result.splitlines() if x.strip()]
+
+          def pack_size(target, previous=None):
+              """
+              Conservative local estimate of the compressed objects needed
+              to advance a staging ref from previous to target.
+              """
+              revs = [target]
+              if previous:
+                  revs.append("^" + previous)
+
+              process = subprocess.Popen(
+                  ["git", "pack-objects", "--revs", "--stdout", "--quiet"],
+                  stdin=subprocess.PIPE,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.DEVNULL,
+              )
+
+              process.stdin.write(
+                  ("\n".join(revs) + "\n").encode("utf-8")
+              )
+              process.stdin.close()
+
+              total = 0
+
+              while True:
+                  chunk = process.stdout.read(8 * 1024 * 1024)
+                  if not chunk:
+                      break
+
+                  total += len(chunk)
+
+                  if total > MAX_BYTES:
+                      process.terminate()
+                      try:
+                          process.wait(timeout=10)
+                      except subprocess.TimeoutExpired:
+                          process.kill()
+                          process.wait()
+                      return total
+
+              code = process.wait()
+
+              if code != 0:
+                  raise RuntimeError(
+                      f"git pack-objects failed for {target}"
+                  )
+
+              return total
+
+          def push(source, destination, force=False):
+              command = ["git", "push"]
+
+              if force:
+                  command.append("--force")
+
+              command.extend(
+                  ["origin", f"{source}:{destination}"]
+              )
+
+              subprocess.run(command, check=True)
+
+          branches = lines(
+              ["git", "for-each-ref", "--format=%(refname)", "refs/heads"]
+          )
+
+          if not branches:
+              print("ERROR: No branches found.", file=sys.stderr)
+              sys.exit(1)
+
+          staging_refs = []
+
+          print(
+              f"Chunk ceiling: {MAX_BYTES:,} bytes "
+              "(kept below GitHub's 2 GiB hard push limit)."
+          )
+          print("Real branch refs will not be moved until staging completes.")
+          print("Tags are never pushed.")
+
+          try:
+              for branch in branches:
+                  final_tip = capture(["git", "rev-parse", branch])
+
+                  # Use first-parent milestones. Each milestone still reaches
+                  # merged side-history, so Git includes all required objects.
+                  commits = lines(
+                      [
+                          "git",
+                          "rev-list",
+                          "--first-parent",
+                          "--reverse",
+                          branch,
+                      ]
+                  )
+
+                  if not commits:
+                      print(f"Skipping empty branch {branch}")
+                      continue
+
+                  digest = hashlib.sha1(
+                      branch.encode("utf-8")
+                  ).hexdigest()[:10]
+
+                  staging_ref = (
+                      f"refs/heads/__dedsec_history_stage_"
+                      f"{RUN_ID}_{digest}"
+                  )
+
+                  staging_refs.append(staging_ref)
+
+                  previous = None
+                  start = 0
+
+                  print(
+                      f"\nStaging rewritten objects for {branch} "
+                      f"without moving the real branch..."
+                  )
+
+                  while start < len(commits):
+                      lo = start
+                      hi = len(commits) - 1
+                      best_index = None
+                      best_size = None
+
+                      while lo <= hi:
+                          mid = (lo + hi) // 2
+                          candidate = commits[mid]
+                          estimated = pack_size(candidate, previous)
+
+                          print(
+                              f"  test {candidate[:12]}: "
+                              f"{estimated / (1024 * 1024):.1f} MiB"
+                          )
+
+                          if estimated <= MAX_BYTES:
+                              best_index = mid
+                              best_size = estimated
+                              lo = mid + 1
+                          else:
+                              hi = mid - 1
+
+                      if best_index is None:
+                          candidate = commits[start]
+                          estimated = pack_size(candidate, previous)
+
+                          print(
+                              "\nERROR: One indivisible rewritten history "
+                              "segment is larger than the configured safe "
+                              "push chunk.",
+                              file=sys.stderr,
+                          )
+                          print(
+                              f"Branch: {branch}\n"
+                              f"Commit: {candidate}\n"
+                              f"Estimated pack: {estimated:,} bytes\n"
+                              f"Chunk ceiling: {MAX_BYTES:,} bytes",
+                              file=sys.stderr,
+                          )
+                          sys.exit(1)
+
+                      target = commits[best_index]
+
+                      print(
+                          f"  uploading staging chunk through "
+                          f"{target[:12]} "
+                          f"(~{best_size / (1024 * 1024):.1f} MiB)"
+                      )
+
+                      # First push creates the temporary branch.
+                      # Later pushes advance it through rewritten history.
+                      push(target, staging_ref, force=False)
+
+                      previous = target
+                      start = best_index + 1
+
+                      if start < len(commits):
+                          print(
+                              f"  waiting {WAIT_SECONDS}s before next chunk..."
+                          )
+                          time.sleep(WAIT_SECONDS)
+
+                  # All objects for this branch are now present on GitHub
+                  # through the staging ref. The final real-branch force
+                  # update should therefore transfer little or no object data.
+                  print(
+                      f"Switching real branch {branch} to final rewritten tip..."
+                  )
+                  push(final_tip, branch, force=True)
+
+                  # Remove staging ref only after the real ref points at the
+                  # final rewritten history. A cleanup failure is non-fatal.
+                  try:
+                      subprocess.run(
+                          ["git", "push", "origin", f":{staging_ref}"],
+                          check=True,
+                      )
+                      staging_refs.remove(staging_ref)
+                  except subprocess.CalledProcessError:
+                      print(
+                          f"WARNING: Could not delete temporary staging ref "
+                          f"{staging_ref}. The rewritten branch itself was "
+                          "already updated successfully.",
+                          file=sys.stderr,
+                      )
+
+                  time.sleep(WAIT_SECONDS)
+
+          finally:
+              # Best-effort cleanup if a later branch fails.
+              for staging_ref in list(staging_refs):
+                  subprocess.run(
+                      ["git", "push", "origin", f":{staging_ref}"],
+                      check=False,
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                  )
+
+          print("\nAll rewritten branches pushed successfully.")
+          print("No tag refs were pushed or modified.")
+          PY
+
+          python "$RUNNER_TEMP/push_rewritten_history.py"
+
+      - name: No branch rewrite required
+        if: steps.reduce.outputs.rewrote != 'true'
         shell: bash
         run: |
-          echo "Workflow finished without rewriting history."
-          echo "Reason: current $TARGET_BRANCH contains one or more files larger than $LIMIT."
+          echo "No branch history rewrite was required, so nothing was pushed."
+          echo "Protected tags/releases/default-branch files remain untouched."
+
+      - name: Final summary
+        shell: bash
+        run: |
           echo "Repository: https://github.com/$GITHUB_REPOSITORY"
+          echo "Initial packed history: $INITIAL_HISTORY_BYTES bytes"
+          echo "Final permitted history: $FINAL_HISTORY_BYTES bytes"
+          echo
+          echo "Rules applied:"
+          echo "  1. Try to keep packed history <= 1.2 GB."
+          echo "  2. Remove largest eligible historical blobs >20 MiB first."
+          echo "  3. Never remove current default-branch files."
+          echo "  4. Never rewrite or push tags."
+          echo "  5. Never modify GitHub Releases."
+          echo "  6. If protected data keeps history >1.2 GB, keep it anyway."
+          echo "  7. Rewritten branch objects are uploaded in <=1.5 GB staging chunks."
