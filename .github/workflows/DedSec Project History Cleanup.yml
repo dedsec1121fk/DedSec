@@ -22,8 +22,8 @@ jobs:
       # Desired maximum packed Git history size: 1.2 GB decimal.
       TARGET_HISTORY_BYTES: "1200000000"
 
-      # Only historical blobs strictly larger than 20 MiB are eligible.
-      MIN_REMOVABLE_BLOB_BYTES: "20971520"
+      # Only historical blobs strictly larger than 10 MiB are eligible.
+      MIN_REMOVABLE_BLOB_BYTES: "10485760"
 
       # Rewritten objects are staged in pushes no larger than 1.5 GB decimal.
       MAX_PUSH_CHUNK_BYTES: "1500000000"
@@ -135,20 +135,6 @@ jobs:
             echo "ERROR: No real branches were found."
             exit 1
           fi
-
-          # Record every object GitHub already has through the real branches
-          # and tags. The chunk estimator later excludes these existing objects
-          # so it estimates only rewritten data that actually needs uploading.
-          mapfile -t REAL_REFS < <(
-            {
-              awk '{print $1}' "$RUNNER_TEMP/branches.before"
-              awk '{print $1}' "$RUNNER_TEMP/tags.before"
-            }
-          )
-
-          git rev-list --objects "${REAL_REFS[@]}" |
-            awk '{print $1}' |
-            sort -u             > "$RUNNER_TEMP/remote-objects-before.txt"
 
           echo "Default branch: $DEFAULT_BRANCH"
           echo "Protected default tree: $DEFAULT_TREE_BEFORE"
@@ -388,7 +374,7 @@ jobs:
 
           REMOVED_LOG.write_text("", encoding="utf-8")
 
-          print(f"Eligible historical blobs >20 MiB: {len(candidates)}")
+          print(f"Eligible historical blobs >10 MiB: {len(candidates)}")
           print(
               "Eligible raw blob bytes: "
               f"{sum(size for size, _, _ in candidates)}"
@@ -502,7 +488,7 @@ jobs:
               print("PROTECTED-DATA OVERRIDE:")
               print(
                   "The repository remains above 1.2 GB because no additional "
-                  "eligible >20 MiB historical blobs can be removed without "
+                  "eligible >10 MiB historical blobs can be removed without "
                   "touching protected current-main or tag/release history."
               )
               print("Protected data is being kept exactly as requested.")
@@ -562,29 +548,15 @@ jobs:
           MAX_BYTES = int(os.environ["MAX_PUSH_CHUNK_BYTES"])
           STAGE_PREFIX = os.environ["STAGE_PREFIX"]
           RUN_ID = os.environ["GITHUB_RUN_ID"]
-          WAIT_SECONDS = 12
+
+          # Keep automated push rate modest and give GitHub time to finish
+          # processing each temporary staging ref.
+          WAIT_SECONDS = 20
+          PUSH_RETRIES = 3
 
           BRANCHES_BEFORE = TEMP / "branches.before"
-          REMOTE_OBJECTS = TEMP / "remote-objects-before.txt"
 
           os.chdir(WORK)
-
-          def run(args, *, input_bytes=None, check=True, capture=False):
-              result = subprocess.run(
-                  args,
-                  input=input_bytes,
-                  capture_output=capture,
-                  check=False,
-              )
-              if check and result.returncode != 0:
-                  if capture:
-                      sys.stderr.buffer.write(result.stdout or b"")
-                      sys.stderr.buffer.write(result.stderr or b"")
-                  raise SystemExit(
-                      f"Command failed ({result.returncode}): "
-                      + " ".join(args)
-                  )
-              return result
 
           def text(args):
               result = subprocess.run(
@@ -606,57 +578,31 @@ jobs:
               value = text(args)
               return [line for line in value.splitlines() if line.strip()]
 
-          # Keep only original remote objects that still exist in the rewritten
-          # local object database. Objects that were pruned cannot be reachable
-          # from a new target anyway, so they do not need to be exclusions.
-          remote_candidates = [
-              line.strip()
-              for line in REMOTE_OBJECTS.read_text(
-                  encoding="utf-8", errors="replace"
-              ).splitlines()
-              if line.strip()
-          ]
+          def estimate_pack(target, previous):
+              """
+              Conservatively estimate a staging push.
 
-          batch_input = "".join(f"{oid}\n" for oid in remote_candidates)
-          batch = subprocess.run(
-              ["git", "cat-file", "--batch-check=%(objectname) %(objecttype)"],
-              input=batch_input,
-              text=True,
-              capture_output=True,
-              check=True,
-          ).stdout
+              IMPORTANT:
+              We intentionally do NOT subtract objects merely because they
+              existed in the original GitHub repository. The failed workflow
+              did that and estimated a 0.4 MiB transfer that GitHub still
+              rejected with HTTP 500.
 
-          original_haves = []
-          for raw in batch.splitlines():
-              parts = raw.split()
-              if len(parts) == 2 and parts[1] != "missing":
-                  original_haves.append(parts[0])
-
-          print(
-              f"Known original GitHub objects usable for pack estimation: "
-              f"{len(original_haves)}"
-          )
-
-          def estimate_pack(target, previous, extra_haves):
+              For chunk N, the only remote history we assume is guaranteed is
+              the previous staging milestone successfully pushed by this same
+              workflow. Therefore the estimate is an upper bound for the
+              rewritten segment rather than an optimistic lower bound.
+              """
               revs = [target]
 
               if previous:
                   revs.append("^" + previous)
 
-              # GitHub already has these objects, so they are not part of the
-              # rewritten transfer. Excluding them avoids counting protected
-              # release/tag/main content that the server already stores.
-              for oid in original_haves:
-                  revs.append("^" + oid)
-
-              for oid in extra_haves:
-                  revs.append("^" + oid)
-
               process = subprocess.Popen(
                   ["git", "pack-objects", "--revs", "--stdout", "--quiet"],
                   stdin=subprocess.PIPE,
                   stdout=subprocess.PIPE,
-                  stderr=subprocess.DEVNULL,
+                  stderr=subprocess.PIPE,
               )
 
               payload = ("\n".join(revs) + "\n").encode("utf-8")
@@ -674,6 +620,7 @@ jobs:
 
                   total += len(chunk)
 
+                  # We only need to know that this candidate is too large.
                   if total > MAX_BYTES:
                       process.terminate()
                       try:
@@ -683,8 +630,15 @@ jobs:
                           process.wait()
                       return total
 
+              stderr = b""
+              if process.stderr is not None:
+                  stderr = process.stderr.read()
+
               code = process.wait()
+
               if code != 0:
+                  if stderr:
+                      sys.stderr.buffer.write(stderr)
                   raise SystemExit(
                       f"git pack-objects failed while estimating {target}"
                   )
@@ -704,29 +658,55 @@ jobs:
               else:
                   command.append(f"{source}:{destination}")
 
-              subprocess.run(command, check=True)
+              for attempt in range(1, PUSH_RETRIES + 1):
+                  print(
+                      f"    push attempt {attempt}/{PUSH_RETRIES}: "
+                      + " ".join(command),
+                      flush=True,
+                  )
+
+                  result = subprocess.run(command, check=False)
+
+                  if result.returncode == 0:
+                      return
+
+                  if attempt < PUSH_RETRIES:
+                      delay = WAIT_SECONDS * attempt
+                      print(
+                          f"    push failed; retrying in {delay}s...",
+                          file=sys.stderr,
+                          flush=True,
+                      )
+                      time.sleep(delay)
+
+              raise SystemExit(
+                  "ERROR: Git push failed after "
+                  f"{PUSH_RETRIES} attempts: {' '.join(command)}"
+              )
 
           branches = []
+
           for raw in BRANCHES_BEFORE.read_text(
               encoding="utf-8", errors="replace"
           ).splitlines():
               if not raw.strip():
                   continue
+
               ref, _old_oid = raw.split(" ", 1)
               branches.append(ref)
 
           if not branches:
               raise SystemExit("ERROR: No real branches available to push.")
 
-          # New rewritten tips already uploaded during this run. Adding them to
-          # the "have" list improves estimates for later branches that share
-          # rewritten objects.
-          newly_uploaded_haves = []
           live_stage_refs = []
 
           print(
-              f"Safe staging-push ceiling: {MAX_BYTES:,} bytes "
+              f"Conservative staging-push ceiling: {MAX_BYTES:,} bytes "
               "(1.5 GB decimal)."
+          )
+          print(
+              "Chunk estimates no longer assume that arbitrary original "
+              "GitHub objects can be subtracted."
           )
           print("Git tags are never pushed by this helper.")
 
@@ -755,10 +735,12 @@ jobs:
                   stage_ref = (
                       f"refs/heads/{STAGE_PREFIX}{RUN_ID}_{digest}"
                   )
+
                   live_stage_refs.append(stage_ref)
 
                   previous = None
                   start = 0
+                  chunk_number = 0
 
                   print()
                   print(f"Staging rewritten objects for {branch}...")
@@ -769,19 +751,17 @@ jobs:
                       best_index = None
                       best_size = None
 
+                      # Find the furthest first-parent milestone whose
+                      # self-contained rewritten segment remains <=1.5 GB.
                       while lo <= hi:
                           mid = (lo + hi) // 2
                           candidate = commits[mid]
-
-                          estimated = estimate_pack(
-                              candidate,
-                              previous,
-                              newly_uploaded_haves,
-                          )
+                          estimated = estimate_pack(candidate, previous)
 
                           print(
                               f"  test {candidate[:12]}: "
-                              f"{estimated / (1024 * 1024):.1f} MiB"
+                              f"{estimated / (1024 * 1024):.1f} MiB",
+                              flush=True,
                           )
 
                           if estimated <= MAX_BYTES:
@@ -793,26 +773,25 @@ jobs:
 
                       if best_index is None:
                           candidate = commits[start]
-                          estimated = estimate_pack(
-                              candidate,
-                              previous,
-                              newly_uploaded_haves,
-                          )
+                          estimated = estimate_pack(candidate, previous)
 
                           raise SystemExit(
-                              "ERROR: One indivisible rewritten history "
-                              "segment still exceeds the 1.5 GB staging "
-                              f"ceiling.\nBranch: {branch}\n"
+                              "ERROR: One indivisible rewritten-history "
+                              "segment exceeds the 1.5 GB staging ceiling.\n"
+                              f"Branch: {branch}\n"
                               f"Commit: {candidate}\n"
-                              f"Estimated transfer: {estimated} bytes"
+                              f"Conservative estimated pack: {estimated} bytes"
                           )
 
                       target = commits[best_index]
+                      chunk_number += 1
 
                       print(
-                          f"  pushing through {target[:12]} "
-                          f"(estimated "
-                          f"{best_size / (1024 * 1024):.1f} MiB)"
+                          f"  chunk {chunk_number}: pushing through "
+                          f"{target[:12]} "
+                          f"(conservative estimate "
+                          f"{best_size / (1024 * 1024):.1f} MiB)",
+                          flush=True,
                       )
 
                       push(target, stage_ref)
@@ -823,22 +802,25 @@ jobs:
                       if start < len(commits):
                           time.sleep(WAIT_SECONDS)
 
-                  # Every object needed by this rewritten branch now exists on
-                  # GitHub through the staging ref. Move the real branch only
-                  # after staging is complete.
-                  print(f"Updating real branch {branch}...")
+                  # The staging ref now makes all rewritten objects for this
+                  # branch reachable on GitHub. Updating the real branch should
+                  # therefore require little or no object transfer.
+                  print(
+                      f"Updating real branch {branch} only after all "
+                      "staging chunks succeeded...",
+                      flush=True,
+                  )
                   push(final_tip, branch, force=True)
 
-                  newly_uploaded_haves.append(final_tip)
-
-                  # Delete the staging ref after the real branch is live.
+                  # Delete temporary staging branch after the real branch is
+                  # safely pointing to the rewritten history.
                   push("", stage_ref, delete=True)
                   live_stage_refs.remove(stage_ref)
 
                   time.sleep(WAIT_SECONDS)
 
           finally:
-              # Best-effort cleanup after a failure. Never touch tags.
+              # Best-effort cleanup after a failure. Never touch real tags.
               for stage_ref in list(live_stage_refs):
                   subprocess.run(
                       ["git", "push", "origin", f":{stage_ref}"],
@@ -914,7 +896,7 @@ jobs:
           echo
           echo "Policy:"
           echo "  - target history size: 1.2 GB"
-          echo "  - removal floor: historical blobs >20 MiB"
+          echo "  - removal floor: historical blobs >10 MiB"
           echo "  - largest eligible blobs are removed first"
           echo "  - current default-branch files are protected"
           echo "  - tags are protected and never pushed"
