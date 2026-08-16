@@ -60,9 +60,13 @@ Step-by-step instructions to install and set up the DedSec Project on your Andro
 | Component | Minimum Specification |
 | :-------- | :-------------------- |
 | **Device** | Android phone or tablet with Termux installed |
-| **Storage** | Minimum **8GB** free space |
+| **Storage** | Minimum **6GB** free space |
 | **RAM** | Minimum **2GB** |
 | **Internet** | Needed for first installation and updates |
+
+> **Installation time:** The first full installation can take approximately **20–50 minutes**, depending on your internet connection and device processor.
+
+> **Storage warning:** The DedSec Project itself requires a minimum of **6GB** of free space. Some scripts can create additional output—such as captured photos, videos, audio, screenshots, downloads, logs, reports, backups, or other generated files—so actual storage usage can grow beyond 6GB depending on how you use the project.
 
 ### Before You Start
 
@@ -388,9 +392,9 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **What It Helps With:** Preparing a repeatable phone-first development environment instead of installing and configuring every dependency manually.
 
-**Description:** Automates a mobile web-dev environment in Termux: installs common dev tools, configures paths, and provides quick-start project scaffolding. Built for Termux with clear prompts and organized outputs.
+**Description:** Builds and manages a broad phone-first developer environment in Termux. It refreshes and upgrades Termux packages; installs core and additional developer packages, TUR packages such as MongoDB, Python developer tools, and global npm tools; configures Zsh with Oh My Zsh, plugins, aliases, history/completion behavior, a custom prompt name, and Powerlevel10k; configures Termux UI files; installs the official NvChad starter configuration for Neovim; and includes dedicated install, update, repair, backup, restore, removal, information, prompt, and Powerlevel10k controls. It also patches supported Android-specific integrations such as LocalTunnel URL opening when applicable.
 
-**Save Location:** `State and backup archives are stored in ~/.mobile-dev-setup/ (including backups/ and state.json). Helper scripts are stored in ~/.mobile-dev-setup-Tools/, plugins in ~/.zsh-plugins/, and Termux appearance files in ~/.termux/.`
+**Save Location:** `State, logs, and backup archives are stored under ~/.mobile-dev-setup/; managed helper/tool files use ~/.mobile-dev-setup-tools/; Zsh/Oh My Zsh and plugin configuration is stored in the user's Termux home; Termux appearance files are stored in ~/.termux/; and the managed Neovim/NvChad configuration is stored under ~/.config/nvim/.`
 
 
 </details>
@@ -1826,6 +1830,10 @@ This project, including all associated tools, scripts, and documentation, is pro
 | **RAM** | Ελάχιστο **2GB** |
 | **Internet** | Απαιτείται για την πρώτη εγκατάσταση και τις ενημερώσεις |
 
+> **Χρόνος εγκατάστασης:** Η πρώτη πλήρης εγκατάσταση μπορεί να διαρκέσει περίπου **20–50 λεπτά**, ανάλογα με τη σύνδεσή σας στο διαδίκτυο και τον επεξεργαστή της συσκευής.
+
+> **Προειδοποίηση χώρου:** Το ίδιο το DedSec Project απαιτεί τουλάχιστον **6GB** ελεύθερου χώρου. Ορισμένα scripts μπορούν να δημιουργήσουν επιπλέον δεδομένα—όπως φωτογραφίες, βίντεο, ήχο, screenshots, λήψεις, logs, αναφορές, backups ή άλλα παραγόμενα αρχεία—οπότε η πραγματική χρήση χώρου μπορεί να ξεπεράσει τα 6GB ανάλογα με τον τρόπο χρήσης του project.
+
 ### Πριν Ξεκινήσεις
 
 Το F-Droid είναι ένα εναλλακτικό κατάστημα εφαρμογών για Android που παρέχει ελεύθερο και ανοιχτού κώδικα λογισμικό. Είναι ο συνιστώμενος τρόπος για να εγκαταστήσετε το Termux και άλλα εργαλεία ασφαλείας.
@@ -2150,9 +2158,9 @@ bash Setup.sh
 
 **Τι Βοηθά Να Λύσεις:** Δημιουργία επαναλήψιμου περιβάλλοντος ανάπτυξης από κινητό αντί για χειροκίνητη εγκατάσταση και ρύθμιση κάθε εξάρτησης.
 
-**Περιγραφή:** Αυτοματοποιεί περιβάλλον ανάπτυξης ιστοσελίδων σε Termux: εγκαθιστά βασικά εργαλεία, ρυθμίζει διαδρομές και δίνει γρήγορο έτοιμη βασική δομή έργου. Σχεδιασμένο για το Termux, με σαφείς οδηγίες και οργανωμένα αποτελέσματα.
+**Περιγραφή:** Δημιουργεί και διαχειρίζεται ένα ολοκληρωμένο περιβάλλον ανάπτυξης στο Termux με έμφαση στη χρήση από κινητό. Ανανεώνει και αναβαθμίζει τα πακέτα Termux, εγκαθιστά βασικά και πρόσθετα developer packages, πακέτα TUR όπως MongoDB, Python developer tools και global npm tools, ρυθμίζει Zsh με Oh My Zsh, plugins, aliases, history/completion, προσαρμοσμένο όνομα prompt και Powerlevel10k, διαμορφώνει το Termux UI, εγκαθιστά το επίσημο NvChad starter configuration για Neovim και παρέχει ξεχωριστές λειτουργίες εγκατάστασης, ενημέρωσης, επιδιόρθωσης, backup, επαναφοράς, αφαίρεσης, πληροφοριών και επαναρύθμισης prompt/Powerlevel10k.
 
-**Τοποθεσία Αποθήκευσης:** `Το state και τα αρχεία αντιγράφων ασφαλείας αποθηκεύονται στο ~/.mobile-dev-setup/ (μαζί με backups/ και state.json). Τα βοηθητικά scripts μπαίνουν στο ~/.mobile-dev-setup-Tools/, τα πρόσθετα στο ~/.zsh-plugins/ και τα αρχεία εμφάνισης του Termux στο ~/.termux/.`
+**Τοποθεσία Αποθήκευσης:** `State, logs και backups αποθηκεύονται στο ~/.mobile-dev-setup/· τα managed helper/tool αρχεία χρησιμοποιούν το ~/.mobile-dev-setup-tools/· οι ρυθμίσεις Zsh/Oh My Zsh και plugins βρίσκονται στο Termux home· τα αρχεία εμφάνισης Termux στο ~/.termux/· και το managed Neovim/NvChad configuration στο ~/.config/nvim/.`
 
 
 </details>
