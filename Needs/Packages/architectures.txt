@@ -1,3 +1,0 @@
-# Architectures maintained in the repository package cache.
-# Modern Android phones normally use aarch64.
-aarch64

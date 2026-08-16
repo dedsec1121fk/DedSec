@@ -13,6 +13,7 @@ import sys
 import tarfile
 import tempfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
@@ -43,12 +44,27 @@ NVIM_CONFIG_DIR = HOME / ".config" / "nvim"
 NVIM_DATA_DIR = HOME / ".local" / "share" / "nvim"
 NVIM_STATE_DIR = HOME / ".local" / "state" / "nvim"
 
+
+# Termux global shell configuration. DedSec Settings.py writes its shell
+# integration here, while this setup uses Zsh as the authoritative shell.
+PREFIX = Path(os.environ.get("PREFIX") or "/data/data/com.termux/files/usr")
+GLOBAL_BASHRC = PREFIX / "etc" / "bash.bashrc"
+GLOBAL_PROFILE = PREFIX / "etc" / "profile"
+
+DEDSEC_MENU_START = "# --- DedSec Menu Startup (Set by Settings.py) ---"
+DEDSEC_MENU_END = "# --------------------------------------------------"
+DEDSEC_NETWORK_START = "# --- DedSec VPN and Tor Utilities (Set by Settings.py) ---"
+DEDSEC_NETWORK_END = "# --- End DedSec VPN and Tor Utilities ---"
+
+ZSH_HANDOFF_START = "# >>> MOBILE DEV SETUP ZSH HANDOFF >>>"
+ZSH_HANDOFF_END = "# <<< MOBILE DEV SETUP ZSH HANDOFF <<<"
+
 MARK_BEGIN = "# >>> MOBILE DEV SETUP (managed) >>>"
 MARK_END = "# <<< MOBILE DEV SETUP (managed) <<<"
 
-DEFAULT_FONT_URL = (
-    "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/master/"
-    "patched-fonts/Meslo/L/Regular/MesloLGSNerdFont-Regular.ttf"
+DEFAULT_FONT_ARCHIVE_URLS = (
+    "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.tar.xz",
+    "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/Meslo.zip",
 )
 
 OH_MY_ZSH_REPO = "https://github.com/ohmyzsh/ohmyzsh.git"
@@ -74,7 +90,9 @@ CORE_PACKAGES = [
     TermuxPackage("zsh", True),
     TermuxPackage("neovim", True),
     TermuxPackage("nodejs", True),
+    TermuxPackage("npm", True),
     TermuxPackage("python", True),
+    TermuxPackage("python-pip", True),
     TermuxPackage("curl", True),
     TermuxPackage("wget", True),
     TermuxPackage("jq", True),
@@ -84,37 +102,87 @@ CORE_PACKAGES = [
     TermuxPackage("clang", True),
     TermuxPackage("make", True),
     TermuxPackage("unzip", True),
+    TermuxPackage("zip", True),
 ]
 
-OPTIONAL_PACKAGES = [
-    TermuxPackage("gh"),
-    TermuxPackage("perl"),
-    TermuxPackage("php"),
-    TermuxPackage("lua-language-server"),
-    TermuxPackage("lsd"),
-    TermuxPackage("proot"),
-    TermuxPackage("ncurses-utils"),
-    TermuxPackage("stylua"),
-    TermuxPackage("tmate"),
-    TermuxPackage("cloudflared"),
-    TermuxPackage("translate-shell"),
-    TermuxPackage("html2text"),
-    TermuxPackage("postgresql"),
-    TermuxPackage("mariadb"),
-    TermuxPackage("sqlite"),
-    TermuxPackage("bc"),
-    TermuxPackage("tree"),
-    TermuxPackage("imagemagick"),
-    TermuxPackage("shfmt"),
-    TermuxPackage("cmake"),
-    TermuxPackage("pkg-config"),
-    TermuxPackage("openssh"),
-    TermuxPackage("rsync"),
-    TermuxPackage("tur-repo", note="Repository package used for TUR packages such as mongodb."),
+DEVELOPER_PACKAGES = [
+    # Languages and runtimes
+    TermuxPackage("gh", True),
+    TermuxPackage("perl", True),
+    TermuxPackage("php", True),
+    TermuxPackage("ruby", True),
+    TermuxPackage("rust", True),
+    TermuxPackage("rust-analyzer", True),
+    TermuxPackage("golang", True),
+    TermuxPackage("openjdk-21", True),
+    TermuxPackage("lua54", True),
+    TermuxPackage("lua-language-server", True),
+    TermuxPackage("stylua", True),
+
+    # Build systems, compilers and debugging
+    TermuxPackage("cmake", True),
+    TermuxPackage("ninja", True),
+    TermuxPackage("xmake", True),
+    TermuxPackage("pkg-config", True),
+    TermuxPackage("autoconf", True),
+    TermuxPackage("automake", True),
+    TermuxPackage("libtool", True),
+    TermuxPackage("bison", True),
+    TermuxPackage("flex", True),
+    TermuxPackage("m4", True),
+    TermuxPackage("patch", True),
+    TermuxPackage("ccache", True),
+    TermuxPackage("binutils", True),
+    TermuxPackage("gdb", True),
+    TermuxPackage("protobuf", True),
+    TermuxPackage("gradle", True),
+    TermuxPackage("maven", True),
+
+    # Editors, code navigation and quality tools
+    TermuxPackage("vim", True),
+    TermuxPackage("nano", True),
+    TermuxPackage("shellcheck", True),
+    TermuxPackage("shfmt", True),
+    TermuxPackage("tree-sitter", True),
+    TermuxPackage("fd", True),
+    TermuxPackage("lsd", True),
+
+    # Version control, remote development and terminal workflow
+    TermuxPackage("git-lfs", True),
+    TermuxPackage("subversion", True),
+    TermuxPackage("openssh", True),
+    TermuxPackage("rsync", True),
+    TermuxPackage("tmux", True),
+    TermuxPackage("tmate", True),
+    TermuxPackage("cloudflared", True),
+
+    # Databases and data tooling
+    TermuxPackage("postgresql", True),
+    TermuxPackage("mariadb", True),
+    TermuxPackage("sqlite", True),
+    TermuxPackage("redis", True),
+
+    # General developer utilities
+    TermuxPackage("proot", True),
+    TermuxPackage("ncurses-utils", True),
+    TermuxPackage("translate-shell", True),
+    TermuxPackage("html2text", True),
+    TermuxPackage("bc", True),
+    TermuxPackage("tree", True),
+    TermuxPackage("imagemagick", True),
+    TermuxPackage("tur-repo", True, note="Repository package required for TUR developer packages such as mongodb."),
+]
+
+# Developer tools whose upstream-supported installation path on Termux is Python/pip.
+# Keep these out of the pkg phase so missing Termux repository packages do not
+# incorrectly make the whole Termux package installation fail.
+PYTHON_DEVELOPER_TOOLS = [
+    ("meson", "meson"),
+    ("mercurial", "hg"),
 ]
 
 TUR_PACKAGES = [
-    TermuxPackage("mongodb", note="Optional Termux User Repository package."),
+    TermuxPackage("mongodb", True, note="Termux User Repository database package."),
 ]
 
 NPM_TOOLS = [
@@ -131,6 +199,14 @@ NPM_TOOLS = [
     NpmTool("@qwen-code/qwen-code", "qwen"),
     NpmTool("npm-check-updates", "ncu"),
     NpmTool("ngrok", "ngrok"),
+    NpmTool("eslint", "eslint"),
+    NpmTool("yarn", "yarn"),
+    NpmTool("pnpm", "pnpm"),
+    NpmTool("vite", "vite"),
+    NpmTool("nodemon", "nodemon"),
+    NpmTool("http-server", "http-server"),
+    NpmTool("serve", "serve"),
+    NpmTool("typescript-language-server", "typescript-language-server"),
 ]
 
 # name, repository, zsh source/fpath line
@@ -199,6 +275,8 @@ BACKUP_TARGETS = [
     HOME / ".zshrc",
     HOME / ".bashrc",
     HOME / ".profile",
+    GLOBAL_BASHRC,
+    GLOBAL_PROFILE,
 ]
 
 
@@ -419,6 +497,26 @@ def safe_notify(message: str) -> None:
 # -----------------------------------------------------------------------------
 
 
+def _backup_archive_name(target: Path) -> str:
+    """Build a safe archive path for files below Termux HOME or PREFIX."""
+    for root, label in ((HOME, "home"), (PREFIX, "prefix")):
+        try:
+            rel = target.relative_to(root)
+            return f"{label}/{rel.as_posix()}"
+        except ValueError:
+            continue
+    raise ValueError(f"Unsupported backup target: {target}")
+
+
+def _safe_restore_target(target: Path) -> bool:
+    """Allow restores only inside Termux HOME or PREFIX."""
+    candidate = target.resolve(strict=False)
+    for root in (HOME.resolve(strict=False), PREFIX.resolve(strict=False)):
+        if candidate == root or root in candidate.parents:
+            return True
+    return False
+
+
 def make_backup() -> Path:
     ensure_dirs()
     stamp = now_stamp()
@@ -426,6 +524,7 @@ def make_backup() -> Path:
     manifest = {
         "created": stamp,
         "home": str(HOME),
+        "prefix": str(PREFIX),
         "targets": [],
         "note": "Termux settings/config backup created before Mobile Developer Setup changes.",
     }
@@ -436,11 +535,9 @@ def make_backup() -> Path:
             item = {"path": str(target), "existed": existed}
             if existed:
                 item["mode"] = target.stat().st_mode & 0o777
-                rel = target.relative_to(HOME)
-                arcname = f"files/{rel.as_posix()}"
-                item["archive_name"] = arcname
+                item["archive_name"] = _backup_archive_name(target)
                 item["sha256"] = sha256_file(target)
-                tf.add(str(target), arcname=arcname, recursive=False)
+                tf.add(str(target), arcname=item["archive_name"], recursive=False)
             manifest["targets"].append(item)
 
         payload = json.dumps(manifest, indent=2).encode("utf-8")
@@ -488,10 +585,7 @@ def restore_backup(backup_path: Path) -> None:
                 continue
             target = Path(target_raw)
 
-            # Only restore files under the current HOME to avoid arbitrary writes.
-            try:
-                target.relative_to(HOME)
-            except ValueError:
+            if not _safe_restore_target(target):
                 SUMMARY.warning(f"Skipped unsafe backup path: {target}")
                 continue
 
@@ -502,7 +596,7 @@ def restore_backup(backup_path: Path) -> None:
                 continue
 
             archive_name = item.get("archive_name")
-            if not isinstance(archive_name, str) or not archive_name.startswith("files/"):
+            if not isinstance(archive_name, str) or not archive_name.startswith(("home/", "prefix/", "files/")):
                 SUMMARY.warning(f"Missing archive entry for {target}")
                 continue
 
@@ -539,7 +633,6 @@ def restore_backup(backup_path: Path) -> None:
             SUMMARY.success(f"Restored {target}")
 
     reload_termux_settings()
-
 
 def choose_backup_interactive() -> Optional[Path]:
     backups = list_backups()
@@ -611,28 +704,194 @@ def install_one_pkg(package: TermuxPackage, *, force: bool = False) -> bool:
     return ok
 
 
-def install_packages(*, include_optional: bool = True, force: bool = False) -> bool:
-    header("Installing core Termux packages")
-    core_ok = True
+def install_packages(*, force: bool = False) -> bool:
+    header("Installing complete Termux developer package set")
+    all_ok = True
+
     for package in CORE_PACKAGES:
-        core_ok = install_one_pkg(package, force=force) and core_ok
+        all_ok = install_one_pkg(package, force=force) and all_ok
 
-    if include_optional:
-        header("Installing optional Termux packages")
-        for package in OPTIONAL_PACKAGES:
-            install_one_pkg(package, force=force)
+    header("Installing additional required developer tools")
+    for package in DEVELOPER_PACKAGES:
+        all_ok = install_one_pkg(package, force=force) and all_ok
 
-        # TUR packages must be attempted only after tur-repo has been installed.
-        if dpkg_installed("tur-repo"):
-            header("Installing optional Termux User Repository packages")
-            # Refresh once because installing tur-repo adds a repository.
-            run_cmd(["pkg", "update", "-y"], check=False)
-            for package in TUR_PACKAGES:
-                install_one_pkg(package, force=force)
+    # mongodb lives in TUR, so enable tur-repo first and refresh package indexes
+    # before attempting its installation.
+    if dpkg_installed("tur-repo"):
+        header("Installing required Termux User Repository packages")
+        refresh = run_cmd(["pkg", "update", "-y"], check=False)
+        if refresh.returncode != 0:
+            SUMMARY.failure("TUR repository refresh failed")
+            all_ok = False
+        for package in TUR_PACKAGES:
+            all_ok = install_one_pkg(package, force=force) and all_ok
+    else:
+        SUMMARY.failure("tur-repo was not installed, so mongodb cannot be installed")
+        all_ok = False
+
+    return all_ok
+
+
+
+# -----------------------------------------------------------------------------
+# Python developer tools
+# -----------------------------------------------------------------------------
+
+
+def python_pip_available() -> bool:
+    python_bin = shutil.which("python") or shutil.which("python3")
+    if not python_bin:
+        return False
+    result = run_cmd([python_bin, "-m", "pip", "--version"], capture=True, check=False)
+    return result.returncode == 0
+
+
+def install_python_developer_tools(*, update: bool = False) -> bool:
+    """Install required developer tools whose supported distribution path is PyPI."""
+    header("Installing required Python developer tools")
+    python_bin = shutil.which("python") or shutil.which("python3")
+    if not python_bin:
+        SUMMARY.failure("Python is unavailable, so Python developer tools cannot be installed")
+        return False
+    if not python_pip_available():
+        SUMMARY.failure("python-pip is unavailable. Run Repair after python-pip is installed")
+        return False
+
+    all_ok = True
+    for package, command in PYTHON_DEVELOPER_TOOLS:
+        if not update and shutil.which(command):
+            SUMMARY.success(f"{package} already installed")
+            continue
+
+        args = [
+            python_bin, "-m", "pip", "install",
+            "--disable-pip-version-check", "--no-input",
+        ]
+        if update:
+            args.append("--upgrade")
+        args.append(package)
+
+        result = run_cmd(args, check=False)
+        if result.returncode == 0 and shutil.which(command):
+            action = "Updated" if update else "Installed"
+            SUMMARY.success(f"{action} Python developer tool {package}")
         else:
-            SUMMARY.warning("tur-repo is unavailable, so mongodb was skipped")
+            SUMMARY.failure(f"Required Python developer tool failed: {package}")
+            all_ok = False
+    return all_ok
 
-    return core_ok
+# -----------------------------------------------------------------------------
+# Legacy DedSec Bash environment cleanup
+# -----------------------------------------------------------------------------
+
+
+def _looks_like_dedsec_ps1(line: str) -> bool:
+    stripped = line.lstrip()
+    return (
+        stripped.startswith("PS1=")
+        and r"\D{%d/%m/%Y}" in line
+        and r"\A" in line
+        and r"\W" in line
+    )
+
+
+
+def extract_dedsec_prompt_name(text: str) -> str:
+    """Extract the visible username from the DedSec Settings.py PS1, if present."""
+    for line in text.splitlines():
+        if not _looks_like_dedsec_ps1(line):
+            continue
+        match = re.search(r"1;34m\\\]([^\\'\n]+?)\\\[\\e\[0m", line)
+        if match:
+            return sanitize_prompt_name(match.group(1))
+    return ""
+
+
+def clean_dedsec_bash_environment() -> bool:
+    """Remove only shell hooks created by DedSec Settings.py.
+
+    Settings.py itself is not modified, and unrelated Bash configuration is kept.
+    The global bash.bashrc is included in the safety backup before this runs.
+    """
+    header("Removing legacy DedSec Bash environment")
+    if not GLOBAL_BASHRC.exists():
+        SUMMARY.success("No global bash.bashrc exists to clean")
+        return True
+
+    original = read_text(GLOBAL_BASHRC)
+
+    # Preserve the user's existing DedSec prompt identity before removing Bash PS1.
+    if not get_prompt_name():
+        migrated_prompt = extract_dedsec_prompt_name(original)
+        if migrated_prompt:
+            state = load_state()
+            state["prompt_name"] = migrated_prompt
+            save_state(state)
+            SUMMARY.success(f"Migrated DedSec prompt name to Zsh: {migrated_prompt}")
+
+    output: list[str] = []
+    mode: Optional[str] = None
+
+    for line in original.splitlines(keepends=True):
+        if mode == "menu":
+            if DEDSEC_MENU_END in line:
+                mode = None
+            continue
+        if mode == "network":
+            if DEDSEC_NETWORK_END in line:
+                mode = None
+            continue
+        if mode == "background":
+            if line.startswith("# --- End DedSec ") and "Background Checker" in line:
+                mode = None
+            continue
+
+        if DEDSEC_MENU_START in line:
+            mode = "menu"
+            continue
+        if DEDSEC_NETWORK_START in line:
+            mode = "network"
+            continue
+        if line.startswith("# --- DedSec ") and "Background Checker" in line:
+            mode = "background"
+            continue
+
+        stripped = line.strip()
+        dedsec_settings_line = "DedSec/Scripts" in line and "Settings.py" in line
+        dedsec_alias = bool(re.search(r"^\s*alias\s+(?:m|e|g)=", line)) and dedsec_settings_line
+        dedsec_startup = dedsec_settings_line and "--menu" in line
+        dedsec_scan = "Settings.py" in line and "--pipboy-scan" in line
+
+        if dedsec_alias or dedsec_startup or dedsec_scan or _looks_like_dedsec_ps1(line):
+            continue
+        if stripped in {"dedsec_network_session_guard", "dedsec_network_session_guard;"}:
+            continue
+        output.append(line)
+
+    cleaned = "".join(output)
+    if cleaned == original:
+        SUMMARY.success("No active DedSec shell overrides found in bash.bashrc")
+        return True
+
+    temp = APP_DIR / "bash.bashrc.cleaned.tmp"
+    mode_bits = GLOBAL_BASHRC.stat().st_mode & 0o777
+    atomic_write_text(temp, cleaned, mode=mode_bits)
+    if shutil.which("bash"):
+        check = run_cmd(["bash", "-n", str(temp)], capture=True, check=False)
+        if check.returncode != 0:
+            temp.unlink(missing_ok=True)
+            SUMMARY.failure("DedSec cleanup produced invalid bash.bashrc syntax; original file was kept")
+            if check.stderr:
+                print(check.stderr.rstrip())
+            return False
+
+    atomic_write_text(GLOBAL_BASHRC, cleaned, mode=mode_bits)
+    temp.unlink(missing_ok=True)
+    state = load_state()
+    state["dedsec_bash_environment_overridden"] = True
+    save_state(state)
+    SUMMARY.success("Removed DedSec PS1, menu autostart, aliases and network hooks from global bash.bashrc")
+    return True
 
 
 # -----------------------------------------------------------------------------
@@ -652,18 +911,49 @@ def npm_package_installed(package: str) -> bool:
     return isinstance(dependencies, dict) and package in dependencies
 
 
+def ensure_npm_available() -> bool:
+    """Ensure npm exists on current Termux, where npm is a separate package."""
+    if shutil.which("npm"):
+        return True
+    if not is_termux():
+        SUMMARY.failure("npm is unavailable")
+        return False
+
+    # npm is now an official standalone Termux package. Refresh first and install
+    # npm by itself so apt can select a compatible nodejs/nodejs-lts dependency.
+    run_cmd(["pkg", "update", "-y"], check=False)
+    attempts = [
+        ["pkg", "install", "-y", "npm"],
+        ["apt", "install", "-y", "npm"],
+    ]
+    for command in attempts:
+        if not shutil.which(command[0]):
+            continue
+        result = run_cmd(command, check=False)
+        if result.returncode == 0 and shutil.which("npm"):
+            SUMMARY.success("npm installed and available")
+            return True
+
+    # Final recovery: upgrade the installed Node.js package, then retry npm.
+    node_package = "nodejs-lts" if dpkg_installed("nodejs-lts") else "nodejs"
+    run_cmd(["pkg", "upgrade", "-y", node_package], check=False)
+    result = run_cmd(["pkg", "install", "-y", "npm"], check=False)
+    if result.returncode == 0 and shutil.which("npm"):
+        SUMMARY.success("npm installed after updating Node.js")
+        return True
+
+    SUMMARY.failure("npm could not be installed from the active Termux repositories")
+    return False
+
+
 def install_npm_tools(*, update: bool = False) -> None:
     header("Installing global npm developer tools")
-    if not shutil.which("npm"):
-        SUMMARY.warning("npm is unavailable; npm developer tools were skipped")
+    if not ensure_npm_available():
         return
-
-    # Avoid npm audit/fund network chatter for global utility installs.
     env = os.environ.copy()
     env["npm_config_audit"] = "false"
     env["npm_config_fund"] = "false"
     env["npm_config_update_notifier"] = "false"
-
     for tool in NPM_TOOLS:
         if not update and npm_package_installed(tool.package):
             SUMMARY.success(f"npm: {tool.package} already installed")
@@ -677,37 +967,55 @@ def install_npm_tools(*, update: bool = False) -> None:
         else:
             SUMMARY.warning(f"Optional npm tool failed: {tool.package}")
 
-
 def patch_localtunnel_android_openurl() -> None:
-    prefix = os.environ.get("PREFIX", "")
-    if not prefix:
-        return
-    target = Path(prefix) / "lib" / "node_modules" / "localtunnel" / "node_modules" / "openurl" / "openurl.js"
-    if not target.exists():
-        SUMMARY.warning("localtunnel Android open-url patch skipped (openurl.js layout not found)")
+    """Make localtunnel --open launch URLs correctly on Android/Termux."""
+    candidates: list[Path] = []
+
+    if shutil.which("npm"):
+        root_result = run_cmd(["npm", "root", "-g"], capture=True, check=False)
+        root = (root_result.stdout or "").strip()
+        if root_result.returncode == 0 and root:
+            candidates.append(Path(root) / "localtunnel" / "bin" / "lt.js")
+
+    lt_bin = shutil.which("lt")
+    if lt_bin:
+        try:
+            candidates.append(Path(lt_bin).resolve())
+        except OSError:
+            candidates.append(Path(lt_bin))
+
+    target = next((p for p in candidates if p.exists() and p.is_file()), None)
+    if target is None:
         return
 
     text = read_text(target)
-    if "case 'android':" in text or 'case "android":' in text:
-        SUMMARY.success("localtunnel Android open-url patch already present")
+    marker = "MOBILE DEV SETUP ANDROID OPEN"
+    if marker in text or ("termux-open-url" in text and "process.platform" in text):
+        SUMMARY.success("localtunnel Android browser integration already configured")
         return
 
-    # Patch only when a known switch layout exists. Never blindly inject with sed.
-    pattern = re.compile(r"(case ['\"]win32['\"]:[\s\S]*?\bbreak;)")
-    match = pattern.search(text)
-    if not match:
-        SUMMARY.warning("localtunnel openurl.js changed upstream; safe Android patch was not applied")
+    needle = "openurl.open(tunnel.url);"
+    if needle not in text:
+        # localtunnel is optional. If upstream changes again, do not report a false
+        # setup warning for a browser convenience feature that does not block setup.
         return
 
-    insertion = (
-        match.group(1)
-        + "\n    case 'android':\n"
-        + "        command = 'termux-open-url';\n"
-        + "        break;"
+    replacement = (
+        "// MOBILE DEV SETUP ANDROID OPEN\n"
+        "    if (process.platform === 'android') {\n"
+        "      const child = require('child_process').spawn('termux-open-url', [tunnel.url], {\n"
+        "        detached: true,\n"
+        "        stdio: 'ignore',\n"
+        "      });\n"
+        "      child.on('error', () => {});\n"
+        "      child.unref();\n"
+        "    } else {\n"
+        "      openurl.open(tunnel.url);\n"
+        "    }"
     )
-    patched = text[: match.start()] + insertion + text[match.end() :]
-    atomic_write_text(target, patched)
-    SUMMARY.success("Patched localtunnel to use termux-open-url on Android")
+    patched = text.replace(needle, replacement, 1)
+    atomic_write_text(target, patched, mode=0o755)
+    SUMMARY.success("Configured localtunnel --open for Android/Termux")
 
 
 # -----------------------------------------------------------------------------
@@ -766,6 +1074,10 @@ def _zsh_plugin_lines() -> tuple[list[str], list[str]]:
     fpath_lines: list[str] = []
     source_lines: list[str] = []
     for name, _, line in ZSH_PLUGIN_REPOS:
+        # Powerlevel10k is installed but deliberately not started automatically.
+        # Its wizard and prompt are opt-in through the dedicated menu action.
+        if name == "powerlevel10k":
+            continue
         dest = ZSH_PLUGINS_DIR / name
         if not dest.exists():
             continue
@@ -787,15 +1099,124 @@ def _zsh_plugin_lines() -> tuple[list[str], list[str]]:
     return fpath_lines, source_lines
 
 
+def sanitize_prompt_name(name: str) -> str:
+    """Sanitize a persistent Zsh prompt name using DedSec-compatible characters."""
+    name = (name or "").strip()
+    name = re.sub(r"[^A-Za-z0-9_.@-]", "_", name)
+    return name[:48]
+
+
+def get_prompt_name() -> str:
+    value = load_state().get("prompt_name", "")
+    return sanitize_prompt_name(value) if isinstance(value, str) else ""
+
+
+def powerlevel10k_config_path() -> Path:
+    return HOME / ".p10k.zsh"
+
+
+def powerlevel10k_config_exists() -> bool:
+    path = powerlevel10k_config_path()
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def powerlevel10k_enabled() -> bool:
+    return bool(load_state().get("powerlevel10k_enabled", False))
+
+
+def _save_powerlevel10k_state(enabled: bool, *, personalization_complete: Optional[bool] = None) -> None:
+    state = load_state()
+    state["powerlevel10k_enabled"] = bool(enabled)
+    if personalization_complete is not None:
+        state["shell_personalization_complete"] = bool(personalization_complete)
+    save_state(state)
+
+
+def adopt_existing_powerlevel10k_config(*, announce: bool = True) -> bool:
+    """Use an existing ~/.p10k.zsh instead of asking the user to configure it again."""
+    if not powerlevel10k_config_exists():
+        return False
+    _save_powerlevel10k_state(True, personalization_complete=bool(get_prompt_name()))
+    if announce:
+        SUMMARY.success("Existing Powerlevel10k configuration detected and reused")
+    return True
+
+
+def _powerlevel10k_zsh_lines() -> list[str]:
+    """Source Powerlevel10k only when it has been configured or explicitly enabled."""
+    if not powerlevel10k_enabled():
+        return []
+    theme = ZSH_PLUGINS_DIR / "powerlevel10k" / "powerlevel10k.zsh-theme"
+    if not theme.is_file():
+        SUMMARY.warning("Powerlevel10k is enabled but its theme file is missing")
+        return []
+    return [
+        # The automatic upstream wizard is always disabled. Setup launches it explicitly
+        # only when first-run configuration is actually required.
+        "typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true",
+        "source ~/.zsh-plugins/powerlevel10k/powerlevel10k.zsh-theme",
+        "[[ -f ~/.p10k.zsh ]] && source ~/.p10k.zsh",
+    ]
+
+
+def _powerlevel10k_prompt_name_lines() -> list[str]:
+    """Add the saved prompt name as a Powerlevel10k custom segment."""
+    if not powerlevel10k_enabled():
+        return []
+    name = get_prompt_name()
+    if not name:
+        return []
+    quoted = shlex.quote(name)
+    return [
+        f"export MOBILE_DEV_PROMPT_NAME={quoted}",
+        "function prompt_mobile_dev_name() {",
+        "  p10k segment -f 12 -t \"$MOBILE_DEV_PROMPT_NAME\"",
+        "}",
+        "typeset -ga POWERLEVEL9K_LEFT_PROMPT_ELEMENTS",
+        "if [[ \" ${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[*]} \" != *\" mobile_dev_name \"* ]]; then",
+        "  POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(mobile_dev_name ${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[@]})",
+        "fi",
+    ]
+
+
+def zsh_prompt_lines() -> list[str]:
+    """Return the fallback DedSec-style Zsh prompt when Powerlevel10k is not active."""
+    if powerlevel10k_enabled():
+        return []
+    name = get_prompt_name()
+    if not name:
+        return ["PROMPT='%F{green}%n@%m%f %F{blue}%~%f %# '"]
+    quoted = shlex.quote(name)
+    return [
+        "setopt PROMPT_SUBST",
+        f"export MOBILE_DEV_PROMPT_NAME={quoted}",
+        "PROMPT='%F{cyan}%D{%d/%m/%Y}%f-%F{cyan}[%D{%H:%M}]%f-(%F{blue}${MOBILE_DEV_PROMPT_NAME}%f)-(%F{yellow}%~%f) : '",
+        "RPROMPT=''",
+    ]
+
+
 def configure_zshrc() -> None:
-    header("Configuring ~/.zshrc")
+    """Fully replace ~/.zshrc with the environment owned by this setup."""
+    header("Fully configuring ~/.zshrc")
     zshrc = HOME / ".zshrc"
-    existing = read_text(zshrc)
     fpath_lines, source_lines = _zsh_plugin_lines()
 
     lines = [
         MARK_BEGIN,
-        "# Managed by Mobile Developer Setup.py. Edit outside this block for custom settings.",
+        "# Mobile Developer Setup exclusively manages this ~/.zshrc while installed.",
+        "# Bash startup files are intentionally not sourced from Zsh.",
+        'export SHELL="$(command -v zsh)"',
+        'unset PROMPT_COMMAND 2>/dev/null || true',
+        # Never let Powerlevel10k launch its wizard on ordinary terminal startup.
+        "typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true",
+        'HISTFILE="$HOME/.zsh_history"',
+        "HISTSIZE=10000",
+        "SAVEHIST=10000",
+        "setopt HIST_IGNORE_DUPS SHARE_HISTORY AUTO_CD INTERACTIVE_COMMENTS",
+        "autoload -Uz colors && colors",
         "",
     ]
     lines.extend(fpath_lines)
@@ -803,66 +1224,397 @@ def configure_zshrc() -> None:
         lines.append("")
 
     if (OH_MY_ZSH_DIR / "oh-my-zsh.sh").is_file():
-        lines.extend(
-            [
-                'export ZSH="$HOME/.oh-my-zsh"',
-                '[[ -z "${ZSH_THEME:-}" ]] && ZSH_THEME="robbyrussell"',
-                '[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"',
-                "",
-            ]
-        )
+        lines.extend([
+            'export ZSH="$HOME/.oh-my-zsh"',
+            'ZSH_THEME=""',
+            '[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"',
+            "",
+        ])
     else:
         lines.extend(["autoload -Uz compinit", "compinit -d ~/.zcompdump", ""])
 
     lines.extend(source_lines)
-    lines.extend(
-        [
-            "",
-            "if (( $+functions[history-substring-search-up] )); then",
-            "  bindkey '^[[A' history-substring-search-up",
-            "  bindkey '^[[B' history-substring-search-down",
-            "fi",
-            "zstyle ':completion:*' menu-select yes",
-            "zstyle ':fzf-tab:*' switch-word yes",
-            "command -v lsd >/dev/null 2>&1 && alias ls='lsd'",
-            "command -v bat >/dev/null 2>&1 && alias cat='bat --theme=Dracula --style=plain --paging=never'",
-            MARK_END,
-            "",
-        ]
-    )
-    managed_block = "\n".join(lines)
+    if source_lines:
+        lines.append("")
 
-    if MARK_BEGIN in existing and MARK_END in existing:
-        pattern = re.compile(re.escape(MARK_BEGIN) + r"[\s\S]*?" + re.escape(MARK_END))
-        new_text = pattern.sub(managed_block.strip(), existing, count=1).rstrip() + "\n"
-    else:
-        prefix = existing.rstrip()
-        new_text = (prefix + "\n\n" if prefix else "") + managed_block
+    p10k_lines = _powerlevel10k_zsh_lines()
+    lines.extend(p10k_lines)
+    if p10k_lines:
+        lines.append("")
+        # Keep the saved prompt identity even when Powerlevel10k owns the prompt.
+        lines.extend(_powerlevel10k_prompt_name_lines())
+        if get_prompt_name():
+            lines.append("")
 
-    atomic_write_text(zshrc, new_text)
+    lines.extend([
+        "if (( $+functions[history-substring-search-up] )); then",
+        "  bindkey '^[[A' history-substring-search-up",
+        "  bindkey '^[[B' history-substring-search-down",
+        "fi",
+        "zstyle ':completion:*' menu-select yes",
+        "zstyle ':fzf-tab:*' switch-word yes",
+        "command -v lsd >/dev/null 2>&1 && alias ls='lsd'",
+        "command -v bat >/dev/null 2>&1 && alias cat='bat --theme=Dracula --style=plain --paging=never'",
+        "",
+    ])
+
+    lines.extend(zsh_prompt_lines())
+    lines.extend([MARK_END, ""])
+
+    atomic_write_text(zshrc, "\n".join(lines))
+    state = load_state()
+    state["zshrc_owned_by_setup"] = True
+    save_state(state)
+
     result = run_cmd(["zsh", "-n", str(zshrc)], capture=True, check=False)
     if result.returncode == 0:
-        SUMMARY.success("~/.zshrc configured and syntax-checked")
+        SUMMARY.success("~/.zshrc fully replaced and syntax-checked")
     else:
-        SUMMARY.failure("~/.zshrc failed zsh syntax validation; restore your backup if needed")
+        SUMMARY.failure("New ~/.zshrc failed zsh syntax validation; use the safety backup to restore")
         if result.stderr:
             print(result.stderr.rstrip())
 
 
-def maybe_set_default_zsh() -> None:
-    if not shutil.which("zsh") or not shutil.which("chsh"):
+def set_prompt_name(name: str, *, activate: bool = False) -> bool:
+    """Persist the prompt name without disabling an existing Powerlevel10k setup."""
+    clean = sanitize_prompt_name(name)
+    state = load_state()
+    state["prompt_name"] = clean
+    state["shell_personalization_complete"] = bool(clean and powerlevel10k_config_exists())
+    save_state(state)
+
+    if not shutil.which("zsh"):
+        SUMMARY.warning("Prompt name was saved, but Zsh is not installed yet")
+        return False
+
+    configure_zshrc()
+    if clean:
+        SUMMARY.success(f"Prompt name set to: {clean}")
+        if powerlevel10k_enabled():
+            SUMMARY.success("Prompt name integrated into the active Powerlevel10k prompt")
+    else:
+        SUMMARY.success("Custom prompt name removed")
+
+    if activate:
+        activate_zsh_now()
+    return True
+
+
+def _default_prompt_name() -> str:
+    for candidate in (os.environ.get("USER"), os.environ.get("LOGNAME"), "developer"):
+        clean = sanitize_prompt_name(candidate or "")
+        if clean:
+            return clean
+    return "developer"
+
+
+def ensure_first_run_prompt_name() -> bool:
+    """Require a prompt identity once, while reusing any migrated/saved value."""
+    current = get_prompt_name()
+    if current:
+        SUMMARY.success(f"Existing Zsh prompt name reused: {current}")
+        return True
+
+    default = _default_prompt_name()
+    if NON_INTERACTIVE:
+        state = load_state()
+        state["prompt_name"] = default
+        save_state(state)
+        SUMMARY.warning(f"Non-interactive setup used default prompt name: {default}")
+        return True
+
+    header("First-time Zsh prompt setup")
+    while True:
+        entered = input(c(f"Prompt name [{default}]: ", C.INFO)).strip()
+        clean = sanitize_prompt_name(entered or default)
+        if clean:
+            state = load_state()
+            state["prompt_name"] = clean
+            save_state(state)
+            SUMMARY.success(f"Zsh prompt name configured: {clean}")
+            return True
+        print(c("Enter a valid prompt name.", C.WARN))
+
+
+def run_powerlevel10k_wizard(
+    *,
+    required: bool = False,
+    activate: bool = False,
+    make_safety_backup: bool = True,
+) -> bool:
+    """Configure Powerlevel10k explicitly; never from ordinary shell startup."""
+    if not require_termux():
+        return False
+
+    existing_before = powerlevel10k_config_exists()
+    header("Powerlevel10k configuration" + (" — required first setup" if required else ""))
+
+    if existing_before:
+        adopt_existing_powerlevel10k_config(announce=True)
+        configure_zshrc()
+        if activate:
+            activate_zsh_now()
+        return True
+
+    if NON_INTERACTIVE:
+        _save_powerlevel10k_state(False, personalization_complete=False)
+        configure_zshrc()
+        SUMMARY.warning("Powerlevel10k first-time configuration is pending because this run is non-interactive")
+        return False
+
+    if not required:
+        if not ask_yes_no("Run the Powerlevel10k configuration wizard now?", default=True):
+            return False
+
+    if make_safety_backup:
+        make_backup()
+
+    theme = ZSH_PLUGINS_DIR / "powerlevel10k" / "powerlevel10k.zsh-theme"
+    if not theme.is_file():
+        clone_or_update_repo(
+            "powerlevel10k",
+            "https://github.com/romkatv/powerlevel10k.git",
+            ZSH_PLUGINS_DIR / "powerlevel10k",
+            update=False,
+        )
+    if not theme.is_file():
+        SUMMARY.failure("Powerlevel10k could not be installed")
+        return False
+
+    # Allow at most two attempts during required first-time setup. If the user cancels,
+    # the setup is marked incomplete but the wizard will NOT reappear on every terminal start.
+    attempts = 2 if required else 1
+    for attempt in range(attempts):
+        _save_powerlevel10k_state(True, personalization_complete=False)
+        configure_zshrc()
+        zsh_path = shutil.which("zsh")
+        if not zsh_path:
+            SUMMARY.failure("Zsh is unavailable")
+            return False
+
+        wizard = run_cmd([zsh_path, "-ic", 'source "$HOME/.zshrc"; p10k configure'], check=False)
+        if wizard.returncode == 0 and powerlevel10k_config_exists():
+            _save_powerlevel10k_state(True, personalization_complete=bool(get_prompt_name()))
+            configure_zshrc()
+            SUMMARY.success("Powerlevel10k configuration completed and saved")
+            if activate:
+                activate_zsh_now()
+            return True
+
+        if attempt + 1 < attempts:
+            if not ask_yes_no("Powerlevel10k setup was not completed. Run the wizard again?", default=True):
+                break
+
+    _save_powerlevel10k_state(False, personalization_complete=False)
+    configure_zshrc()
+    SUMMARY.warning("Powerlevel10k setup remains incomplete. It will not open automatically on terminal startup; use menu option 9 to finish it.")
+    if activate:
+        activate_zsh_now()
+    return False
+
+
+def ensure_first_run_shell_personalization() -> bool:
+    """Complete one-time prompt + Powerlevel10k setup, reusing existing configuration."""
+    prompt_ok = ensure_first_run_prompt_name()
+
+    if powerlevel10k_config_exists():
+        adopt_existing_powerlevel10k_config(announce=True)
+        configure_zshrc()
+        state = load_state()
+        state["shell_personalization_complete"] = bool(prompt_ok)
+        save_state(state)
+        return prompt_ok
+
+    state = load_state()
+    if state.get("shell_personalization_complete") and powerlevel10k_enabled():
+        # State claims completion but the actual config is gone; repair it now.
+        state["shell_personalization_complete"] = False
+        state["powerlevel10k_enabled"] = False
+        save_state(state)
+
+    p10k_ok = run_powerlevel10k_wizard(required=True, activate=False, make_safety_backup=False)
+    return bool(prompt_ok and p10k_ok)
+
+
+def change_prompt_name_interactive() -> None:
+    SUMMARY.clear()
+    if not require_termux():
         return
-    current = os.environ.get("SHELL", "")
-    zsh_path = shutil.which("zsh") or "zsh"
-    if current.endswith("/zsh"):
-        SUMMARY.success("Zsh is already the current login shell")
+    current = get_prompt_name()
+    header("Zsh Prompt Name")
+    print("Current name:", current or "(default prompt)")
+    print("The name is also shown inside Powerlevel10k when Powerlevel10k is configured.")
+    print("Leave it empty to remove the custom prompt name.")
+    name = input(c("New prompt name: ", C.INFO)).strip()
+    make_backup()
+    set_prompt_name(name, activate=False)
+    SUMMARY.show()
+    if shutil.which("zsh"):
+        activate_zsh_now()
+
+
+def configure_powerlevel10k_interactive() -> None:
+    """Configure or reconfigure Powerlevel10k only when selected from the menu."""
+    SUMMARY.clear()
+    if not require_termux():
         return
-    if ask_yes_no("Set Zsh as the default Termux login shell?", default=True):
-        result = run_cmd(["chsh", "-s", zsh_path], check=False)
-        if result.returncode == 0:
-            SUMMARY.success("Zsh set as the default shell")
-        else:
-            SUMMARY.warning("Could not set Zsh as the default shell; you can still run: exec zsh")
+    make_backup()
+    ok = run_powerlevel10k_wizard(required=False, activate=False, make_safety_backup=False)
+    if ok:
+        state = load_state()
+        state["shell_personalization_complete"] = bool(get_prompt_name() and powerlevel10k_config_exists())
+        save_state(state)
+    SUMMARY.show()
+    if shutil.which("zsh"):
+        activate_zsh_now()
+
+
+def set_default_zsh() -> bool:
+    """Force Zsh as Termux's default shell instead of leaving Bash active."""
+    zsh_path = shutil.which("zsh")
+    if not zsh_path:
+        SUMMARY.failure("Zsh is unavailable, so it cannot be set as the default shell")
+        return False
+    chsh_path = shutil.which("chsh")
+    if not chsh_path:
+        SUMMARY.warning("chsh is unavailable; persistent Bash-to-Zsh handoff will be used")
+        return False
+
+    result = run_cmd([chsh_path, "-s", zsh_path], capture=True, check=False)
+    if result.returncode != 0:
+        SUMMARY.warning("chsh failed; persistent Bash-to-Zsh handoff will still force Zsh on interactive starts")
+        if result.stderr:
+            print(result.stderr.rstrip())
+        return False
+
+    os.environ["SHELL"] = zsh_path
+    state = load_state()
+    state["default_shell"] = zsh_path
+    save_state(state)
+    SUMMARY.success(f"Zsh set as the default Termux shell: {zsh_path}")
+    return True
+
+
+def _remove_zsh_handoff_block(text: str) -> str:
+    pattern = re.compile(
+        re.escape(ZSH_HANDOFF_START) + r"[\s\S]*?" + re.escape(ZSH_HANDOFF_END) + r"\n?"
+    )
+    return pattern.sub("", text).lstrip("\n")
+
+
+def _install_zsh_handoff_in_file(path: Path, zsh_path: str) -> bool:
+    """Install an idempotent Bash/login-shell handoff without deleting unrelated content."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    original = read_text(path)
+    remainder = _remove_zsh_handoff_block(original)
+    zsh_q = shlex.quote(zsh_path)
+    block = "\n".join(
+        [
+            ZSH_HANDOFF_START,
+            "# Force every interactive Bash-backed Termux terminal into Zsh.",
+            "# POSIX-compatible guard so this is safe even when placed in /etc/profile.",
+            'if [ -n "${BASH_VERSION:-}" ] && [ -t 0 ] && [ -t 1 ] && [ -z "${ZSH_VERSION:-}" ] && [ -z "${MOBILE_DEV_ZSH_HANDOFF:-}" ]; then',
+            "  export MOBILE_DEV_ZSH_HANDOFF=1",
+            f"  if [ -x {zsh_q} ]; then",
+            f"    exec {zsh_q} -il",
+            "  fi",
+            "fi",
+            ZSH_HANDOFF_END,
+            "",
+        ]
+    )
+    new_text = block + remainder
+    mode_bits = path.stat().st_mode & 0o777 if path.exists() else 0o644
+
+    fd, temp_name = tempfile.mkstemp(prefix=path.name + ".handoff.", dir=str(path.parent))
+    os.close(fd)
+    temp = Path(temp_name)
+    try:
+        atomic_write_text(temp, new_text, mode=mode_bits)
+        if shutil.which("bash"):
+            check = run_cmd(["bash", "-n", str(temp)], capture=True, check=False)
+            if check.returncode != 0:
+                SUMMARY.failure(f"Zsh startup handoff failed Bash syntax validation for {path}")
+                if check.stderr:
+                    print(check.stderr.rstrip())
+                return False
+        atomic_write_text(path, new_text, mode=mode_bits)
+        return True
+    finally:
+        temp.unlink(missing_ok=True)
+
+
+def install_zsh_startup_handoff() -> bool:
+    """Force Zsh on current and future Termux terminals even if chsh is ignored."""
+    zsh_path = shutil.which("zsh")
+    if not zsh_path:
+        SUMMARY.failure("Persistent Zsh startup handoff could not be installed because zsh is unavailable")
+        return False
+
+    targets = (GLOBAL_BASHRC, GLOBAL_PROFILE, HOME / ".bashrc")
+    ok = True
+    for target in targets:
+        ok = _install_zsh_handoff_in_file(target, zsh_path) and ok
+
+    if ok:
+        state = load_state()
+        state["zsh_startup_handoff"] = True
+        save_state(state)
+        SUMMARY.success("Persistent Bash/login → Zsh handoff installed for every Termux terminal start")
+    return ok
+
+
+def remove_zsh_startup_handoff() -> None:
+    removed = False
+    for path in (GLOBAL_BASHRC, GLOBAL_PROFILE, HOME / ".bashrc"):
+        if not path.exists():
+            continue
+        original = read_text(path)
+        cleaned = _remove_zsh_handoff_block(original)
+        if cleaned == original:
+            continue
+        mode_bits = path.stat().st_mode & 0o777
+        atomic_write_text(path, cleaned, mode=mode_bits)
+        removed = True
+    if removed:
+        SUMMARY.success("Removed persistent Bash/login → Zsh startup handoff")
+
+def activate_zsh_now() -> bool:
+    """Force the current setup process to become an interactive login Zsh."""
+    zsh_path = shutil.which("zsh")
+    if not zsh_path:
+        SUMMARY.warning("Zsh could not be activated in the current session because it is unavailable")
+        return False
+
+    zshrc = HOME / ".zshrc"
+    if not zshrc.is_file():
+        SUMMARY.warning("Zsh could not be activated because ~/.zshrc is missing")
+        return False
+
+    syntax = run_cmd([zsh_path, "-n", str(zshrc)], capture=True, check=False)
+    if syntax.returncode != 0:
+        SUMMARY.failure("Current-session Zsh activation was blocked because ~/.zshrc failed validation")
+        if syntax.stderr:
+            print(syntax.stderr.rstrip())
+        return False
+
+    if NON_INTERACTIVE:
+        SUMMARY.success("Zsh is ready and will be used for the next interactive Termux session")
+        return False
+
+    print(c("\nSwitching this Termux session to Zsh now...", C.INFO), flush=True)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    env = os.environ.copy()
+    env["SHELL"] = zsh_path
+    env["MOBILE_DEV_ZSH_HANDOFF"] = "1"
+    try:
+        # -i guarantees an interactive prompt; -l makes this a login Zsh.
+        os.execve(zsh_path, [zsh_path, "-il"], env)
+    except OSError as exc:
+        SUMMARY.failure(f"Could not switch the current session to Zsh: {exc}")
+        print(c("Run this manually: exec zsh", C.WARN))
+        return False
 
 
 # -----------------------------------------------------------------------------
@@ -896,22 +1648,79 @@ def valid_font_file(path: Path) -> bool:
     return data in {b"\x00\x01\x00\x00", b"OTTO", b"true", b"ttcf"}
 
 
-def download_font(url: str = DEFAULT_FONT_URL) -> bool:
+def download_font(urls: Iterable[str] = DEFAULT_FONT_ARCHIVE_URLS) -> bool:
+    """Download Meslo Nerd Font from official release assets with an archive fallback."""
     TERMUX_DIR.mkdir(parents=True, exist_ok=True)
+    ensure_dirs()
     target = TERMUX_DIR / "font.ttf"
-    temp = target.with_suffix(".ttf.download")
-    temp.unlink(missing_ok=True)
-    result = run_cmd(
-        ["curl", "-fL", "--retry", "3", "--retry-delay", "2", "--connect-timeout", "20", url, "-o", str(temp)],
-        check=False,
+    temp_font = target.with_suffix(".ttf.download")
+    temp_font.unlink(missing_ok=True)
+
+    preferred_names = (
+        "MesloLGSNerdFont-Regular.ttf",
+        "MesloLGSNerdFontMono-Regular.ttf",
+        "MesloLGSNerdFontPropo-Regular.ttf",
     )
-    if result.returncode != 0 or not temp.exists() or temp.stat().st_size < 10_000 or not valid_font_file(temp):
-        temp.unlink(missing_ok=True)
-        SUMMARY.warning("Nerd Font download failed or did not look like a valid font; existing font was kept")
-        return False
-    temp.replace(target)
-    SUMMARY.success("Meslo Nerd Font installed for Termux")
-    return True
+
+    for index, url in enumerate(urls):
+        suffix = ".zip" if url.lower().endswith(".zip") else ".tar.xz"
+        archive = APP_DIR / f"Meslo-Nerd-Font-{index}{suffix}.download"
+        archive.unlink(missing_ok=True)
+        result = run_cmd([
+            "curl", "-fL", "--retry", "3", "--retry-all-errors", "--retry-delay", "2",
+            "--connect-timeout", "20", url, "-o", str(archive)
+        ], check=False)
+        if result.returncode != 0 or not archive.exists() or archive.stat().st_size < 10_000:
+            archive.unlink(missing_ok=True)
+            continue
+
+        try:
+            if url.lower().endswith(".zip"):
+                with zipfile.ZipFile(archive, "r") as zf:
+                    names = [n for n in zf.namelist() if n.lower().endswith(".ttf") and not n.endswith("/")]
+                    if not names:
+                        raise RuntimeError("Meslo archive contains no TTF files")
+                    chosen = None
+                    for preferred in preferred_names:
+                        chosen = next((n for n in names if Path(n).name == preferred), None)
+                        if chosen:
+                            break
+                    if chosen is None:
+                        chosen = next((n for n in names if "regular" in Path(n).stem.lower()), names[0])
+                    with zf.open(chosen, "r") as source, temp_font.open("wb") as out:
+                        shutil.copyfileobj(source, out)
+            else:
+                with tarfile.open(archive, "r:*") as tf:
+                    members = [m for m in tf.getmembers() if m.isfile() and m.name.lower().endswith(".ttf")]
+                    if not members:
+                        raise RuntimeError("Meslo archive contains no TTF files")
+                    chosen = None
+                    for preferred in preferred_names:
+                        chosen = next((m for m in members if Path(m.name).name == preferred), None)
+                        if chosen is not None:
+                            break
+                    if chosen is None:
+                        chosen = next((m for m in members if "regular" in Path(m.name).stem.lower()), members[0])
+                    source = tf.extractfile(chosen)
+                    if source is None:
+                        raise RuntimeError("Could not read selected font")
+                    with source, temp_font.open("wb") as out:
+                        shutil.copyfileobj(source, out)
+        except (OSError, tarfile.TarError, zipfile.BadZipFile, RuntimeError):
+            temp_font.unlink(missing_ok=True)
+            archive.unlink(missing_ok=True)
+            continue
+        finally:
+            archive.unlink(missing_ok=True)
+
+        if temp_font.exists() and temp_font.stat().st_size >= 10_000 and valid_font_file(temp_font):
+            temp_font.replace(target)
+            SUMMARY.success("Meslo Nerd Font installed for Termux")
+            return True
+        temp_font.unlink(missing_ok=True)
+
+    SUMMARY.warning("Nerd Font could not be downloaded from the official release assets; existing Termux font was kept")
+    return False
 
 
 def reload_termux_settings() -> None:
@@ -1041,7 +1850,6 @@ def reset_log() -> None:
 
 def install_setup(
     *,
-    include_optional: bool = True,
     upgrade: bool = True,
     configure_zsh: bool = True,
     configure_ui: bool = True,
@@ -1061,19 +1869,25 @@ def install_setup(
         SUMMARY.show()
         return
 
-    core_ok = install_packages(include_optional=include_optional)
-    if not core_ok:
-        SUMMARY.failure("Core package installation is incomplete. Fix the package errors above and run Repair.")
+    termux_ok = install_packages()
+    python_tools_ok = install_python_developer_tools(update=False)
+    if not (termux_ok and python_tools_ok):
+        SUMMARY.failure("Full developer environment installation is incomplete. Fix the errors above and run Repair.")
 
     install_npm_tools(update=False)
     patch_localtunnel_android_openurl()
 
     if configure_zsh:
+        clean_dedsec_bash_environment()
         install_oh_my_zsh(update=False)
         install_zsh_plugins(update=False)
         if shutil.which("zsh"):
+            personalization_ok = ensure_first_run_shell_personalization()
             configure_zshrc()
-            maybe_set_default_zsh()
+            set_default_zsh()
+            install_zsh_startup_handoff()
+            if not personalization_ok:
+                SUMMARY.warning("First-time Zsh personalization is still incomplete; finish Powerlevel10k setup with menu option 9.")
 
     if configure_ui:
         configure_termux_ui()
@@ -1086,48 +1900,82 @@ def install_setup(
     save_state(state)
     safe_notify("Mobile Developer Setup completed")
     SUMMARY.show()
-    print(c("\nRestart Termux, or run 'exec zsh' if you enabled Zsh.", C.INFO))
+    if configure_zsh and shutil.which("zsh"):
+        activate_zsh_now()
 
-
-def run_update(*, include_optional: bool = True, upgrade: bool = True) -> None:
+def run_update(
+    *,
+    upgrade: bool = True,
+    configure_zsh: bool = True,
+    configure_ui: bool = True,
+    update_nvim: bool = True,
+) -> None:
     SUMMARY.clear()
     if not require_termux():
         return
     reset_log()
     header("Mobile Developer Setup — Update")
+    make_backup()
     pkg_refresh(upgrade=upgrade)
-    install_packages(include_optional=include_optional, force=False)
+    install_packages(force=False)
+    install_python_developer_tools(update=True)
     install_npm_tools(update=True)
     patch_localtunnel_android_openurl()
-    install_oh_my_zsh(update=True)
-    install_zsh_plugins(update=True)
-    if shutil.which("zsh"):
-        configure_zshrc()
-    update_nvchad()
-    configure_termux_ui()
+    if configure_zsh:
+        clean_dedsec_bash_environment()
+        install_oh_my_zsh(update=True)
+        install_zsh_plugins(update=True)
+        if shutil.which("zsh"):
+            adopt_existing_powerlevel10k_config(announce=False)
+            configure_zshrc()
+            set_default_zsh()
+            install_zsh_startup_handoff()
+    if update_nvim:
+        update_nvchad()
+    if configure_ui:
+        configure_termux_ui()
     state = load_state()
     state["last_update"] = now_stamp()
     save_state(state)
     SUMMARY.show()
+    if configure_zsh and shutil.which("zsh"):
+        activate_zsh_now()
 
-
-def repair_setup(*, include_optional: bool = True) -> None:
+def repair_setup(
+    *,
+    configure_zsh: bool = True,
+    configure_ui: bool = True,
+    install_nvim: bool = True,
+) -> None:
     SUMMARY.clear()
     if not require_termux():
         return
     reset_log()
     header("Mobile Developer Setup — Repair")
+    make_backup()
     run_cmd(["pkg", "update", "-y"], check=False)
-    install_packages(include_optional=include_optional, force=False)
+    install_packages(force=False)
+    install_python_developer_tools(update=False)
     install_npm_tools(update=False)
     patch_localtunnel_android_openurl()
-    install_oh_my_zsh(update=False)
-    install_zsh_plugins(update=False)
-    if shutil.which("zsh"):
-        configure_zshrc()
-    configure_termux_ui()
+    if configure_zsh:
+        clean_dedsec_bash_environment()
+        install_oh_my_zsh(update=False)
+        install_zsh_plugins(update=False)
+        if shutil.which("zsh"):
+            personalization_ok = ensure_first_run_shell_personalization()
+            configure_zshrc()
+            set_default_zsh()
+            install_zsh_startup_handoff()
+            if not personalization_ok:
+                SUMMARY.warning("Zsh personalization is still incomplete; use menu option 9 to finish Powerlevel10k setup.")
+    if configure_ui:
+        configure_termux_ui()
+    if install_nvim:
+        install_nvchad()
     SUMMARY.show()
-
+    if configure_zsh and shutil.which("zsh"):
+        activate_zsh_now()
 
 def remove_managed_zsh_block() -> None:
     zshrc = HOME / ".zshrc"
@@ -1153,6 +2001,7 @@ def uninstall_files_only(*, reset_summary: bool = True) -> None:
 
     # Remove the managed zsh block regardless of who owns ~/.zshrc.
     remove_managed_zsh_block()
+    remove_zsh_startup_handoff()
 
     # Delete only paths explicitly recorded as created by this script.
     for path in sorted(managed, key=lambda p: len(str(p)), reverse=True):
@@ -1228,6 +2077,9 @@ def show_info() -> None:
     print("Neovim config:      ", NVIM_CONFIG_DIR)
     print("NvChad backups:     ", NVI_BACKUPS_DIR)
     print("Termux detected:    ", "yes" if is_termux() else "no")
+    print("Zsh prompt name:    ", get_prompt_name() or "(default)")
+    print("Powerlevel10k:      ", "configured" if powerlevel10k_enabled() and powerlevel10k_config_exists() else "setup pending")
+    print("Global bash.bashrc: ", GLOBAL_BASHRC)
     print("Managed paths:      ", len(state.get("managed_paths", [])))
     if state.get("install_backup"):
         print("Install backup:     ", state["install_backup"])
@@ -1250,6 +2102,8 @@ def menu() -> None:
         print("5) Restore settings + remove setup-managed files")
         print("6) Remove setup-managed files only")
         print("7) Info")
+        print("8) Set / change Zsh prompt name")
+        print("9) Configure / reconfigure Powerlevel10k")
         print("0) Exit")
         choice = input(c("\nChoose a number: ", C.INFO)).strip()
 
@@ -1268,6 +2122,10 @@ def menu() -> None:
                 uninstall_files_only()
             elif choice == "7":
                 show_info()
+            elif choice == "8":
+                change_prompt_name_interactive()
+            elif choice == "9":
+                configure_powerlevel10k_interactive()
             elif choice == "0":
                 print(c("Bye!", C.OK))
                 return
@@ -1294,12 +2152,13 @@ def build_parser() -> argparse.ArgumentParser:
     action.add_argument("--restore-latest", action="store_true", help="Restore the newest settings backup")
     action.add_argument("--uninstall-files", action="store_true", help="Remove only files created/managed by this setup")
     action.add_argument("--info", action="store_true", help="Show setup paths and state")
+    action.add_argument("--prompt-name", metavar="NAME", help="Set or change the persistent Zsh prompt name")
+    action.add_argument("--powerlevel10k", action="store_true", help="Configure or reconfigure Powerlevel10k")
 
     parser.add_argument("-y", "--yes", action="store_true", help="Assume yes for confirmation prompts")
     parser.add_argument("--non-interactive", action="store_true", help="Do not prompt for input")
-    parser.add_argument("--skip-optional", action="store_true", help="Skip optional Termux packages")
     parser.add_argument("--no-upgrade", action="store_true", help="Do not run pkg upgrade")
-    parser.add_argument("--skip-zsh", action="store_true", help="Do not install/configure Oh My Zsh or plugins")
+    parser.add_argument("--skip-zsh", action="store_true", help="Do not replace the shell environment or install/configure Zsh")
     parser.add_argument("--skip-ui", action="store_true", help="Do not change Termux keys/colors/font")
     parser.add_argument("--skip-nvchad", action="store_true", help="Do not install NvChad")
     return parser
@@ -1314,16 +2173,15 @@ def main() -> None:
 
     if args.install:
         install_setup(
-            include_optional=not args.skip_optional,
             upgrade=not args.no_upgrade,
             configure_zsh=not args.skip_zsh,
             configure_ui=not args.skip_ui,
             install_nvim=not args.skip_nvchad,
         )
     elif args.update:
-        run_update(include_optional=not args.skip_optional, upgrade=not args.no_upgrade)
+        run_update(upgrade=not args.no_upgrade, configure_zsh=not args.skip_zsh, configure_ui=not args.skip_ui, update_nvim=not args.skip_nvchad)
     elif args.repair:
-        repair_setup(include_optional=not args.skip_optional)
+        repair_setup(configure_zsh=not args.skip_zsh, configure_ui=not args.skip_ui, install_nvim=not args.skip_nvchad)
     elif args.backup:
         backup_only()
     elif args.restore_latest:
@@ -1332,6 +2190,13 @@ def main() -> None:
         uninstall_files_only()
     elif args.info:
         show_info()
+    elif args.prompt_name is not None:
+        SUMMARY.clear()
+        if require_termux():
+            make_backup()
+            set_prompt_name(args.prompt_name, activate=True)
+    elif args.powerlevel10k:
+        configure_powerlevel10k_interactive()
     else:
         menu()
 

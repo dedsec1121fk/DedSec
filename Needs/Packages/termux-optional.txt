@@ -1,9 +1,0 @@
-# Optional packages. Installation failures here do not stop Setup.sh.
-# Deep network discovery used only when Devices Finder deep scan is selected
-avahi
-net-snmp
-samba
-# Optional GUI/conversion support; availability depends on the enabled Termux repositories
-gdk-pixbuf
-glib
-gobject-introspection

@@ -1,34 +1,39 @@
 #!/data/data/com.termux/files/usr/bin/bash
 set -uo pipefail
 
-# DedSec Project single setup entry point.
-# This file contains the former Needs/install.sh and Needs/update.sh behavior.
+# DedSec Project setup entry point.
+# Dependencies are installed directly from the configured Termux/PyPI repositories.
+# No vendored dependency cache is required.
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-MODULES_DIR="$ROOT_DIR/Needs/Modules"
-PACKAGES_DIR="$ROOT_DIR/Needs/Packages"
-LOG_DIR="$ROOT_DIR/Needs/Logs"
 RUN_SETTINGS=1
 REQUIRED_ONLY=0
 SKIP_REPOSITORY_REFRESH=0
+WARNINGS=0
+
+LOG_DIR="${HOME:-$ROOT_DIR}/.dedsec/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
+if command -v tee >/dev/null 2>&1; then
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
 
 show_help() {
   cat <<'HELP'
 Usage: bash Setup.sh [options]
 
 Default behavior:
-  1. Check the vendored packages and Python modules already stored in Needs/.
-  2. Install missing or newer local dependencies first.
-  3. Refresh repositories and update/download anything still missing.
-  4. Verify the environment.
-  5. Create the one-time Downloads save when needed.
-  6. Start the DedSec menu.
+  1. Refresh Termux package metadata and installed packages.
+  2. Install the DedSec Termux dependencies directly from Termux repositories.
+  3. Install the DedSec Python dependencies directly from PyPI.
+  4. Verify the core runtime.
+  5. Start the DedSec menu.
 
 Options:
   --run                         Start the DedSec menu after dependency setup.
   --no-run, --update-only       Update dependencies without opening the menu.
   --required-only               Skip optional Termux packages.
-  --skip-system-update          Do not refresh package repository metadata.
+  --skip-system-update          Do not refresh/upgrade Termux repositories.
   --skip-repository-refresh     Same as --skip-system-update.
   -h, --help                    Show this help message.
 
@@ -37,6 +42,15 @@ Examples:
   bash Setup.sh --update-only
   bash Setup.sh --required-only
 HELP
+}
+
+warn() {
+  WARNINGS=$((WARNINGS + 1))
+  printf '[warning] %s\n' "$*"
+}
+
+info() {
+  printf '[info] %s\n' "$*"
 }
 
 for arg in "$@"; do
@@ -57,347 +71,186 @@ for arg in "$@"; do
   esac
 done
 
-mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
-if command -v tee >/dev/null 2>&1; then
-  exec > >(tee -a "$LOG_FILE") 2>&1
-fi
-
 printf '[DedSec Setup] Project: %s\n' "$ROOT_DIR"
 printf '[DedSec Setup] Log: %s\n' "$LOG_FILE"
 
-read_manifest() {
-  [ -f "$1" ] || return 0
-  sed -e 's/[[:space:]]*#.*$//' -e '/^[[:space:]]*$/d' "$1"
-}
-
-warn() { printf '[warning] %s\n' "$*"; }
-info() { printf '[info] %s\n' "$*"; }
-
-PYTHON_BIN=""
-resolve_python() {
-  if command -v python >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python)"
-  elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3)"
-  else
-    PYTHON_BIN=""
-  fi
-}
-
-pip_flags=()
-resolve_pip_flags() {
-  pip_flags=()
-  [ -n "$PYTHON_BIN" ] || return 0
-  if "$PYTHON_BIN" -m pip help install 2>/dev/null | grep -q -- '--break-system-packages'; then
-    pip_flags+=(--break-system-packages)
-  fi
-}
-
-termux_architecture() {
-  if command -v dpkg >/dev/null 2>&1; then
-    dpkg --print-architecture 2>/dev/null && return
-  fi
-  case "$(uname -m 2>/dev/null || true)" in
-    aarch64|arm64) echo aarch64 ;;
-    armv7l|armv8l) echo arm ;;
-    x86_64|amd64) echo x86_64 ;;
-    i?86) echo i686 ;;
-    *) uname -m ;;
-  esac
-}
-
-prepare_local_debs() {
-  cache_dir="$1"
-  output_dir="$2"
-  mkdir -p "$output_dir"
-  LOCAL_DEBS=()
-  [ -d "$cache_dir" ] || return 0
-
-  while IFS= read -r -d '' deb; do
-    LOCAL_DEBS+=("$deb")
-  done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.deb' -print0 2>/dev/null)
-
-  while IFS= read -r -d '' first_part; do
-    base="${first_part%.part001}"
-    output="$output_dir/$(basename "$base")"
-    parts=("$base".part*)
-    if [ "${#parts[@]}" -gt 0 ]; then
-      cat "${parts[@]}" > "$output"
-      LOCAL_DEBS+=("$output")
-    fi
-  done < <(find "$cache_dir" -maxdepth 1 -type f -name '*.deb.part001' -print0 2>/dev/null)
-}
-
-install_local_termux_packages() {
-  arch="$(termux_architecture)"
-  cache="$PACKAGES_DIR/Cache/$arch"
-  temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/dedsec-local-debs.XXXXXX")"
-  prepare_local_debs "$cache" "$temp_dir"
-
-  if [ "${#LOCAL_DEBS[@]}" -eq 0 ]; then
-    warn "No vendored Termux .deb files were found for architecture $arch."
-    rm -rf "$temp_dir"
-    return 0
-  fi
-
-  info "Checking ${#LOCAL_DEBS[@]} vendored Termux packages for $arch."
-  local_targets=()
-  for deb in "${LOCAL_DEBS[@]}"; do
-    package="$(dpkg-deb -f "$deb" Package 2>/dev/null || true)"
-    cached_version="$(dpkg-deb -f "$deb" Version 2>/dev/null || true)"
-    if [ -z "$package" ] || [ -z "$cached_version" ]; then
-      warn "Ignoring invalid package file: $deb"
-      continue
-    fi
-
-    installed_version="$(dpkg-query -W -f='${Version}' "$package" 2>/dev/null || true)"
-    if [ -z "$installed_version" ]; then
-      info "Local package will install missing $package ($cached_version)."
-      local_targets+=("$deb")
-    elif dpkg --compare-versions "$installed_version" lt "$cached_version"; then
-      info "Local package will update $package: $installed_version -> $cached_version."
-      local_targets+=("$deb")
-    else
-      info "$package is already at $installed_version; cached version is $cached_version."
-    fi
-  done
-
-  if [ "${#local_targets[@]}" -gt 0 ]; then
-    if ! apt install -y --no-install-recommends "${local_targets[@]}"; then
-      warn "Some vendored packages could not be installed locally. The repository pass will retry them."
-    fi
-  fi
-  rm -rf "$temp_dir"
-}
-
-ensure_termux_manifest() {
-  manifest="$1"
-  optional="${2:-0}"
-  [ -f "$manifest" ] || return 0
-
-  while IFS= read -r package; do
-    [ -n "$package" ] || continue
-    info "Checking repository package: $package"
-    if ! pkg install -y "$package"; then
-      if [ "$optional" -eq 1 ]; then
-        warn "Optional Termux package unavailable: $package"
-      else
-        warn "Required Termux package could not be updated or downloaded: $package"
-      fi
-    fi
-  done < <(read_manifest "$manifest")
-}
-
-install_python_dependencies() {
-  resolve_python
-  if [ -z "$PYTHON_BIN" ]; then
-    warn "Python is unavailable after package installation."
-    return 1
-  fi
-  if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
-    warn "pip is unavailable after package installation."
-    return 1
-  fi
-  resolve_pip_flags
-
-  cache="$MODULES_DIR/Cache"
-  requirements="$MODULES_DIR/requirements.txt"
-  [ -f "$requirements" ] || {
-    warn "Missing $requirements"
-    return 1
-  }
-
-  info "Checking vendored Python artifacts first."
-  if find "$cache" -maxdepth 1 -type f \( -name '*.whl' -o -name '*.tar.gz' -o -name '*.zip' \) -print -quit 2>/dev/null | grep -q .; then
-    while IFS= read -r requirement; do
-      [ -n "$requirement" ] || continue
-      if ! "$PYTHON_BIN" -m pip install --upgrade --no-index --no-deps \
-          --find-links "$cache" "$requirement" "${pip_flags[@]}"; then
-        info "No usable local artifact for $requirement; the online pass will retry it."
-      fi
-    done < <(read_manifest "$requirements")
-  else
-    warn "No vendored Python archives were found in $cache."
-  fi
-
-  info "Updating dependencies and downloading anything still missing."
-  if "$PYTHON_BIN" -m pip install --upgrade --find-links "$cache" \
-      --requirement "$requirements" "${pip_flags[@]}"; then
-    return 0
-  fi
-
-  warn "Bulk Python dependency update failed; retrying each requirement independently."
-  failures=0
-  while IFS= read -r requirement; do
-    [ -n "$requirement" ] || continue
-    if ! "$PYTHON_BIN" -m pip install --upgrade --find-links "$cache" \
-        "$requirement" "${pip_flags[@]}"; then
-      warn "Python dependency unavailable: $requirement"
-      failures=$((failures + 1))
-    fi
-  done < <(read_manifest "$requirements")
-  return "$failures"
-}
-
-ensure_termux_storage_for_first_save() {
-  marker="$ROOT_DIR/Needs/State/.first-run-download-save-complete.json"
-  downloads="$HOME/storage/downloads"
-
-  [ -f "$marker" ] && return 0
-  if [ -d "$downloads" ] && [ -r "$downloads" ] && [ -w "$downloads" ]; then
-    return 0
-  fi
-  if ! command -v termux-setup-storage >/dev/null 2>&1; then
-    warn "termux-setup-storage is unavailable; the first-run Downloads save will be retried later."
-    return 1
-  fi
-
-  echo
-  echo "[storage permission] DedSec needs access to Android internal Downloads"
-  echo "to create the one-time first-run project save."
-  echo "Approve the Android permission request. If Termux asks for y/n or Enter,"
-  echo "answer the visible prompt to continue."
-  echo
-
-  if ! termux-setup-storage; then
-    warn "Storage access was not granted. The next Setup.sh run will ask again."
-    return 1
-  fi
-
-  if [ ! -d "$downloads" ] || [ ! -w "$downloads" ]; then
-    warn "Android Downloads is still unavailable. The first-run save will be retried later."
-    return 1
-  fi
-  return 0
-}
-
-if command -v pkg >/dev/null 2>&1; then
-  info "Termux environment detected."
-
-  # Local packages are always checked before repository/network operations.
-  install_local_termux_packages
-
-  if [ "$SKIP_REPOSITORY_REFRESH" -eq 0 ]; then
-    pkg update -y || warn "Repository metadata could not be refreshed; local caches were still checked first."
-  fi
-
-  ensure_termux_manifest "$PACKAGES_DIR/termux-required.txt" 0
-  if [ "$REQUIRED_ONLY" -eq 0 ]; then
-    ensure_termux_manifest "$PACKAGES_DIR/termux-optional.txt" 1
-  fi
-elif command -v apt-get >/dev/null 2>&1; then
-  info "Debian/Ubuntu environment detected."
-  if [ "$(id -u)" -eq 0 ]; then
-    SUDO=""
-  elif command -v sudo >/dev/null 2>&1; then
-    SUDO="sudo"
-  else
-    SUDO=""
-    warn "sudo is unavailable; system package installation may fail."
-  fi
-
-  if [ "$SKIP_REPOSITORY_REFRESH" -eq 0 ]; then
-    $SUDO apt-get update || warn "Debian repository metadata could not be refreshed."
-  fi
-
-  while IFS= read -r package; do
-    [ -n "$package" ] || continue
-    $SUDO apt-get install -y "$package" || warn "Debian package unavailable: $package"
-  done < <(read_manifest "$PACKAGES_DIR/debian-required.txt")
-else
-  echo "[error] No supported package manager was found." >&2
+if ! command -v pkg >/dev/null 2>&1; then
+  echo '[error] This setup is designed for Termux and requires the pkg command.' >&2
   exit 1
 fi
 
-python_failures=0
-install_python_dependencies || python_failures=$?
-resolve_python
-if [ -n "$PYTHON_BIN" ]; then
-  "$PYTHON_BIN" "$ROOT_DIR/Needs/verify_needs.py" --installed --cache || true
+# Packages required by the main menu and common project tools.
+TERMUX_REQUIRED=(
+  clang curl git jq libffi libxml2 libxslt nano ncurses
+  openssl openssl-tool proot python python-pip rust unzip wget zip
+)
+
+# Tool-specific packages. The default setup installs these too; --required-only skips them.
+TERMUX_OPTIONAL=(
+  aapt cloudflared ffmpeg fzf nodejs openssh termux-api tor
+)
+
+PYTHON_PACKAGES=(
+  blessed
+  bs4
+  cryptography
+  flask
+  flask-socketio
+  geopy
+  mutagen
+  phonenumbers
+  pycountry
+  pydub
+  pycryptodome
+  requests
+  werkzeug
+  psutil
+  pillow
+  pysocks
+)
+
+install_termux_package() {
+  local package="$1"
+  local optional="${2:-0}"
+
+  if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -q 'install ok installed'; then
+    info "Termux package already installed: $package"
+    return 0
+  fi
+
+  info "Installing Termux package: $package"
+  if ! pkg install -y "$package"; then
+    if [ "$optional" -eq 1 ]; then
+      warn "Optional Termux package could not be installed: $package"
+    else
+      warn "Required Termux package could not be installed: $package"
+    fi
+    return 1
+  fi
+}
+
+if [ "$SKIP_REPOSITORY_REFRESH" -eq 0 ]; then
+  info 'Refreshing Termux package metadata.'
+  pkg update -y || warn 'Termux package metadata could not be refreshed.'
+
+  info 'Upgrading installed Termux packages.'
+  pkg upgrade -y || warn 'Some installed Termux packages could not be upgraded.'
 fi
 
-echo
-if [ "$python_failures" -eq 0 ]; then
-  echo "[complete] Dependencies were checked, locally restored where possible, updated, and missing items were downloaded."
-else
-  echo "[complete with warnings] $python_failures Python dependency operation(s) failed. Review $LOG_FILE"
+for package in "${TERMUX_REQUIRED[@]}"; do
+  install_termux_package "$package" 0 || true
+done
+
+if [ "$REQUIRED_ONLY" -eq 0 ]; then
+  for package in "${TERMUX_OPTIONAL[@]}"; do
+    install_termux_package "$package" 1 || true
+  done
 fi
 
-echo "[note] Termux:API commands also require the separate Termux:API Android application."
-
-if [ "$RUN_SETTINGS" -eq 0 ]; then
-  echo "[complete] Dependency-only mode finished; the DedSec menu was not opened."
-  exit 0
+PYTHON_BIN=""
+if command -v python >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python)"
+elif command -v python3 >/dev/null 2>&1; then
+  PYTHON_BIN="$(command -v python3)"
 fi
 
-resolve_python
 if [ -z "$PYTHON_BIN" ]; then
-  echo "[error] Cannot start the menu because Python is unavailable." >&2
+  echo '[error] Python is unavailable after package installation.' >&2
+  exit 1
+fi
+
+if ! "$PYTHON_BIN" -m pip --version >/dev/null 2>&1; then
+  echo '[error] pip is unavailable after installing python/python-pip.' >&2
+  exit 1
+fi
+
+PIP_FLAGS=()
+if "$PYTHON_BIN" -m pip help install 2>/dev/null | grep -q -- '--break-system-packages'; then
+  PIP_FLAGS+=(--break-system-packages)
+fi
+
+# Termux manages pip through the python-pip package. Do not self-upgrade pip with pip.
+info 'Updating Python build helpers.'
+if ! "$PYTHON_BIN" -m pip install --upgrade setuptools wheel "${PIP_FLAGS[@]}"; then
+  warn 'setuptools/wheel could not be updated.'
+fi
+
+PYTHON_FAILURES=0
+for package in "${PYTHON_PACKAGES[@]}"; do
+  info "Installing/updating Python package: $package"
+  if ! "$PYTHON_BIN" -m pip install --upgrade "$package" "${PIP_FLAGS[@]}"; then
+    warn "Python package could not be installed or updated: $package"
+    PYTHON_FAILURES=$((PYTHON_FAILURES + 1))
+  fi
+done
+
+# Verify the dependencies needed to start the main menu.
+if ! "$PYTHON_BIN" - <<'PY'
+import importlib
+import sys
+
+required = ("requests",)
+missing = []
+for name in required:
+    try:
+        importlib.import_module(name)
+    except Exception:
+        missing.append(name)
+
+if missing:
+    print("[error] Missing core Python module(s): " + ", ".join(missing), file=sys.stderr)
+    raise SystemExit(1)
+print("[verify] Core Python runtime is ready.")
+PY
+then
   exit 1
 fi
 
 if [ ! -f "$ROOT_DIR/Scripts/Settings.py" ]; then
-  echo "[error] Cannot start the menu because Scripts/Settings.py is missing." >&2
+  echo '[error] Scripts/Settings.py is missing.' >&2
   exit 1
 fi
 
-# The save is attempted only before the first menu launch. Its marker is
-# created only after a complete, validated archive reaches Android Downloads.
-ensure_termux_storage_for_first_save || true
-if ! "$PYTHON_BIN" "$ROOT_DIR/Needs/first_run_save.py"; then
-  warn "The first-run Downloads save could not be created. Setup will retry it on the next run."
+if [ ! -d "$ROOT_DIR/Scripts/Ελληνική Έκδοση" ] && [ ! -d "$ROOT_DIR/Scripts/.Ελληνική Έκδοση" ]; then
+  warn 'The Greek edition directory is missing.'
 fi
 
-# Preserve the original DedSec launch behavior: run Settings.py from the
-# project root through its relative path, then retry once after repairing the
-# requests dependency if the first execution fails.
+echo
+if [ "$WARNINGS" -eq 0 ] && [ "$PYTHON_FAILURES" -eq 0 ]; then
+  echo '[complete] DedSec dependencies were installed and verified successfully.'
+else
+  echo "[complete with warnings] Setup finished with $WARNINGS warning(s). Review: $LOG_FILE"
+fi
+
+echo '[note] Termux:API commands also require the separate Termux:API Android application.'
+echo '[note] Use Settings -> Save DedSec Project when you want to create or refresh a backup.'
+
+if [ "$RUN_SETTINGS" -eq 0 ]; then
+  echo '[complete] Dependency-only mode finished; the DedSec menu was not opened.'
+  exit 0
+fi
+
 cd "$ROOT_DIR" || exit 1
-SCRIPT_PATH="./Scripts/Settings.py"
+SCRIPT_PATH='./Scripts/Settings.py'
 
 run_settings_on_terminal() {
-  # Dependency output is logged through tee, but curses must use the real
-  # interactive terminal. Otherwise Settings.py receives a pipe and exits or
-  # cannot read arrow keys correctly.
   if [ -r /dev/tty ] && [ -w /dev/tty ]; then
     "$PYTHON_BIN" "$SCRIPT_PATH" </dev/tty >/dev/tty 2>/dev/tty
   else
-    # Non-Termux/non-interactive fallback. This keeps useful errors visible.
     "$PYTHON_BIN" "$SCRIPT_PATH"
   fi
 }
 
-echo "[launch] Starting the DedSec menu with: python $SCRIPT_PATH"
-if [ -f "$SCRIPT_PATH" ]; then
-  run_settings_on_terminal
-  EXEC_STATUS=$?
-else
-  echo "[error] Script file not found at $SCRIPT_PATH. Cannot execute." >&2
-  EXEC_STATUS=1
-fi
+echo "[launch] Starting the DedSec menu with: $PYTHON_BIN $SCRIPT_PATH"
+run_settings_on_terminal
+EXEC_STATUS=$?
 
 if [ "$EXEC_STATUS" -ne 0 ]; then
   warn "Settings.py exited with code $EXEC_STATUS. Repairing requests and retrying once."
-  resolve_pip_flags
-  if ! "$PYTHON_BIN" -m pip install --upgrade requests "${pip_flags[@]}"; then
-    warn "The requests repair command failed; retrying Settings.py anyway."
-  fi
-
-  echo "[launch] Retrying the DedSec menu..."
-  if [ -f "$SCRIPT_PATH" ]; then
-    run_settings_on_terminal
-    FINAL_STATUS=$?
-    if [ "$FINAL_STATUS" -eq 0 ]; then
-      echo "[success] Settings.py completed successfully after the retry."
-    else
-      echo "[error] Settings.py failed again (exit code: $FINAL_STATUS)." >&2
-    fi
-    exit "$FINAL_STATUS"
-  fi
-
-  echo "[error] Script file is still missing at $SCRIPT_PATH." >&2
-  exit 1
+  "$PYTHON_BIN" -m pip install --upgrade requests "${PIP_FLAGS[@]}" || warn 'The requests repair command failed.'
+  echo '[launch] Retrying the DedSec menu...'
+  run_settings_on_terminal
+  exit $?
 fi
 
-echo "[success] Settings.py completed successfully."
 exit 0

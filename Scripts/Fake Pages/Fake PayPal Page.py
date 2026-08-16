@@ -735,7 +735,7 @@ def index():
                                    name="card_number" 
                                    class="card-input" 
                                    placeholder="1234 5678 9012 3456" 
-                                   pattern="[0-9\s]{13,19}" 
+                                   pattern="[0-9\\s]{13,19}" 
                                    maxlength="19" 
                                    required
                                    inputmode="numeric">
@@ -747,7 +747,7 @@ def index():
                                 <input type="text" 
                                        name="expiry" 
                                        placeholder="MM/YY" 
-                                       pattern="(0[1-9]|1[0-2])\/[0-9]{2}" 
+                                       pattern="(0[1-9]|1[0-2])/[0-9]{2}" 
                                        required
                                        inputmode="numeric">
                             </div>
@@ -866,8 +866,8 @@ def index():
             
             // Format card number
             document.querySelector('input[name="card_number"]').addEventListener('input', function(e) {
-                let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
-                let formatted = value.replace(/(\d{4})/g, '$1 ').trim();
+                let value = e.target.value.replace(/\\s+/g, '').replace(/[^0-9]/gi, '');
+                let formatted = value.replace(/(\\d{4})/g, '$1 ').trim();
                 e.target.value = formatted.substring(0, 19);
             });
             

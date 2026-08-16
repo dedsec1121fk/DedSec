@@ -294,15 +294,15 @@ After installation, the most important settings are:
 1. choose your preferred language
 2. choose your menu style
 3. customize the prompt if you want
-4. confirm that the automatic one-time `DedSec Project.zip` save completed, then use **Save DedSec Project** later only when you want the broader manual backup
+4. run **Save DedSec Project** on your first run, then use it again whenever you want to refresh your backup
 5. connect GitHub only if you want GitHub stats, prompt syncing, or Sponsors-Only access
 6. enable or disable menu auto-start depending on how you use Termux
 7. use **Update Packages & Modules** when dependencies need refreshing
 8. use **VPN & Tor Utilities** only when you want those optional network controls
 
-### Automatic and Manual Save Reminder
+### Save Reminder
 
-`Setup.sh` automatically creates the one-time project-only `DedSec Project.zip` before the first menu launch. The separate **Save DedSec Project** menu option remains available for the broader manual backup and can be run again whenever you want to refresh it. A manual save may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
+`Setup.sh` installs and verifies the project dependencies but does not create a backup automatically. Use **Save DedSec Project** from Settings on your first run and whenever you want to refresh the backup in your phone Downloads folder. A save may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 
 </details>
 
@@ -2056,15 +2056,15 @@ bash Setup.sh
 1. διάλεξε την προτιμώμενη γλώσσα
 2. διάλεξε menu style
 3. άλλαξε το prompt αν θέλεις
-4. επιβεβαίωσε ότι ολοκληρώθηκε το αυτόματο one-time `DedSec Project.zip` save και χρησιμοποίησε αργότερα το **Save DedSec Project** μόνο όταν θέλεις το ευρύτερο manual backup
+4. τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα και χρησιμοποίησέ το ξανά όποτε θέλεις να ανανεώσεις το backup σου
 5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats, prompt syncing ή Sponsors-Only access
 6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux
 7. χρησιμοποίησε το **Update Packages & Modules** όταν χρειάζεται ανανέωση dependencies
 8. χρησιμοποίησε το **VPN & Tor Utilities** μόνο όταν θέλεις αυτά τα προαιρετικά network controls
 
-### Υπενθύμιση Αυτόματου και Manual Save
+### Υπενθύμιση Αποθήκευσης
 
-Το `Setup.sh` δημιουργεί αυτόματα το one-time project-only `DedSec Project.zip` πριν από το πρώτο άνοιγμα του menu. Η ξεχωριστή επιλογή **Save DedSec Project** παραμένει διαθέσιμη για το ευρύτερο manual backup και μπορείς να την τρέχεις ξανά όταν θέλεις να το ανανεώσεις. Ένα manual save μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
+Το `Setup.sh` εγκαθιστά και ελέγχει τα dependencies του project, αλλά δεν δημιουργεί backup αυτόματα. Χρησιμοποίησε το **Save DedSec Project** από τα Settings στο πρώτο σου άνοιγμα και ξανά όποτε θέλεις να ανανεώσεις το backup στα Downloads του κινητού σου. Η αποθήκευση μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί.
 
 </details>
 

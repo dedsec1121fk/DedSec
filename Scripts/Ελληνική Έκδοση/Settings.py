@@ -3404,7 +3404,7 @@ def update_packages_modules():
     
     # 2. Termux Packages (Exact list from Setup.sh including tor)
     # Added 'tor' to the end of the list
-    core_packages = "aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor"
+    core_packages = "aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python python-pip rust termux-api unzip wget zip tor"
     
     # Installing in one go using pkg
     # Note: '|| true' is handled by python logic if needed, but here we just run the command
@@ -3413,13 +3413,13 @@ def update_packages_modules():
     print(f"[+] {_('Installing Python packages and modules...')} ")
     
     # 3. Pip Upgrade (Explicitly upgrading pip, setuptools, wheel first)
-    run_command("pip install --upgrade pip setuptools wheel --break-system-packages")
+    run_command("python -m pip install --upgrade setuptools wheel --break-system-packages")
     
     # 4. Python Dependencies (Exact list from Setup.sh including psutil)
     # Added 'psutil' to the list
     python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks"
     
-    run_command(f"pip install {python_packages} --break-system-packages")
+    run_command(f"python -m pip install --upgrade {python_packages} --break-system-packages")
     
     print(f"[+] {_('Packages and Modules update process completed successfully!')}")
     try:
@@ -4104,7 +4104,7 @@ def run_settings_action(action, payload):
         return launch_job(label='Settings: Update Project [Source 2]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_packages':
         refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
-        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python rust termux-api unzip wget zip tor && pip install --upgrade pip setuptools wheel --break-system-packages && pip install blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
+        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python python-pip rust termux-api unzip wget zip tor && python -m pip install --upgrade setuptools wheel --break-system-packages && python -m pip install --upgrade blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=HOME_DIR, kind='settings-packages', prefer_termux=False)
     if action == 'access_sponsors':
         tier = str(payload.get('tier') or '3').replace('$', '').strip()
@@ -13064,7 +13064,7 @@ DEDGUY_OFFLINE_ASSISTANCE_GUIDES = [{'key': 'module_missing',
   'checks_el': ['Χρησιμοποίησε python -m pip αντί για ξεχωριστή εντολή pip.',
                 'Διάβασε το πρώτο build error και όχι μόνο την τελευταία γραμμή.',
                 'Έλεγξε αν το πακέτο έχει έκδοση συμβατή με Termux.'],
-  'commands': ['python -m pip --version', 'python -m pip install --upgrade pip setuptools wheel', 'python -m pip install PACKAGE_NAME'],
+  'commands': ['python -m pip --version', 'python -m pip install --upgrade setuptools wheel', 'python -m pip install PACKAGE_NAME'],
   'url': 'https://ded-sec.space/Pages/assistance.html'},
  {'key': 'command_not_found',
   'title_en': 'Command not found',
