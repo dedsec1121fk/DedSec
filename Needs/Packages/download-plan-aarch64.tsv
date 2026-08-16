@@ -10,7 +10,7 @@ bzip2	1.0.8-8	main	false	26152	7b904d820c34b6c043067ca3c8cb67465413ea5eae3f529a0
 c-ares	1.34.8	main	false	194924	7681fc23e822d7988ba8b2adf3468f93ae68f724dda365cff1385096a9fa87e6	https://packages.termux.dev/apt/termux-main/pool/main/c/c-ares/c-ares_1.34.8_aarch64.deb
 ca-certificates	1:2026.07.16	main	false	104212	93dc49a8009012c29510081b8f07f30c57af9b10b1dae4f541231d8ee785b37a	https://packages.termux.dev/apt/termux-main/pool/main/c/ca-certificates/ca-certificates_1%3A2026.07.16_all.deb
 clang	21.1.8-3	main	false	30740228	9fb565013b96ce10abd8f8f217aaebb48f72873f53acbf8886329bcea841a21c	https://packages.termux.dev/apt/termux-main/pool/main/c/clang/clang_21.1.8-3_aarch64.deb
-cloudflared	2026.7.3-1	main	false	6486420	08e6f2d12a32937879288b92b1ce1c0e990e1e4068be7d9655eda45aea4791af	https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb
+cloudflared	2026.8.2	main	false	6559100	7ecda51a05326f34a832be6e763eb7c6f71edf4ad49f096b291fa6f8ec5a5377	https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb
 cmake	4.4.2	main	false	10628408	37b47dd69c771d3cab8fb45f6c9505ad8006a9fc05abfdfcd694f163e047ca25	https://packages.termux.dev/apt/termux-main/pool/main/c/cmake/cmake_4.4.2_aarch64.deb
 coreutils	9.11-1	main	false	813864	5fe326e19256ac2f0a2b278e780e26a848746a43ff37105cbdeddd4c527ccf57	https://packages.termux.dev/apt/termux-main/pool/main/c/coreutils/coreutils_9.11-1_aarch64.deb
 curl	8.21.0	main	false	242488	6274522e6f172678ffbb70aa9fc82bb547117f3ba56f337735a44d19aaee9f40	https://packages.termux.dev/apt/termux-main/pool/main/c/curl/curl_8.21.0_aarch64.deb
@@ -31,7 +31,7 @@ fzf	0.74.2	main	false	1424924	8e51b6137c549bab647a854f44be425803929383ba2e39fa7d
 game-music-emu	0.6.5	main	false	127952	ffe1c43919d485409b2459d462b2dc6389492afeea869aef701b391a4ed29c67	https://packages.termux.dev/apt/termux-main/pool/main/g/game-music-emu/game-music-emu_0.6.5_aarch64.deb
 gawk	5.3.2	main	false	872744	4e5c3163cf0e845434f25560db21920bf7970a7d7fb4462bd73360258c879717	https://packages.termux.dev/apt/termux-main/pool/main/g/gawk/gawk_5.3.2_aarch64.deb
 gdbm	1.26-1	main	false	150284	c378de833aae3cf41f3028491ea11836479d9833ab653edc27d0c0e0e691d5c5	https://packages.termux.dev/apt/termux-main/pool/main/g/gdbm/gdbm_1.26-1_aarch64.deb
-gdk-pixbuf	2.44.7	main	false	153324	c799fa9f08c6456d1187a35bab38ab32b8cb20a713b4eef3fbab95b094b0fc55	https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb
+gdk-pixbuf	2.44.8	main	false	153228	213da5186fc4ccca336ee7debf150c01c8de72ecb9575950d58f55e535267795	https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb
 gh	2.97.0	main	false	9723888	dd578457a160dc86dbeb08a106584eb859ff34d9703c36938e20d797e3b74d4a	https://packages.termux.dev/apt/termux-main/pool/main/g/gh/gh_2.97.0_aarch64.deb
 giflib	5.2.2-2	main	false	18220	4d30733db0778db1aa2a24fcc39bb97597795e96e85f0ba1ed166965ad1354dc	https://packages.termux.dev/apt/termux-main/pool/main/g/giflib/giflib_5.2.2-2_aarch64.deb
 git	2.55.0	main	false	4486868	21b16fa06837e5bf94ad257da532c40eb049c120d21f6cb60a6411c0bcee7197	https://packages.termux.dev/apt/termux-main/pool/main/g/git/git_2.55.0_aarch64.deb
@@ -40,7 +40,7 @@ glslang	16.5.0	main	false	2530880	9b1f96bdb0c7679c79d9ae60c1089deb38c0f8731a8023
 gobject-introspection	1.86.0-2	main	true	203612	e94124718af645c3a250fde2924b3b82861b7ce48f873b0a871ced6207434d56	https://packages.termux.dev/apt/termux-main/pool/main/g/gobject-introspection/gobject-introspection_1.86.0-2_aarch64.deb
 grep	3.12-3	main	false	128312	a2819b49c621b61567e39c5c647d5ed6fe9d51eab71ed73eebf18be76719457d	https://packages.termux.dev/apt/termux-main/pool/main/g/grep/grep_3.12-3_aarch64.deb
 gzip	1.14-1	main	false	87548	5af23d04f40ef62401ed4f99dbb2087740e44aa8ae8c9f3c0ac2d56aa6551348	https://packages.termux.dev/apt/termux-main/pool/main/g/gzip/gzip_1.14-1_aarch64.deb
-harfbuzz	14.3.0	main	false	831924	bba2de01bf1ad28ce6c76a3d0bf6e37cff9238fcb4fe8804be184b6699b3d1f0	https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb
+harfbuzz	14.3.1	main	false	834160	13df22fd4248a684da3e55fcbb7dab29d4d5d75c9d99fa7791b6de252b704c80	https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb
 imlib2	1.12.6-1	main	false	511052	98c0896cb34ad75a98af10b9c0e87589743429dd6ae518641f2dc2a547d9df0e	https://packages.termux.dev/apt/termux-main/pool/main/i/imlib2/imlib2_1.12.6-1_aarch64.deb
 inetutils	2.7	main	false	240048	3920d3ceef5e90fb29a43cff19438de7ec0aac9d96355de8ba2a5bc5d3817acb	https://packages.termux.dev/apt/termux-main/pool/main/i/inetutils/inetutils_2.7_aarch64.deb
 jack	0.0.1	main	false	696	b93031465c558a492220f00d6cb0815c02fb647640288c24522283561e8b5b8b	https://packages.termux.dev/apt/termux-main/pool/main/j/jack/jack_0.0.1_all.deb
@@ -118,7 +118,7 @@ libnghttp3	1.18.0	main	false	69668	0be2ee96def3608afaf24eb0b4b55f3484a37c95ea21b
 libngtcp2	1.25.0	main	false	174068	f471bad7f4329b6b0b4aedf124e0a23a35f6ac99bfbae73304136f8bfd570fc3	https://packages.termux.dev/apt/termux-main/pool/main/libn/libngtcp2/libngtcp2_1.25.0_aarch64.deb
 libogg	1.3.6-1	main	false	188636	4f1700a532f251ad3600f44f88cd764f1f6b0542d3343391117944b47a92802d	https://packages.termux.dev/apt/termux-main/pool/main/libo/libogg/libogg_1.3.6-1_aarch64.deb
 libopencore-amr	0.1.6-1	main	false	111688	8ad25c12b892d56e85a21517d814146109fea7865b2548b8637743d7d6e0fee2	https://packages.termux.dev/apt/termux-main/pool/main/libo/libopencore-amr/libopencore-amr_0.1.6-1_aarch64.deb
-libopenmpt	0.8.7	main	false	543344	f2d2ccd6824943c3ae0f7b8885efb059cf39ebce3c10b2998053c51d81b4ed3a	https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb
+libopenmpt	0.8.8	main	false	543808	990b79aed9aef7b66c804036048a2059a2b5ef9239b201cc9a470b19add60923	https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb
 libopus	1.6.1	main	false	191480	005a9335ce0ec0f510bbe6e0229c901d6f920cc375fcda56461e96cef70f8ff0	https://packages.termux.dev/apt/termux-main/pool/main/libo/libopus/libopus_1.6.1_aarch64.deb
 libpcap	1.10.5-1	main	false	228384	3cc510e9f6ed2ef5e6537c59d1bd5f752d591664a7999d4325037a6f5eb924eb	https://packages.termux.dev/apt/termux-main/pool/main/libp/libpcap/libpcap_1.10.5-1_aarch64.deb
 libpixman	0.46.4-1	main	false	157712	364b8c82ff68f8513930e5d413459fb7c52eccc7ba75a97a8c5a38760eee8d33	https://packages.termux.dev/apt/termux-main/pool/main/libp/libpixman/libpixman_0.46.4-1_aarch64.deb
@@ -188,7 +188,7 @@ ncurses-utils	6.6.20260307+really6.5.20250830	main	false	89000	6fc33807c23594a2c
 ndk-sysroot	29-2	main	false	1952312	5c03602bc51e8630818e6b75a5fed4c0546198d5e268642fde3732412915a250	https://packages.termux.dev/apt/termux-main/pool/main/n/ndk-sysroot/ndk-sysroot_29-2_aarch64.deb
 net-snmp	5.9.5.2	main	true	1383276	5e15ee8d9d47a5b17341b11be7f48c0a03111b13e0e4570e3f61624a741a2b04	https://packages.termux.dev/apt/termux-main/pool/main/n/net-snmp/net-snmp_5.9.5.2_aarch64.deb
 nmap	7.991	main	false	5152960	648203f6028bd8881755ada61982e4211886450e53bd8c46922e3e0ac3fa764c	https://packages.termux.dev/apt/termux-main/pool/main/n/nmap/nmap_7.991_aarch64.deb
-nodejs	26.4.0	main	false	10343796	f2b8530d6d7ae72ee560d2791686f1849df9644396d56da915b31cd42c50a62d	https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb
+nodejs	26.4.0-1	main	false	10349280	eaf3ed8a6e4b72ebaa8c2cb3bad778c577cdf9ea87ca91761213d8a3940fc090	https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb
 ocl-icd	2.3.5	main	false	104028	2d76ddf09069ad599a4d5b2aee374c58411e1a3b0618b1ca5412467c9fd7b26a	https://packages.termux.dev/apt/termux-main/pool/main/o/ocl-icd/ocl-icd_2.3.5_aarch64.deb
 oniguruma	6.9.10-1	main	false	136460	93675574c560cd2f75b32f0bd2fdaa693419dd6ac0e6c71c26ce5fd928cae1c5	https://packages.termux.dev/apt/termux-main/pool/main/o/oniguruma/oniguruma_6.9.10-1_aarch64.deb
 openal-soft	1.25.2-1	main	false	666324	d9fa999d37d83ca014ecabaed114ac9bf1fc42cecff859943d85a4de7c7d7afd	https://packages.termux.dev/apt/termux-main/pool/main/o/openal-soft/openal-soft_1.25.2-1_aarch64.deb
@@ -204,7 +204,7 @@ pcaudiolib	1.3-1	main	false	4332	bc094b98ec986891c718bdb81bf7d72d7d26d4df979b8dc
 pcre2	10.47	main	false	961200	51f915d22de639bfca6ec029ae613987bbe3bc73626eede13319fd2e95f50b63	https://packages.termux.dev/apt/termux-main/pool/main/p/pcre2/pcre2_10.47_aarch64.deb
 pkg-config	0.29.2-3	main	false	32776	fd6bf82d17dc811488c114a016181801b336f0be4fd2f22f9677ed9aefed42d2	https://packages.termux.dev/apt/termux-main/pool/main/p/pkg-config/pkg-config_0.29.2-3_aarch64.deb
 procps	3.3.17-6	main	false	142848	a55809b0bf5de6c3462fdff18325ebcf27bce79e6cb49cd5b7ba52a8ff45af11	https://packages.termux.dev/apt/termux-main/pool/main/p/procps/procps_3.3.17-6_aarch64.deb
-proot	5.1.107.89	main	false	95784	ec9fe38c50cfd49dd31fe360ffbcc3124a945dc1ea16293a8a769303dd724f46	https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb
+proot	5.1.107.91	main	false	96584	1ad09f7ddf65f297a7b59a398cd1f23a48748b1144b225f0c1e2d9f447ef3efc	https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb
 psmisc	23.7-1	main	false	41188	99d0db5ba934e7fa38e33bebbda82c78be59b90e4ba85a74a6dabc3d5b5939b0	https://packages.termux.dev/apt/termux-main/pool/main/p/psmisc/psmisc_23.7-1_aarch64.deb
 pulseaudio	17.0-4	main	false	848412	b119f3a5beb33273a6457e648a2ea501d6a507be8e99501737897c3ea07854cd	https://packages.termux.dev/apt/termux-main/pool/main/p/pulseaudio/pulseaudio_17.0-4_aarch64.deb
 python	3.14.6-1	main	false	4816756	3166e56c2b6c03fff41191fbb9d736302978e7c484702814d9f6dc99dd6006bd	https://packages.termux.dev/apt/termux-main/pool/main/p/python/python_3.14.6-1_aarch64.deb
@@ -235,7 +235,7 @@ unrar	7.2.7	main	false	165460	0b00a35606f438c4e6825719843841d264077b0cdb8a5af37e
 unzip	6.0-10	main	false	117092	9e0b3320ff446d9989c048047a305c679b66f30b6fb4b04225a54821af37345b	https://packages.termux.dev/apt/termux-main/pool/main/u/unzip/unzip_6.0-10_aarch64.deb
 util-linux	2.42.1-4	main	false	787936	d860076365b60b657467b3b393960d070d99d05c5e1c11ce7062612c34571425	https://packages.termux.dev/apt/termux-main/pool/main/u/util-linux/util-linux_2.42.1-4_aarch64.deb
 vulkan-icd	0.1	main	false	720	c9d2a6be2a97b5b014deff5bc620cfff28644cb72491d7f8ea7870ced31c619e	https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-icd/vulkan-icd_0.1_all.deb
-vulkan-loader-generic	1.4.359	main	false	128664	ed6c8fe3cf01e5c1de8bfd8bd1ec73fa38114ba48594660883f9af44d2ca4054	https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb
+vulkan-loader-generic	1.4.360	main	false	152432	d70e6d5a72943ee4d0beb128554c93ae93e3f43f98c54187d7e5483ebfc38c47	https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb
 wget	1.25.0-1	main	false	281248	f2631519e0b9add766a82b6fa9b294476bddb6cad9033c214c7575b5822a8bc4	https://packages.termux.dev/apt/termux-main/pool/main/w/wget/wget_1.25.0-1_aarch64.deb
 whois	5.6.6	main	false	38972	8b5f7161e9779ec18ea6e166eaebd77eea794f56a42f7752819b75068b306172	https://packages.termux.dev/apt/termux-main/pool/main/w/whois/whois_5.6.6_aarch64.deb
 xorg-util-macros	1.20.2	main	false	21948	11765ad1a6f181e36f807464f7b4360593d847dce245202a393eb2ca156520d0	https://packages.termux.dev/apt/termux-main/pool/main/x/xorg-util-macros/xorg-util-macros_1.20.2_all.deb

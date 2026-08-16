@@ -302,28 +302,28 @@
     {
       "package": "cloudflared",
       "optional": false,
-      "version": "2026.7.3-1",
+      "version": "2026.8.2",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb"
       ],
-      "sha256": "08e6f2d12a32937879288b92b1ce1c0e990e1e4068be7d9655eda45aea4791af",
-      "size": 6486420,
-      "filename": "pool/main/c/cloudflared/cloudflared_2026.7.3-1_aarch64.deb",
+      "sha256": "7ecda51a05326f34a832be6e763eb7c6f71edf4ad49f096b291fa6f8ec5a5377",
+      "size": 6559100,
+      "filename": "pool/main/c/cloudflared/cloudflared_2026.8.2_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "",
-      "file": "cloudflared_2026.7.3-1_aarch64.deb",
+      "file": "cloudflared_2026.8.2_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "cloudflared_2026.7.3-1_aarch64.deb": "08e6f2d12a32937879288b92b1ce1c0e990e1e4068be7d9655eda45aea4791af"
+        "cloudflared_2026.8.2_aarch64.deb": "7ecda51a05326f34a832be6e763eb7c6f71edf4ad49f096b291fa6f8ec5a5377"
       }
     },
     {
@@ -869,28 +869,28 @@
     {
       "package": "gdk-pixbuf",
       "optional": false,
-      "version": "2.44.7",
+      "version": "2.44.8",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb"
       ],
-      "sha256": "c799fa9f08c6456d1187a35bab38ab32b8cb20a713b4eef3fbab95b094b0fc55",
-      "size": 153324,
-      "filename": "pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.7_aarch64.deb",
+      "sha256": "213da5186fc4ccca336ee7debf150c01c8de72ecb9575950d58f55e535267795",
+      "size": 153228,
+      "filename": "pool/main/g/gdk-pixbuf/gdk-pixbuf_2.44.8_aarch64.deb",
       "depends": "glib, libpng, libtiff, libjpeg-turbo, zstd",
       "pre_depends": "",
       "provides": "",
-      "file": "gdk-pixbuf_2.44.7_aarch64.deb",
+      "file": "gdk-pixbuf_2.44.8_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "gdk-pixbuf_2.44.7_aarch64.deb": "c799fa9f08c6456d1187a35bab38ab32b8cb20a713b4eef3fbab95b094b0fc55"
+        "gdk-pixbuf_2.44.8_aarch64.deb": "213da5186fc4ccca336ee7debf150c01c8de72ecb9575950d58f55e535267795"
       }
     },
     {
@@ -1112,28 +1112,28 @@
     {
       "package": "harfbuzz",
       "optional": false,
-      "version": "14.3.0",
+      "version": "14.3.1",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb"
       ],
-      "sha256": "bba2de01bf1ad28ce6c76a3d0bf6e37cff9238fcb4fe8804be184b6699b3d1f0",
-      "size": 831924,
-      "filename": "pool/main/h/harfbuzz/harfbuzz_14.3.0_aarch64.deb",
+      "sha256": "13df22fd4248a684da3e55fcbb7dab29d4d5d75c9d99fa7791b6de252b704c80",
+      "size": 834160,
+      "filename": "pool/main/h/harfbuzz/harfbuzz_14.3.1_aarch64.deb",
       "depends": "freetype, glib, libcairo, libgraphite",
       "pre_depends": "",
       "provides": "",
-      "file": "harfbuzz_14.3.0_aarch64.deb",
+      "file": "harfbuzz_14.3.1_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "harfbuzz_14.3.0_aarch64.deb": "bba2de01bf1ad28ce6c76a3d0bf6e37cff9238fcb4fe8804be184b6699b3d1f0"
+        "harfbuzz_14.3.1_aarch64.deb": "13df22fd4248a684da3e55fcbb7dab29d4d5d75c9d99fa7791b6de252b704c80"
       }
     },
     {
@@ -3218,28 +3218,28 @@
     {
       "package": "libopenmpt",
       "optional": false,
-      "version": "0.8.7",
+      "version": "0.8.8",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb"
       ],
-      "sha256": "f2d2ccd6824943c3ae0f7b8885efb059cf39ebce3c10b2998053c51d81b4ed3a",
-      "size": 543344,
-      "filename": "pool/main/libo/libopenmpt/libopenmpt_0.8.7_aarch64.deb",
+      "sha256": "990b79aed9aef7b66c804036048a2059a2b5ef9239b201cc9a470b19add60923",
+      "size": 543808,
+      "filename": "pool/main/libo/libopenmpt/libopenmpt_0.8.8_aarch64.deb",
       "depends": "libc++, libvorbis, libmpg123, zlib",
       "pre_depends": "",
       "provides": "",
-      "file": "libopenmpt_0.8.7_aarch64.deb",
+      "file": "libopenmpt_0.8.8_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "libopenmpt_0.8.7_aarch64.deb": "f2d2ccd6824943c3ae0f7b8885efb059cf39ebce3c10b2998053c51d81b4ed3a"
+        "libopenmpt_0.8.8_aarch64.deb": "990b79aed9aef7b66c804036048a2059a2b5ef9239b201cc9a470b19add60923"
       }
     },
     {
@@ -5108,28 +5108,28 @@
     {
       "package": "nodejs",
       "optional": false,
-      "version": "26.4.0",
+      "version": "26.4.0-1",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb"
       ],
-      "sha256": "f2b8530d6d7ae72ee560d2791686f1849df9644396d56da915b31cd42c50a62d",
-      "size": 10343796,
-      "filename": "pool/main/n/nodejs/nodejs_26.4.0_aarch64.deb",
+      "sha256": "eaf3ed8a6e4b72ebaa8c2cb3bad778c577cdf9ea87ca91761213d8a3940fc090",
+      "size": 10349280,
+      "filename": "pool/main/n/nodejs/nodejs_26.4.0-1_aarch64.deb",
       "depends": "libc++, openssl, c-ares, libicu, libsqlite, zlib, libffi",
       "pre_depends": "",
       "provides": "",
-      "file": "nodejs_26.4.0_aarch64.deb",
+      "file": "nodejs_26.4.0-1_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "nodejs_26.4.0_aarch64.deb": "f2b8530d6d7ae72ee560d2791686f1849df9644396d56da915b31cd42c50a62d"
+        "nodejs_26.4.0-1_aarch64.deb": "eaf3ed8a6e4b72ebaa8c2cb3bad778c577cdf9ea87ca91761213d8a3940fc090"
       }
     },
     {
@@ -5540,28 +5540,28 @@
     {
       "package": "proot",
       "optional": false,
-      "version": "5.1.107.89",
+      "version": "5.1.107.91",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/p/proot/proot_5.1.107.89_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/p/proot/proot_5.1.107.91_aarch64.deb"
       ],
-      "sha256": "ec9fe38c50cfd49dd31fe360ffbcc3124a945dc1ea16293a8a769303dd724f46",
-      "size": 95784,
-      "filename": "pool/main/p/proot/proot_5.1.107.89_aarch64.deb",
+      "sha256": "1ad09f7ddf65f297a7b59a398cd1f23a48748b1144b225f0c1e2d9f447ef3efc",
+      "size": 96584,
+      "filename": "pool/main/p/proot/proot_5.1.107.91_aarch64.deb",
       "depends": "libandroid-shmem, libtalloc",
       "pre_depends": "",
       "provides": "",
-      "file": "proot_5.1.107.89_aarch64.deb",
+      "file": "proot_5.1.107.91_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "proot_5.1.107.89_aarch64.deb": "ec9fe38c50cfd49dd31fe360ffbcc3124a945dc1ea16293a8a769303dd724f46"
+        "proot_5.1.107.91_aarch64.deb": "1ad09f7ddf65f297a7b59a398cd1f23a48748b1144b225f0c1e2d9f447ef3efc"
       }
     },
     {
@@ -6383,28 +6383,28 @@
     {
       "package": "vulkan-loader-generic",
       "optional": false,
-      "version": "1.4.359",
+      "version": "1.4.360",
       "architecture": "aarch64",
       "cache_architecture": "aarch64",
       "repository": "main",
-      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
+      "source_url": "https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
       "mirror_urls": [
-        "https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
-        "https://packages-cf.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
-        "https://termux.librehat.com/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
-        "https://mirror.fcix.net/termux/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
-        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb"
+        "https://packages.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
+        "https://packages-cf.termux.dev/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
+        "https://termux.librehat.com/apt/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
+        "https://mirror.fcix.net/termux/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
+        "https://mirrors.sdu.edu.cn/termux/termux-main/pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb"
       ],
-      "sha256": "ed6c8fe3cf01e5c1de8bfd8bd1ec73fa38114ba48594660883f9af44d2ca4054",
-      "size": 128664,
-      "filename": "pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.359_aarch64.deb",
+      "sha256": "d70e6d5a72943ee4d0beb128554c93ae93e3f43f98c54187d7e5483ebfc38c47",
+      "size": 152432,
+      "filename": "pool/main/v/vulkan-loader-generic/vulkan-loader-generic_1.4.360_aarch64.deb",
       "depends": "",
       "pre_depends": "",
       "provides": "vulkan-loader-android",
-      "file": "vulkan-loader-generic_1.4.359_aarch64.deb",
+      "file": "vulkan-loader-generic_1.4.360_aarch64.deb",
       "parts": [],
       "stored_sha256": {
-        "vulkan-loader-generic_1.4.359_aarch64.deb": "ed6c8fe3cf01e5c1de8bfd8bd1ec73fa38114ba48594660883f9af44d2ca4054"
+        "vulkan-loader-generic_1.4.360_aarch64.deb": "d70e6d5a72943ee4d0beb128554c93ae93e3f43f98c54187d7e5483ebfc38c47"
       }
     },
     {

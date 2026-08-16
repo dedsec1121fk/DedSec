@@ -18,9 +18,9 @@
       "sha256": "c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309"
     },
     {
-      "name": "backports_zstd-1.6.0.tar.gz",
-      "size": 1000009,
-      "sha256": "80a7859ffe70bf239d7a2ce15293bdeb5b4280ff7dc326ffab312b0e254dbb24"
+      "name": "backports_zstd-1.7.0.tar.gz",
+      "size": 1003722,
+      "sha256": "1a967189c1822b6e85a2e550fdfc88a3272c17633ea0a4732dac5911a8034f2b"
     },
     {
       "name": "bcrypt-5.0.0.tar.gz",
@@ -73,9 +73,9 @@
       "sha256": "dd31f52ea1086513bb9df30f8fcee9b8918323ae067a3d5b78bc826a000712be"
     },
     {
-      "name": "charset_normalizer-3.5.0.tar.gz",
-      "size": 169295,
-      "sha256": "49bd5feb59b0bf3cbf6ebcf4352e371c95b9da9bacd4449f8b64d0ad2c10a26e"
+      "name": "charset_normalizer-3.5.1.tar.gz",
+      "size": 171764,
+      "sha256": "6117b84ea48435e5356dc737f5121485c30920ba43375fa7b434fd753df0eac3"
     },
     {
       "name": "click-8.4.2-py3-none-any.whl",
@@ -128,9 +128,9 @@
       "sha256": "e5426ce2857423ad401e575ea9d159dc97449dc041fb6e61b35109caea72c311"
     },
     {
-      "name": "filelock-3.32.2-py3-none-any.whl",
-      "size": 98830,
-      "sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82"
+      "name": "filelock-3.32.3-py3-none-any.whl",
+      "size": 98901,
+      "sha256": "7f0ca4bcc0e181c60dbbd8aa9ab5b120ebb99e4e064e83636340056f833a1f09"
     },
     {
       "name": "flask-3.1.3-py3-none-any.whl",
@@ -278,9 +278,9 @@
       "sha256": "b7044611c30140d9a75261653210e2002977b71a0497ff3ba0d98d7edbf62f7c"
     },
     {
-      "name": "phonenumbers-9.0.36-py2.py3-none-any.whl",
-      "size": 2595528,
-      "sha256": "c16a5b95178345ec2df1954578a4ac09e937443b2ee992dd7b15a8e8c81f4acf"
+      "name": "phonenumbers-9.0.37-py2.py3-none-any.whl",
+      "size": 2595712,
+      "sha256": "55ae8243c1e2fe8ae2548d979e57155d9ae0f6084f8a1d6884050b143aff0a7c"
     },
     {
       "name": "pillow-12.3.0.tar.gz",
@@ -378,9 +378,9 @@
       "sha256": "1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a"
     },
     {
-      "name": "python_engineio-4.13.4-py3-none-any.whl",
-      "size": 60129,
-      "sha256": "272de73124e255d3d2bba6f86358c1a1ba618f938f337a0c868b60550fe38719"
+      "name": "python_engineio-4.13.5-py3-none-any.whl",
+      "size": 59963,
+      "sha256": "05c9f4951d242ad33d613b4245299562e5f64e4199f00e5390f9888505831704"
     },
     {
       "name": "python_pptx-1.0.2-py3-none-any.whl",
@@ -508,9 +508,9 @@
       "sha256": "d63947694a0539a1d51e01eda7caf800c291020e6cdd7e28ad7b14dd33ad4f85"
     },
     {
-      "name": "webencodings-0.5.1-py2.py3-none-any.whl",
-      "size": 11774,
-      "sha256": "a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78"
+      "name": "webencodings-0.6.1-py3-none-any.whl",
+      "size": 8745,
+      "sha256": "7fab6269c8bf237c657876b52058ccb182e861518d1c695c1a9aaa8c1c105d5b"
     },
     {
       "name": "websocket_client-1.9.0-py3-none-any.whl",
