@@ -3395,33 +3395,39 @@ def run_grid_menu():
 # Update Packages & Modules
 # ------------------------------
 def update_packages_modules():
-    print(f"[+] {_('Installing Termux packages and modules...')} ")
-    
-    # 1. Setup Storage and Update
-    # termux-setup-storage might trigger a popup, usually safe to run.
-    run_command("termux-setup-storage")
-    run_command("pkg update -y && pkg upgrade -y")
-    
-    # 2. Termux Packages (Exact list from Setup.sh including tor)
-    # Added 'tor' to the end of the list
-    core_packages = "aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python python-pip rust termux-api unzip wget zip tor"
-    
-    # Installing in one go using pkg
-    # Note: '|| true' is handled by python logic if needed, but here we just run the command
-    run_command(f"pkg install -y {core_packages}")
+    """Update DedSec dependencies through the canonical Setup.sh installer."""
+    root = find_dedsec()
+    setup_path = os.path.join(root, "Setup.sh") if root else ""
 
-    print(f"[+] {_('Installing Python packages and modules...')} ")
-    
-    # 3. Pip Upgrade (Explicitly upgrading pip, setuptools, wheel first)
-    run_command("python -m pip install --upgrade setuptools wheel --break-system-packages")
-    
-    # 4. Python Dependencies (Exact list from Setup.sh including psutil)
-    # Added 'psutil' to the list
-    python_packages = "blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks"
-    
-    run_command(f"python -m pip install --upgrade {python_packages} --break-system-packages")
-    
-    print(f"[+] {_('Packages and Modules update process completed successfully!')}")
+    if not setup_path or not os.path.isfile(setup_path):
+        print(pipboy_text(
+            "[!] Setup.sh was not found. Dependency update was not started.",
+            "[!] Δεν βρέθηκε το Setup.sh. Η ενημέρωση εξαρτήσεων δεν ξεκίνησε.",
+        ))
+        return
+
+    print(pipboy_text(
+        "[+] Updating packages and modules through Setup.sh...",
+        "[+] Ενημέρωση πακέτων και modules μέσω του Setup.sh...",
+    ))
+
+    result = run_command(
+        f"bash {shlex.quote(setup_path)} --update-only",
+        cwd=root,
+    )
+
+    if result.returncode != 0:
+        print(pipboy_text(
+            f"[!] Setup.sh dependency update failed with exit code {result.returncode}.",
+            f"[!] Η ενημέρωση εξαρτήσεων μέσω Setup.sh απέτυχε με κωδικό {result.returncode}.",
+        ))
+        return
+
+    print(pipboy_text(
+        "[+] Packages and modules were updated successfully through Setup.sh.",
+        "[+] Τα πακέτα και τα modules ενημερώθηκαν επιτυχώς μέσω του Setup.sh.",
+    ))
+
     try:
         pipboy_refresh_knowledge_after_update(
             trigger="packages_modules_update", force_project_rebuild=False, quiet=False
@@ -4103,9 +4109,13 @@ def run_settings_action(action, payload):
         cmd = 'git remote set-url origin ' + shlex.quote(REPO_URL_SOURCE_2) + ' && git fetch --all && branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##"); branch=${branch:-main}; git reset --hard "origin/$branch" && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Project [Source 2]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_packages':
+        root = find_dedsec()
+        setup_path = os.path.join(root, 'Setup.sh') if root else ''
+        if not setup_path or not os.path.isfile(setup_path):
+            raise FileNotFoundError('Setup.sh was not found; dependency update cannot start.')
         refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
-        cmd = 'termux-setup-storage; pkg update -y && pkg upgrade -y && pkg install -y aapt clang cloudflared curl ffmpeg fzf git jq libffi libxml2 libxslt nano ncurses nodejs openssh openssl openssl-tool proot python python-pip rust termux-api unzip wget zip tor && python -m pip install --upgrade setuptools wheel --break-system-packages && python -m pip install --upgrade blessed bs4 cryptography flask flask-socketio geopy mutagen phonenumbers pycountry pydub pycryptodome requests werkzeug psutil pillow pysocks --break-system-packages; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
-        return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=HOME_DIR, kind='settings-packages', prefer_termux=False)
+        cmd = 'bash ' + shlex.quote(setup_path) + ' --update-only; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
+        return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=root, kind='settings-packages', prefer_termux=False)
     if action == 'access_sponsors':
         tier = str(payload.get('tier') or '3').replace('$', '').strip()
         config = SPONSORS_TIERS.get(tier)
