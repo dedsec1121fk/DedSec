@@ -127,11 +127,11 @@ TEXT = {'app_name': 'DedSec Market',
  'preparing_installation': 'Preparing installation...',
  'preparing_update': 'Preparing update...',
  'install_move_failed': 'The repository was downloaded, but installation failed.\n{output}',
- 'update_replace_failed': 'The new repository was downloaded, but replacing the installed files failed. '
-                          'The previous installation was restored.\n'
+ 'update_replace_failed': 'The new repository was downloaded, but replacing the installed files failed. The '
+                          'previous installation was restored.\n'
                           '{output}',
- 'update_restore_failed': 'The update failed and the previous installation could not be restored '
-                          'automatically. Backup folder:\n'
+ 'update_restore_failed': 'The update failed and the previous installation could not be restored automatically. '
+                          'Backup folder:\n'
                           '{backup}\n'
                           '\n'
                           'Error:\n'
@@ -153,8 +153,9 @@ PARSER_VERSION = 8
 
 REPOSITORIES = [
     {"url": "https://github.com/dedsec1121fk/Offline-Survival-Project"},
+    {"url": "https://github.com/dedsec1121fk/Hacking-Guide-Project"},
     {"url": "https://github.com/dedsec1121fk/Corrupted-Files-Project"},
-    {"url": "https://github.com/dedsec1121fk/Pocket-AI"},
+    {"url": "https://github.com/dedsec1121fk/Pocket-AI-Project"},
 ]
 
 SESSION_CACHE = {}
