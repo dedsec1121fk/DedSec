@@ -12,6 +12,7 @@ import math
 import zipfile
 import time
 import socket
+import stat
 import hashlib
 import base64
 import zlib
@@ -35,7 +36,7 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qs
 from collections import deque, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SETTINGS_BUILD_ID = "2026-07-17-ded-guy-dual-language-install-smart-intent-r46"
+SETTINGS_BUILD_ID = "2026-08-17-dedsec-os-responsive-transfer-credits-r52"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -89,7 +90,7 @@ PROJECT_SAVE_DOWNLOADS_PATH = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, "Do
 PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
 PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
 PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
-PROJECT_SAVE_SUCCESS_MESSAGE = "A zip containing the DedSec Project, Offline Survival Project, Pocket AI, Corrupted Files Project, website repositories, APKs, and accessible sponsor repositories is available in your phone downloads."
+PROJECT_SAVE_SUCCESS_MESSAGE = "A zip containing the DedSec ecosystem repositories, APKs, and accessible sponsor repositories is available in your phone downloads."
 PROJECT_SAVE_MAX_EXTRA_COPIES = 6
 PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS = {"Android", "Download"}
 PROJECT_SAVE_APK_SOURCES = [
@@ -99,14 +100,35 @@ PROJECT_SAVE_APK_SOURCES = [
     {"filename": "Termux_Styling.apk", "type": "fdroid_package", "package": "com.termux.styling"},
 ]
 PROJECT_SAVE_REPOSITORIES = [
+    # Canonical dedsec1121fk repositories. The save routine resolves their
+    # current GitHub sizes and processes them from smallest to largest.
+    {"folder_name": "Corrupted-Files-Project", "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project.git", "project_name": "Corrupted Files Project"},
+    {"folder_name": "Pocket-AI-Project", "url": "https://github.com/dedsec1121fk/Pocket-AI-Project.git", "project_name": "Pocket AI Project"},
     {"folder_name": "DedSec_dedsec1121fk", "url": "https://github.com/dedsec1121fk/DedSec.git", "project_name": "DedSec Project"},
     {"folder_name": "Offline-Survival-Project", "url": "https://github.com/dedsec1121fk/Offline-Survival-Project.git", "project_name": "Offline Survival Project"},
-    {"folder_name": "Pocket-AI", "url": "https://github.com/dedsec1121fk/Pocket-AI.git", "project_name": "Pocket AI"},
-    {"folder_name": "Corrupted-Files-Project", "url": "https://github.com/dedsec1121fk/Corrupted-Files-Project.git", "project_name": "Corrupted Files Project"},
     {"folder_name": "dedsec1121fk.github.io", "url": "https://github.com/dedsec1121fk/dedsec1121fk.github.io.git", "project_name": "DedSec Website Source"},
+    {"folder_name": "Praying-Project", "url": "https://github.com/dedsec1121fk/Praying-Project.git", "project_name": "Praying Project"},
+    {"folder_name": "dedsec1121fk-profile", "url": "https://github.com/dedsec1121fk/dedsec1121fk.git", "project_name": "GitHub Profile Repository"},
+    {"folder_name": "Save-DedSec-Project", "url": "https://github.com/dedsec1121fk/Save-DedSec-Project.git", "project_name": "Save DedSec Project"},
+    {"folder_name": "Hacking-Guide-Project", "url": "https://github.com/dedsec1121fk/Hacking-Guide-Project.git", "project_name": "Hacking Guide Project"},
+    {"folder_name": "Language-Project", "url": "https://github.com/dedsec1121fk/Language-Project.git", "project_name": "Language Project"},
+
+    # Existing mirrors remain part of the legacy save as additional recovery copies.
     {"folder_name": "ded-sec_sal-scar", "url": "https://github.com/sal-scar/ded-sec.git", "project_name": "DedSec Website Mirror"},
     {"folder_name": "DedSec_sal-scar", "url": "https://github.com/sal-scar/DedSec.git", "project_name": "DedSec Project Mirror"},
+
 ]
+
+# --- Offline Termux Transfer System ---
+TERMUX_TRANSFER_PREFIX = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
+TERMUX_TRANSFER_DIR = os.path.join(PROJECT_SAVE_DOWNLOADS_PATH, "Termux Transfer")
+TERMUX_TRANSFER_WORKDIR = os.path.join(HOME_DIR, ".dedsec_termux_transfer_work")
+TERMUX_TRANSFER_CORE_NAME = "Core.zip"
+TERMUX_TRANSFER_HARD_MAX_BYTES = 1_500_000_000
+# Leave ample ZIP/metadata headroom so no archive can approach the hard 1.5 GB ceiling.
+TERMUX_TRANSFER_TARGET_BYTES = 1_300_000_000
+TERMUX_TRANSFER_SPLIT_PART_BYTES = 600_000_000
+TERMUX_TRANSFER_SECRET_SCAN_MAX_BYTES = 2 * 1024 * 1024
 
 PIPBOY_MANAGED_PROJECTS_DIR = os.path.join(HOME_DIR, ".dedsec_pipboy", "managed_projects")
 PIPBOY_MANAGED_PROJECTS_STATUS_PATH = os.path.join(HOME_DIR, ".dedsec_pipboy", "managed_projects_status.json")
@@ -130,10 +152,10 @@ PIPBOY_MANAGED_PROJECTS = [
         "aliases": ["offline survival", "survival project", "emergency knowledge"],
     },
     {
-        "key": "pocket_ai", "name": "Pocket AI", "repo": "dedsec1121fk/Pocket-AI",
-        "url": "https://github.com/dedsec1121fk/Pocket-AI.git",
-        "local_names": ["Pocket-AI", "Pocket_AI", "PocketAI", "Pocket-AI-main"],
-        "aliases": ["pocket ai", "local ai", "termux ai"],
+        "key": "pocket_ai", "name": "Pocket AI", "repo": "dedsec1121fk/Pocket-AI-Project",
+        "url": "https://github.com/dedsec1121fk/Pocket-AI-Project.git",
+        "local_names": ["Pocket-AI-Project", "Pocket-AI-Project-main", "Pocket-AI", "Pocket_AI", "PocketAI", "Pocket-AI-main"],
+        "aliases": ["pocket ai", "pocket ai project", "local ai", "termux ai"],
     },
     {
         "key": "corrupted_files", "name": "Corrupted Files Project", "repo": "dedsec1121fk/Corrupted-Files-Project",
@@ -409,42 +431,8 @@ GREEK_STRINGS = {'Select an option': 'Επιλέξτε μια επιλογή',
  'Failed to download Sponsors-Only scripts': 'Αποτυχία λήψης των Sponsors-Only scripts',
  'Update Packages & Modules': 'Ενημέρωση Πακέτων & Modules',
  'Save DedSec Project': 'Αποθήκευση DedSec Project',
- 'A zip containing the DedSec Project, Offline Survival Project, Pocket AI, Corrupted Files Project, website repositories, APKs, and accessible sponsor repositories is available in your phone downloads.': 'Ένα '
-                                                                                                                                                                                                             'zip '
-                                                                                                                                                                                                             'που '
-                                                                                                                                                                                                             'περιέχει '
-                                                                                                                                                                                                             'το '
-                                                                                                                                                                                                             'DedSec '
-                                                                                                                                                                                                             'Project, '
-                                                                                                                                                                                                             'το '
-                                                                                                                                                                                                             'Offline '
-                                                                                                                                                                                                             'Survival '
-                                                                                                                                                                                                             'Project, '
-                                                                                                                                                                                                             'το '
-                                                                                                                                                                                                             'Pocket '
-                                                                                                                                                                                                             'AI, '
-                                                                                                                                                                                                             'το '
-                                                                                                                                                                                                             'Corrupted '
-                                                                                                                                                                                                             'Files '
-                                                                                                                                                                                                             'Project, '
-                                                                                                                                                                                                             'τα '
-                                                                                                                                                                                                             'repositories '
-                                                                                                                                                                                                             'της '
-                                                                                                                                                                                                             'ιστοσελίδας, '
-                                                                                                                                                                                                             'τα '
-                                                                                                                                                                                                             'APK '
-                                                                                                                                                                                                             'και '
-                                                                                                                                                                                                             'τα '
-                                                                                                                                                                                                             'προσβάσιμα '
-                                                                                                                                                                                                             'sponsor '
-                                                                                                                                                                                                             'repositories '
-                                                                                                                                                                                                             'είναι '
-                                                                                                                                                                                                             'διαθέσιμο '
-                                                                                                                                                                                                             'στα '
-                                                                                                                                                                                                             'Downloads '
-                                                                                                                                                                                                             'του '
-                                                                                                                                                                                                             'τηλεφώνου '
-                                                                                                                                                                                                             'σας.',
+ 'Transfer System': 'Σύστημα Μεταφοράς',
+ 'A zip containing the DedSec ecosystem repositories, APKs, and accessible sponsor repositories is available in your phone downloads.': 'Ένα zip που περιέχει τα αποθετήρια του οικοσυστήματος DedSec, τα APK και τα προσβάσιμα sponsor repositories είναι διαθέσιμο στα Downloads του τηλεφώνου σας.',
  'Failed to save project: ': 'Αποτυχία αποθήκευσης έργου: ',
  'Change Prompt': 'Αλλαγή Προτροπής',
  'Change Menu Style': 'Αλλαγή Στυλ Μενού',
@@ -1383,6 +1371,102 @@ def _clone_repository_silent(repo_url, destination_path):
         shutil.rmtree(git_dir, ignore_errors=True)
 
 
+def _project_save_github_identity(repo_url):
+    """Return (owner, repository) for a normal github.com repository URL."""
+    try:
+        parsed = urlparse(str(repo_url or "").strip())
+        if parsed.netloc.casefold() not in {"github.com", "www.github.com"}:
+            return "", ""
+        parts = [unquote(part) for part in parsed.path.strip("/").split("/") if part]
+        if len(parts) < 2:
+            return "", ""
+        owner = parts[0]
+        repository = parts[1]
+        if repository.endswith(".git"):
+            repository = repository[:-4]
+        return owner, repository
+    except Exception:
+        return "", ""
+
+
+def _project_save_repository_size_map(repo_sources):
+    """Resolve GitHub repository sizes with at most one public API request per owner.
+
+    GitHub's repository ``size`` value is used only to decide backup order. If a
+    size cannot be resolved (offline, rate-limited, private, deleted, etc.), that
+    repository remains eligible for backup and is placed after repositories with
+    known sizes instead of being skipped.
+    """
+    wanted_by_owner = {}
+    for repo_source in repo_sources:
+        owner, repository = _project_save_github_identity(repo_source.get("url"))
+        # The requested size ordering applies to the canonical dedsec1121fk
+        # repositories. Legacy mirror repositories are kept as extra recovery
+        # copies after the canonical size-ordered set, avoiding extra API calls.
+        if owner.casefold() != "dedsec1121fk":
+            continue
+        if owner and repository:
+            wanted_by_owner.setdefault(owner, set()).add(repository.casefold())
+
+    size_map = {}
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "DedSecProjectLegacySave/1.0 (Termux; Android)",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    for owner, wanted_names in wanted_by_owner.items():
+        remaining = set(wanted_names)
+        # Usually one request per owner is enough. Additional pages are fetched
+        # only when one of the required repositories was not on the first page.
+        for page in range(1, 6):
+            try:
+                response = requests.get(
+                    f"https://api.github.com/users/{quote(owner, safe='')}/repos",
+                    params={"per_page": 100, "page": page, "type": "public", "sort": "full_name", "direction": "asc"},
+                    headers=headers,
+                    timeout=30,
+                )
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, list):
+                    break
+                for item in payload:
+                    name = str(item.get("name") or "")
+                    key = name.casefold()
+                    if key in remaining:
+                        try:
+                            size_map[(owner.casefold(), key)] = max(0, int(item.get("size") or 0))
+                        except Exception:
+                            pass
+                        remaining.discard(key)
+                if not remaining or len(payload) < 100:
+                    break
+            except Exception as exc:
+                pipboy_log_error(f"backup repository size lookup for {owner}", exc)
+                break
+
+    return size_map
+
+
+def _ordered_project_save_repositories():
+    """Return backup repositories ordered by current GitHub size, smallest first."""
+    repo_sources = list(PROJECT_SAVE_REPOSITORIES)
+    size_map = _project_save_repository_size_map(repo_sources)
+
+    def sort_key(repo_source):
+        owner, repository = _project_save_github_identity(repo_source.get("url"))
+        size_kb = size_map.get((owner.casefold(), repository.casefold())) if owner and repository else None
+        # Unknown-size repositories are still backed up, after known-size entries.
+        return (
+            size_kb is None,
+            size_kb if size_kb is not None else float("inf"),
+            str(repo_source.get("project_name") or repo_source.get("folder_name") or "").casefold(),
+        )
+
+    return sorted(repo_sources, key=sort_key), size_map
+
+
 def _delete_existing_project_save_archives():
     archive_name = PROJECT_SAVE_ARCHIVE_NAME
     for current_root, _dirnames, filenames in os.walk(PROJECT_SAVE_SHARED_STORAGE_PATH, onerror=lambda _e: None):
@@ -1499,10 +1583,19 @@ def pipboy_log_error(context, error):
 
 
 def _project_save_local_source(repo_source):
-    """Return a user-managed local project folder when one is available."""
+    """Return a local working copy when one is available, otherwise clone remote."""
     project_name = str(repo_source.get("project_name", ""))
     repo_url = str(repo_source.get("url", ""))
+    folder_name = str(repo_source.get("folder_name", "")).strip()
+    _owner, repository = _project_save_github_identity(repo_url)
     candidates = []
+
+    # Generic candidates let every repository in PROJECT_SAVE_REPOSITORIES use
+    # its current local working tree, not only projects known to Ded-Guy.
+    for local_name in (folder_name, repository, f"{repository}-main" if repository else ""):
+        if local_name:
+            candidates.append(os.path.join(HOME_DIR, local_name))
+
     for project in PIPBOY_MANAGED_PROJECTS:
         if project_name == project.get("name") or repo_url.rstrip(".git") == str(project.get("url", "")).rstrip(".git"):
             candidates.extend(os.path.join(HOME_DIR, name) for name in project.get("local_names", []))
@@ -1512,8 +1605,13 @@ def _project_save_local_source(repo_source):
             os.path.dirname(ENGLISH_BASE_PATH),
             os.path.dirname(os.path.dirname(os.path.realpath(__file__))),
         ])
+
+    seen = set()
     for candidate in candidates:
         real = os.path.realpath(os.path.expanduser(candidate))
+        if real in seen:
+            continue
+        seen.add(real)
         if os.path.isdir(real):
             return real
     return ""
@@ -1565,20 +1663,24 @@ def _build_project_save_archive(archive_path):
             report_lines.append(pipboy_text("- FAILED: ", "- ΑΠΟΤΥΧΙΑ: ") + f"{apk_source['filename']} — {exc}")
             pipboy_log_error(f"backup APK {apk_source['filename']}", exc)
 
-    report_lines.extend(["", pipboy_text("Repositories:", "Αποθετήρια:")])
-    for repo_source in PROJECT_SAVE_REPOSITORIES:
+    report_lines.extend(["", pipboy_text("Repositories (smallest to largest):", "Αποθετήρια (από το μικρότερο στο μεγαλύτερο):")])
+    ordered_repositories, repository_size_map = _ordered_project_save_repositories()
+    for repo_source in ordered_repositories:
         repo_target_dir = os.path.join(repos_dir, repo_source["folder_name"])
+        owner, repository = _project_save_github_identity(repo_source.get("url"))
+        size_kb = repository_size_map.get((owner.casefold(), repository.casefold())) if owner and repository else None
+        size_note = f" [{size_kb / 1024:.2f} MB]" if size_kb is not None else " [size unavailable]"
         local_source = _project_save_local_source(repo_source)
         try:
             if local_source:
                 _copy_local_project_for_backup(local_source, repo_target_dir)
                 report_lines.append(
-                    pipboy_text("- INCLUDED LOCAL STATE: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΤΟΠΙΚΗ ΚΑΤΑΣΤΑΣΗ: ") + f"{repo_source['project_name']} — {local_source}"
+                    pipboy_text("- INCLUDED LOCAL STATE: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΤΟΠΙΚΗ ΚΑΤΑΣΤΑΣΗ: ") + f"{repo_source['project_name']}{size_note} — {local_source}"
                 )
             else:
                 _clone_repository_silent(repo_source["url"], repo_target_dir)
                 report_lines.append(
-                    pipboy_text("- INCLUDED REMOTE SNAPSHOT: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΑΠΟΜΑΚΡΥΣΜΕΝΟ ΣΤΙΓΜΙΟΤΥΠΟ: ") + f"{repo_source['project_name']} — {repo_source['url']}"
+                    pipboy_text("- INCLUDED REMOTE SNAPSHOT: ", "- ΣΥΜΠΕΡΙΛΗΦΘΗΚΕ ΑΠΟΜΑΚΡΥΣΜΕΝΟ ΣΤΙΓΜΙΟΤΥΠΟ: ") + f"{repo_source['project_name']}{size_note} — {repo_source['url']}"
                 )
         except Exception as exc:
             failures += 1
@@ -1638,6 +1740,667 @@ def save_project():
 
 
 
+# ----------------------------------------------------------------------
+# Offline Termux Transfer System
+# ----------------------------------------------------------------------
+def _transfer_safe_rel(path):
+    return str(path or "").replace("\\", "/").lstrip("/")
+
+
+def _transfer_private_path(root_kind, rel_path):
+    """Return True for authentication, credential, secret, or volatile paths.
+
+    The transfer intentionally prefers losing a private configuration file over
+    copying a credential to another phone. Normal project source/config remains
+    eligible unless its path or content is secret-like.
+    """
+    rel = _transfer_safe_rel(rel_path)
+    low = rel.casefold()
+    parts = [part.casefold() for part in rel.split("/") if part]
+    base = parts[-1] if parts else ""
+
+    # Never recursively archive the transfer's own work/output or transient state.
+    if root_kind == "home":
+        blocked_roots = {
+            ".ssh", ".gnupg", ".aws", ".azure", ".docker", ".kube",
+            ".password-store", ".termux_transfer", ".dedsec_termux_transfer_work",
+        }
+        if parts and parts[0] in blocked_roots:
+            return True
+        blocked_sequences = (
+            ".config/gh/", ".config/gcloud/", ".local/share/keyrings/",
+            ".mozilla/firefox/", ".pki/nssdb/",
+        )
+        padded = low + ("/" if low and not low.endswith("/") else "")
+        if any(seq in padded for seq in blocked_sequences):
+            return True
+        if "/.git/config" in "/" + low or low.endswith("/.git/config"):
+            return True
+        if base in {
+            ".git-credentials", ".netrc", ".npmrc", ".pypirc", ".bash_history",
+            ".zsh_history", ".python_history", "known_hosts", "authorized_keys",
+            "credentials", "credentials.json", "secrets.json", "auth.json",
+        }:
+            return True
+        if base == ".env" or base.startswith(".env."):
+            return True
+        secret_words = ("token", "secret", "credential", "password", "passwd", "private_key", "private-key")
+        stem = base.rsplit(".", 1)[0]
+        if any(word == stem or stem.startswith(word + "_") or stem.startswith(word + "-") for word in secret_words):
+            return True
+        if base.endswith((".p12", ".pfx", ".kdbx")):
+            return True
+        # Private-key style files in user/project space. Do not apply to Prefix CA certs.
+        if base.endswith((".key", ".pem")) and any(part in {"ssh", "keys", "certs", "secrets", "credentials"} for part in parts[:-1]):
+            return True
+        if low == os.path.basename(GITHUB_ACCOUNT_CONFIG_PATH).casefold() or low.endswith("/" + os.path.basename(GITHUB_ACCOUNT_CONFIG_PATH).casefold()):
+            return True
+        if low.startswith("dedsec os/runtime/"):
+            return True
+    else:
+        if low.startswith(("tmp/", "var/run/", "var/tmp/")):
+            return True
+        if low.startswith("etc/apt/auth.conf") or "/auth.conf.d/" in "/" + low:
+            return True
+        if base.startswith("lock") and any(x in low for x in ("var/lib/dpkg/", "var/lib/apt/", "var/cache/apt/")):
+            return True
+    return False
+
+
+def _transfer_file_contains_secret(path, root_kind):
+    if root_kind != "home":
+        return False
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return False
+    if size <= 0 or size > TERMUX_TRANSFER_SECRET_SCAN_MAX_BYTES:
+        return False
+    ext = os.path.splitext(path)[1].casefold()
+    text_exts = {
+        ".py", ".sh", ".bash", ".zsh", ".js", ".ts", ".json", ".yaml", ".yml",
+        ".toml", ".ini", ".cfg", ".conf", ".txt", ".md", ".xml", ".html",
+        ".css", ".properties", ".gradle", ".env", ".gitconfig",
+    }
+    if ext not in text_exts and os.path.basename(path).casefold() not in {"config", "settings", "settings.json"}:
+        return False
+    try:
+        raw = open(path, "rb").read()
+        if b"\x00" in raw[:4096]:
+            return False
+        text = raw.decode("utf-8", errors="ignore")
+    except Exception:
+        return False
+    patterns = (
+        r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----",
+        r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b",
+        r"\bgithub_pat_[A-Za-z0-9_]{20,}\b",
+        r"\bAKIA[0-9A-Z]{16}\b",
+        r"(?i)\b(?:api[_-]?key|access[_-]?token|auth[_-]?token|secret|password|passwd)\b\s*[:=]\s*[\"']?[A-Za-z0-9_./+=:@-]{12,}",
+        r"(?i)authorization\s*[:=]\s*[\"']?bearer\s+[A-Za-z0-9._~+/=-]{12,}",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
+
+
+def _transfer_is_core(root_kind, rel_path, size=0):
+    rel = _transfer_safe_rel(rel_path)
+    low = rel.casefold()
+    # Large files never belong to Core.zip; Core stays quick and mandatory.
+    if int(size or 0) > 50 * 1024 * 1024:
+        return False
+    if root_kind == "usr":
+        return low.startswith("etc/") or low.startswith("var/lib/dpkg/") or low in {"var/lib/apt/extended_states"}
+    if "/" not in rel:
+        return True
+    return (
+        low.startswith(".termux/")
+        or low in {"dedsec/scripts/settings.py", "language.json", "dedsec os/config.json"}
+    )
+
+
+def _transfer_inventory():
+    entries = []
+    excluded = {"private": 0, "volatile": 0, "unsupported": 0, "secret_content": 0}
+    roots = (("home", HOME_DIR), ("usr", TERMUX_TRANSFER_PREFIX))
+    for root_kind, root in roots:
+        if not os.path.isdir(root):
+            continue
+        for current, dirnames, filenames in os.walk(root, topdown=True, followlinks=False):
+            rel_current = os.path.relpath(current, root)
+            if rel_current == ".":
+                rel_current = ""
+            kept_dirs = []
+            for name in list(dirnames):
+                src = os.path.join(current, name)
+                rel = os.path.join(rel_current, name) if rel_current else name
+                if _transfer_private_path(root_kind, rel):
+                    excluded["private"] += 1
+                    continue
+                try:
+                    st = os.lstat(src)
+                except OSError:
+                    excluded["unsupported"] += 1
+                    continue
+                arc = f"payload/{root_kind}/{_transfer_safe_rel(rel)}"
+                if stat.S_ISLNK(st.st_mode):
+                    entries.append({"kind": "symlink", "root": root_kind, "src": src, "rel": rel, "arc": arc, "size": len(os.readlink(src).encode("utf-8", errors="replace")), "mode": stat.S_IMODE(st.st_mode), "core": _transfer_is_core(root_kind, rel, 0)})
+                    continue
+                if stat.S_ISDIR(st.st_mode):
+                    kept_dirs.append(name)
+                    entries.append({"kind": "dir", "root": root_kind, "src": src, "rel": rel, "arc": arc.rstrip("/") + "/", "size": 0, "mode": stat.S_IMODE(st.st_mode), "core": _transfer_is_core(root_kind, rel, 0)})
+            dirnames[:] = kept_dirs
+            for name in filenames:
+                src = os.path.join(current, name)
+                rel = os.path.join(rel_current, name) if rel_current else name
+                if _transfer_private_path(root_kind, rel):
+                    excluded["private"] += 1
+                    continue
+                try:
+                    st = os.lstat(src)
+                except OSError:
+                    excluded["unsupported"] += 1
+                    continue
+                arc = f"payload/{root_kind}/{_transfer_safe_rel(rel)}"
+                if stat.S_ISLNK(st.st_mode):
+                    try:
+                        target = os.readlink(src)
+                    except OSError:
+                        excluded["unsupported"] += 1
+                        continue
+                    entries.append({"kind": "symlink", "root": root_kind, "src": src, "rel": rel, "arc": arc, "size": len(target.encode("utf-8", errors="replace")), "mode": stat.S_IMODE(st.st_mode), "core": _transfer_is_core(root_kind, rel, 0)})
+                elif stat.S_ISREG(st.st_mode):
+                    if _transfer_file_contains_secret(src, root_kind):
+                        excluded["secret_content"] += 1
+                        continue
+                    entries.append({"kind": "file", "root": root_kind, "src": src, "rel": rel, "arc": arc, "size": int(st.st_size), "mode": stat.S_IMODE(st.st_mode), "core": _transfer_is_core(root_kind, rel, st.st_size)})
+                else:
+                    excluded["unsupported"] += 1
+    return entries, excluded
+
+
+def _transfer_zip_add_entry(zf, entry, arcname=None):
+    arcname = arcname or entry["arc"]
+    if entry["kind"] == "dir":
+        info = zipfile.ZipInfo(arcname.rstrip("/") + "/")
+        info.create_system = 3
+        info.external_attr = ((stat.S_IFDIR | int(entry.get("mode", 0o755))) << 16) | 0x10
+        zf.writestr(info, b"")
+    elif entry["kind"] == "symlink":
+        info = zipfile.ZipInfo(arcname)
+        info.create_system = 3
+        info.external_attr = (stat.S_IFLNK | int(entry.get("mode", 0o777))) << 16
+        zf.writestr(info, os.readlink(entry["src"]).encode("utf-8", errors="surrogateescape"))
+    else:
+        zf.write(entry["src"], arcname=arcname, compress_type=zipfile.ZIP_STORED)
+
+
+def _transfer_new_data_archive(index):
+    name = f"Data-{index:03d}.zip"
+    path = os.path.join(TERMUX_TRANSFER_DIR, name)
+    return name, path, zipfile.ZipFile(path, "w", compression=zipfile.ZIP_STORED, allowZip64=True)
+
+
+def _transfer_write_data_archives(entries):
+    data_entries = [entry for entry in entries if not entry.get("core")]
+    archive_names = []
+    split_records = []
+    current = None
+    current_name = None
+    current_size = 0
+    archive_index = 0
+
+    def ensure_archive(required=0):
+        nonlocal current, current_name, current_size, archive_index
+        if current is None or (current_size and current_size + int(required) + 65536 > TERMUX_TRANSFER_TARGET_BYTES):
+            if current is not None:
+                current.close()
+            archive_index += 1
+            current_name, _path, current = _transfer_new_data_archive(archive_index)
+            archive_names.append(current_name)
+            current_size = 0
+        return current
+
+    try:
+        for entry in data_entries:
+            if entry["kind"] != "file" or entry["size"] <= TERMUX_TRANSFER_TARGET_BYTES - 131072:
+                zf = ensure_archive(entry.get("size", 0))
+                _transfer_zip_add_entry(zf, entry)
+                current_size += int(entry.get("size", 0)) + 1024
+                continue
+
+            # Oversized individual files are streamed into portable sub-parts.
+            split_id = hashlib.sha256(entry["arc"].encode("utf-8", errors="replace")).hexdigest()[:20]
+            part_dir = f"split/{split_id}"
+            parts = []
+            with open(entry["src"], "rb") as source:
+                part_index = 0
+                while True:
+                    part_index += 1
+                    temp_part = os.path.join(TERMUX_TRANSFER_WORKDIR, f"{split_id}-{part_index:04d}.part")
+                    written = 0
+                    with open(temp_part, "wb") as out:
+                        while written < TERMUX_TRANSFER_SPLIT_PART_BYTES:
+                            block = source.read(min(16 * 1024 * 1024, TERMUX_TRANSFER_SPLIT_PART_BYTES - written))
+                            if not block:
+                                break
+                            out.write(block)
+                            written += len(block)
+                    if written == 0:
+                        try: os.remove(temp_part)
+                        except OSError: pass
+                        break
+                    zf = ensure_archive(written)
+                    part_arc = f"{part_dir}/part-{part_index:04d}"
+                    zf.write(temp_part, arcname=part_arc, compress_type=zipfile.ZIP_STORED)
+                    current_size += written + 1024
+                    parts.append(part_arc)
+                    os.remove(temp_part)
+            split_records.append({"target": entry["arc"], "mode": entry.get("mode", 0o600), "part_dir": part_dir, "parts": parts})
+    finally:
+        if current is not None:
+            current.close()
+    return archive_names, split_records
+
+
+def _transfer_package_list():
+    try:
+        result = subprocess.run(["dpkg-query", "-W", "-f=${binary:Package}\\t${Version}\\n"], capture_output=True, text=True, timeout=60, check=False)
+        if result.returncode == 0:
+            return result.stdout
+    except Exception:
+        pass
+    return ""
+
+
+def _transfer_write_core(entries, split_records, excluded):
+    core_path = os.path.join(TERMUX_TRANSFER_DIR, TERMUX_TRANSFER_CORE_NAME)
+    metadata = {
+        "schema": 1,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "source_arch": os.uname().machine,
+        "source_prefix": TERMUX_TRANSFER_PREFIX,
+        "source_home": HOME_DIR,
+        "android_sdk": run_command_silent("getprop ro.build.version.sdk")[0],
+        "privacy": {
+            "private_paths_excluded": int(excluded.get("private", 0)),
+            "secret_content_excluded": int(excluded.get("secret_content", 0)),
+            "volatile_or_unsupported_excluded": int(excluded.get("volatile", 0)) + int(excluded.get("unsupported", 0)),
+        },
+    }
+    split_lines = []
+    for record in split_records:
+        split_lines.append(f"{record['target']}\t{int(record['mode']):o}\t{record['part_dir']}")
+    with zipfile.ZipFile(core_path, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as zf:
+        for entry in entries:
+            if entry.get("core"):
+                _transfer_zip_add_entry(zf, entry)
+        zf.writestr("metadata/Transfer.json", json.dumps(metadata, indent=2, ensure_ascii=False).encode("utf-8"))
+        zf.writestr("metadata/Package List.txt", _transfer_package_list().encode("utf-8", errors="replace"))
+        zf.writestr("metadata/Split Files.tsv", ("\n".join(split_lines) + ("\n" if split_lines else "")).encode("utf-8"))
+    if os.path.getsize(core_path) > TERMUX_TRANSFER_HARD_MAX_BYTES:
+        raise RuntimeError("Core.zip exceeded the 1.5 GB hard limit; transfer was aborted safely.")
+    return core_path, metadata
+
+
+def _transfer_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        while True:
+            block = handle.read(8 * 1024 * 1024)
+            if not block:
+                break
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _transfer_collect_unzip_runtime():
+    unzip_path = shutil.which("unzip")
+    if not unzip_path and shutil.which("pkg"):
+        print("[+] Offline restore needs unzip. Trying to prepare it on this phone...")
+        try:
+            subprocess.run(["pkg", "install", "-y", "unzip"], timeout=240, check=False)
+        except Exception:
+            pass
+        unzip_path = shutil.which("unzip")
+    if not unzip_path or not os.path.isfile(unzip_path):
+        return []
+    files = [("bin/unzip", unzip_path)]
+    try:
+        result = subprocess.run(["ldd", unzip_path], capture_output=True, text=True, timeout=20, check=False)
+        seen = set()
+        for candidate in re.findall(r"(/[^\s()]+\.so(?:\.[0-9]+)*)", (result.stdout or "") + "\n" + (result.stderr or "")):
+            if candidate.startswith(TERMUX_TRANSFER_PREFIX + os.sep) and os.path.isfile(candidate):
+                name = os.path.basename(candidate)
+                if name not in seen:
+                    seen.add(name)
+                    files.append(("lib/" + name, candidate))
+    except Exception:
+        pass
+    return files
+
+
+def _transfer_b64_shell_block(label, path):
+    data = base64.b64encode(open(path, "rb").read()).decode("ascii")
+    wrapped = "\n".join(textwrap.wrap(data, 76))
+    quoted = shlex.quote(label)
+    return f"""mkdir -p "$BOOT/$(dirname {quoted})"\ncat > "$BOOT/{label}.b64" <<'DEDSEC_TRANSFER_B64'\n{wrapped}\nDEDSEC_TRANSFER_B64\nbase64 -d "$BOOT/{label}.b64" > "$BOOT/{label}"\nrm -f "$BOOT/{label}.b64"\n"""
+
+
+def _transfer_install_script(archives, metadata):
+    bootstrap_files = _transfer_collect_unzip_runtime()
+    bootstrap = "".join(_transfer_b64_shell_block(label, path) for label, path in bootstrap_files)
+    if any(label == "bin/unzip" for label, _path in bootstrap_files):
+        bootstrap += 'chmod 700 "$BOOT/bin/unzip"\n'
+    checks = []
+    for name in archives:
+        path = os.path.join(TERMUX_TRANSFER_DIR, name)
+        checks.append((_transfer_sha256(path), name, os.path.getsize(path)))
+    verify_lines = "\n".join(
+        f"verify_archive {shlex.quote(digest)} {shlex.quote(name)} {size}"
+        for digest, name, size in checks
+    )
+    source_arch = shlex.quote(str(metadata.get("source_arch") or ""))
+    source_prefix = shlex.quote(str(metadata.get("source_prefix") or TERMUX_TRANSFER_PREFIX))
+    source_sdk = shlex.quote(str(metadata.get("android_sdk") or ""))
+    script = f"""#!/data/data/com.termux/files/usr/bin/bash
+set -eu
+umask 077
+
+TRANSFER_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+STAGE="$HOME/.termux_transfer_restore"
+BOOT="$STAGE/bootstrap"
+PRE="$HOME/.termux_transfer_pre_restore"
+SOURCE_ARCH={source_arch}
+SOURCE_PREFIX={source_prefix}
+SOURCE_SDK={source_sdk}
+
+fail() {{ echo "[!] $*" >&2; exit 1; }}
+[ "$(uname -m)" = "$SOURCE_ARCH" ] || fail "CPU architecture mismatch: transfer=$SOURCE_ARCH, device=$(uname -m)."
+[ "${{PREFIX:-/data/data/com.termux/files/usr}}" = "$SOURCE_PREFIX" ] || fail "Termux prefix mismatch. Expected $SOURCE_PREFIX."
+CURRENT_SDK="$(getprop ro.build.version.sdk 2>/dev/null || true)"
+if [ -n "$SOURCE_SDK" ] && [ -n "$CURRENT_SDK" ] && [ "$SOURCE_SDK" != "$CURRENT_SDK" ]; then
+  echo "[!] Android SDK differs (old $SOURCE_SDK, new $CURRENT_SDK). Portable data will restore, but native packages may need repair later."
+fi
+
+cd "$TRANSFER_DIR"
+[ -f "{TERMUX_TRANSFER_CORE_NAME}" ] || fail "{TERMUX_TRANSFER_CORE_NAME} is missing. Transfer it from the old phone."
+rm -rf "$STAGE"
+mkdir -p "$BOOT"
+
+verify_archive() {{
+  expected="$1"; file="$2"; expected_size="$3"
+  [ -f "$file" ] || fail "Missing transfer archive: $file"
+  actual_size="$(wc -c < "$file" | tr -d ' ')"
+  [ "$actual_size" = "$expected_size" ] || fail "Size check failed for $file"
+  actual="$(sha256sum "$file" | awk '{{print $1}}')"
+  [ "$actual" = "$expected" ] || fail "SHA-256 check failed for $file"
+}}
+
+{verify_lines}
+echo "[+] All transfer archives passed integrity checks."
+
+# Offline unzip bootstrap captured from the old Termux installation.
+{bootstrap}
+extract_zip() {{
+  file="$1"
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -oq "$file" -d "$STAGE"
+    return
+  fi
+  if [ -x "$BOOT/bin/unzip" ]; then
+    LD_LIBRARY_PATH="$BOOT/lib:${{PREFIX:-/data/data/com.termux/files/usr}}/lib" "$BOOT/bin/unzip" -oq "$file" -d "$STAGE"
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -m zipfile -e "$file" "$STAGE"
+    return
+  fi
+  if command -v pkg >/dev/null 2>&1; then
+    echo "[!] Offline unzip bootstrap is unavailable. Internet fallback will be attempted only now."
+    pkg install -y unzip >/dev/null 2>&1 || fail "No offline unzip runtime and internet installation failed."
+    unzip -oq "$file" -d "$STAGE"
+    return
+  fi
+  fail "No ZIP extractor is available."
+}}
+
+extract_zip "{TERMUX_TRANSFER_CORE_NAME}"\n"""
+    for name in archives:
+        if name != TERMUX_TRANSFER_CORE_NAME:
+            script += f'extract_zip {shlex.quote(name)}\n'
+    script += r"""
+
+# Reassemble files that were larger than a safe archive payload.
+SPLIT_MANIFEST="$STAGE/metadata/Split Files.tsv"
+if [ -f "$SPLIT_MANIFEST" ]; then
+  TAB="$(printf '\t')"
+  while IFS="$TAB" read -r target mode part_dir; do
+    [ -n "$target" ] || continue
+    mkdir -p "$(dirname "$STAGE/$target")"
+    : > "$STAGE/$target"
+    found=0
+    for part in "$STAGE/$part_dir"/part-*; do
+      [ -f "$part" ] || continue
+      cat "$part" >> "$STAGE/$target"
+      found=1
+    done
+    [ "$found" = 1 ] || fail "Missing split parts for $target"
+    chmod "$mode" "$STAGE/$target" 2>/dev/null || true
+  done < "$SPLIT_MANIFEST"
+fi
+
+# Preserve a small clean-install rollback point before overlaying the transfer.
+rm -rf "$PRE"
+mkdir -p "$PRE"
+[ -d "$PREFIX/etc" ] && cp -a "$PREFIX/etc" "$PRE/usr-etc" 2>/dev/null || true
+[ -d "$HOME/.termux" ] && cp -a "$HOME/.termux" "$PRE/home-termux" 2>/dev/null || true
+[ -f "$HOME/.bashrc" ] && cp -a "$HOME/.bashrc" "$PRE/home-bashrc" 2>/dev/null || true
+
+# Overlay Prefix first, then HOME. Credentials/private material was excluded on source.
+if [ -d "$STAGE/payload/usr" ]; then
+  cp -a "$STAGE/payload/usr/." "$PREFIX/"
+fi
+if [ -d "$STAGE/payload/home" ]; then
+  cp -a "$STAGE/payload/home/." "$HOME/"
+fi
+
+rm -f "$PREFIX/var/lib/dpkg/lock" "$PREFIX/var/lib/dpkg/lock-frontend" "$PREFIX/var/lib/apt/lists/lock" 2>/dev/null || true
+hash -r 2>/dev/null || true
+command -v termux-reload-settings >/dev/null 2>&1 && termux-reload-settings >/dev/null 2>&1 || true
+rm -rf "$STAGE"
+echo "[+] Termux Transfer restore completed."
+echo "[+] Close Termux completely and open it again."
+echo "[+] Private credentials/tokens/SSH/GitHub authentication were intentionally NOT transferred."
+"""
+    return script
+
+
+def _transfer_completion_text(archives):
+    """Return post-creation transfer instructions in the user's selected language."""
+    archive_list = ", ".join(archives)
+    is_greek = get_current_display_language() == "greek"
+    if is_greek:
+        return f"""
+============================================================
+              ΤΟ ΣΥΣΤΗΜΑ ΜΕΤΑΦΟΡΑΣ ΕΙΝΑΙ ΕΤΟΙΜΟ
+============================================================
+Όλα τα αρχεία της μεταφοράς δημιουργήθηκαν με επιτυχία.
+
+Φάκελος:
+{TERMUX_TRANSFER_DIR}
+
+Αρχεία ZIP αυτής της μεταφοράς:
+{archive_list}
+
+ΒΗΜΑΤΑ ΣΤΟ ΝΕΟ ΤΗΛΕΦΩΝΟ
+
+1. Εγκαταστήστε και ανοίξτε το Termux στο νέο τηλέφωνο.
+
+2. Δώστε στο Termux άδεια πρόσβασης στον αποθηκευτικό χώρο.
+   Αν δεν έχει δοθεί ήδη, εκτελέστε:
+   termux-setup-storage
+
+3. Στα Downloads του νέου τηλεφώνου δημιουργήστε έναν φάκελο
+   ακριβώς με το όνομα:
+   Termux Transfer
+
+4. Αντιγράψτε ΟΛΟΚΛΗΡΟ το περιεχόμενο του φακέλου
+   "Termux Transfer" από το παλιό τηλέφωνο στον αντίστοιχο
+   φάκελο του νέου τηλεφώνου.
+
+   Το Core.zip είναι ΥΠΟΧΡΕΩΤΙΚΟ.
+   Αν υπάρχουν Data-001.zip, Data-002.zip κ.λπ., πρέπει να
+   μεταφερθούν ΟΛΑ τα Data ZIP της συγκεκριμένης μεταφοράς.
+   Το Install.sh πρέπει επίσης να μεταφερθεί.
+
+5. Στο νέο Termux εκτελέστε ακριβώς:
+   cd ~/storage/downloads/"Termux Transfer"
+   chmod +x Install.sh
+   bash Install.sh
+
+6. Δεν απαιτείται σύνδεση στο Internet όταν το offline bootstrap
+   έχει ενσωματωθεί σωστά. Αν υπάρχει Internet, χρησιμοποιείται
+   μόνο ως εφεδρική λύση όταν χρειάζεται.
+
+7. Μην διαγράψετε κανένα αρχείο μεταφοράς μέχρι το Install.sh να
+   αναφέρει ότι η επαναφορά ολοκληρώθηκε με επιτυχία.
+
+8. Μετά την ολοκλήρωση, κλείστε εντελώς το Termux και ανοίξτε το ξανά.
+
+9. Ιδιωτικά στοιχεία όπως SSH keys, GitHub authentication,
+   credentials, tokens, .env αρχεία και ανιχνευμένα project secrets
+   ΔΕΝ μεταφέρονται. Συνδεθείτε ξανά χειροκίνητα στις υπηρεσίες που
+   τα χρειάζονται στο νέο τηλέφωνο.
+
+ΣΗΜΑΝΤΙΚΟ:
+Το Install.sh ελέγχει τη συμβατότητα αρχιτεκτονικής πριν κάνει
+επαναφορά. Μην παρακάμψετε αυτόν τον έλεγχο.
+============================================================
+""".strip()
+
+    return f"""
+============================================================
+                 TRANSFER SYSTEM IS READY
+============================================================
+All transfer files were created successfully.
+
+Folder:
+{TERMUX_TRANSFER_DIR}
+
+ZIP files for this transfer:
+{archive_list}
+
+STEPS ON THE NEW PHONE
+
+1. Install and open Termux on the new phone.
+
+2. Give Termux storage permission.
+   If it has not already been granted, run:
+   termux-setup-storage
+
+3. In the new phone's Downloads directory, create a folder named
+   exactly:
+   Termux Transfer
+
+4. Copy the ENTIRE contents of the "Termux Transfer" folder from
+   the old phone into the matching folder on the new phone.
+
+   Core.zip is MANDATORY.
+   If Data-001.zip, Data-002.zip, etc. exist, ALL Data ZIP files
+   generated by this transfer must be copied.
+   Install.sh must also be copied.
+
+5. In the new Termux installation, run exactly:
+   cd ~/storage/downloads/"Termux Transfer"
+   chmod +x Install.sh
+   bash Install.sh
+
+6. Internet access is not required when the offline bootstrap was
+   embedded successfully. If Internet is available, it is used only
+   as a fallback when necessary.
+
+7. Do not delete any transfer file until Install.sh reports that the
+   restore completed successfully.
+
+8. When restoration finishes, fully close Termux and open it again.
+
+9. Private material such as SSH keys, GitHub authentication,
+   credentials, tokens, .env files and detected project secrets are
+   NOT transferred. Sign in again manually on the new phone wherever
+   those credentials are required.
+
+IMPORTANT:
+Install.sh checks architecture compatibility before restoring.
+Do not bypass that compatibility check.
+============================================================
+""".strip()
+
+
+def create_termux_transfer():
+    """Create an offline, privacy-filtered Termux migration set in Downloads."""
+    try:
+        if not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
+            run_command_silent("termux-setup-storage")
+        os.makedirs(TERMUX_TRANSFER_DIR, exist_ok=True)
+        _remove_path_if_exists(TERMUX_TRANSFER_WORKDIR)
+        os.makedirs(TERMUX_TRANSFER_WORKDIR, exist_ok=True)
+        # Replace previous generated transfer artifacts, never unrelated user files.
+        for name in os.listdir(TERMUX_TRANSFER_DIR):
+            if name == TERMUX_TRANSFER_CORE_NAME or re.fullmatch(r"Data-\d{3}\.zip", name) or name in {"Install.sh", "Transfer Manifest.json", "Transfer Manifest.txt"}:
+                _remove_path_if_exists(os.path.join(TERMUX_TRANSFER_DIR, name))
+
+        print("[+] Scanning Termux while excluding credentials, tokens, SSH/GitHub authentication and project secrets...")
+        entries, excluded = _transfer_inventory()
+        if not entries:
+            raise RuntimeError("No transferable Termux files were found.")
+        total_bytes = sum(int(entry.get("size", 0)) for entry in entries if entry.get("kind") == "file")
+        print(f"[+] Transferable data: {total_bytes / (1024**3):.2f} GiB across {len(entries)} filesystem entries.")
+
+        data_names, split_records = _transfer_write_data_archives(entries)
+        core_path, metadata = _transfer_write_core(entries, split_records, excluded)
+        archives = [TERMUX_TRANSFER_CORE_NAME] + data_names
+        # Hard guarantee each generated ZIP is below 1.5 GB.
+        for name in archives:
+            size = os.path.getsize(os.path.join(TERMUX_TRANSFER_DIR, name))
+            if size > TERMUX_TRANSFER_HARD_MAX_BYTES:
+                raise RuntimeError(f"{name} exceeded the 1.5 GB limit ({size} bytes).")
+
+        installer = _transfer_install_script(archives, metadata)
+        install_path = os.path.join(TERMUX_TRANSFER_DIR, "Install.sh")
+        with open(install_path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(installer)
+        os.chmod(install_path, 0o700)
+
+        archive_meta = []
+        for name in archives:
+            path = os.path.join(TERMUX_TRANSFER_DIR, name)
+            archive_meta.append({"name": name, "size": os.path.getsize(path), "sha256": _transfer_sha256(path), "required": True})
+        manifest = dict(metadata)
+        manifest.update({
+            "archives": archive_meta,
+            "entry_count": len(entries),
+            "transferable_bytes": total_bytes,
+            "split_file_count": len(split_records),
+            "install_script": "Install.sh",
+            "note": "Private credentials, SSH/GitHub authentication, tokens and detected project secrets are intentionally excluded.",
+        })
+        with open(os.path.join(TERMUX_TRANSFER_DIR, "Transfer Manifest.json"), "w", encoding="utf-8") as handle:
+            json.dump(manifest, handle, indent=2, ensure_ascii=False)
+        completion_text = _transfer_completion_text(archives)
+        with open(os.path.join(TERMUX_TRANSFER_DIR, "Transfer Manifest.txt"), "w", encoding="utf-8") as handle:
+            handle.write(completion_text + "\n\n")
+            for item in archive_meta:
+                handle.write(f"{item['name']}  {item['size']} bytes  {item['sha256']}\n")
+        print("\n" + completion_text)
+        return True
+    except Exception as exc:
+        pipboy_log_error("Transfer System", exc)
+        print(f"[!] Transfer System failed: {exc}")
+        return False
+    finally:
+        _remove_path_if_exists(TERMUX_TRANSFER_WORKDIR)
+
+
 def show_about():
     print(f"=== {_('System Information')} ===")
     dedsec_path = find_dedsec()
@@ -1658,11 +2421,10 @@ def show_credits():
                 {_('Credits').upper()}
 =======================================
 Creator: dedsec1121fk
-Contributors: gr3ysec
 Art Artists: Christina Chatzidimitriou, 3A
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
-Past Help: Sal Scar, lamprouil, UKI_hunter
+Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter
 =======================================
 """
     print(credits)
@@ -4088,11 +4850,10 @@ def settings_meta():
         'prompt_username': load_config().get('display_name') or 'DedSec',
         'credits': {
             'creator': 'dedsec1121fk',
-            'contributors': 'gr3ysec, Sal Scar',
             'art_artists': 'Christina Chatzidimitriou',
             'legal_documents': 'Lampros Spyrou',
             'discord_server_maintenance': 'Talha',
-            'past_help': 'lamprouil, UKI_hunter'
+            'past_help': 'Sal Scar, gr3ysec, lamprouil, UKI_hunter'
         }
     }
 
@@ -4116,6 +4877,9 @@ def run_settings_action(action, payload):
         refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
         cmd = 'bash ' + shlex.quote(setup_path) + ' --update-only; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=root, kind='settings-packages', prefer_termux=False)
+    if action == 'transfer_system':
+        cmd = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --termux-transfer'
+        return launch_job(label='Settings: Transfer System', shell_command=cmd, cwd=HOME_DIR, kind='settings-transfer', prefer_termux=False)
     if action == 'access_sponsors':
         tier = str(payload.get('tier') or '3').replace('$', '').strip()
         config = SPONSORS_TIERS.get(tier)
@@ -5072,6 +5836,53 @@ def collect_notifications():
             pass
     return {'ok': False, 'items': []}
 
+def collect_system_metrics():
+    metrics = {
+        'cpu_count': int(os.cpu_count() or 0),
+        'load_1m': None,
+        'memory_total': 0,
+        'memory_available': 0,
+        'storage_total': 0,
+        'storage_free': 0,
+        'uptime_seconds': 0,
+        'running_sessions': 0,
+    }
+    try:
+        metrics['load_1m'] = round(float(os.getloadavg()[0]), 2)
+    except Exception:
+        pass
+    try:
+        disk = shutil.disk_usage(HOME_DIR)
+        metrics['storage_total'] = int(disk.total)
+        metrics['storage_free'] = int(disk.free)
+    except Exception:
+        pass
+    try:
+        mem = {}
+        with open('/proc/meminfo', 'r', encoding='utf-8', errors='replace') as handle:
+            for line in handle:
+                if ':' not in line:
+                    continue
+                key, value = line.split(':', 1)
+                number = re.search(r'\d+', value)
+                if number:
+                    mem[key.strip()] = int(number.group(0)) * 1024
+        metrics['memory_total'] = int(mem.get('MemTotal', 0))
+        metrics['memory_available'] = int(mem.get('MemAvailable', mem.get('MemFree', 0)))
+    except Exception:
+        pass
+    try:
+        with open('/proc/uptime', 'r', encoding='utf-8', errors='replace') as handle:
+            metrics['uptime_seconds'] = int(float(handle.read().split()[0]))
+    except Exception:
+        pass
+    try:
+        metrics['running_sessions'] = sum(1 for item in load_jobs().values() if item.get('running'))
+    except Exception:
+        pass
+    return metrics
+
+
 def collect_info():
     config = load_config()
     uname = os.uname()
@@ -5613,6 +6424,202 @@ INDEX_HTML = r"""
         align-items: center;
       }
     }
+
+    /* DedSec OS responsive shell: desktop sidebar, tablet rail, mobile header + dock. */
+    :root { --sidebar-width: 216px; --mobile-header-h: 58px; --mobile-nav-h: 72px; }
+    html { scrollbar-gutter: stable; }
+    body { min-height: 100dvh; }
+    button, .btn, .file-btn, .extra-key, .tab { -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, .terminal-screen:focus-visible {
+      outline: 2px solid var(--terminal-accent);
+      outline-offset: 2px;
+    }
+    #app {
+      min-height: 100dvh;
+      padding: 14px 14px 18px calc(var(--sidebar-width) + 28px);
+      transition: padding .22s ease;
+    }
+    .topbar {
+      left: 14px;
+      right: auto;
+      width: var(--sidebar-width);
+      overflow-x: hidden;
+      transition: transform .22s ease, width .22s ease;
+    }
+    #app.sidebar-hidden { padding-left: 14px !important; padding-right: 14px !important; }
+    #app.sidebar-hidden .topbar { transform: translateX(-150%); }
+    #showSidebarBtn { left: 8px; right: auto; border-radius: 0 14px 14px 0; }
+    .brand { padding: 4px 4px 10px; border-bottom: 1px solid color-mix(in srgb, var(--border) 65%, transparent); }
+    .brand-title { font-size: 1.02rem; letter-spacing: .08em; text-transform: uppercase; }
+    .brand-subtitle { margin-top: 4px; color: var(--muted); font-size: .68rem; letter-spacing: .04em; }
+    .sidebar-nav { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+    .sidebar-spacer { flex: 1; min-height: 8px; }
+    .sidebar-status { display: flex; flex-direction: column; gap: 7px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent); }
+    .sidebar-nav-btn {
+      width: 100%; min-height: 48px; border: 1px solid transparent; border-radius: 14px;
+      display: grid; grid-template-columns: 28px minmax(0,1fr); align-items: center; gap: 10px;
+      padding: 9px 10px; background: transparent; color: var(--text); cursor: pointer; text-align: left;
+    }
+    .sidebar-nav-btn svg { width: 22px; height: 22px; }
+    .sidebar-nav-btn .nav-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 650; font-size: .82rem; }
+    .sidebar-nav-btn:hover { background: color-mix(in srgb, var(--terminal-accent) 10%, transparent); border-color: var(--border); }
+    .sidebar-nav-btn.active { background: color-mix(in srgb, var(--terminal-accent) 18%, transparent); border-color: color-mix(in srgb, var(--terminal-accent) 68%, var(--border)); }
+    .sidebar-status .btn.small { min-height: 38px; }
+    .mobile-header, .mobile-nav { display: none; }
+    .desktop { min-height: calc(100dvh - 32px); }
+    .screen { min-height: calc(100dvh - 32px); border-radius: 24px; }
+    .screen-header { min-height: 64px; padding: 14px 18px; }
+    .screen-body { padding: 16px; }
+    .screen.active { animation: screenIn .16s ease-out; }
+    @keyframes screenIn { from { opacity: .55; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+    .panel { box-shadow: 0 8px 28px rgba(0,0,0,.14); }
+    .dashboard-hero {
+      position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: 24px; padding: 20px;
+      background: linear-gradient(130deg, color-mix(in srgb, var(--terminal-accent) 16%, var(--panel-alt)), var(--panel-alt));
+      display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: center;
+    }
+    .dashboard-hero h1 { margin: 0; font-size: clamp(1.35rem, 3vw, 2.05rem); letter-spacing: -.02em; }
+    .dashboard-hero p { margin: 6px 0 0; color: var(--muted); font-size: .86rem; line-height: 1.45; }
+    .status-chip-row { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .status-chip { border:1px solid var(--border); border-radius:999px; padding:6px 10px; font-size:.72rem; color:var(--text); background:color-mix(in srgb,var(--panel) 86%,transparent); }
+    .metric-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+    .metric-card { border:1px solid var(--border); border-radius:18px; padding:14px; background:color-mix(in srgb,var(--panel-alt) 88%,transparent); min-width:0; }
+    .metric-label { color:var(--muted); font-size:.72rem; margin-bottom:6px; }
+    .metric-value { font-size:1.08rem; font-weight:750; overflow-wrap:anywhere; }
+    .metric-track { height:5px; border-radius:999px; overflow:hidden; background:color-mix(in srgb,var(--text) 9%,transparent); margin-top:10px; }
+    .metric-track > span { display:block; height:100%; background:var(--terminal-accent); border-radius:inherit; }
+    .dashboard-layout { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr); gap:14px; }
+    .quick-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .quick-action { min-height:86px; display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:8px; }
+    .quick-action svg { width:22px; height:22px; }
+    .settings-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
+    .settings-layout > .panel:first-child { grid-row: span 2; }
+    .settings-section-title { font-size:.92rem; font-weight:750; padding-bottom:8px; border-bottom:1px solid color-mix(in srgb,var(--border) 55%,transparent); }
+    .settings-divider { margin-top:6px; padding-top:14px; border-top:1px solid color-mix(in srgb,var(--border) 55%,transparent); font-weight:700; font-size:.82rem; }
+    .theme-swatches { display:grid; grid-template-columns:repeat(8,minmax(0,1fr)); gap:8px; }
+    .theme-swatch { aspect-ratio:1; min-width:0; border:2px solid transparent; border-radius:12px; cursor:pointer; padding:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.15); }
+    .theme-swatch.active { border-color:var(--text); transform:scale(1.06); }
+    #storeList { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; }
+    #appsList { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
+    #sessionsList { display:flex; flex-direction:column; }
+    .terminal-wrap { min-height:calc(100dvh - 130px); grid-template-rows:auto auto minmax(300px,1fr) auto; }
+    #terminalTabs { display:flex !important; }
+    .terminal-screen { max-height:none; min-height:clamp(360px,60dvh,760px); }
+    .terminal-header-title { display:flex; align-items:center; gap:8px; min-width:0; }
+    .terminal-session-badge { max-width:42vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:.74rem; border:1px solid var(--border); border-radius:999px; padding:5px 9px; }
+    body.terminal-focus-mode #app { padding:0 !important; }
+    body.terminal-focus-mode .topbar, body.terminal-focus-mode .mobile-header, body.terminal-focus-mode .mobile-nav, body.terminal-focus-mode #showSidebarBtn { display:none !important; }
+    body.terminal-focus-mode .screen:not([data-app="terminal"]) { display:none !important; }
+    body.terminal-focus-mode .screen[data-app="terminal"] { position:fixed; inset:0; z-index:500; border:0; border-radius:0; min-height:100dvh; }
+    body.terminal-focus-mode .terminal-wrap { min-height:calc(100dvh - 78px); border-radius:0; }
+    body.terminal-focus-mode .terminal-screen { min-height:calc(100dvh - 260px); }
+    .editor-panel textarea { min-height:clamp(260px,42dvh,620px); font-family:var(--font-mono); line-height:1.5; }
+    #notificationsPanel { left:calc(var(--sidebar-width) + 28px); right:auto; top:14px; width:min(380px,calc(100vw - var(--sidebar-width) - 56px)); z-index:90; }
+
+    .mobile-icon-btn svg { width:18px; height:18px; display:block; pointer-events:none; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--terminal-accent); outline-offset:2px; }
+    .nav-app-btn[aria-current="page"] { box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--terminal-accent) 45%,transparent); }
+
+    @media (min-width: 761px) and (max-width: 1080px) {
+      :root { --sidebar-width: 88px; }
+      #app { padding-left:calc(var(--sidebar-width) + 22px); }
+      .topbar { width:var(--sidebar-width); padding:10px 8px; }
+      .brand-title { font-size:.72rem; letter-spacing:.04em; }
+      .brand-subtitle { display:none; }
+      .sidebar-nav-btn { grid-template-columns:1fr; justify-items:center; gap:3px; padding:8px 4px; min-height:52px; }
+      .sidebar-nav-btn .nav-label { font-size:.61rem; max-width:72px; text-align:center; white-space:normal; line-height:1.05; }
+      .sidebar-status .btn.small { font-size:.63rem; padding:6px 4px; }
+      .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      .dashboard-layout { grid-template-columns:1fr; }
+      .settings-layout { grid-template-columns:1fr; }
+      .settings-layout > .panel:first-child { grid-row:auto; }
+      .theme-swatches { grid-template-columns:repeat(8,minmax(0,1fr)); }
+      #notificationsPanel { left:calc(var(--sidebar-width) + 20px); width:min(360px,calc(100vw - var(--sidebar-width) - 40px)); }
+    }
+
+    @media (max-width: 760px) {
+      :root { --sidebar-width:0px; }
+      html,body { overscroll-behavior-y:none; }
+      #app, #app.sidebar-hidden { padding:max(8px,env(safe-area-inset-top)) 8px calc(var(--mobile-nav-h) + 12px + env(safe-area-inset-bottom)) 8px !important; padding-top:calc(var(--mobile-header-h) + 10px + env(safe-area-inset-top)) !important; }
+      .topbar, #showSidebarBtn { display:none !important; }
+      .mobile-header {
+        position:fixed; z-index:120; top:0; left:0; right:0; height:calc(var(--mobile-header-h) + env(safe-area-inset-top));
+        padding:calc(7px + env(safe-area-inset-top)) 10px 7px; display:flex; align-items:center; gap:8px;
+        background:color-mix(in srgb,var(--menu-solid) 94%,transparent); border-bottom:1px solid var(--border); backdrop-filter:blur(18px);
+      }
+      .mobile-brand { min-width:0; flex:1; }
+      .mobile-brand strong { display:block; font-size:.86rem; letter-spacing:.06em; }
+      .mobile-brand span { display:block; color:var(--muted); font-size:.65rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .mobile-header-actions { display:flex; gap:5px; }
+      .mobile-header .btn.small { min-height:40px; min-width:40px; padding:7px 8px; font-size:.7rem; border-radius:12px; }
+      .mobile-nav {
+        position:fixed; z-index:120; left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom));
+        min-height:var(--mobile-nav-h); padding:7px; display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:4px;
+        background:color-mix(in srgb,var(--menu-solid) 94%,transparent); border:1px solid var(--border); border-radius:20px; backdrop-filter:blur(18px); box-shadow:var(--shadow);
+      }
+      .mobile-nav-btn { border:0; background:transparent; color:var(--muted); border-radius:14px; min-width:0; padding:6px 2px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; }
+      .mobile-nav-btn svg { width:20px; height:20px; }
+      .mobile-nav-btn span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.58rem; line-height:1; }
+      .mobile-nav-btn.active { color:var(--text); background:color-mix(in srgb,var(--terminal-accent) 18%,transparent); }
+      .desktop { min-height:calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - 28px); }
+      .screen { min-height:calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - 30px); border-radius:18px; }
+      .screen-header { min-height:auto; padding:12px; gap:8px; }
+      .screen-header .toolbar { width:100%; }
+      .screen-header .toolbar .btn { flex:1 1 auto; }
+      .screen-body { padding:10px; gap:10px; }
+      .panel { padding:11px; border-radius:16px; }
+      .btn, .file-btn { min-height:44px; }
+      .btn.small, .file-btn { min-height:40px; }
+      .file-actions .file-btn { flex:1 1 42%; }
+      .dashboard-hero { grid-template-columns:1fr; padding:15px; border-radius:18px; }
+      .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+      .metric-card { padding:11px; border-radius:15px; }
+      .dashboard-layout { grid-template-columns:1fr; gap:10px; }
+      .quick-actions { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+      .quick-action { min-height:78px; }
+      .settings-layout { grid-template-columns:1fr; gap:10px; }
+      .settings-layout > .panel:first-child { grid-row:auto; }
+      .theme-swatches { grid-template-columns:repeat(8,minmax(0,1fr)); gap:6px; }
+      .theme-swatch { border-radius:9px; }
+      #storeList, #appsList { grid-template-columns:1fr; }
+      .terminal-wrap { min-height:calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - 92px); padding:8px; gap:8px; border-radius:14px; }
+      .terminal-screen { min-height:max(240px,calc(100dvh - 430px)); font-size:.82rem; }
+      .extra-keys { grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px; }
+      .extra-key { min-height:42px; padding:6px 3px; font-size:.69rem; }
+      .terminal-session-badge { max-width:56vw; }
+      .terminal-tabs { gap:6px; }
+      .tab { padding:8px 10px; font-size:.72rem; }
+      #notificationsPanel { left:8px; right:8px; top:calc(var(--mobile-header-h) + 8px + env(safe-area-inset-top)); width:auto; max-height:calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - 28px); }
+      .login-overlay { padding:12px; align-items:flex-start; padding-top:max(24px,env(safe-area-inset-top)); overflow:auto; }
+      .login-card { border-radius:20px; padding:14px; }
+      textarea { min-height:220px; }
+      .editor-panel { scroll-margin-top:calc(var(--mobile-header-h) + 12px); }
+    }
+
+    @media (max-width: 420px) {
+      .mobile-header .btn.small { min-width:36px; padding:6px; font-size:.64rem; }
+      .mobile-nav { left:5px; right:5px; gap:2px; padding:5px; }
+      .mobile-nav-btn span { font-size:.53rem; }
+      .metric-grid { grid-template-columns:1fr 1fr; }
+      .theme-swatches { grid-template-columns:repeat(8,minmax(0,1fr)); }
+      .toolbar { gap:6px; }
+    }
+
+    @media (max-height: 520px) and (orientation: landscape) and (max-width: 960px) {
+      :root { --mobile-header-h:48px; --mobile-nav-h:58px; }
+      .mobile-nav-btn span { display:none; }
+      .mobile-nav-btn svg { width:22px; height:22px; }
+      .mobile-brand span { display:none; }
+      .terminal-screen { min-height:180px; }
+    }
+
+    @media (hover:hover) and (pointer:fine) {
+      .app-card:hover, .info-card:hover, .store-card:hover, .metric-card:hover { border-color:var(--hover-border); transform:translateY(-1px); }
+      .app-card, .info-card, .store-card, .metric-card { transition:border-color .16s ease, transform .16s ease; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; scroll-behavior:auto !important; }
+    }
   </style>
   <script>
     (function() {
@@ -5661,7 +6668,7 @@ INDEX_HTML = r"""
   <div id="loading">
     <div class="spinner"></div>
     <div style="font-weight:700;font-size:1.08rem;">Welcome to DedSec OS</div>
-    <div class="subtle">Loading secure local environment... please wait 10 seconds.</div>
+    <div class="subtle">Preparing your secure local workspace...</div>
   </div>
   <div id="loginOverlay" class="login-overlay hidden">
     <div class="login-card">
@@ -5723,30 +6730,44 @@ INDEX_HTML = r"""
   </div>
   <div id="toast"></div>
   <button class="btn small" id="showSidebarBtn">Show Bar</button>
+  <div class="mobile-header">
+    <div class="mobile-brand"><strong>DedSec OS</strong><span id="mobileContextLabel">System</span></div>
+    <div class="mobile-header-actions">
+      <button class="btn small" id="mobileBatteryLabel" title="Battery">--%</button>
+      <button class="btn small mobile-icon-btn" id="mobileNotificationsBtn" title="Notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M10 21h4"></path></svg></button>
+      <button class="btn small mobile-icon-btn" id="mobileFullscreenBtn" title="Full Screen" aria-label="Full Screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"></path></svg></button>
+      <button class="btn small danger mobile-icon-btn" id="mobileExitBtn" title="Exit" aria-label="Exit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"></path></svg></button>
+    </div>
+  </div>
+  <nav class="mobile-nav" id="mobileNav" aria-label="DedSec OS applications"></nav>
   <div id="app">
-    <div class="topbar">
+    <aside class="topbar" aria-label="DedSec OS navigation">
       <div class="brand">
         <div>
           <div class="brand-title">DedSec OS</div>
+          <div class="brand-subtitle" id="sidebarBrandSubtitle">Local Workspace</div>
         </div>
       </div>
-      <div class="topbar-right">
+      <div class="sidebar-nav" id="sidebarNav"></div>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-status">
         <button class="btn small" id="batteryLabel">--%</button>
-        <button class="btn small danger" id="exitDedsecOsBtn">Exit</button>
         <button class="btn small" id="notificationsBtn">Notifications</button>
         <button class="btn small" id="fullscreenTopBtn">Full Screen</button>
-        <button class="btn small" id="hideSidebarBtn">Hide Bar</button>
-        <button class="btn small sidebar-app-btn" data-side-app="settings">Settings</button>
-        <button class="btn small sidebar-app-btn" data-side-app="terminal">Terminal</button>
-        <button class="btn small sidebar-app-btn" data-side-app="apps">DedSec Apps</button>
         <button class="btn small" id="backNavBtn">Back</button>
+        <button class="btn small" id="hideSidebarBtn">Hide Bar</button>
+        <button class="btn small danger" id="exitDedsecOsBtn">Exit</button>
       </div>
-    </div>
+    </aside>
     <div id="notificationsPanel" class="hidden"></div>
     <div class="dock" id="dock"></div>
     <div class="desktop">
-      <section class="screen" data-app="system">
-        <div class="screen-header" style="justify-content:flex-start;">
+      <section class="screen active" data-app="system">
+        <div class="screen-header">
+          <div class="stack">
+            <div class="screen-title" id="systemTitle">System</div>
+            <div class="subtle" id="systemSubtle">DedSec OS dashboard</div>
+          </div>
           <div class="toolbar">
             <button class="btn small" id="refreshSystemBtn">Refresh</button>
           </div>
@@ -5773,7 +6794,7 @@ INDEX_HTML = r"""
             <div class="panel-stack" id="filesRoots"></div>
             <div class="file-list" id="filesList"></div>
           </div>
-          <div class="panel">
+          <div class="panel editor-panel" id="editorPanel">
             <div class="stack" style="justify-content:space-between;align-items:center;">
               <div>
                 <div class="screen-title" id="editorTitle" style="font-size:0.92rem;">Editor</div>
@@ -5789,10 +6810,15 @@ INDEX_HTML = r"""
       </section>
 
       <section class="screen" data-app="terminal">
-        <div class="screen-header" style="justify-content:flex-end;">
+        <div class="screen-header">
+          <div class="terminal-header-title">
+            <div class="screen-title" id="terminalTitle">Terminal</div>
+            <div class="terminal-session-badge" id="terminalSessionBadge">web-shell</div>
+          </div>
           <div class="toolbar">
             <button class="btn small" id="terminalRefreshBtn">Refresh</button>
             <button class="btn small" id="terminalSessionsBtn">See Sessions</button>
+            <button class="btn small" id="terminalFocusBtn">Focus</button>
           </div>
         </div>
         <div class="screen-body">
@@ -5837,7 +6863,7 @@ INDEX_HTML = r"""
         </div>
       </section>
 
-      <section class="screen active" data-app="apps">
+      <section class="screen" data-app="apps">
         <div class="screen-header">
           <div class="stack">
             <div class="screen-title" id="appsTitle">DedSec Apps</div>
@@ -5873,11 +6899,12 @@ INDEX_HTML = r"""
         <div class="screen-header">
           <div class="stack">
             <div class="screen-title" id="settingsTitle">Settings</div>
-            <div class="subtle" id="settingsSubtle">Identity and wallpaper</div>
+            <div class="subtle" id="settingsSubtle">Appearance, security and project controls</div>
           </div>
         </div>
-        <div class="screen-body">
+        <div class="screen-body settings-layout">
           <div class="panel">
+            <div class="settings-section-title" id="appearanceSecurityTitle">Appearance, Identity & Security</div>
             <div class="field">
               <label id="displayNameLabel" for="displayNameInput">Display name</label>
               <input type="text" id="displayNameInput" list="userProfilesList" placeholder="DedSec">
@@ -5903,6 +6930,7 @@ INDEX_HTML = r"""
                 <option value="forest">Forest Mist</option>
                 <option value="midnight">Midnight Blue</option>
               </select>
+              <div class="theme-swatches" id="themeSwatches" aria-label="Theme preview"></div>
             </div>
             <div class="field">
               <label id="wallpaperInputLabel" for="wallpaperInput">Wallpaper URL or local path</label>
@@ -5912,12 +6940,13 @@ INDEX_HTML = r"""
               <label id="wallpaperUploadLabel" for="wallpaperUpload">Wallpaper image upload</label>
               <input type="file" id="wallpaperUpload" accept="image/*">
             </div>
-            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="loginEnabledChk"> Require login password</label>
+            <div class="settings-divider" id="securitySectionTitle">Security</div>
+            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="loginEnabledChk"><span id="loginEnabledText">Require login password</span></label>
             <div class="field">
               <label id="loginPasswordSettingLabel" for="loginPasswordSetting">New password</label>
               <input type="password" id="loginPasswordSetting" placeholder="Leave blank to keep current password">
             </div>
-            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="totpEnabledChk"> Enable authenticator app (2FA)</label>
+            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="totpEnabledChk"><span id="totpEnabledText">Enable authenticator app (2FA)</span></label>
             <div class="field">
               <label id="totpSecretLabel" for="totpSecretDisplay">Authenticator secret</label>
               <input type="text" id="totpSecretDisplay" placeholder="Will be generated after saving" readonly>
@@ -5953,20 +6982,20 @@ INDEX_HTML = r"""
             </div>
           </div>
           <div class="panel">
-            <div class="screen-title" style="font-size:0.92rem;">Project & Menu</div>
+            <div class="settings-section-title" id="projectMenuTitle">Project & Menu</div>
             <div class="field">
-              <label for="webPromptUsername">Prompt username</label>
+              <label id="webPromptUsernameLabel" for="webPromptUsername">Prompt username</label>
               <input type="text" id="webPromptUsername" placeholder="DedSec">
             </div>
             <div class="field">
-              <label for="webLanguageSelect">Language</label>
+              <label id="webLanguageLabel" for="webLanguageSelect">Language</label>
               <select id="webLanguageSelect">
                 <option value="english">English</option>
                 <option value="greek">Ελληνικά</option>
               </select>
             </div>
             <div class="field">
-              <label for="webMenuStyleSelect">Menu style</label>
+              <label id="webMenuStyleLabel" for="webMenuStyleSelect">Menu style</label>
               <select id="webMenuStyleSelect">
                 <option value="list">List Style</option>
                 <option value="grid">Grid Style</option>
@@ -5975,7 +7004,7 @@ INDEX_HTML = r"""
                 <option value="dedsec_os">DedSec OS</option>
               </select>
             </div>
-            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="webAutostartChk"> Menu auto-start</label>
+            <label class="subtle" style="display:flex;gap:8px;align-items:center;"><input type="checkbox" id="webAutostartChk"><span id="webAutostartText">Menu auto-start</span></label>
             <div class="toolbar">
               <button class="btn" id="savePromptBtn">Save Prompt</button>
               <button class="btn" id="saveLanguageBtn">Apply Language</button>
@@ -5984,23 +7013,23 @@ INDEX_HTML = r"""
             </div>
           </div>
           <div class="panel">
-            <div class="screen-title" style="font-size:0.92rem;">Project Actions</div>
+            <div class="settings-section-title" id="projectActionsTitle">Project Actions</div>
             <div class="toolbar">
               <button class="btn" id="updateSource1Btn">Update Project (Source 1)</button>
               <button class="btn" id="updateSource2Btn">Update Project (Source 2)</button>
               <button class="btn" id="updatePackagesBtn">Update Packages & Modules</button>
+              <button class="btn" id="transferSystemBtn">Transfer System</button>
               <button class="btn" id="accessSponsors3Btn">Download Sponsors $3 Tier</button>
               <button class="btn" id="accessSponsors9Btn">Download Sponsors $9 Tier</button>
             </div>
           </div>
           <div class="panel">
-            <div class="screen-title" style="font-size:0.92rem;">Credits</div>
+            <div class="settings-section-title" id="creditsTitle">Credits</div>
             <div class="subtle" id="creditsBlock">Creator: dedsec1121fk
-Contributors: gr3ysec, Sal Scar
 Art Artists: Christina Chatzidimitriou
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
-Past Help: lamprouil, UKI_hunter</div>
+Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
           </div>
         </div>
       </section>
@@ -6010,7 +7039,7 @@ Past Help: lamprouil, UKI_hunter</div>
 
   <script>
     var state = {
-      activeApp: 'apps',
+      activeApp: 'system',
       info: null,
       config: null,
       filesPath: '',
@@ -6031,15 +7060,16 @@ Past Help: lamprouil, UKI_hunter</div>
       ctrlArmed: false,
       altArmed: false,
       terminalRefreshTimer: null,
-      lastApp: 'apps'
+      lastApp: 'system',
+      status: null
     };
 
     var I18N = {
       en: {
-        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Download Sponsors $3 Tier':'Download Sponsors $3 Tier','Download Sponsors $9 Tier':'Download Sponsors $9 Tier','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu'
+        'System':'System','Phone-first local workspace':'Phone-first local workspace','Refresh':'Refresh','Files':'Files','Browse and edit text files safely':'Browse and edit text files safely','New Folder':'New Folder','New File':'New File','Paste':'Paste','Editor':'Editor','No file opened':'No file opened','Open a text file to edit it.':'Open a text file to edit it.','Save':'Save','See Sessions':'See Sessions','Sessions':'Sessions','New Session':'New Session','Close':'Close','DedSec Apps':'DedSec Apps','Browse project folders and run scripts':'Browse project folders and run scripts','Linux Store':'Linux Store','Real Termux package actions':'Real Termux package actions','Settings':'Settings','Identity and wallpaper':'Identity and wallpaper','Appearance, security and project controls':'Appearance, security and project controls','Display name':'Display name','Terminal colors':'Terminal colors','Wallpaper URL or local path':'Wallpaper URL or local path','Wallpaper image upload':'Wallpaper image upload','Save settings':'Save settings','Reset wallpaper':'Reset wallpaper','Toggle Full Screen':'Toggle Full Screen','Apps':'Apps','Open':'Open','Folder':'Folder','File':'File','Runnable file':'Runnable file','Run':'Run','Copy':'Copy','Move':'Move','Delete':'Delete','Go back':'Go back','Installed':'Installed','Not installed':'Not installed','Package':'Package','Running':'Running','Exit':'Exit','No sessions found.':'No sessions found.','Open a text file first':'Open a text file first','File saved':'File saved','Clipboard is empty':'Clipboard is empty','Paste complete':'Paste complete','Move queued':'Move queued','Delete this item?':'Delete this item?','Deleted':'Deleted','Settings saved':'Settings saved','Wallpaper reset':'Wallpaper reset','Folder name':'Folder name','File name':'File name','Copied to clipboard':'Copied to clipboard','Launched':'Launched','Hide Bar':'Hide Bar','Show Bar':'Show Bar','Full Screen':'Full Screen','Project & Menu':'Project & Menu','Prompt username':'Prompt username','Language':'Language','Menu style':'Menu style','Menu auto-start':'Menu auto-start','Save Prompt':'Save Prompt','Apply Language':'Apply Language','Apply Menu Style':'Apply Menu Style','Save Auto-Start':'Save Auto-Start','Project Actions':'Project Actions','Update Project (Source 1)':'Update Project (Source 1)','Update Project (Source 2)':'Update Project (Source 2)','Update Packages & Modules':'Update Packages & Modules','Transfer System':'Transfer System','Download Sponsors $3 Tier':'Download Sponsors $3 Tier','Download Sponsors $9 Tier':'Download Sponsors $9 Tier','Credits':'Credits','Saved':'Saved','List Style':'List Style','Grid Style':'Grid Style','Choose By Number':'Choose By Number','DedSec OS':'DedSec OS','Back':'Back','Notifications':'Notifications','Login required':'Login required','Enter your password to unlock DedSec OS.':'Enter your password to unlock DedSec OS.','Username':'Username','Password':'Password','Unlock':'Unlock','Require login password':'Require login password','New password':'New password','Leave blank to keep current password':'Leave blank to keep current password','Wrong password':'Wrong password','Authenticator code':'Authenticator code','Forgot password?':'Forgot password?','Password recovery':'Password recovery','Answer all 3 security questions to reset your password.':'Answer all 3 security questions to reset your password.','Question 1':'Question 1','Question 2':'Question 2','Question 3':'Question 3','Answer 1':'Answer 1','Answer 2':'Answer 2','Answer 3':'Answer 3','Reset password':'Reset password','Enable authenticator app (2FA)':'Enable authenticator app (2FA)','Authenticator secret':'Authenticator secret','Security question 1':'Security question 1','Security question 2':'Security question 2','Security question 3':'Security question 3','Recovery answers do not match.':'Recovery answers do not match.','A 6-digit authenticator code is required.':'A 6-digit authenticator code is required.','DedSec OS dashboard':'DedSec OS dashboard','Appearance, Identity & Security':'Appearance, Identity & Security','Security':'Security','Focus':'Focus','Exit Focus':'Exit Focus','Battery':'Battery','Storage':'Storage','Memory':'Memory','Uptime':'Uptime','CPU':'CPU','Sessions':'Sessions','Quick access':'Quick access','System details':'System details','Open':'Open','Full':'Full','Split':'Split','Terminal':'Terminal','Store':'Store','Theme':'Theme','Menu':'Menu','Local Workspace':'Local Workspace','Architecture':'Architecture','Platform':'Platform','Home':'Home','DedSec Root':'DedSec Root','Termux Prefix':'Termux Prefix','Battery unavailable':'Battery unavailable','free':'free','load':'load'
       },
       el: {
-        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Download Sponsors $3 Tier':'Λήψη Sponsors $3 Tier','Download Sponsors $9 Tier':'Λήψη Sponsors $9 Tier','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','Ded-Guy Style':'Στυλ Ded-Guy','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού'
+        'System':'Σύστημα','Phone-first local workspace':'Τοπικός χώρος εργασίας για κινητό','Refresh':'Ανανέωση','Files':'Αρχεία','Browse and edit text files safely':'Περιήγηση και ασφαλής επεξεργασία αρχείων κειμένου','New Folder':'Νέος Φάκελος','New File':'Νέο Αρχείο','Paste':'Επικόλληση','Editor':'Επεξεργαστής','No file opened':'Δεν έχει ανοιχτεί αρχείο','Open a text file to edit it.':'Ανοίξτε ένα αρχείο κειμένου για επεξεργασία.','Save':'Αποθήκευση','See Sessions':'Προβολή Συνεδριών','Sessions':'Συνεδρίες','New Session':'Νέα Συνεδρία','Close':'Κλείσιμο','DedSec Apps':'Εφαρμογές DedSec','Browse project folders and run scripts':'Περιηγηθείτε στους φακέλους του project και εκτελέστε scripts','Linux Store':'Κατάστημα Linux','Real Termux package actions':'Πραγματικές ενέργειες πακέτων Termux','Settings':'Ρυθμίσεις','Identity and wallpaper':'Ταυτότητα και ταπετσαρία','Appearance, security and project controls':'Εμφάνιση, ασφάλεια και έλεγχοι έργου','Display name':'Όνομα εμφάνισης','Terminal colors':'Χρώματα τερματικού','Wallpaper URL or local path':'URL ταπετσαρίας ή τοπική διαδρομή','Wallpaper image upload':'Μεταφόρτωση εικόνας ταπετσαρίας','Save settings':'Αποθήκευση ρυθμίσεων','Reset wallpaper':'Επαναφορά ταπετσαρίας','Toggle Full Screen':'Εναλλαγή πλήρους οθόνης','Apps':'Εφαρμογές','Open':'Άνοιγμα','Folder':'Φάκελος','File':'Αρχείο','Runnable file':'Εκτελέσιμο αρχείο','Run':'Εκτέλεση','Copy':'Αντιγραφή','Move':'Μετακίνηση','Delete':'Διαγραφή','Go back':'Επιστροφή','Installed':'Εγκατεστημένο','Not installed':'Μη εγκατεστημένο','Package':'Πακέτο','Running':'Εκτελείται','Exit':'Έξοδος','No sessions found.':'Δεν βρέθηκαν συνεδρίες.','Open a text file first':'Ανοίξτε πρώτα ένα αρχείο κειμένου','File saved':'Το αρχείο αποθηκεύτηκε','Clipboard is empty':'Το πρόχειρο είναι άδειο','Paste complete':'Η επικόλληση ολοκληρώθηκε','Move queued':'Η μετακίνηση μπήκε σε αναμονή','Delete this item?':'Διαγραφή αυτού του στοιχείου;','Deleted':'Διαγράφηκε','Settings saved':'Οι ρυθμίσεις αποθηκεύτηκαν','Wallpaper reset':'Η ταπετσαρία επαναφέρθηκε','Folder name':'Όνομα φακέλου','File name':'Όνομα αρχείου','Copied to clipboard':'Αντιγράφηκε στο πρόχειρο','Launched':'Εκκινήθηκε','Hide Bar':'Απόκρυψη μπάρας','Show Bar':'Εμφάνιση μπάρας','Full Screen':'Πλήρης οθόνη','Project & Menu':'Έργο & Μενού','Prompt username':'Όνομα προτροπής','Language':'Γλώσσα','Menu style':'Στυλ μενού','Menu auto-start':'Αυτόματη εκκίνηση μενού','Save Prompt':'Αποθήκευση προτροπής','Apply Language':'Εφαρμογή γλώσσας','Apply Menu Style':'Εφαρμογή στυλ μενού','Save Auto-Start':'Αποθήκευση αυτόματης εκκίνησης','Project Actions':'Ενέργειες έργου','Update Project (Source 1)':'Ενημέρωση έργου (Πηγή 1)','Update Project (Source 2)':'Ενημέρωση έργου (Πηγή 2)','Update Packages & Modules':'Ενημέρωση πακέτων & modules','Transfer System':'Σύστημα Μεταφοράς','Download Sponsors $3 Tier':'Λήψη Sponsors $3 Tier','Download Sponsors $9 Tier':'Λήψη Sponsors $9 Tier','Credits':'Συντελεστές','Saved':'Αποθηκεύτηκε','List Style':'Στυλ λίστας','Grid Style':'Στυλ πλέγματος','Choose By Number':'Επιλογή με αριθμό','Ded-Guy Style':'Στυλ Ded-Guy','DedSec OS':'DedSec OS','Back':'Πίσω','Notifications':'Ειδοποιήσεις','Login required':'Απαιτείται σύνδεση','Enter your password to unlock DedSec OS.':'Εισαγάγετε τον κωδικό σας για να ξεκλειδώσετε το DedSec OS.','Username':'Όνομα χρήστη','Password':'Κωδικός','Unlock':'Ξεκλείδωμα','Require login password':'Απαίτηση κωδικού σύνδεσης','New password':'Νέος κωδικός','Leave blank to keep current password':'Αφήστε κενό για να διατηρηθεί ο τωρινός κωδικός','Wrong password':'Λάθος κωδικός','Authenticator code':'Κωδικός εφαρμογής Authenticator','Forgot password?':'Ξεχάσατε τον κωδικό;','Password recovery':'Ανάκτηση κωδικού','Answer all 3 security questions to reset your password.':'Απαντήστε και στις 3 ερωτήσεις ασφαλείας για επαναφορά του κωδικού.','Question 1':'Ερώτηση 1','Question 2':'Ερώτηση 2','Question 3':'Ερώτηση 3','Answer 1':'Απάντηση 1','Answer 2':'Απάντηση 2','Answer 3':'Απάντηση 3','Reset password':'Επαναφορά κωδικού','Enable authenticator app (2FA)':'Ενεργοποίηση εφαρμογής Authenticator (2FA)','Authenticator secret':'Μυστικό Authenticator','Security question 1':'Ερώτηση ασφαλείας 1','Security question 2':'Ερώτηση ασφαλείας 2','Security question 3':'Ερώτηση ασφαλείας 3','Recovery answers do not match.':'Οι απαντήσεις ανάκτησης δεν ταιριάζουν.','A 6-digit authenticator code is required.':'Απαιτείται 6-ψήφιος κωδικός Authenticator.','DedSec OS dashboard':'Πίνακας ελέγχου DedSec OS','Appearance, Identity & Security':'Εμφάνιση, Ταυτότητα & Ασφάλεια','Security':'Ασφάλεια','Focus':'Εστίαση','Exit Focus':'Έξοδος από εστίαση','Battery':'Μπαταρία','Storage':'Αποθήκευση','Memory':'Μνήμη','Uptime':'Χρόνος λειτουργίας','CPU':'CPU','Sessions':'Συνεδρίες','Quick access':'Γρήγορη πρόσβαση','System details':'Λεπτομέρειες συστήματος','Open':'Άνοιγμα','Full':'Πλήρης','Split':'Διαίρεση','Terminal':'Τερματικό','Store':'Κατάστημα','Theme':'Θέμα','Menu':'Μενού','Local Workspace':'Τοπικός Χώρος','Architecture':'Αρχιτεκτονική','Platform':'Πλατφόρμα','Home':'Αρχικός φάκελος','DedSec Root':'Ρίζα DedSec','Termux Prefix':'Prefix Termux','Battery unavailable':'Μη διαθέσιμη μπαταρία','free':'ελεύθερα','load':'φόρτος'
       }
     };
 
@@ -6063,12 +7093,13 @@ Past Help: lamprouil, UKI_hunter</div>
 
     function applyTranslations() {
       var map = {
-        systemTitle:'System', systemSubtle:'Phone-first local workspace', backNavBtn:'Back', batteryLabel:'--%', notificationsBtn:'Notifications', fullscreenTopBtn:'Full Screen', hideSidebarBtn:'Hide Bar', showSidebarBtn:'Show Bar', splitModeBtn:'Split', refreshSystemBtn:'Refresh', filesTitle:'Files', filesSubtle:'Browse and edit text files safely', filesRefreshBtn:'Refresh', filesNewFolderBtn:'New Folder', filesNewFileBtn:'New File', filesPasteBtn:'Paste', editorTitle:'Editor', editorSaveBtn:'Save', terminalRefreshBtn:'Refresh', terminalSessionsBtn:'See Sessions', sessionsTitle:'Sessions', sessionsNewBtn:'New Session', sessionsCloseBtn:'Close', appsTitle:'DedSec Apps', appsSubtle:'Browse project folders and run scripts', appsRefreshBtn:'Refresh', storeTitle:'Linux Store', storeSubtle:'Real Termux package actions', storeRefreshBtn:'Refresh', settingsTitle:'Settings', settingsSubtle:'Identity and wallpaper', displayNameLabel:'Display name', terminalThemeLabel:'Terminal colors', wallpaperInputLabel:'Wallpaper URL or local path', wallpaperUploadLabel:'Wallpaper image upload', saveSettingsBtn:'Save settings', resetWallpaperBtn:'Reset wallpaper', toggleFullscreenBtn:'Toggle Full Screen', webPromptUsernameLabel:'Prompt username', exitDedsecOsBtn:'Exit', loginTitle:'Login required', loginNote:'Enter your password to unlock DedSec OS.', loginUsernameLabel:'Username', loginPasswordLabel:'Password', loginSubmitBtn:'Unlock', loginPasswordSettingLabel:'New password', loginOtpLabel:'Authenticator code', forgotPasswordBtn:'Forgot password?', recoveryTitle:'Password recovery', recoveryNote:'Answer all 3 security questions to reset your password.', recoveryQuestion1Label:'Question 1', recoveryQuestion2Label:'Question 2', recoveryQuestion3Label:'Question 3', recoveryAnswer1Label:'Answer 1', recoveryAnswer2Label:'Answer 2', recoveryAnswer3Label:'Answer 3', recoveryNewPasswordLabel:'New password', recoverySubmitBtn:'Reset password', totpSecretLabel:'Authenticator secret', securityQuestion1SettingLabel:'Security question 1', securityQuestion2SettingLabel:'Security question 2', securityQuestion3SettingLabel:'Security question 3', securityAnswer1SettingLabel:'Answer 1', securityAnswer2SettingLabel:'Answer 2', securityAnswer3SettingLabel:'Answer 3'
+        systemTitle:'System', systemSubtle:'DedSec OS dashboard', terminalTitle:'Terminal', terminalFocusBtn:'Focus', appearanceSecurityTitle:'Appearance, Identity & Security', securitySectionTitle:'Security', projectMenuTitle:'Project & Menu', projectActionsTitle:'Project Actions', creditsTitle:'Credits', backNavBtn:'Back', batteryLabel:'--%', notificationsBtn:'Notifications', fullscreenTopBtn:'Full Screen', hideSidebarBtn:'Hide Bar', showSidebarBtn:'Show Bar', splitModeBtn:'Split', refreshSystemBtn:'Refresh', filesTitle:'Files', filesSubtle:'Browse and edit text files safely', filesRefreshBtn:'Refresh', filesNewFolderBtn:'New Folder', filesNewFileBtn:'New File', filesPasteBtn:'Paste', editorTitle:'Editor', editorSaveBtn:'Save', terminalRefreshBtn:'Refresh', terminalSessionsBtn:'See Sessions', sessionsTitle:'Sessions', sessionsNewBtn:'New Session', sessionsCloseBtn:'Close', appsTitle:'DedSec Apps', appsSubtle:'Browse project folders and run scripts', appsRefreshBtn:'Refresh', storeTitle:'Linux Store', storeSubtle:'Real Termux package actions', storeRefreshBtn:'Refresh', settingsTitle:'Settings', settingsSubtle:'Appearance, security and project controls', displayNameLabel:'Display name', terminalThemeLabel:'Terminal colors', wallpaperInputLabel:'Wallpaper URL or local path', wallpaperUploadLabel:'Wallpaper image upload', saveSettingsBtn:'Save settings', resetWallpaperBtn:'Reset wallpaper', toggleFullscreenBtn:'Toggle Full Screen', webPromptUsernameLabel:'Prompt username', exitDedsecOsBtn:'Exit', loginTitle:'Login required', loginNote:'Enter your password to unlock DedSec OS.', loginUsernameLabel:'Username', loginPasswordLabel:'Password', loginSubmitBtn:'Unlock', loginPasswordSettingLabel:'New password', loginOtpLabel:'Authenticator code', forgotPasswordBtn:'Forgot password?', recoveryTitle:'Password recovery', recoveryNote:'Answer all 3 security questions to reset your password.', recoveryQuestion1Label:'Question 1', recoveryQuestion2Label:'Question 2', recoveryQuestion3Label:'Question 3', recoveryAnswer1Label:'Answer 1', recoveryAnswer2Label:'Answer 2', recoveryAnswer3Label:'Answer 3', recoveryNewPasswordLabel:'New password', recoverySubmitBtn:'Reset password', totpSecretLabel:'Authenticator secret', securityQuestion1SettingLabel:'Security question 1', securityQuestion2SettingLabel:'Security question 2', securityQuestion3SettingLabel:'Security question 3', securityAnswer1SettingLabel:'Answer 1', securityAnswer2SettingLabel:'Answer 2', securityAnswer3SettingLabel:'Answer 3', sidebarBrandSubtitle:'Local Workspace', loginEnabledText:'Require login password', totpEnabledText:'Enable authenticator app (2FA)', webPromptUsernameLabel:'Prompt username', webLanguageLabel:'Language', webMenuStyleLabel:'Menu style', webAutostartText:'Menu auto-start', savePromptBtn:'Save Prompt', saveLanguageBtn:'Apply Language', saveMenuStyleBtn:'Apply Menu Style', saveAutostartBtn:'Save Auto-Start', updateSource1Btn:'Update Project (Source 1)', updateSource2Btn:'Update Project (Source 2)', updatePackagesBtn:'Update Packages & Modules', transferSystemBtn:'Transfer System', accessSponsors3Btn:'Download Sponsors $3 Tier', accessSponsors9Btn:'Download Sponsors $9 Tier'
       };
       Object.keys(map).forEach(function(id){ var node=document.getElementById(id); if(node) node.textContent=t(map[id]); });
       var ep=document.getElementById('editorPath'); if (ep && !state.currentFilePath) ep.textContent=t('No file opened');
       var ea=document.getElementById('editorArea'); if (ea) ea.placeholder=t('Open a text file to edit it.');
-      document.querySelectorAll('.sidebar-app-btn').forEach(function(btn){ var key=btn.getAttribute('data-side-app'); var map={system:'System',files:'Files',terminal:'Terminal',apps:'DedSec Apps',store:'Linux Store',settings:'Settings'}; btn.textContent=t(map[key]||key); });
+      renderDock();
+      var context=document.getElementById('mobileContextLabel'); var meta=APP_META.find(function(app){return app.id===state.activeApp;}); if(context&&meta) context.textContent=t(meta.label);
     }
 
     function iconSvg(name) {
@@ -6084,29 +7115,19 @@ Past Help: lamprouil, UKI_hunter</div>
     }
 
     function renderBatteryStatus() {
-      var label = document.getElementById('batteryLabel');
-      if (!label) return;
+      function setLabels(value) {
+        ['batteryLabel','mobileBatteryLabel'].forEach(function(id){ var node=document.getElementById(id); if(node) node.textContent=value; });
+      }
       apiGet('/api/status').then(function(data){
+        state.status = data || state.status;
         var pct = data && data.battery && data.battery.percentage;
-        if (pct != null) {
-          label.textContent = String(pct) + '%';
-          return;
-        }
-        if (navigator.getBattery) {
-          navigator.getBattery().then(function(battery){
-            label.textContent = Math.round((battery.level || 0) * 100) + '%';
-          }).catch(function(){ label.textContent = '--%'; });
-        } else {
-          label.textContent = '--%';
-        }
+        if (pct != null) setLabels(String(pct) + '%');
+        else if (navigator.getBattery) navigator.getBattery().then(function(b){setLabels(Math.round((b.level||0)*100)+'%');}).catch(function(){setLabels('--%');});
+        else setLabels('--%');
+        if (state.activeApp === 'system') renderSystem();
       }).catch(function(){
-        if (navigator.getBattery) {
-          navigator.getBattery().then(function(battery){
-            label.textContent = Math.round((battery.level || 0) * 100) + '%';
-          }).catch(function(){ label.textContent = '--%'; });
-        } else {
-          label.textContent = '--%';
-        }
+        if (navigator.getBattery) navigator.getBattery().then(function(b){setLabels(Math.round((b.level||0)*100)+'%');}).catch(function(){setLabels('--%');});
+        else setLabels('--%');
       });
     }
 
@@ -6205,59 +7226,85 @@ Past Help: lamprouil, UKI_hunter</div>
     }
 
     function setActiveApp(appId) {
+      if (!APP_META.some(function(app){ return app.id === appId; })) return;
       if (state.activeApp && state.activeApp !== appId) state.lastApp = state.activeApp;
       state.activeApp = appId;
+      if (appId !== 'terminal' && document.body.classList.contains('terminal-focus-mode')) { document.body.classList.remove('terminal-focus-mode'); var focusBtn=document.getElementById('terminalFocusBtn'); if(focusBtn) focusBtn.textContent=t('Focus'); }
       document.querySelectorAll('.screen').forEach(function(node) {
         node.classList.toggle('active', node.getAttribute('data-app') === appId);
       });
-      document.querySelectorAll('.dock-btn').forEach(function(node) { node.classList.toggle('active', node.getAttribute('data-app') === appId); });
-      document.querySelectorAll('.sidebar-app-btn').forEach(function(node){ node.classList.toggle('primary', node.getAttribute('data-side-app') === appId); });
+      document.querySelectorAll('.nav-app-btn, .dock-btn').forEach(function(node) {
+        var isActive = node.getAttribute('data-app') === appId;
+        node.classList.toggle('active', isActive);
+        node.classList.toggle('primary', isActive);
+        if (node.classList.contains('nav-app-btn')) { if (isActive) node.setAttribute('aria-current','page'); else node.removeAttribute('aria-current'); }
+      });
+      var meta = APP_META.find(function(app){ return app.id === appId; });
+      var label = meta ? t(meta.label) : appId;
+      var context = document.getElementById('mobileContextLabel'); if (context) context.textContent = label;
+      document.title = label + ' · DedSec OS';
+      var notifications = document.getElementById('notificationsPanel'); if (notifications) notifications.classList.add('hidden');
+      if (appId === 'terminal') window.setTimeout(focusTerminalComposer, 80);
     }
 
 
     function bindMenuToggle() {
-      var button = document.getElementById('menuToggleBtn');
-      var dock = document.getElementById('dock');
-      var fullButton = document.getElementById('fullscreenTopBtn');
-      document.querySelectorAll('.sidebar-app-btn').forEach(function(btn){
-        btn.addEventListener('click', function(event){
-          event.stopPropagation();
-          setActiveApp(btn.getAttribute('data-side-app'));
-        });
-      });
-      if (fullButton) {
-        fullButton.addEventListener('click', async function(event){
-          event.stopPropagation();
-          try {
-            if (!document.fullscreenElement) {
-              await document.documentElement.requestFullscreen();
-              showToast(t('Toggle Full Screen'));
-            } else {
-              await document.exitFullscreen();
-              showToast(t('Toggle Full Screen'));
-            }
-          } catch (err) { handleError(err); }
-        });
+      async function toggleFullscreen() {
+        try {
+          if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+          else await document.exitFullscreen();
+        } catch (err) { handleError(err); }
       }
-      if (!button || !dock) return;
-      button.addEventListener('click', function(event) {
-        event.stopPropagation();
-        dock.classList.toggle('open');
+      var fullButton = document.getElementById('fullscreenTopBtn');
+      if (fullButton) fullButton.addEventListener('click', function(event){ event.stopPropagation(); toggleFullscreen(); });
+      var mobileFull = document.getElementById('mobileFullscreenBtn');
+      if (mobileFull) mobileFull.addEventListener('click', function(event){ event.stopPropagation(); toggleFullscreen(); });
+      var mobileNotifications = document.getElementById('mobileNotificationsBtn');
+      if (mobileNotifications) mobileNotifications.addEventListener('click', async function(){
+        try { var data=await apiGet('/api/notifications'); renderNotificationsPanel((data.notifications && data.notifications.items) || []); } catch(err){ handleError(err); }
       });
-      document.addEventListener('click', function(event) {
-        if (button && !dock.contains(event.target) && event.target !== button) {
-          dock.classList.remove('open');
-        }
-      });
+      var mobileExit = document.getElementById('mobileExitBtn');
+      if (mobileExit) mobileExit.addEventListener('click', function(){ exitDedsecOs().catch(handleError); });
     }
 
     function renderDock() {
-      var dock = document.getElementById('dock');
-      dock.innerHTML = APP_META.map(function(app) {
-        return '<button class="dock-btn' + (app.id === state.activeApp ? ' active' : '') + '" data-app="' + app.id + '">' + iconSvg(app.id) + '<span>' + escapeHtml(t(app.label)) + '</span></button>';
+      var sidebar = document.getElementById('sidebarNav');
+      var mobile = document.getElementById('mobileNav');
+      if (sidebar) {
+        sidebar.innerHTML = APP_META.map(function(app) {
+          return '<button class="sidebar-nav-btn sidebar-app-btn nav-app-btn' + (app.id === state.activeApp ? ' active' : '') + '" data-side-app="' + app.id + '" data-app="' + app.id + '"' + (app.id === state.activeApp ? ' aria-current="page"' : '') + '>' + iconSvg(app.id) + '<span class="nav-label">' + escapeHtml(t(app.label)) + '</span></button>';
+        }).join('');
+      }
+      if (mobile) {
+        mobile.innerHTML = APP_META.map(function(app) {
+          return '<button class="mobile-nav-btn nav-app-btn' + (app.id === state.activeApp ? ' active' : '') + '" data-app="' + app.id + '" aria-label="' + escapeHtml(t(app.label)) + '"' + (app.id === state.activeApp ? ' aria-current="page"' : '') + '>' + iconSvg(app.id) + '<span>' + escapeHtml(t(app.label)) + '</span></button>';
+        }).join('');
+      }
+      document.querySelectorAll('.nav-app-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() { setActiveApp(btn.getAttribute('data-app')); });
+      });
+    }
+
+    var THEME_SWATCHES = [
+      ['dedsec','#cd93ff'],['cyan','#57d6ff'],['green','#51cf66'],['amber','#ffb347'],
+      ['ice','#8be9fd'],['crimson','#ff5d7a'],['neon','#b8ff4d'],['rose','#ff9ed1'],
+      ['ocean','#4fd8c8'],['sunset','#ff8c42'],['slate','#8b9bb4'],['ghost','#e8edf5'],
+      ['violet','#b57cff'],['ruby','#ff4d6d'],['forest','#35c759'],['midnight','#5aa9ff']
+    ];
+
+    function renderThemeSwatches(selected) {
+      var host = document.getElementById('themeSwatches');
+      if (!host) return;
+      host.innerHTML = THEME_SWATCHES.map(function(item){
+        return '<button type="button" class="theme-swatch' + (item[0] === selected ? ' active' : '') + '" data-theme="' + item[0] + '" title="' + item[0] + '" aria-label="Theme ' + item[0] + '" style="background:' + item[1] + '"></button>';
       }).join('');
-      dock.querySelectorAll('.dock-btn').forEach(function(btn) {
-        btn.addEventListener('click', function() { setActiveApp(btn.getAttribute('data-app')); dock.classList.remove('open'); });
+      host.querySelectorAll('.theme-swatch').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var name = btn.getAttribute('data-theme');
+          var select = document.getElementById('terminalThemeSelect'); if (select) select.value = name;
+          applyTerminalTheme(name);
+          renderThemeSwatches(name);
+        });
       });
     }
 
@@ -6267,6 +7314,7 @@ Past Help: lamprouil, UKI_hunter</div>
       document.getElementById('wallpaperInput').value = (config && config.wallpaper) || '';
       document.getElementById('displayNameInput').value = (config && config.display_name) || 'DedSec';
       document.getElementById('terminalThemeSelect').value = (config && config.terminal_theme) || 'dedsec';
+      renderThemeSwatches((config && config.terminal_theme) || 'dedsec');
       var loginEnabled = document.getElementById('loginEnabledChk'); if (loginEnabled) loginEnabled.checked = !!(config && config.login_enabled);
       var loginPasswordSetting = document.getElementById('loginPasswordSetting'); if (loginPasswordSetting) loginPasswordSetting.value = '';
       var totpEnabled = document.getElementById('totpEnabledChk'); if (totpEnabled) totpEnabled.checked = !!(config && config.totp_enabled);
@@ -6279,6 +7327,7 @@ Past Help: lamprouil, UKI_hunter</div>
         if (a) a.value = '';
       });
       renderUserProfiles(config);
+      applySidebarVisibility(window.matchMedia('(max-width:760px)').matches ? false : !!(config && config.sidebar_hidden));
       applyTerminalTheme((config && config.terminal_theme) || 'dedsec');
     }
 
@@ -6341,37 +7390,61 @@ Past Help: lamprouil, UKI_hunter</div>
       document.documentElement.setAttribute('data-terminal-theme', themeName);
       try { localStorage.setItem('dedsec_os_terminal_theme', themeName); } catch (err) {}
       document.body.style.backgroundColor = theme.bgMain || theme.bg;
+      document.querySelectorAll('.theme-swatch').forEach(function(node){ node.classList.toggle('active', node.getAttribute('data-theme') === themeName); });
     }
+
+    function formatBytes(value) {
+      var n = Number(value || 0); if (!n) return '—';
+      var units=['B','KB','MB','GB','TB'], i=0; while(n>=1024 && i<units.length-1){ n/=1024; i++; }
+      return (n >= 10 || i === 0 ? n.toFixed(0) : n.toFixed(1)) + ' ' + units[i];
+    }
+    function formatUptime(seconds) {
+      var s=Math.max(0,Number(seconds||0)), d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60);
+      if (d) return d+'d '+h+'h'; if (h) return h+'h '+m+'m'; return m+'m';
+    }
+    function percentUsed(total, available) { if (!total) return 0; return Math.max(0,Math.min(100,Math.round((1-(available/total))*100))); }
 
     function renderSystem() {
       if (!state.info) return;
       var body = document.getElementById('systemBody');
-      var cards = [
-        ['Display Name', state.info.display_name || 'DedSec'],
-        ['Language', state.info.language || 'english'],
-        ['DedSec Root', state.info.dedsec_root || 'Unavailable'],
-        ['Home', state.info.home_dir || 'Unavailable'],
-        ['Platform', (state.info.platform || '') + ' ' + (state.info.release || '')],
-        ['Machine', state.info.machine || 'Unknown']
-      ].map(function(item) {
-        return '<div class="info-card"><h3>' + escapeHtml(item[0]) + '</h3><p>' + escapeHtml(item[1]) + '</p></div>';
+      var status = state.status || {};
+      var sys = status.system || {};
+      var battery = status.battery || {};
+      var storageUsed = percentUsed(sys.storage_total, sys.storage_free);
+      var memoryUsed = percentUsed(sys.memory_total, sys.memory_available);
+      var batteryPct = battery.percentage == null ? null : Number(battery.percentage);
+      var metrics = [
+        [t('Battery'), batteryPct == null ? '—' : batteryPct + '%', batteryPct == null ? 0 : batteryPct],
+        [t('Storage'), sys.storage_total ? (storageUsed + '% · ' + formatBytes(sys.storage_free) + ' ' + t('free')) : '—', storageUsed],
+        [t('Memory'), sys.memory_total ? (memoryUsed + '% · ' + formatBytes(sys.memory_available) + ' ' + t('free')) : '—', memoryUsed],
+        [t('Uptime'), formatUptime(sys.uptime_seconds), 0],
+        [t('CPU'), (sys.cpu_count || '—') + (sys.load_1m == null ? '' : ' · ' + t('load') + ' ' + sys.load_1m), 0],
+        [t('Sessions'), String(sys.running_sessions == null ? (state.jobs || []).filter(function(j){return j.running;}).length : sys.running_sessions), 0]
+      ].map(function(item){
+        var bar = item[2] ? '<div class="metric-track"><span style="width:' + item[2] + '%"></span></div>' : '';
+        return '<div class="metric-card"><div class="metric-label">' + escapeHtml(item[0]) + '</div><div class="metric-value">' + escapeHtml(item[1]) + '</div>' + bar + '</div>';
       }).join('');
 
-      var apps = APP_META.map(function(app) {
-        return '<button class="app-card launch-app" data-app="' + app.id + '">' + iconSvg(app.id) + '<h3>' + escapeHtml(t(app.label)) + '</h3><p>Open ' + escapeHtml(t(app.label)) + '</p></button>';
-      }).join('');
+      var details = [
+        [t('Language'), state.info.language || 'english'],
+        [t('Architecture'), state.info.machine || 'Unknown'],
+        [t('Platform'), (state.info.platform || '') + ' ' + (state.info.release || '')],
+        [t('Home'), state.info.home_dir || 'Unavailable'],
+        [t('DedSec Root'), state.info.dedsec_root || 'Unavailable'],
+        [t('Termux Prefix'), state.info.termux_prefix || 'Unavailable']
+      ].map(function(item){ return '<div class="info-card"><h3>' + escapeHtml(item[0]) + '</h3><p>' + escapeHtml(item[1]) + '</p></div>'; }).join('');
 
+      var quick = APP_META.filter(function(app){ return app.id !== 'system'; }).map(function(app){
+        return '<button class="app-card quick-action launch-app" data-app="' + app.id + '">' + iconSvg(app.id) + '<h3>' + escapeHtml(t(app.label)) + '</h3></button>';
+      }).join('');
       body.innerHTML = '' +
-        '<div class="panel">' +
-          '<div class="grid info">' + cards + '</div>' +
-        '</div>' +
-        '<div class="panel">' +
-          '<div class="screen-title" style="font-size:0.92rem;">' + escapeHtml(t('Apps')) + '</div>' +
-          '<div class="grid apps">' + apps + '</div>' +
+        '<div class="dashboard-hero"><div><h1>' + escapeHtml(state.info.display_name || 'DedSec') + '</h1><p>' + escapeHtml(t('DedSec OS dashboard')) + ' · ' + escapeHtml(state.info.machine || '') + '</p><div class="status-chip-row"><span class="status-chip">Local: 127.0.0.1</span><span class="status-chip">' + escapeHtml(state.info.language || 'english') + '</span><span class="status-chip">' + escapeHtml(battery.status || t('Battery unavailable')) + '</span></div></div><button class="btn primary launch-app" data-app="terminal">' + escapeHtml(t('Terminal')) + '</button></div>' +
+        '<div class="metric-grid">' + metrics + '</div>' +
+        '<div class="dashboard-layout">' +
+          '<div class="panel"><div class="settings-section-title">' + escapeHtml(t('Quick access')) + '</div><div class="quick-actions">' + quick + '</div></div>' +
+          '<div class="panel"><div class="settings-section-title">' + escapeHtml(t('System details')) + '</div><div class="grid info">' + details + '</div></div>' +
         '</div>';
-      body.querySelectorAll('.launch-app').forEach(function(btn) {
-        btn.addEventListener('click', function(){ setActiveApp(btn.getAttribute('data-app')); });
-      });
+      body.querySelectorAll('.launch-app').forEach(function(btn) { btn.addEventListener('click', function(){ setActiveApp(btn.getAttribute('data-app')); }); });
     }
 
     function pathButtons(roots, onPick) {
@@ -6434,6 +7507,7 @@ Past Help: lamprouil, UKI_hunter</div>
             document.getElementById('editorPath').textContent = data.path;
             document.getElementById('editorArea').value = data.content || '';
             setActiveApp('files');
+            var editorPanel=document.getElementById('editorPanel'); if(editorPanel && window.matchMedia('(max-width:760px)').matches) window.setTimeout(function(){ editorPanel.scrollIntoView({behavior:'smooth',block:'start'}); },80);
           } catch (err) { handleError(err); }
         });
       });
@@ -6642,6 +7716,7 @@ Past Help: lamprouil, UKI_hunter</div>
 
     function renderTerminal() {
       var selected = state.jobs.find(function(item){ return item.id === state.selectedSessionId; }) || state.jobs[0];
+      var sessionBadge=document.getElementById('terminalSessionBadge'); if(sessionBadge) sessionBadge.textContent=(selected && selected.label) || state.selectedSessionId || 'web-shell';
       if (!selected) return;
       state.selectedSessionId = selected.id;
       document.getElementById('terminalOutput').textContent = selected.log_tail || '';
@@ -6857,11 +7932,13 @@ Past Help: lamprouil, UKI_hunter</div>
         var results = await Promise.all([
           apiGet('/api/info'),
           apiGet('/api/config'),
-          apiGet('/api/jobs')
+          apiGet('/api/jobs'),
+          apiGet('/api/status')
         ]);
         state.info = results[0];
         state.config = results[1].config;
         state.jobs = results[2].jobs || [];
+        state.status = results[3] || null;
         applyWallpaper(state.config);
         applyTranslations();
         renderSystem();
@@ -6913,19 +7990,17 @@ Past Help: lamprouil, UKI_hunter</div>
       }
     }
 
-    function updateClock() {
-      var now = new Date();
-      document.getElementById('clock').textContent = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    }
 
     function bindUi() {
       var batteryBtn = document.getElementById('batteryLabel'); if (batteryBtn) renderBatteryStatus();
       var alertsBtn = document.getElementById('notificationsBtn'); if (alertsBtn) alertsBtn.addEventListener('click', async function(){ try { var data=await apiGet('/api/notifications'); renderNotificationsPanel((data.notifications && data.notifications.items) || []); } catch(err){ handleError(err); } });
+      var mobileBatteryBtn=document.getElementById('mobileBatteryLabel'); if(mobileBatteryBtn) mobileBatteryBtn.addEventListener('click', function(){ setActiveApp('system'); });
+      window.addEventListener('resize', function(){ if(window.innerWidth<=760 && state.sidebarHidden) applySidebarVisibility(false); });
       var hideSidebarBtn = document.getElementById('hideSidebarBtn'); if (hideSidebarBtn) hideSidebarBtn.addEventListener('click', function(){ applySidebarVisibility(true); saveUiPrefs(); });
       var showSidebarBtn = document.getElementById('showSidebarBtn'); if (showSidebarBtn) showSidebarBtn.addEventListener('click', function(){ applySidebarVisibility(false); saveUiPrefs(); });
       var backBtn = document.getElementById('backNavBtn'); if (backBtn) backBtn.addEventListener('click', function(){ if (state.lastApp) setActiveApp(state.lastApp); });
       document.getElementById('refreshSystemBtn').addEventListener('click', async function(){
-        try { state.info = await apiGet('/api/info'); renderSystem(); } catch (err) { handleError(err); }
+        try { var fresh=await Promise.all([apiGet('/api/info'),apiGet('/api/status')]); state.info=fresh[0]; state.status=fresh[1]; renderSystem(); renderBatteryStatus(); } catch (err) { handleError(err); }
       });
       document.getElementById('filesRefreshBtn').addEventListener('click', function(){ loadFiles(state.filesPath).catch(handleError); });
       document.getElementById('filesNewFolderBtn').addEventListener('click', async function(){
@@ -6950,6 +8025,11 @@ Past Help: lamprouil, UKI_hunter</div>
       document.getElementById('terminalSessionsBtn').addEventListener('click', function(){
         document.getElementById('sessionsOverlay').classList.remove('hidden');
         renderSessionsOverlay();
+      });
+      var terminalFocusBtn=document.getElementById('terminalFocusBtn'); if(terminalFocusBtn) terminalFocusBtn.addEventListener('click', function(){
+        document.body.classList.toggle('terminal-focus-mode');
+        terminalFocusBtn.textContent = document.body.classList.contains('terminal-focus-mode') ? t('Exit Focus') : t('Focus');
+        window.setTimeout(focusTerminalComposer,80);
       });
       document.getElementById('sessionsCloseBtn').addEventListener('click', function(){
         document.getElementById('sessionsOverlay').classList.add('hidden');
@@ -7033,6 +8113,7 @@ Past Help: lamprouil, UKI_hunter</div>
       var updateSource1Btn = document.getElementById('updateSource1Btn'); if (updateSource1Btn) updateSource1Btn.addEventListener('click', function(){ runSettingsAction('update_source_1').catch(handleError); });
       var updateSource2Btn = document.getElementById('updateSource2Btn'); if (updateSource2Btn) updateSource2Btn.addEventListener('click', function(){ runSettingsAction('update_source_2').catch(handleError); });
       var updatePackagesBtn = document.getElementById('updatePackagesBtn'); if (updatePackagesBtn) updatePackagesBtn.addEventListener('click', function(){ runSettingsAction('update_packages').catch(handleError); });
+      var transferSystemBtn = document.getElementById('transferSystemBtn'); if (transferSystemBtn) transferSystemBtn.addEventListener('click', function(){ runSettingsAction('transfer_system').catch(handleError); });
       var accessSponsors3Btn = document.getElementById('accessSponsors3Btn'); if (accessSponsors3Btn) accessSponsors3Btn.addEventListener('click', function(){ runSettingsAction('access_sponsors', { tier: '3' }).catch(handleError); });
       var accessSponsors9Btn = document.getElementById('accessSponsors9Btn'); if (accessSponsors9Btn) accessSponsors9Btn.addEventListener('click', function(){ runSettingsAction('access_sponsors', { tier: '9' }).catch(handleError); });
       var exitDedsecOsBtn = document.getElementById('exitDedsecOsBtn'); if (exitDedsecOsBtn) exitDedsecOsBtn.addEventListener('click', function(){ exitDedsecOs().catch(handleError); });
@@ -7066,7 +8147,7 @@ Past Help: lamprouil, UKI_hunter</div>
       document.getElementById('wallpaperUpload').addEventListener('change', function(){
         if (this.files && this.files[0]) saveSettings().catch(handleError);
       });
-      document.getElementById('terminalThemeSelect').addEventListener('change', function(){ applyTerminalTheme(this.value); });
+      document.getElementById('terminalThemeSelect').addEventListener('change', function(){ applyTerminalTheme(this.value); renderThemeSwatches(this.value); });
       renderBatteryStatus();
       window.setInterval(function(){ refreshJobs().catch(function(){}); }, 2500);
       window.setInterval(function(){ renderBatteryStatus(); }, 15000);
@@ -7131,7 +8212,7 @@ class Handler(BaseHTTPRequestHandler):
                 send_json(self, 200, {'ok': True, 'meta': settings_meta()})
                 return
             if route == '/api/status':
-                send_json(self, 200, {'ok': True, 'battery': collect_battery_status()})
+                send_json(self, 200, {'ok': True, 'battery': collect_battery_status(), 'system': collect_system_metrics()})
                 return
             if route == '/api/notifications':
                 send_json(self, 200, {'ok': True, 'notifications': collect_notifications()})
@@ -18574,6 +19655,7 @@ def get_settings_options():
         _("Update Packages & Modules"),
         _("Access Sponsors-Only Scripts"),
         _("Save DedSec Project"),
+        _("Transfer System"),
         _("Change Prompt"),
         _("GitHub Account"),
         _("Termux Usage Stats"),
@@ -18896,26 +19978,29 @@ def main():
             save_project()
             pause_without_text = True
         elif selected == 6:
-            change_prompt()
+            create_termux_transfer()
+            pause_without_text = True
         elif selected == 7:
-            github_account_menu()
+            change_prompt()
         elif selected == 8:
-            show_termux_usage_stats()
+            github_account_menu()
         elif selected == 9:
-            network_utilities_menu()
+            show_termux_usage_stats()
         elif selected == 10:
-            change_menu_style()
+            network_utilities_menu()
         elif selected == 11:
-            toggle_menu_autostart()
+            change_menu_style()
         elif selected == 12:
-            change_language()
+            toggle_menu_autostart()
         elif selected == 13:
-            show_credits()
+            change_language()
         elif selected == 14:
+            show_credits()
+        elif selected == 15:
             should_exit = uninstall_dedsec()
             if should_exit:
                 break
-        elif selected == 15:
+        elif selected == 16:
             print(_("Exiting..."))
             break
 
@@ -20958,6 +22043,9 @@ if __name__ == "__main__":
         if command == "--build-id":
             print(SETTINGS_BUILD_ID)
             sys.exit(0)
+
+        if command == "--termux-transfer":
+            sys.exit(0 if create_termux_transfer() else 1)
 
         if command == NETWORK_SESSION_GUARD_COMMAND:
             network_session_guard()
