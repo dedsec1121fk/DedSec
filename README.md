@@ -260,7 +260,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **Update Packages & Modules:** runs the consolidated `Setup.sh --no-run` dependency routine, which checks local Termux packages and Python modules first, updates installed items, and downloads anything still missing without opening a second menu process.
 - **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
-- **Transfer System:** creates a privacy-filtered offline Termux migration set in `Downloads/Termux Transfer/`, split into `Core.zip` and `Data-###.zip` files below the 1.5 GB hard limit, plus `Install.sh` and manifests. It intentionally excludes SSH keys, GitHub authentication, credentials, tokens, `.env` files, and detected project secrets, and checks architecture compatibility before restoring on the new device.
+- **Transfer System:** creates privacy-filtered Core/Data ZIP archives plus `Install.sh` in `Downloads/Termux Transfer/` for offline migration to another compatible Termux device. SSH keys, GitHub authentication, credentials, tokens, `.env` files, and detected project secrets are excluded.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
 - **Termux Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
@@ -268,7 +268,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **Change Menu Style:** lets you switch between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**. The selected style is saved so the project opens the same way next time.
 - **Menu Auto-Start:** enables or disables automatic DedSec menu startup when Termux opens, depending on whether you want Termux to boot straight into the project menu or stay as a normal shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** saves the preferred language in `~/Language.json` and hides or shows the Greek folder depending on whether English or Greek is selected.
-- **Credits:** displays the project creator, artists, legal document credit, Discord server maintenance credit, and past help credits.
+- **Credits:** displays the project creator, art artists, legal document credit, Discord server maintenance credit, and past help credits.
 - **Uninstall DedSec Project:** restores backed-up Termux configuration when possible, removes project configuration files, cleans startup changes, and gives the final command needed to remove the project folder safely.
 - **Exit:** closes Settings.py and returns you to Termux.
 
@@ -290,7 +290,7 @@ The network utilities section gives you optional controls for Tor and proxy-base
 
 ### DedSec OS Mode
 
-**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions. It also includes project action buttons for updating both sources, updating packages/modules, running the Transfer System, accessing Sponsors-Only scripts, and opening credits.
+**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions. It also includes project action buttons for updating both sources, updating packages/modules, accessing Sponsors-Only scripts, and opening credits.
 
 ### First-Time Setup Focus
 
@@ -507,17 +507,21 @@ This page is the map of the project: what each tool does, why it exists, and wha
 </details>
 
 
+
 <details>
 <summary>Trojan.py</summary>
 
-**What It Helps With:** Demonstrating in an authorized lab how a malicious Termux script can collect accessible files and device information, abuse Android permissions, and attempt data exfiltration so those behaviors are easier to recognize.
 
-**Description:** Trojan.py is an educational Termux trojan sample that collects accessible shared-storage files and device data including location, camera photos, microphone audio, clipboard, contacts, SMS, sensors, battery, Wi-Fi/network, phone, and device details. It can also demonstrate phishing-style prompts, notifications, clipboard changes, recurring execution, optional payload download, and SSH upload when configured. Use it only on your own test device or with clear permission.
 
-**Save Location:** `Main folder: /sdcard/Download/Troy/; fallback: ~/Troy/. It stores copied files in stolen/, creates stolen_archive.zip, and saves photo.jpg, audio.m4a, and timestamped harvest_*.json reports. Optional features may also create wallpaper.jpg, payload.sh, and exfil_log.txt.`
+
+**What It Helps With:** Understanding what a non-root Termux trojan can collect and how phishing, persistence, and data exfiltration can work on Android.
+
+**Description:** Educational non-root Termux trojan sample. It collects accessible shared-storage files plus location, camera photos, microphone audio, clipboard, contacts, SMS, sensors, battery, Wi-Fi/network, phone, and device information. It can also demonstrate phishing links/notifications, clipboard replacement, recurring execution, optional payload download, and configured SSH upload.
+
+**Save Location:** `Main folder: /sdcard/Download/Troy/; fallback: ~/Troy/. Copied files are stored in stolen/, the archive is stolen_archive.zip, and each run saves a timestamped harvest_*.json report. Camera and microphone captures are saved as photo.jpg and audio.m4a.`
+
 
 </details>
-
 
 <a id="network-tools"></a>
 
@@ -575,11 +579,11 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 
 
-**What It Helps With:** Investigating a public digital footprint from one target—such as a username, email, domain, URL, IP address, name, phone number, or local file—while keeping evidence, relationships, confidence, and exports organized in one case.
+**What It Helps With:** Investigating a public digital footprint from one clue and organizing related public accounts, domains, URLs, emails, IPs, names, phone numbers, and files into one case.
 
-**Description:** Digital Footprint Finder.py is a public-source OSINT casework toolkit for lawful, authorized investigations. It provides Easy Mode plus a case-centric SQLite workflow, builds an entity/relation graph, records evidence with SHA-256 hashes and UTC timestamps, and supports native pivots for domains, URLs, usernames, emails, IP addresses, names, phone numbers, and local files. It uses keyless public APIs by default and can optionally use user-supplied credentials for additional public enrichment. It also includes profile-baseline checks, passive host discovery, bounded crawling, JavaScript endpoint discovery, cross-source confidence, contradiction and timeline analysis, relationship paths, correlation clusters, and evidence-integrity checks. Cases can be exported as Markdown, JSON, CSV, GraphML, STIX 2.1, raw evidence, ZIP packages, and self-contained HTML. It does not bypass authentication or access private accounts.
+**Description:** Public-source OSINT casework toolkit with Easy Mode, SQLite cases, entity and relationship mapping, evidence hashing, correlation and timeline analysis, bounded crawling, username/profile checks, passive network enrichment, and keyless public APIs with optional user-supplied API credentials. It supports domains, URLs, usernames, emails, IPs, names, phone numbers, and local files, and exports Markdown, JSON, CSV, GraphML, STIX 2.1, raw evidence, ZIP packages, and self-contained HTML reports.
 
-**Save Location:** `Case files are stored under ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ when Termux shared storage is available, with a conventional ~/Downloads/Digital Footprint Finder/<Case Name>/files/ path on other systems and a ~/Digital Footprint Finder/results/ fallback. The app workspace under ~/Digital Footprint Finder/ stores the SQLite database, settings, cache, logs, dependencies, session data, and optional locally saved API credentials.`
+**Save Location:** `Case results are saved in ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
 
 
 </details>
@@ -1524,11 +1528,11 @@ These scripts are educational simulations intended to help users recognize socia
 
 
 
-**What It Helps With:** Controlling DedSec Project updates, backups, offline phone-to-phone Termux migration, menus, language, GitHub access, sponsor scripts, network utilities, and the DedSec OS workspace from one central launcher.
+**What It Helps With:** Controlling DedSec Project updates, backups, offline Termux transfer, menus, language, GitHub access, sponsor scripts, network utilities, and DedSec OS from one central launcher.
 
-**Description:** Settings.py is the central control panel for the DedSec Project. It shows project and device information; updates the project from the main or backup source; refreshes Termux packages and Python modules; manages Sponsors-Only access through a connected GitHub account; creates a DedSec Project backup in Downloads; and includes a privacy-filtered Transfer System that creates Core/Data ZIP archives plus an Install.sh restore script in Downloads/Termux Transfer for offline migration to another compatible Termux device while intentionally excluding SSH keys, GitHub authentication, credentials, tokens, .env files, and detected project secrets. It also changes the Termux prompt, manages GitHub connection and stats, tracks local Termux usage, controls optional VPN and Tor utilities, switches between List, Grid, Choose By Number, Ded-Guy, and DedSec OS menu styles, controls menu auto-start, saves the English or Greek language choice, displays credits, and safely uninstalls the project. DedSec OS provides a responsive phone/desktop local workspace with files and editing, terminal sessions, DedSec apps, Linux package actions, notifications, fullscreen and split view, appearance controls, project actions, language and prompt controls, password login, optional authenticator-style 2FA, and three-question password recovery.
+**Description:** Central control panel for the DedSec Project. It shows project/device information, updates from the main or backup source, refreshes packages and modules, manages Sponsors-Only access, Save DedSec Project, the offline Transfer System, prompt settings, GitHub connection and stats, Termux usage stats, VPN/Tor utilities, menu style and auto-start, language, credits, and uninstall. The Transfer System creates privacy-filtered Core/Data ZIP archives plus Install.sh in Downloads/Termux Transfer and excludes SSH keys, GitHub authentication, credentials, tokens, .env files, and detected project secrets. DedSec OS adds a responsive local workspace for phone and desktop with files/editor, terminal sessions, DedSec apps, Linux package actions, notifications, appearance, project controls, login, optional 2FA, and password recovery.
 
-**Save Location:** `Language: ~/Language.json | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline Termux migration: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS data: ~/DedSec OS/.`
+**Save Location:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json.`
 
 
 </details>
@@ -2038,7 +2042,7 @@ bash Setup.sh
 - **Update Packages & Modules:** εκτελεί την ενιαία dependency διαδικασία `Setup.sh --no-run`, η οποία ελέγχει πρώτα τα τοπικά Termux packages και Python modules, ενημερώνει τα εγκατεστημένα στοιχεία και κατεβάζει ό,τι λείπει χωρίς να ανοίξει δεύτερο menu process.
 - **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
-- **Transfer System:** δημιουργεί privacy-filtered offline πακέτο μεταφοράς Termux στο `Downloads/Termux Transfer/`, χωρισμένο σε `Core.zip` και `Data-###.zip` κάτω από το hard limit των 1.5 GB, μαζί με `Install.sh` και manifests. Αποκλείει σκόπιμα SSH keys, GitHub authentication, credentials, tokens, `.env` αρχεία και ανιχνευμένα project secrets και ελέγχει architecture compatibility πριν από την επαναφορά στη νέα συσκευή.
+- **Transfer System:** δημιουργεί privacy-filtered Core/Data ZIP archives μαζί με `Install.sh` στο `Downloads/Termux Transfer/` για offline μεταφορά σε άλλη συμβατή συσκευή Termux. SSH keys, GitHub authentication, credentials, tokens, `.env` αρχεία και ανιχνευμένα project secrets αποκλείονται.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
 - **Termux Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
@@ -2046,7 +2050,7 @@ bash Setup.sh
 - **Change Menu Style:** επιτρέπει αλλαγή ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**. Το επιλεγμένο style αποθηκεύεται ώστε το project να ανοίγει με τον ίδιο τρόπο την επόμενη φορά.
 - **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του DedSec menu όταν ανοίγει το Termux, ανάλογα με το αν θέλεις το Termux να μπαίνει κατευθείαν στο project menu ή να μένει σαν κανονικό shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** αποθηκεύει την προτιμώμενη γλώσσα στο `~/Language.json` και κρύβει ή εμφανίζει τον ελληνικό φάκελο ανάλογα με το αν επιλεγεί English ή Greek.
-- **Credits:** εμφανίζει creator, artists, legal document credit, Discord server maintenance credit και past help credits.
+- **Credits:** εμφανίζει creator, art artists, legal document credit, Discord server maintenance credit και past help credits.
 - **Uninstall DedSec Project:** επαναφέρει backed-up Termux configuration όπου γίνεται, αφαιρεί project configuration files, καθαρίζει startup αλλαγές και δίνει την τελική εντολή για ασφαλή αφαίρεση του project folder.
 - **Exit:** κλείνει το Settings.py και σε επιστρέφει στο Termux.
 
@@ -2285,17 +2289,21 @@ bash Setup.sh
 </details>
 
 
+
 <details>
 <summary>Trojan.py</summary>
 
-**Τι Βοηθά Να Λύσεις:** Επίδειξη σε εξουσιοδοτημένο lab του πώς ένα κακόβουλο Termux script μπορεί να συλλέξει προσβάσιμα αρχεία και πληροφορίες συσκευής, να καταχραστεί Android permissions και να επιχειρήσει εξαγωγή δεδομένων, ώστε αυτές οι συμπεριφορές να αναγνωρίζονται ευκολότερα.
 
-**Περιγραφή:** Το Trojan.py είναι ένα εκπαιδευτικό Termux trojan sample που συλλέγει προσβάσιμα αρχεία shared storage και δεδομένα συσκευής, όπως τοποθεσία, φωτογραφίες κάμερας, ήχο μικροφώνου, clipboard, επαφές, SMS, αισθητήρες, μπαταρία, Wi-Fi/network, στοιχεία τηλεφώνου και συσκευής. Μπορεί επίσης να επιδείξει phishing-style prompts, notifications, αλλαγές clipboard, επαναλαμβανόμενη εκτέλεση, προαιρετικό payload download και SSH upload όταν έχει ρυθμιστεί. Χρησιμοποίησέ το μόνο στη δική σου δοκιμαστική συσκευή ή με ξεκάθαρη άδεια.
 
-**Τοποθεσία Αποθήκευσης:** `Κύριος φάκελος: /sdcard/Download/Troy/· fallback: ~/Troy/. Αποθηκεύει τα αντιγραμμένα αρχεία στο stolen/, δημιουργεί stolen_archive.zip και αποθηκεύει photo.jpg, audio.m4a και χρονικά σημειωμένα harvest_*.json reports. Οι προαιρετικές λειτουργίες μπορούν επίσης να δημιουργήσουν wallpaper.jpg, payload.sh και exfil_log.txt.`
+
+**Τι Βοηθά Να Λύσεις:** Κατανόηση του τι μπορεί να συλλέξει ένα non-root Termux trojan και πώς μπορούν να λειτουργήσουν phishing, persistence και data exfiltration στο Android.
+
+**Περιγραφή:** Εκπαιδευτικό non-root Termux trojan sample. Συλλέγει προσβάσιμα αρχεία shared storage μαζί με location, φωτογραφίες κάμερας, microphone audio, clipboard, contacts, SMS, sensors, battery, Wi-Fi/network, phone και device information. Μπορεί επίσης να επιδείξει phishing links/notifications, clipboard replacement, recurring execution, προαιρετικό payload download και ρυθμισμένο SSH upload.
+
+**Τοποθεσία Αποθήκευσης:** `Κύριος φάκελος: /sdcard/Download/Troy/· fallback: ~/Troy/. Τα αντιγραμμένα αρχεία αποθηκεύονται στο stolen/, το archive είναι stolen_archive.zip και κάθε run αποθηκεύει timestamped harvest_*.json report. Camera και microphone captures αποθηκεύονται ως photo.jpg και audio.m4a.`
+
 
 </details>
-
 
 <a id="greek-network-tools"></a>
 
@@ -2353,11 +2361,11 @@ bash Setup.sh
 
 
 
-**Τι Βοηθά Να Λύσεις:** Διερεύνηση ενός δημόσιου ψηφιακού αποτυπώματος από έναν στόχο—όπως username, email, domain, URL, IP, όνομα, αριθμό τηλεφώνου ή τοπικό αρχείο—με οργανωμένα τεκμήρια, σχέσεις, confidence και exports μέσα σε ένα case.
+**Τι Βοηθά Να Λύσεις:** Διερεύνηση δημόσιου digital footprint από ένα στοιχείο και οργάνωση σχετικών δημόσιων accounts, domains, URLs, emails, IPs, ονομάτων, αριθμών τηλεφώνου και αρχείων σε ένα case.
 
-**Περιγραφή:** Το Digital Footprint Finder.py είναι toolkit δημόσιων πηγών OSINT για νόμιμες και εξουσιοδοτημένες έρευνες. Διαθέτει Easy Mode και case-centric ροή με SQLite, δημιουργεί γράφο entities/relations, καταγράφει τεκμήρια με SHA-256 hashes και UTC timestamps και υποστηρίζει native pivots για domains, URLs, usernames, emails, IP addresses, ονόματα, αριθμούς τηλεφώνου και τοπικά αρχεία. Χρησιμοποιεί keyless public APIs από προεπιλογή και προαιρετικά μπορεί να χρησιμοποιήσει credentials που δίνει ο χρήστης για επιπλέον public enrichment. Περιλαμβάνει επίσης profile-baseline checks, passive host discovery, περιορισμένο crawling, JavaScript endpoint discovery, cross-source confidence, ανάλυση contradictions και timelines, relationship paths, correlation clusters και ελέγχους ακεραιότητας τεκμηρίων. Τα cases εξάγονται σε Markdown, JSON, CSV, GraphML, STIX 2.1, raw evidence, ZIP packages και self-contained HTML. Δεν παρακάμπτει authentication ούτε αποκτά πρόσβαση σε private accounts.
+**Περιγραφή:** Toolkit δημόσιων πηγών OSINT με Easy Mode, SQLite cases, χαρτογράφηση entities και relationships, evidence hashing, correlation και timeline analysis, bounded crawling, username/profile checks, passive network enrichment και keyless public APIs με προαιρετικά API credentials του χρήστη. Υποστηρίζει domains, URLs, usernames, emails, IPs, ονόματα, αριθμούς τηλεφώνου και τοπικά αρχεία και εξάγει Markdown, JSON, CSV, GraphML, STIX 2.1, raw evidence, ZIP packages και self-contained HTML reports.
 
-**Τοποθεσία Αποθήκευσης:** `Τα αρχεία κάθε case αποθηκεύονται στο ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ όταν είναι διαθέσιμο το shared storage του Termux, στο ~/Downloads/Digital Footprint Finder/<Case Name>/files/ σε άλλα συστήματα και με fallback το ~/Digital Footprint Finder/results/. Το app workspace στο ~/Digital Footprint Finder/ κρατά τη βάση SQLite, settings, cache, logs, dependencies, session data και προαιρετικά τα API credentials που αποθηκεύει τοπικά ο χρήστης.`
+**Τοποθεσία Αποθήκευσης:** `Τα αποτελέσματα κάθε case αποθηκεύονται στο ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ στο Termux. Εκτός Termux χρησιμοποιείται το ~/Downloads/Digital Footprint Finder/<Case Name>/files/ όταν είναι διαθέσιμο, με fallback το ~/Digital Footprint Finder/results/. App data, SQLite database, settings, cache, logs, dependencies, session data και προαιρετικά API keys αποθηκεύονται στο ~/Digital Footprint Finder/.`
 
 
 </details>
@@ -3302,11 +3310,11 @@ bash Setup.sh
 
 
 
-**Τι Βοηθά Να Λύσεις:** Κεντρικός έλεγχος updates, backups, offline μεταφοράς Termux από κινητό σε κινητό, menus, γλώσσας, GitHub access, sponsor scripts, network utilities και του DedSec OS workspace από έναν launcher.
+**Τι Βοηθά Να Λύσεις:** Κεντρικός έλεγχος updates, backups, offline μεταφοράς Termux, menus, γλώσσας, GitHub access, sponsor scripts, network utilities και DedSec OS από έναν launcher.
 
-**Περιγραφή:** Το Settings.py είναι ο κεντρικός πίνακας ελέγχου του DedSec Project. Εμφανίζει πληροφορίες για το project και τη συσκευή, ενημερώνει το project από την κύρια ή εφεδρική πηγή, ανανεώνει πακέτα Termux και Python modules, διαχειρίζεται Sponsors-Only access μέσω συνδεδεμένου GitHub account, δημιουργεί backup του DedSec Project στα Downloads και περιλαμβάνει privacy-filtered Transfer System που δημιουργεί Core/Data ZIP archives μαζί με Install.sh στο Downloads/Termux Transfer για offline μεταφορά σε άλλη συμβατή συσκευή Termux, αποκλείοντας σκόπιμα SSH keys, GitHub authentication, credentials, tokens, .env αρχεία και ανιχνευμένα project secrets. Επίσης αλλάζει το Termux prompt, διαχειρίζεται GitHub σύνδεση και stats, παρακολουθεί τοπικά Termux usage stats, ελέγχει προαιρετικά VPN και Tor utilities, αλλάζει μεταξύ List, Grid, Choose By Number, Ded-Guy και DedSec OS menu styles, ελέγχει το menu auto-start, αποθηκεύει επιλογή Αγγλικών ή Ελληνικών, εμφανίζει credits και κάνει ασφαλή απεγκατάσταση. Το DedSec OS παρέχει responsive τοπικό workspace για κινητό και desktop με αρχεία και editor, terminal sessions, DedSec apps, Linux package actions, notifications, fullscreen και split view, appearance controls, project actions, language και prompt controls, password login, προαιρετικό authenticator-style 2FA και ανάκτηση κωδικού μέσω τριών security questions.
+**Περιγραφή:** Κεντρικός πίνακας ελέγχου του DedSec Project. Εμφανίζει πληροφορίες project/συσκευής, κάνει update από την κύρια ή backup πηγή, ανανεώνει packages και modules, διαχειρίζεται Sponsors-Only access, Save DedSec Project, το offline Transfer System, prompt settings, GitHub σύνδεση και stats, Termux usage stats, VPN/Tor utilities, menu style και auto-start, γλώσσα, credits και uninstall. Το Transfer System δημιουργεί privacy-filtered Core/Data ZIP archives μαζί με Install.sh στο Downloads/Termux Transfer και αποκλείει SSH keys, GitHub authentication, credentials, tokens, .env files και ανιχνευμένα project secrets. Το DedSec OS προσθέτει responsive local workspace για κινητό και desktop με files/editor, terminal sessions, DedSec apps, Linux package actions, notifications, appearance, project controls, login, προαιρετικό 2FA και password recovery.
 
-**Τοποθεσία Αποθήκευσης:** `Γλώσσα: ~/Language.json | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline μεταφορά Termux: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ και ~/.dedsec_network_utilities.json | Δεδομένα DedSec OS: ~/DedSec OS/.`
+**Τοποθεσία Αποθήκευσης:** `Γλώσσα: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ και ~/.dedsec_network_utilities.json.`
 
 
 </details>
