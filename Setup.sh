@@ -136,6 +136,7 @@ TERMUX_TOOL_PACKAGES=(
   nodejs
   npm
   openssh
+  python-scipy
   termux-api
   termux-tools
   tor
@@ -182,6 +183,7 @@ PYTHON_TOOL_PACKAGES=(
   phonenumbers
   python-nmap
   python-pptx
+  scipy
   psd-tools
   psutil
   py7zr
@@ -394,8 +396,22 @@ install_python_package() {
     info "No usable binary wheel was available for $package."
   fi
 
-  # Final fallback only: allow a source build. This is intentionally last
-  # because native builds can take a long time on Android/Termux.
+  # Never compile SciPy (or psd-tools with an unresolved SciPy dependency)
+  # from source on Android. SciPy is intentionally provided by Termux as
+  # python-scipy; a pip source build is extremely slow and may fail on-device.
+  case "${package,,}" in
+    scipy|psd-tools)
+      PYTHON_FAILURES=$((PYTHON_FAILURES + 1))
+      if [ "$optional" -eq 1 ]; then
+        warn "Skipping source build for $package. Install/repair the Termux-native python-scipy package and retry."
+        return 1
+      fi
+      fatal "Required Python package $package has no usable native package or binary wheel; source compilation is disabled on Termux."
+      ;;
+  esac
+
+  # Final fallback only: allow a source build for lighter packages. This is
+  # intentionally last because native builds can take a long time on Android.
   info "Falling back to source-capable pip installation: $package"
   if "$PYTHON_BIN" -m pip install "${PIP_FLAGS[@]}" --upgrade "$package"; then
     if python_module_available "$module"; then
@@ -464,6 +480,7 @@ tools = [
     "phonenumbers",
     "pptx",
     "psd_tools",
+    "scipy",
     "psutil",
     "py7zr",
     "pycountry",
