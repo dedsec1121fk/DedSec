@@ -238,6 +238,7 @@ ButSystem is one of the project’s most distinctive all-in-one systems, built s
 If Termux or DedSec breaks, open Assistance first. If you need anything custom-made or direct help, check our Store.
 
 - [Store](https://ded-sec.space/Pages/store.html) — website path: `Pages/store.html`
+- **New paid ebook:** [Faith in the Digital Age](https://ded-sec.space/Pages/product-faith-digital-age.html) — **24.99€**, with separate English and Greek PDF editions. [Buy with Stripe](https://buy.stripe.com/00wdRa3Bi8ig818ffM8Zq0z)
 - [Assistance](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Check the menu (the three lines at the top right) to find more stuff like assistance, frequently asked questions, our vision, contact ways, etc.
@@ -258,7 +259,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** runs the consolidated `Setup.sh --no-run` dependency routine, which checks local Termux packages and Python modules first, updates installed items, and downloads anything still missing without opening a second menu process.
-- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If the account does not have access, it returns the user to the settings menu without downloading anything.
+- **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. The $25 Ultimate Supporter tier uses the same full sponsor-script library as $9 and adds the paid ebook benefits described below. If the account does not have access, it returns the user to the settings menu without downloading anything.
 - **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
 - **Transfer System:** creates privacy-filtered Core/Data ZIP archives plus `Install.sh` in `Downloads/Termux Transfer/` for offline migration to another compatible Termux device. SSH keys, GitHub authentication, credentials, tokens, `.env` files, and detected project secrets are excluded.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
@@ -278,7 +279,7 @@ The GitHub section can install or use `gh`, start the official GitHub login flow
 
 ### Access Sponsors-Only Scripts
 
-This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts, including Login Stealer.py. The $9 tier contains every $3 script plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. If an older local copy exists, it is replaced only after access is confirmed.
+This option is for sponsors who have access to the tier-appropriate private sponsor repository. It first checks whether GitHub is connected. If GitHub is not connected, it asks whether to connect now and follows the same GitHub CLI login flow used by the GitHub stats system. After a successful connection, it checks repository access and downloads the Sponsors-Only scripts into Termux home storage. The $3 tier contains the existing sponsor scripts, including Login Stealer.py. The $9 tier contains every $3 script plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. The $25 Ultimate Supporter tier uses the same complete sponsor-script library as $9 and adds the paid ebook benefits described in the Sponsors-Only section. If an older local copy exists, it is replaced only after access is confirmed.
 
 ### Termux Usage Stats
 
@@ -330,7 +331,7 @@ This page is the map of the project: what each tool does, why it exists, and wha
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
 - **No Category:** 3 tools
-- **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 tier
+- **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 and $25 tiers; the $25 Ultimate tier also includes the ebook benefits listed below
 
 **Total listed on tools page:** 87 tools
 
@@ -1558,12 +1559,13 @@ These scripts are educational simulations intended to help users recognize socia
 <h2>Sponsors-Only</h2>
 
 
-Sponsors-Only access is now split into two GitHub Sponsors tiers:
+Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
-| Tier | What it includes |
-| :--- | :--------------- |
-| **$3 Sponsor** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py, and **Login Stealer.py**. |
-| **$9 Pro Supporter** | Everything from the $3 tier, plus **Widget Maker.py**, **Kraken Trader.py**, and **Noob Hacker.py**. |
+| Tier | Price | What it includes |
+| :--- | :---: | :--------------- |
+| **$3 Sponsor** | **$3/month** | The existing sponsor scripts already listed on the website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py, and **Login Stealer.py**. |
+| **$9 Pro Supporter** | **$9/month** | Everything from the $3 tier, plus **Widget Maker.py**, **Kraken Trader.py**, and **Noob Hacker.py**. |
+| **$25 Ultimate Supporter** | **$25/month** | Everything from the $9 tier, plus **all current paid DedSec Project ebooks in both English and Greek**, **future paid ebooks while the sponsorship remains active**, revised/updated ebook editions while active, and early access to new ebook and project releases when available. The sponsor-script library is the same complete 9-script library as the $9 tier. |
 
 **• $3 Sponsor Scripts**
 
@@ -2020,6 +2022,7 @@ bash Setup.sh
 Αν χαλάσει το Termux ή το DedSec, άνοιξε πρώτα τη Βοήθεια. Αν χρειάζεσαι κάτι custom-made ή άμεση βοήθεια, δες το Store μας.
 
 - [Κατάστημα](https://ded-sec.space/Pages/store.html) — website path: `Pages/store.html`
+- **Νέο πληρωμένο ebook:** [Πίστη στην Ψηφιακή Εποχή](https://ded-sec.space/el/Pages/product-faith-digital-age.html) — **24.99€**, με ξεχωριστές εκδόσεις PDF στα Αγγλικά και στα Ελληνικά. [Αγορά μέσω Stripe](https://buy.stripe.com/00wdRa3Bi8ig818ffM8Zq0z)
 - [Βοήθεια](https://ded-sec.space/Pages/assistance.html) — website path: `Pages/assistance.html`
 
 Δες το μενού (τις τρεις γραμμές πάνω δεξιά) για να βρεις περισσότερα όπως βοήθεια, συχνές ερωτήσεις, το όραμά μας, τρόπους επικοινωνίας, κτλ.
@@ -2040,7 +2043,7 @@ bash Setup.sh
 - **DedSec Project Update (Source 1):** ενημερώνει την εγκατεστημένη έκδοση από το κύριο repository `dedsec1121fk/DedSec`, φέρνοντας τα νεότερα αρχεία και εφαρμόζοντας την τελευταία έκδοση.
 - **DedSec Project Update (Source 2):** ενημερώνει την εγκατεστημένη έκδοση από το backup repository `sal-scar/DedSec`, χρήσιμο όταν η πρώτη πηγή δεν είναι διαθέσιμη ή όταν θέλεις τη mirror source.
 - **Update Packages & Modules:** εκτελεί την ενιαία dependency διαδικασία `Setup.sh --no-run`, η οποία ελέγχει πρώτα τα τοπικά Termux packages και Python modules, ενημερώνει τα εγκατεστημένα στοιχεία και κατεβάζει ό,τι λείπει χωρίς να ανοίξει δεύτερο menu process.
-- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
+- **Access Sponsors-Only Scripts:** ελέγχει αν το GitHub είναι συνδεδεμένο στο Termux, ζητά σύνδεση GitHub αν χρειάζεται, ελέγχει sponsor access και κατεβάζει ή αντικαθιστά τον τοπικό Sponsors-Only φάκελο όταν επιβεβαιωθεί η πρόσβαση. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py, ενώ το tier των $9 περιλαμβάνει όλα τα scripts των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Το $25 Ultimate Supporter χρησιμοποιεί την ίδια πλήρη sponsor-script βιβλιοθήκη με το $9 και προσθέτει τα ebook benefits που περιγράφονται παρακάτω. Αν ο λογαριασμός δεν έχει πρόσβαση, επιστρέφει στο settings menu χωρίς να κατεβάσει τίποτα.
 - **Save DedSec Project:** δημιουργεί backup του DedSec Project στα Downloads του κινητού.
 - **Transfer System:** δημιουργεί privacy-filtered Core/Data ZIP archives μαζί με `Install.sh` στο `Downloads/Termux Transfer/` για offline μεταφορά σε άλλη συμβατή συσκευή Termux. SSH keys, GitHub authentication, credentials, tokens, `.env` αρχεία και ανιχνευμένα project secrets αποκλείονται.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
@@ -2060,7 +2063,7 @@ bash Setup.sh
 
 ### Access Sponsors-Only Scripts
 
-Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
+Αυτή η επιλογή είναι για sponsors που έχουν πρόσβαση στο αντίστοιχο private sponsor repository του tier τους. Πρώτα ελέγχει αν το GitHub είναι συνδεδεμένο. Αν δεν είναι, ρωτά αν θέλεις να συνδεθείς τώρα και χρησιμοποιεί την ίδια ροή GitHub CLI login με τα GitHub stats. Μετά από επιτυχημένη σύνδεση, ελέγχει πρόσβαση στο repository και κατεβάζει τα Sponsors-Only scripts στο home storage του Termux. Το tier των $3 περιλαμβάνει τα υπάρχοντα sponsor scripts, μαζί με το Login Stealer.py. Το tier των $9 περιλαμβάνει κάθε script των $3 μαζί με τα Widget Maker.py, Kraken Trader.py και Noob Hacker.py. Το $25 Ultimate Supporter χρησιμοποιεί την ίδια πλήρη sponsor-script βιβλιοθήκη με το $9 και προσθέτει τα ebook benefits που περιγράφονται στην ενότητα Sponsors-Only. Αν υπάρχει παλιότερο τοπικό αντίγραφο, αντικαθίσταται μόνο αφού επιβεβαιωθεί η πρόσβαση.
 
 ### Termux Usage Stats
 
@@ -2112,7 +2115,7 @@ bash Setup.sh
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
 - **No Category:** 3 εργαλεία
-- **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στο $9 tier
+- **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στα $9 και $25 tiers· το $25 Ultimate tier περιλαμβάνει επιπλέον τα ebook benefits που αναφέρονται παρακάτω
 
 **Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 87 εργαλεία
 
@@ -3340,12 +3343,13 @@ bash Setup.sh
 <h2>Μόνο για Χορηγούς</h2>
 
 
-Το Sponsors-Only access χωρίζεται πλέον σε δύο GitHub Sponsors tiers:
+Το Sponsors-Only access χωρίζεται πλέον σε τρία GitHub Sponsors tiers:
 
-| Tier | Τι περιλαμβάνει |
-| :--- | :-------------- |
-| **$3 Sponsor** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py και **Login Stealer.py**. |
-| **$9 Pro Supporter** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py**, **Kraken Trader.py** και **Noob Hacker.py**. |
+| Tier | Τιμή | Τι περιλαμβάνει |
+| :--- | :---: | :-------------- |
+| **$3 Sponsor** | **$3/μήνα** | Τα υπάρχοντα sponsor scripts που εμφανίζονται ήδη στο website: Face Detector.py, Face Detector Heavy.py, Face Swap.py, Steganography.py, AR Terror.py και **Login Stealer.py**. |
+| **$9 Pro Supporter** | **$9/μήνα** | Όλα τα scripts του $3 tier, μαζί με τα **Widget Maker.py**, **Kraken Trader.py** και **Noob Hacker.py**. |
+| **$25 Ultimate Supporter** | **$25/μήνα** | Όλα όσα περιλαμβάνει το $9 tier, μαζί με **όλα τα τρέχοντα πληρωμένα DedSec Project ebooks σε Αγγλικά και Ελληνικά**, **μελλοντικά πληρωμένα ebooks όσο η χορηγία παραμένει ενεργή**, revised/updated εκδόσεις των ebooks όσο το tier είναι ενεργό και πρώιμη πρόσβαση σε νέα ebook και project releases όταν είναι διαθέσιμα. Η sponsor-script βιβλιοθήκη παραμένει η ίδια πλήρης βιβλιοθήκη 9 scripts του $9 tier. |
 
 **• Scripts Χορηγών $3**
 
