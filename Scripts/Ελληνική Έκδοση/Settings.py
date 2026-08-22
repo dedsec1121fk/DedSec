@@ -36,7 +36,7 @@ from urllib.parse import urljoin, urlparse, urlunparse, unquote, quote, parse_qs
 from collections import deque, Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SETTINGS_BUILD_ID = "2026-08-17-dedsec-os-responsive-transfer-credits-r52"
+SETTINGS_BUILD_ID = "2026-08-22-sponsors-25-access-only-r54"
 
 # ----------------------------------------------------------------------
 # --- CONSTANTS, PATHS, AND GLOBALS ---
@@ -229,8 +229,18 @@ SPONSORS_TIERS = {
         "root_name": "Sponsors-Only-9",
         "old_root_names": ["Sponsors-Only-9-main"],
     },
+    "25": {
+        "key": "25",
+        "label": "Sponsors-Only $25 Tier",
+        "short_label": "$25 Tier",
+        "repo_full_name": "DedSec-Project-Official/Sponsors-Only-25",
+        "repo_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-25",
+        "git_url": "https://github.com/DedSec-Project-Official/Sponsors-Only-25.git",
+        "root_name": "Sponsors-Only-25",
+        "old_root_names": ["Sponsors-Only-25-main"],
+    },
 }
-SPONSORS_TIER_ORDER = ("3", "9")
+SPONSORS_TIER_ORDER = ("3", "9", "25")
 # Backwards-compatible aliases for older code paths. The default points to the $3 tier.
 SPONSORS_REPO_FULL_NAME = SPONSORS_TIERS["3"]["repo_full_name"]
 SPONSORS_REPO_URL = SPONSORS_TIERS["3"]["repo_url"]
@@ -421,7 +431,8 @@ GREEK_STRINGS = {'Select an option': 'Επιλέξτε μια επιλογή',
  'Choose Sponsors-Only tier': 'Επιλέξτε Sponsors-Only tier',
  'Download Sponsors-Only $3 Tier': 'Λήψη Sponsors-Only $3 Tier',
  'Download Sponsors-Only $9 Tier': 'Λήψη Sponsors-Only $9 Tier',
- 'Check access to both sponsor tiers': 'Έλεγχος πρόσβασης και στα δύο sponsor tiers',
+ 'Download Sponsors-Only $25 Tier': 'Λήψη Sponsors-Only $25 Tier',
+ 'Check access to all sponsor tiers': 'Έλεγχος πρόσβασης σε όλα τα sponsor tiers',
  'Checking Sponsors-Only access for': 'Έλεγχος πρόσβασης Sponsors-Only για',
  'Access available': 'Η πρόσβαση είναι διαθέσιμη',
  'Access denied': 'Η πρόσβαση απορρίφθηκε',
@@ -889,7 +900,7 @@ def format_display_name(filename, full_path):
     return f"{icon} {filename}"
 
 def get_sponsor_tier_config(tier_key):
-    """Returns the sponsor tier configuration for 3 or 9."""
+    """Returns the sponsor tier configuration for 3, 9, or 25."""
     tier_key = str(tier_key or "").replace("$", "").strip()
     return SPONSORS_TIERS.get(tier_key)
 
@@ -3001,7 +3012,8 @@ def access_sponsors_only_scripts(tier_key=None):
             print("\n" + _("Choose Sponsors-Only tier"))
             print("1. " + _("Download Sponsors-Only $3 Tier"))
             print("2. " + _("Download Sponsors-Only $9 Tier"))
-            print("3. " + _("Check access to both sponsor tiers"))
+            print("3. " + _("Download Sponsors-Only $25 Tier"))
+            print("4. " + _("Check access to all sponsor tiers"))
             print("0. " + _("Back"))
             choice = input(_("Enter the number of your choice: ")).strip().lower()
 
@@ -3012,6 +3024,9 @@ def access_sponsors_only_scripts(tier_key=None):
                 selected_tier = "9"
                 break
             if choice == "3":
+                selected_tier = "25"
+                break
+            if choice == "4":
                 check_all_sponsor_tier_access()
                 return
             if choice in ("0", "b", "back", "q", "quit"):
