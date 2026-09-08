@@ -251,7 +251,7 @@ Check the menu (the three lines at the top right) to find more stuff like assist
 <summary><strong>Settings & Configuration</strong></summary>
 
 
-The DedSec Project includes **Settings.py**, the central control panel for keeping the toolkit configured, updated, backed up, connected, and easy to open after installation.
+The DedSec Project includes **Settings.py**, the central control panel and launcher for **DedSec OS**, keeping the toolkit configured, updated, backed up, connected, and usable from either the Termux menus or the browser-native desktop.
 
 ### Main Settings Menu Options
 
@@ -265,7 +265,7 @@ The DedSec Project includes **Settings.py**, the central control panel for keepi
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
 - **Termux Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
-- **VPN & Tor Utilities:** provides optional no-root network privacy controls. It can enable or disable Tor, enable or disable proxy-based VPN routing, choose a VPN country, renew VPN proxies, update VPN/Tor tools, show connection status, and refresh shell exports so new Termux shells can reuse the selected network settings.
+- **HTTP Proxy & Tor Utilities:** provides optional no-root routing/privacy controls. It can enable or disable Tor, enable or disable an HTTP proxy, choose a proxy country, refresh and test proxy pools, update the required Proxy/Tor tools, show connection status, and write shell proxy exports so new Termux sessions can reuse the selected route. This is proxy routing for Termux processes, not a full device-wide Android VPN.
 - **Change Menu Style:** lets you switch between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**. The selected style is saved so the project opens the same way next time.
 - **Menu Auto-Start:** enables or disables automatic DedSec menu startup when Termux opens, depending on whether you want Termux to boot straight into the project menu or stay as a normal shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** saves the preferred language in `~/Language.json` and hides or shows the Greek folder depending on whether English or Greek is selected.
@@ -285,13 +285,13 @@ This option is for sponsors who have access to the tier-appropriate private spon
 
 The usage stats section builds a local activity snapshot of your Termux workspace. On later scans, it compares changes and reports what was created, edited, or deleted. It also detects programming language usage by file extension, checks shell history commands, lists recent file activity, and highlights active folders.
 
-### VPN & Tor Utilities
+### HTTP Proxy & Tor Utilities
 
-The network utilities section gives you optional controls for Tor and proxy-based VPN routing without root. Tor can be enabled or disabled from the menu. VPN routing can be enabled or disabled separately, uses a selectable country or refreshed proxy pool, and saves the chosen network state so it can be applied again when Termux starts. The status screen shows whether Tor and VPN routing are enabled, what country is selected, and which proxy is currently active.
+The network utilities section provides optional no-root controls for Tor and HTTP proxy routing. Tor and the HTTP proxy can be enabled or disabled independently. The proxy side can use a selectable country, refresh/test the proxy pool, remember the working proxy, and update shell exports so new Termux sessions can reuse the selected route. The status screen shows whether Tor and HTTP proxy routing are enabled, whether Tor is running, the selected country, and the active proxy. These controls affect Termux processes that honor the exported proxy variables; they are not a device-wide Android VPN.
 
 ### DedSec OS Mode
 
-**DedSec OS** is the browser-based local workspace mode inside Settings.py. It adds a phone-first interface with a file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen and split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA, and password recovery through three security questions. It also includes project action buttons for updating both sources, updating packages/modules, accessing Sponsors-Only scripts, and opening credits.
+**DedSec OS** is the browser-native desktop workspace inside Settings.py. It provides a Windows-style Start menu, taskbar, Action Center, desktop shortcuts, movable/resizable/maximizable windows, snap/tile/cascade/task-view controls, full-screen and phone-landscape layouts, themes/personalization, and local session security. File Explorer can browse Termux, the DedSec workspace, and readable phone storage with recursive search, shared Open/Save dialogs, Open With, copy/cut/paste, duplicate, rename, properties, archive actions, and Recycle Bin recovery. Built-in file apps include Notepad; Web Office; Word, Excel, and PowerPoint Explorer with richer editing, undo/redo, find/replace, print/export, and DOCX/XLSX/PPTX/ODT/ODS/ODP/CSV workflows; and PDF Explorer for viewing existing PDFs and creating/printing new documents. The desktop also includes Photo Studio, Video Editor, Media Player, Gallery, Camera, Recorder, Archive Manager, Calendar, Maps, Web Browser, Terminal, Applications, Software Center, Calculator, Clock, Games, My Computer, Control Center, and Help & Troubleshooting with searchable guidance, guided fixes, live diagnostics, and recovery tools. Built-in browser apps do not require X11; legacy X11 programs remain optional. Security includes lock/login, password recovery through three security questions, and optional authenticator-style 2FA, while project/menu controls remain available from Settings inside the desktop.
 
 ### First-Time Setup Focus
 
@@ -304,7 +304,7 @@ After installation, the most important settings are:
 5. connect GitHub only if you want GitHub stats, prompt syncing, or Sponsors-Only access
 6. enable or disable menu auto-start depending on how you use Termux
 7. use **Update Packages & Modules** when dependencies need refreshing
-8. use **VPN & Tor Utilities** only when you want those optional network controls
+8. use **HTTP Proxy & Tor Utilities** only when you want those optional network controls
 
 ### Save Reminder
 
@@ -1529,11 +1529,11 @@ These scripts are educational simulations intended to help users recognize socia
 
 
 
-**What It Helps With:** Controlling DedSec Project updates, backups, offline Termux transfer, menus, language, GitHub access, sponsor scripts, network utilities, and DedSec OS from one central launcher.
+**What It Helps With:** Managing DedSec Project maintenance and launching a complete browser-native desktop with advanced files, documents, media, terminal, packages, personalization, security, and troubleshooting tools from one central Settings.py experience.
 
-**Description:** Central control panel for the DedSec Project. It shows project/device information, updates from the main or backup source, refreshes packages and modules, manages Sponsors-Only access, Save DedSec Project, the offline Transfer System, prompt settings, GitHub connection and stats, Termux usage stats, VPN/Tor utilities, menu style and auto-start, language, credits, and uninstall. The Transfer System creates privacy-filtered Core/Data ZIP archives plus Install.sh in Downloads/Termux Transfer and excludes SSH keys, GitHub authentication, credentials, tokens, .env files, and detected project secrets. DedSec OS adds a responsive local workspace for phone and desktop with files/editor, terminal sessions, DedSec apps, Linux package actions, notifications, appearance, project controls, login, optional 2FA, and password recovery.
+**Description:** Settings.py is the central control panel for the DedSec Project and the launcher for DedSec OS. The terminal settings menus cover project/device information, main and backup-source updates, package/module refreshes, Sponsors-Only access, Save DedSec Project, the privacy-filtered offline Transfer System, prompt settings, GitHub connection/stats, Termux usage stats, HTTP Proxy & Tor utilities, menu style and auto-start, language, credits, and uninstall. DedSec OS adds a Windows-style local desktop with movable/resizable windows, Start/taskbar/Action Center, File Explorer and shared Open/Save dialogs, Recycle Bin, Notepad, Web Office, Word/Excel/PowerPoint/PDF Explorer, Photo Studio, Video Editor, media/gallery/camera/recorder tools, Archive Manager, Calendar, Maps, browser, Terminal, Applications, Software Center, utilities, games, personalization, login/optional 2FA/password recovery, and a full Help & Troubleshooting app with guided fixes and live diagnostics. Built-in browser apps are designed to work without X11; optional legacy X11 programs remain available separately.
 
-**Save Location:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json.`
+**Save Location:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
 
 
 </details>
@@ -2035,7 +2035,7 @@ bash Setup.sh
 <summary><strong>Ρυθμίσεις και Παραμετροποίηση</strong></summary>
 
 
-Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel για να κρατάς το toolkit ρυθμισμένο, ενημερωμένο, αποθηκευμένο, συνδεδεμένο και εύκολο να ανοίξει ξανά μετά την εγκατάσταση.
+Το DedSec Project περιλαμβάνει το **Settings.py**, το κεντρικό control panel και launcher του **DedSec OS**, ώστε το toolkit να παραμένει ρυθμισμένο, ενημερωμένο, backed up, συνδεδεμένο και διαθέσιμο είτε από τα Termux menus είτε από το browser-native desktop.
 
 ### Κύριες Επιλογές του Settings Menu
 
@@ -2049,7 +2049,7 @@ bash Setup.sh
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
 - **Termux Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
-- **VPN & Tor Utilities:** παρέχει προαιρετικά no-root network privacy controls. Μπορεί να ενεργοποιήσει ή να απενεργοποιήσει Tor, να ενεργοποιήσει ή να απενεργοποιήσει proxy-based VPN routing, να επιλέξει χώρα VPN, να ανανεώσει VPN proxies, να ενημερώσει VPN/Tor tools, να δείξει connection status και να ανανεώσει shell exports ώστε νέα Termux shells να μπορούν να χρησιμοποιήσουν τις επιλεγμένες network ρυθμίσεις.
+- **HTTP Proxy & Tor Utilities:** παρέχει προαιρετικά no-root routing/privacy controls. Μπορεί να ενεργοποιεί ή να απενεργοποιεί Tor, να ενεργοποιεί ή να απενεργοποιεί HTTP proxy, να επιλέγει χώρα proxy, να ανανεώνει και να δοκιμάζει proxy pools, να ενημερώνει τα απαραίτητα Proxy/Tor tools, να δείχνει connection status και να γράφει shell proxy exports ώστε νέα Termux sessions να επαναχρησιμοποιούν την επιλεγμένη route. Πρόκειται για proxy routing για Termux processes και όχι για πλήρες device-wide Android VPN.
 - **Change Menu Style:** επιτρέπει αλλαγή ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**. Το επιλεγμένο style αποθηκεύεται ώστε το project να ανοίγει με τον ίδιο τρόπο την επόμενη φορά.
 - **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του DedSec menu όταν ανοίγει το Termux, ανάλογα με το αν θέλεις το Termux να μπαίνει κατευθείαν στο project menu ή να μένει σαν κανονικό shell.
 - **Choose Language / Επιλέξτε Γλώσσα:** αποθηκεύει την προτιμώμενη γλώσσα στο `~/Language.json` και κρύβει ή εμφανίζει τον ελληνικό φάκελο ανάλογα με το αν επιλεγεί English ή Greek.
@@ -2069,13 +2069,13 @@ bash Setup.sh
 
 Η ενότητα usage stats δημιουργεί local activity snapshot του Termux workspace. Σε επόμενα scans συγκρίνει τις αλλαγές και αναφέρει τι δημιουργήθηκε, επεξεργάστηκε ή διαγράφηκε. Επίσης εντοπίζει programming language usage από file extensions, ελέγχει shell history commands, εμφανίζει πρόσφατη δραστηριότητα αρχείων και δείχνει τους πιο ενεργούς φακέλους.
 
-### VPN & Tor Utilities
+### HTTP Proxy & Tor Utilities
 
-Η ενότητα network utilities δίνει προαιρετικά controls για Tor και proxy-based VPN routing χωρίς root. Το Tor μπορεί να ενεργοποιηθεί ή να απενεργοποιηθεί από το menu. Το VPN routing ενεργοποιείται ή απενεργοποιείται ξεχωριστά, χρησιμοποιεί επιλεγμένη χώρα ή ανανεωμένο proxy pool και αποθηκεύει την επιλεγμένη network κατάσταση ώστε να εφαρμόζεται ξανά όταν ξεκινά το Termux. Η οθόνη status δείχνει αν είναι ενεργό το Tor και το VPN routing, ποια χώρα είναι επιλεγμένη και ποιο proxy είναι ενεργό.
+Η ενότητα network utilities παρέχει προαιρετικά no-root controls για Tor και HTTP proxy routing. Το Tor και το HTTP proxy μπορούν να ενεργοποιούνται ή να απενεργοποιούνται ανεξάρτητα. Η πλευρά του proxy μπορεί να χρησιμοποιεί επιλεγμένη χώρα, να ανανεώνει/δοκιμάζει το proxy pool, να θυμάται το working proxy και να ενημερώνει shell exports ώστε νέα Termux sessions να επαναχρησιμοποιούν την επιλεγμένη route. Η οθόνη status δείχνει αν είναι ενεργά το Tor και το HTTP proxy routing, αν τρέχει το Tor, ποια χώρα είναι επιλεγμένη και ποιο proxy είναι ενεργό. Αυτά τα controls επηρεάζουν Termux processes που χρησιμοποιούν τα exported proxy variables· δεν είναι device-wide Android VPN.
 
 ### DedSec OS Mode
 
-Το **DedSec OS** είναι το browser-based local workspace mode μέσα στο Settings.py. Προσθέτει phone-first interface με file browser, safe text editor, terminal view, session manager, DedSec apps launcher, Linux package store actions, notifications, fullscreen και split view controls, sidebar controls, wallpaper support, display name settings, terminal color settings, project/menu settings, menu auto-start controls, language controls, prompt controls, password login, optional authenticator-style 2FA και password recovery μέσω τριών security questions. Περιλαμβάνει επίσης project action buttons για ενημέρωση και από τις δύο πηγές, ενημέρωση packages/modules, εκτέλεση του Transfer System, πρόσβαση σε Sponsors-Only scripts και άνοιγμα credits.
+Το **DedSec OS** είναι το browser-native desktop workspace μέσα στο Settings.py. Προσφέρει Windows-style Start menu, taskbar, Action Center, desktop shortcuts, movable/resizable/maximizable windows, snap/tile/cascade/task-view controls, full-screen και phone-landscape layouts, themes/personalization και local session security. Το File Explorer δίνει πρόσβαση σε Termux, DedSec workspace και readable phone storage με recursive search, κοινά Open/Save dialogs, Open With, copy/cut/paste, duplicate, rename, properties, archive actions και Recycle Bin recovery. Τα built-in file apps περιλαμβάνουν Notepad, Web Office, Word/Excel/PowerPoint Explorer με richer editing, undo/redo, find/replace, print/export και DOCX/XLSX/PPTX/ODT/ODS/ODP/CSV workflows, ενώ το PDF Explorer ανοίγει υπάρχοντα PDFs και δημιουργεί/εκτυπώνει νέα documents. Το desktop περιλαμβάνει επίσης Photo Studio, Video Editor, Media Player, Gallery, Camera, Recorder, Archive Manager, Calendar, Maps, Web Browser, Terminal, Applications, Software Center, Calculator, Clock, Games, My Computer, Control Center και Help & Troubleshooting με searchable guidance, guided fixes, live diagnostics και recovery tools. Τα built-in browser apps δεν χρειάζονται X11· τα legacy X11 programs παραμένουν προαιρετικά. Η ασφάλεια περιλαμβάνει lock/login, password recovery μέσω τριών security questions και optional authenticator-style 2FA, ενώ τα project/menu controls παραμένουν διαθέσιμα από το Settings μέσα στο desktop.
 
 ### Έμφαση στην Πρώτη Ρύθμιση
 
@@ -2088,7 +2088,7 @@ bash Setup.sh
 5. σύνδεσε GitHub μόνο αν θέλεις GitHub stats, prompt syncing ή Sponsors-Only access
 6. ενεργοποίησε ή απενεργοποίησε το menu auto-start ανάλογα με το πώς χρησιμοποιείς το Termux
 7. χρησιμοποίησε το **Update Packages & Modules** όταν χρειάζεται ανανέωση dependencies
-8. χρησιμοποίησε το **VPN & Tor Utilities** μόνο όταν θέλεις αυτά τα προαιρετικά network controls
+8. χρησιμοποίησε το **HTTP Proxy & Tor Utilities** μόνο όταν θέλεις αυτά τα προαιρετικά network controls
 
 ### Υπενθύμιση Αποθήκευσης
 
@@ -3313,11 +3313,11 @@ bash Setup.sh
 
 
 
-**Τι Βοηθά Να Λύσεις:** Κεντρικός έλεγχος updates, backups, offline μεταφοράς Termux, menus, γλώσσας, GitHub access, sponsor scripts, network utilities και DedSec OS από έναν launcher.
+**Τι Βοηθά Να Λύσεις:** Κεντρική διαχείριση του DedSec Project και εκκίνηση ενός πλήρους browser-native desktop με advanced files, documents, media, terminal, packages, personalization, security και troubleshooting tools από το ίδιο Settings.py.
 
-**Περιγραφή:** Κεντρικός πίνακας ελέγχου του DedSec Project. Εμφανίζει πληροφορίες project/συσκευής, κάνει update από την κύρια ή backup πηγή, ανανεώνει packages και modules, διαχειρίζεται Sponsors-Only access, Save DedSec Project, το offline Transfer System, prompt settings, GitHub σύνδεση και stats, Termux usage stats, VPN/Tor utilities, menu style και auto-start, γλώσσα, credits και uninstall. Το Transfer System δημιουργεί privacy-filtered Core/Data ZIP archives μαζί με Install.sh στο Downloads/Termux Transfer και αποκλείει SSH keys, GitHub authentication, credentials, tokens, .env files και ανιχνευμένα project secrets. Το DedSec OS προσθέτει responsive local workspace για κινητό και desktop με files/editor, terminal sessions, DedSec apps, Linux package actions, notifications, appearance, project controls, login, προαιρετικό 2FA και password recovery.
+**Περιγραφή:** Το Settings.py είναι το κεντρικό control panel του DedSec Project και ο launcher του DedSec OS. Τα terminal settings menus καλύπτουν πληροφορίες project/συσκευής, updates από main και backup source, ανανέωση packages/modules, Sponsors-Only access, Save DedSec Project, το privacy-filtered offline Transfer System, prompt settings, GitHub σύνδεση/stats, Termux usage stats, HTTP Proxy & Tor utilities, menu style και auto-start, γλώσσα, credits και uninstall. Το DedSec OS προσθέτει Windows-style local desktop με movable/resizable windows, Start/taskbar/Action Center, File Explorer και κοινά Open/Save dialogs, Recycle Bin, Notepad, Web Office, Word/Excel/PowerPoint/PDF Explorer, Photo Studio, Video Editor, media/gallery/camera/recorder tools, Archive Manager, Calendar, Maps, browser, Terminal, Applications, Software Center, utilities, games, personalization, login/optional 2FA/password recovery και πλήρες Help & Troubleshooting app με guided fixes και live diagnostics. Τα built-in browser apps είναι σχεδιασμένα να λειτουργούν χωρίς X11, ενώ τα optional legacy X11 programs παραμένουν διαθέσιμα ξεχωριστά.
 
-**Τοποθεσία Αποθήκευσης:** `Γλώσσα: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ και ~/.dedsec_network_utilities.json.`
+**Τοποθεσία Αποθήκευσης:** `Γλώσσα: ~/Language.json | Backup ρυθμίσεων Termux: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ και ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
 
 
 </details>
