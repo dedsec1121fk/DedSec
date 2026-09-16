@@ -19360,7 +19360,8 @@ def launch_dedsec_os():
     os.replace(state_temp, DEDSEC_OS_STATE_PATH)
     url = 'http://127.0.0.1:' + str(port)
     started = False
-    for _ in range(40):
+    # Allow up to 60 seconds for DedSec OS to finish initialization and bind its localhost port.
+    for _ in range(400):
         if process.poll() is not None:
             break
         if is_port_listening(port):
