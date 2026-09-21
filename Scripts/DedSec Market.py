@@ -156,6 +156,7 @@ REPOSITORIES = [
     {"url": "https://github.com/dedsec1121fk/Hacking-Guide-Project"},
     {"url": "https://github.com/dedsec1121fk/Corrupted-Files-Project"},
     {"url": "https://github.com/dedsec1121fk/Pocket-AI-Project"},
+    {"url": "https://github.com/dedsec1121fk/Ghost-Project"},
 ]
 
 SESSION_CACHE = {}
