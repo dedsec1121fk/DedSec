@@ -440,7 +440,7 @@ class Vault:
             os.makedirs(backup_dir, exist_ok=True)
         except OSError as e:
             print(f"{Fore.RED}Error creating backup folder: {e}{Style.RESET_ALL}")
-            print(f"{Fore.YELLOW}Tip: Run 'termux-setup-storage' in terminal.{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Tip: verify that your Downloads directory is writable; on Termux run 'termux-setup-storage'.{Style.RESET_ALL}")
             input("Press Enter...")
             return
 

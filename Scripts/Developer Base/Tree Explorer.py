@@ -964,7 +964,8 @@ def prompt_path(lang: str, default: Path) -> Path:
     if choice == "2":
         return Path(os.environ.get("HOME", str(Path.home())))
     if choice == "3":
-        return Path("/sdcard")
+        shared = Path("/sdcard")
+        return shared if shared.exists() else (Path.home() / "Downloads")
     if choice == "4":
         p = input(t("enter_path", lang)).strip()
         return Path(p).expanduser() if p else default

@@ -76,11 +76,22 @@ signal.signal(signal.SIGINT, signal_handler)
 #  DEFAULT OUTPUT DIRECTORY
 # ─────────────────────────────────────────────
 def resolve_default_output_dir():
-    candidates = [
-        os.path.expanduser("~/storage/downloads/Devices Finder"),
-        os.path.expanduser("~/downloads/Devices Finder"),
-        os.path.join(os.getcwd(), "Devices Finder Output"),
-    ]
+    is_termux = bool(
+        os.environ.get("TERMUX_VERSION")
+        or "com.termux" in os.environ.get("PREFIX", "")
+        or os.path.exists("/data/data/com.termux/files/usr/bin/pkg")
+    )
+    if is_termux:
+        candidates = [
+            os.path.expanduser("~/storage/downloads/Devices Finder"),
+            "/storage/emulated/0/Download/Devices Finder",
+            os.path.join(os.getcwd(), "Devices Finder Output"),
+        ]
+    else:
+        candidates = [
+            os.path.expanduser("~/Downloads/Devices Finder"),
+            os.path.join(os.getcwd(), "Devices Finder Output"),
+        ]
     for candidate in candidates:
         try:
             Path(candidate).mkdir(parents=True, exist_ok=True)

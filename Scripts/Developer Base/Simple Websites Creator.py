@@ -3,7 +3,8 @@ import re
 import datetime
 
 # Path configuration
-BASE_DIR = "/storage/emulated/0/Download"
+_TERMUX_DOWNLOAD = "/storage/emulated/0/Download"
+BASE_DIR = _TERMUX_DOWNLOAD if os.path.isdir("/storage/emulated/0") else os.path.join(os.path.expanduser("~"), "Downloads")
 WEBSITES_DIR = os.path.join(BASE_DIR, "Websites")
 
 def ensure_directory():
@@ -825,14 +826,11 @@ def main():
             print("❌ Please choose 1-7")
 
 if __name__ == "__main__":
-    # Check storage access
-    if not os.path.exists(BASE_DIR):
-        print("❌ Cannot access phone storage.")
-        print("💡 Please run this command first: termux-setup-storage")
-        print("   Then run this script again.")
-        exit(1)
-    
-    # Check if directory exists, if not create it
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+    except OSError as exc:
+        print(f"❌ Cannot access or create storage directory: {BASE_DIR}: {exc}")
+        raise SystemExit(1)
     ensure_directory()
     
     try:

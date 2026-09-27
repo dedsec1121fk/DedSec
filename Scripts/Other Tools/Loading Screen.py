@@ -6,8 +6,11 @@ import shutil
 
 # Paths and constants
 HOME = os.path.expanduser("~")
-BASH_PROFILE = os.path.join(HOME, ".bash_profile")
-BASHRC_GLOBAL = "/data/data/com.termux/files/usr/etc/bash.bashrc"
+IS_TERMUX = bool(os.environ.get("TERMUX_VERSION") or os.path.exists("/data/data/com.termux/files/usr/bin/pkg"))
+ACTIVE_SHELL = os.path.basename(os.environ.get("SHELL", "")).casefold()
+DESKTOP_RC = os.path.join(HOME, ".zshrc" if ACTIVE_SHELL == "zsh" else ".bashrc")
+BASH_PROFILE = os.path.join(HOME, ".bash_profile") if IS_TERMUX else DESKTOP_RC
+BASHRC_GLOBAL = "/data/data/com.termux/files/usr/etc/bash.bashrc" if IS_TERMUX else DESKTOP_RC
 LOADING_SCREEN_START = "# >>> Termux ASCII-ART LOADING SCREEN START"
 LOADING_SCREEN_END = "# <<< Termux ASCII-ART LOADING SCREEN END"
 
@@ -99,9 +102,7 @@ def install_loading_screen(seconds):
         "clear\n",
         "cat << 'EOF'\n",
         center_ascii(ART1) + "\nEOF\n",
-        f"sleep {seconds}\nclear\n",
-        "python3 -c \"import os; os.system('sed -i \\\"/sleep 12;.*Settings.py/d\\\" \\\"/data/data/com.termux/files/usr/etc/bash.bashrc\\\"')\"\n",
-        f"{LOADING_SCREEN_END}\n"
+        f"sleep {seconds}\nclear\n",        f"{LOADING_SCREEN_END}\n"
     ]
 
     write_lines(BASH_PROFILE, loading_screen_script + lines)
@@ -127,9 +128,7 @@ def install_custom_loading_screen(seconds):
         "clear\n",
         "cat << 'EOF'\n",
         center_ascii(custom_art) + "\nEOF\n",
-        f"sleep {seconds}\nclear\n",
-        "python3 -c \"import os; os.system('sed -i \\\"/sleep 12;.*Settings.py/d\\\" \\\"/data/data/com.termux/files/usr/etc/bash.bashrc\\\"')\"\n",
-        f"{LOADING_SCREEN_END}\n"
+        f"sleep {seconds}\nclear\n",        f"{LOADING_SCREEN_END}\n"
     ]
 
     write_lines(BASH_PROFILE, loading_screen_script + lines)
