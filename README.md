@@ -10,7 +10,7 @@
 
   <p>
     <img src="https://img.shields.io/badge/Purpose-Educational-blue.svg" alt="Purpose: Educational">
-    <img src="https://img.shields.io/badge/Platform-Android%20(Termux)-brightgreen.svg" alt="Platform: Android (Termux)">
+    <img src="https://img.shields.io/badge/Platforms-Termux%20%7C%20Ubuntu%20%7C%20Kali%20%7C%20Linux%20Mint-brightgreen.svg" alt="Platforms: Termux, Ubuntu, Kali Linux, Linux Mint">
     <img src="https://img.shields.io/badge/Language-Python%20%7C%20JS%20%7C%20Shell-yellow.svg" alt="Language: Python | JS | Shell">
     <img src="https://img.shields.io/badge/Interface-EN%20%7C%20GR-lightgrey.svg" alt="Interface: EN | GR">
   </p>
@@ -28,7 +28,7 @@
 > **Για να μεταβείτε στην πλήρη Ελληνική έκδοση, συνεχίστε [Πατώντας Εδώ](#greek-readme).**
 
 
-The **DedSec Project** is a broad educational toolkit built for **Android + Termux**, bringing together many scripts, utilities, local web interfaces, and practice environments in one place. Its purpose is to help users learn how tools work, understand defensive awareness, and organize common Termux workflows from a single project.
+The **DedSec Project** is a broad educational toolkit for **Termux on Android, Ubuntu, Kali Linux, and Linux Mint**, bringing together scripts, utilities, local web interfaces, and practice environments in one place. Its purpose is to help users learn how tools work, understand defensive awareness, and organize common workflows from a single project.
 
 <a id="table-of-contents"></a>
 
@@ -55,162 +55,181 @@ The **DedSec Project** is a broad educational toolkit built for **Android + Term
 <details>
 <summary><strong>How To Install And Setup The DedSec Project</strong></summary>
 
-
-Step-by-step instructions to install and set up the DedSec Project on your Android device.
-
 ### Requirements
 
 | Component | Minimum Specification |
 | :-------- | :-------------------- |
-| **Device** | Android phone or tablet with Termux installed |
+| **Supported system** | Termux on Android, Ubuntu, Kali Linux, or Linux Mint |
 | **Storage** | Minimum **6GB** free space |
 | **RAM** | Minimum **2GB** |
 | **Internet** | Needed for first installation and updates |
 
-> **Installation time:** The first full installation can take approximately **20–50 minutes**, depending on your internet connection and device processor.
+> **Installation time:** A complete installation can take approximately **20–50 minutes**, depending on your internet connection and device processor.
 
-> **Storage warning:** The DedSec Project itself requires a minimum of **6GB** of free space. Some scripts can create additional output—such as captured photos, videos, audio, screenshots, downloads, logs, reports, backups, or other generated files—so actual storage usage can grow beyond 6GB depending on how you use the project.
+> **Storage warning:** The 6GB requirement covers the DedSec Project installation itself. Scripts that save photos, screenshots, videos, recordings, logs, downloads, reports, backups, or other generated files can require additional storage.
 
-### Before You Start
+### Choose Your Platform
 
-F-Droid is an alternative app store for Android that provides free and open-source software. It's the recommended way to install Termux and other security tools.
+Tap the platform you use to open only its installation steps.
 
-- Install **Termux from F-Droid** for the best compatibility.
-- If you install APK files manually, allow installation from unknown apps in your Android settings.
-- When Termux asks for storage permission, allow it if you want the project to access Downloads and saved files.
-- For long installs, long-press inside Termux, tap **More**, and enable **Keep screen on**.
-- You can also customize the terminal appearance by long-pressing inside Termux, tapping **More**, and selecting **Style**.
+<details>
+<summary><strong>Termux (Android)</strong></summary>
 
-### Installation Options
+#### 1. Install F-Droid
 
-#### Option 1: First-Time Full Install
+F-Droid is the recommended source for Termux and its add-ons.
 
-Use this path if you are installing the DedSec Project for the first time.
+- [Download F-Droid](https://f-droid.org/)
+- Allow your browser or file manager to install unknown apps if Android asks.
+- Open the downloaded F-Droid APK and install it.
 
-##### 1. Install F-Droid, then install Termux and the recommended add-ons
+#### 2. Install Termux and add-ons
 
-- Download and install **F-Droid**.
-- Open F-Droid.
-- Search for **Termux** and install it.
-- Recommended extras: **Termux:API** and **Termux:Styling**.
+Install from F-Droid:
 
-##### 2. Open Termux and prepare packages
+- [Termux](https://f-droid.org/packages/com.termux/)
+- [Termux:API](https://f-droid.org/packages/com.termux.api/)
+- [Termux:Styling](https://f-droid.org/packages/com.termux.styling/)
 
-Important: open the **Termux** app on your device before copying and pasting the command below.
-
-Run:
+#### 3. Update Termux and install Git
 
 ```bash
 pkg update -y && pkg upgrade -y && pkg install git nano -y && termux-setup-storage
 ```
 
-What this does:
-
-- updates package lists
-- upgrades installed packages
-- installs `git` and `nano`
-- requests storage access inside Termux
-
-##### 3. Clone the DedSec Project repository
-
-Run:
+#### 4. Clone DedSec
 
 ```bash
 git clone https://github.com/dedsec1121fk/DedSec
 ```
 
-This downloads the full project into a folder named `DedSec`.
-
-##### 4. Enter the project folder and run setup
-
-Run:
+#### 5. Install DedSec
 
 ```bash
 cd DedSec && bash Setup.sh
 ```
 
-The script will handle the complete installation. After setup, you must change the prompt, change the menu style (list or numbered menu styles are the best for new users), choose the language, and run the Save DedSec Project option on your first run so your backup package is created immediately. Save DedSec Project may take a while depending on your internet connection, and the terminal may stay blank until it is ready. Run Save DedSec Project again a few times every year to keep your saved DedSec Project package fresh and ready if you ever need it. After that, close Termux from your phone's notification panel using the exit button, then open Termux again. Tip: You can quickly open the menu by typing 'e' (English) or 'g' (Greek) in Termux.
-
-##### 5. Complete the post-setup configuration
-
-After setup finishes, do the following:
-
-- change the **prompt**
-- change the **menu style**
-- for new users, **list** or **numbered** menu styles are the best choices
-- choose your **language**
-- run **Save DedSec Project** on your first run so your backup package is created immediately
-- run **Save DedSec Project** again a few times every year to keep your saved package fresh and ready if you need it
-- a manual **Save DedSec Project** operation may take a while depending on your internet connection, and the terminal may stay blank until it is ready
-- fully close Termux from your phone's **notification panel** using the **exit button**
-- open Termux again
-
-##### 6. Quick launch tip after setup
-
-After reopening Termux, you can quickly open the project menu by typing:
-
-- `e` for **English**
-- `g` for **Greek**
-
-#### Option 2: Update an Existing Installation
-
-Use this if the project is already installed and you only want the newest files.
-
-First enter the project folder:
+#### 6. Launch DedSec later
 
 ```bash
-cd ~/DedSec
+cd ~/DedSec && ./Run.sh
 ```
 
-Then pull the newest changes:
+After the first setup, choose your prompt, menu style and language, then run **Save DedSec Project** so a backup package is created. You can quickly open the English or Greek menu later by typing `e` or `g` in Termux.
+
+</details>
+
+<details>
+<summary><strong>Ubuntu</strong></summary>
+
+#### 1. Install requirements
 
 ```bash
-git pull
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
 ```
 
-Run setup again so the consolidated dependency manager checks local files, updates dependencies, and opens the menu:
+#### 2. Clone DedSec
 
 ```bash
-bash Setup.sh
+git clone https://github.com/dedsec1121fk/DedSec
 ```
 
-To update dependencies without opening the menu, use:
+#### 3. Run setup
 
 ```bash
-bash Setup.sh --update-only
+cd DedSec && bash Setup.sh
 ```
 
-This is useful after major project changes, new dependencies, or menu updates.
-
-#### Option 3: Open the Project Later Without Reinstalling
-
-If the project is already installed and configured, you usually do **not** need to reinstall it every time.
-
-You can:
-
-- open Termux and use the quick-launch command if it is already configured
-- type `e` for **English** or `g` for **Greek** to open the menu quickly
-- or manually enter the folder again:
+#### 4. Launch DedSec later
 
 ```bash
-cd ~/DedSec
+cd ~/DedSec && ./Run.sh
 ```
 
-If you need to run setup again manually:
+`Setup.sh` creates and uses the project-local `.venv`, keeping the distro-managed Python installation separate.
+
+</details>
+
+<details>
+<summary><strong>Kali Linux</strong></summary>
+
+#### 1. Install requirements
 
 ```bash
-bash Setup.sh
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
+```
+
+#### 2. Clone DedSec
+
+```bash
+git clone https://github.com/dedsec1121fk/DedSec
+```
+
+#### 3. Run setup
+
+```bash
+cd DedSec && bash Setup.sh
+```
+
+#### 4. Launch DedSec later
+
+```bash
+cd ~/DedSec && ./Run.sh
+```
+
+`Setup.sh` uses the project-local `.venv` and keeps the system Python environment separate.
+
+</details>
+
+<details>
+<summary><strong>Linux Mint</strong></summary>
+
+#### 1. Install requirements
+
+```bash
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
+```
+
+#### 2. Clone DedSec
+
+```bash
+git clone https://github.com/dedsec1121fk/DedSec
+```
+
+#### 3. Run setup
+
+```bash
+cd DedSec && bash Setup.sh
+```
+
+#### 4. Launch DedSec later
+
+```bash
+cd ~/DedSec && ./Run.sh
+```
+
+`Setup.sh` creates the project-local `.venv` and does not replace the distro-managed Python installation.
+
+</details>
+
+### Update An Existing Installation
+
+```bash
+cd ~/DedSec && git pull && bash Setup.sh
+```
+
+To update dependencies without opening the menu:
+
+```bash
+cd ~/DedSec && bash Setup.sh --update-only
 ```
 
 ### Important Notes
 
 - Keep an internet connection enabled during the first install.
-- The first installation can take longer than normal because packages and tools may need to download.
-- Run **Save DedSec Project** on the first run, then run it again a few times every year to keep the saved package fresh. It may take a while depending on your internet connection.
-- If storage access was denied earlier, run `termux-setup-storage` again.
-- If Git is missing, run `pkg install git -y`.
 - If you are already inside the DedSec folder, you do not need to clone the repository again.
-- Using the F-Droid version of Termux is strongly recommended because some Play Store versions are outdated.
+- Termux-specific Android utilities remain Android-only; desktop Linux uses the compatibility behavior documented in the project.
+- Desktop Linux launches through the project `.venv`; Termux uses its native Python/packages.
 
 </details>
 
@@ -224,7 +243,7 @@ This follows the same starter/help path from the website `index.html`, but here 
 
 **The best path to start is:**
 
-Do not start by opening random scripts. The free Academy gives the project an order: setup first, then lessons, practice, and the next lesson.
+Start with installation, then review the tools and use Assistance when you need setup, compatibility, or troubleshooting help.
 
 - [Guide For Installation](https://ded-sec.space/Pages/guide-for-installation.html) — website path: `Pages/guide-for-installation.html`
 - [Learn About The Tools](https://ded-sec.space/Pages/learn-about-the-tools.html) — website path: `Pages/learn-about-the-tools.html`
@@ -345,16 +364,16 @@ This page is the map of the project: what each tool does, why it exists, and wha
 - **Games:** 6 tools
 - **Personal Information Capture:** 17 tools
 - **Social Media / Fake Pages:** 25 tools
-- **No Category:** 3 tools
+- **No Category:** 4 tools
 - **Sponsors-Only:** 6 tools in the $3 tier / 9 tools in the $9 and $25 tiers; the $25 Ultimate tier also includes the ebook benefits listed below
 
-**Total listed on tools page:** 87 tools
+**Total listed on tools page:** 88 tools
 
 ### Mobile Apps
 
-You can now download selected DedSec Project apps directly as Android APKs without needing Termux. The `Apk's/` folder keeps the latest stable standalone build for each available app.
+You can now download selected DedSec Project apps directly as Android APKs without needing Termux. The `APK's/` folder keeps the latest stable standalone build for each available app.
 
-- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Download ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/Apk%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
+- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Download ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/APK%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
 
 ---
 <a id="developer-base"></a>
@@ -1980,6 +1999,25 @@ These scripts are educational simulations intended to help users recognize socia
 
 
 <details>
+<summary>APK's</summary>
+
+**What It Helps With:** Downloading the current stable standalone Android app build directly from the DedSec Project repository.
+
+**Description:** The `APK's/` folder contains stable standalone Android applications distributed with the DedSec Project. The current build is **ButSystem v1.0.0 Universal APK** for Android 8.0 and newer.
+
+**Repository Location:** `APK's/ButSystem/ButSystem-v1.0.0-universal.apk`
+
+**Platform Support:**
+- **Termux / Android:** Installable on Android 8.0+.
+- **Ubuntu:** The APK can be downloaded or copied, but it is not a native Linux application.
+- **Kali Linux:** The APK can be downloaded or copied, but it is not a native Linux application.
+- **Linux Mint:** The APK can be downloaded or copied, but it is not a native Linux application.
+
+[Download ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/APK%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
+
+</details>
+
+<details>
 <summary>Extra Content</summary>
 
 
@@ -2357,7 +2395,7 @@ This project, including all associated tools, scripts, and documentation, is pro
 
 > **Για να επιστρέψετε στην πλήρη Αγγλική έκδοση, συνεχίστε [Πατώντας Εδώ](#english-readme).**
 
-Το **DedSec Project** είναι ένα ευρύ εκπαιδευτικό toolkit για **Android + Termux**, που συγκεντρώνει πολλά scripts, utilities, local web interfaces και περιβάλλοντα εξάσκησης σε ένα σημείο. Ο σκοπός του είναι να βοηθά τους χρήστες να μαθαίνουν πώς λειτουργούν τα εργαλεία, να κατανοούν καλύτερα την αμυντική επίγνωση και να οργανώνουν συνηθισμένα Termux workflows μέσα από ένα ενιαίο project.
+Το **DedSec Project** είναι ένα ευρύ εκπαιδευτικό toolkit για **Termux σε Android, Ubuntu, Kali Linux και Linux Mint**, που συγκεντρώνει scripts, utilities, local web interfaces και περιβάλλοντα εξάσκησης σε ένα σημείο. Ο σκοπός του είναι να βοηθά τους χρήστες να μαθαίνουν πώς λειτουργούν τα εργαλεία, να κατανοούν καλύτερα την αμυντική επίγνωση και να οργανώνουν συνηθισμένα workflows μέσα από ένα ενιαίο project.
 
 <a id="greek-table-of-contents"></a>
 
@@ -2384,164 +2422,181 @@ This project, including all associated tools, scripts, and documentation, is pro
 <details>
 <summary><strong>Πώς να Εγκαταστήσετε και να Ρυθμίσετε το DedSec Project</strong></summary>
 
-
-
-
-Βήμα-βήμα οδηγίες για την εγκατάσταση και ρύθμιση του DedSec Project στη συσκευή σας Android.
-
 ### Απαιτήσεις
 
 | Στοιχείο | Ελάχιστη Προδιαγραφή |
 | :-------- | :------------------- |
-| **Συσκευή** | Κινητό ή tablet Android με εγκατεστημένο Termux |
-| **Αποθηκευτικός χώρος** | Ελάχιστο **8GB** ελεύθερος χώρος |
+| **Υποστηριζόμενο σύστημα** | Termux σε Android, Ubuntu, Kali Linux ή Linux Mint |
+| **Αποθηκευτικός χώρος** | Ελάχιστο **6GB** ελεύθερος χώρος |
 | **RAM** | Ελάχιστο **2GB** |
 | **Internet** | Απαιτείται για την πρώτη εγκατάσταση και τις ενημερώσεις |
 
-> **Χρόνος εγκατάστασης:** Η πρώτη πλήρης εγκατάσταση μπορεί να διαρκέσει περίπου **20–50 λεπτά**, ανάλογα με τη σύνδεσή σας στο διαδίκτυο και τον επεξεργαστή της συσκευής.
+> **Χρόνος εγκατάστασης:** Η πλήρης εγκατάσταση μπορεί να διαρκέσει περίπου **20–50 λεπτά**, ανάλογα με τη σύνδεση στο internet και τον επεξεργαστή της συσκευής.
 
-> **Προειδοποίηση χώρου:** Το ίδιο το DedSec Project απαιτεί τουλάχιστον **6GB** ελεύθερου χώρου. Ορισμένα scripts μπορούν να δημιουργήσουν επιπλέον δεδομένα—όπως φωτογραφίες, βίντεο, ήχο, screenshots, λήψεις, logs, αναφορές, backups ή άλλα παραγόμενα αρχεία—οπότε η πραγματική χρήση χώρου μπορεί να ξεπεράσει τα 6GB ανάλογα με τον τρόπο χρήσης του project.
+> **Προειδοποίηση χώρου:** Η απαίτηση των 6GB αφορά την εγκατάσταση του DedSec Project. Scripts που αποθηκεύουν φωτογραφίες, screenshots, βίντεο, ηχογραφήσεις, logs, downloads, reports, backups ή άλλα παραγόμενα αρχεία μπορούν να χρειαστούν επιπλέον χώρο.
 
-### Πριν Ξεκινήσεις
+### Επίλεξε Την Πλατφόρμα Σου
 
-Το F-Droid είναι ένα εναλλακτικό κατάστημα εφαρμογών για Android που παρέχει ελεύθερο και ανοιχτού κώδικα λογισμικό. Είναι ο συνιστώμενος τρόπος για να εγκαταστήσετε το Termux και άλλα εργαλεία ασφαλείας.
+Πάτησε την πλατφόρμα που χρησιμοποιείς για να ανοίξουν μόνο οι δικές της οδηγίες εγκατάστασης.
 
-- Εγκατάστησε το **Termux από το F-Droid** για την καλύτερη συμβατότητα.
-- Αν εγκαθιστάς APK αρχεία χειροκίνητα, επίτρεψε την εγκατάσταση από άγνωστες εφαρμογές στις ρυθμίσεις του Android.
-- Όταν το Termux ζητήσει άδεια αποθήκευσης, δώσ' την αν θέλεις το project να έχει πρόσβαση στα Downloads και στα αποθηκευμένα αρχεία σου.
-- Για μεγάλες εγκαταστάσεις, κράτησε πατημένο μέσα στο Termux, πάτησε **More** και ενεργοποίησε το **Keep screen on**.
-- Μπορείς επίσης να παραμετροποιήσεις την εμφάνιση του terminal κρατώντας πατημένο μέσα στο Termux, πατώντας **More** και επιλέγοντας **Style**.
+<details>
+<summary><strong>Termux (Android)</strong></summary>
 
-### Επιλογές Εγκατάστασης
+#### 1. Εγκατάσταση F-Droid
 
-#### Επιλογή 1: Πλήρης Πρώτη Εγκατάσταση
+Το F-Droid είναι η προτεινόμενη πηγή για το Termux και τα πρόσθετά του.
 
-Χρησιμοποίησε αυτή τη διαδρομή αν εγκαθιστάς το DedSec Project για πρώτη φορά.
+- [Λήψη F-Droid](https://f-droid.org/)
+- Επίτρεψε στον browser ή τον file manager να εγκαθιστά άγνωστες εφαρμογές αν το Android το ζητήσει.
+- Άνοιξε το F-Droid APK και εγκατέστησέ το.
 
-##### 1. Εγκατέστησε το F-Droid, μετά το Termux και τα προτεινόμενα πρόσθετα
+#### 2. Εγκατάσταση Termux και πρόσθετων
 
-- Κατέβασε και εγκατέστησε το **F-Droid**.
-- Άνοιξε το F-Droid.
-- Αναζήτησε το **Termux** και εγκατέστησέ το.
-- Προτεινόμενα πρόσθετα: **Termux:API** και **Termux:Styling**.
+Εγκατέστησε από το F-Droid:
 
-##### 2. Άνοιξε το Termux και ετοίμασε τα πακέτα
+- [Termux](https://f-droid.org/packages/com.termux/)
+- [Termux:API](https://f-droid.org/packages/com.termux.api/)
+- [Termux:Styling](https://f-droid.org/packages/com.termux.styling/)
 
-Σημαντικό: άνοιξε πρώτα την εφαρμογή **Termux** στη συσκευή σου πριν αντιγράψεις και επικολλήσεις την παρακάτω εντολή.
-
-Τρέξε:
+#### 3. Ενημέρωση Termux και εγκατάσταση Git
 
 ```bash
 pkg update -y && pkg upgrade -y && pkg install git nano -y && termux-setup-storage
 ```
 
-Τι κάνει αυτό:
-
-- ενημερώνει τις λίστες πακέτων
-- αναβαθμίζει τα ήδη εγκατεστημένα πακέτα
-- εγκαθιστά τα `git` και `nano`
-- ζητά πρόσβαση αποθήκευσης μέσα στο Termux
-
-##### 3. Κάνε clone το repository του DedSec Project
-
-Τρέξε:
+#### 4. Clone του DedSec
 
 ```bash
 git clone https://github.com/dedsec1121fk/DedSec
 ```
 
-Αυτό κατεβάζει ολόκληρο το project μέσα σε έναν φάκελο με όνομα `DedSec`.
-
-##### 4. Μπες στον φάκελο του project και τρέξε το setup
-
-Τρέξε:
+#### 5. Εγκατάσταση DedSec
 
 ```bash
 cd DedSec && bash Setup.sh
 ```
 
-Το script θα αναλάβει την πλήρη εγκατάσταση. Μετά την εγκατάσταση, πρέπει να αλλάξετε το prompt, να αλλάξετε το στυλ του μενού (τα στυλ λίστας ή αριθμημένου μενού είναι τα καλύτερα για νέους χρήστες), να επιλέξετε γλώσσα και να τρέξετε την επιλογή Save DedSec Project στο πρώτο σας άνοιγμα ώστε να δημιουργηθεί αμέσως το backup package. Το Save DedSec Project μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σας στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί. Τρέχετε ξανά το Save DedSec Project λίγες φορές κάθε χρόνο ώστε το αποθηκευμένο πακέτο του DedSec Project να μένει φρέσκο και έτοιμο αν το χρειαστείτε. Μετά από αυτό, κλείστε το Termux από το πάνελ ειδοποιήσεων του κινητού σας χρησιμοποιώντας το κουμπί εξόδου και έπειτα ανοίξτε ξανά το Termux. Συμβουλή: Μπορείτε να ανοίξετε γρήγορα το μενού πληκτρολογώντας 'e' (Αγγλικά) ή 'g' (Ελληνικά) στο Termux.
-
-##### 5. Ολοκλήρωσε τη ρύθμιση μετά το setup
-
-Αφού ολοκληρωθεί το setup, κάνε τα εξής:
-
-- άλλαξε το **prompt**
-- άλλαξε το **στυλ του μενού**
-- για νέους χρήστες, τα **list** ή **numbered** menu styles είναι οι καλύτερες επιλογές
-- διάλεξε τη **γλώσσα** σου
-- τρέξε το **Save DedSec Project** στο πρώτο σου άνοιγμα ώστε να δημιουργηθεί αμέσως το backup package σου
-- τρέξε ξανά το **Save DedSec Project** λίγες φορές κάθε χρόνο ώστε το αποθηκευμένο package να μένει ενημερωμένο και έτοιμο αν το χρειαστείς
-- ένα manual **Save DedSec Project** μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου στο internet και το terminal μπορεί να μένει κενό μέχρι να ολοκληρωθεί
-- κλείσε τελείως το Termux από το **πάνελ ειδοποιήσεων** του κινητού σου χρησιμοποιώντας το **κουμπί εξόδου**
-- άνοιξε ξανά το Termux
-
-##### 6. Συμβουλή γρήγορου ανοίγματος μετά το setup
-
-Αφού ανοίξεις ξανά το Termux, μπορείς να ανοίξεις γρήγορα το μενού του project γράφοντας:
-
-- `e` για **English**
-- `g` για **Greek**
-
-#### Επιλογή 2: Ενημέρωση Υπάρχουσας Εγκατάστασης
-
-Χρησιμοποίησε αυτή την επιλογή αν το project είναι ήδη εγκατεστημένο και θέλεις μόνο τα πιο πρόσφατα αρχεία.
-
-Πρώτα μπες στον φάκελο του project:
+#### 6. Άνοιγμα DedSec αργότερα
 
 ```bash
-cd ~/DedSec
+cd ~/DedSec && ./Run.sh
 ```
 
-Μετά φέρε τις πιο νέες αλλαγές:
+Μετά το πρώτο setup, επίλεξε prompt, στυλ μενού και γλώσσα και τρέξε το **Save DedSec Project** ώστε να δημιουργηθεί backup package. Αργότερα μπορείς να ανοίγεις γρήγορα το Αγγλικό ή Ελληνικό μενού γράφοντας `e` ή `g` στο Termux.
+
+</details>
+
+<details>
+<summary><strong>Ubuntu</strong></summary>
+
+#### 1. Εγκατάσταση απαιτήσεων
 
 ```bash
-git pull
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
 ```
 
-Τρέξε ξανά το setup ώστε ο ενιαίος dependency manager να ελέγξει τα τοπικά αρχεία, να ενημερώσει dependencies και να ανοίξει το menu:
+#### 2. Clone του DedSec
 
 ```bash
-bash Setup.sh
+git clone https://github.com/dedsec1121fk/DedSec
 ```
 
-Για ενημέρωση dependencies χωρίς να ανοίξει το menu, χρησιμοποίησε:
+#### 3. Εκτέλεση setup
 
 ```bash
-bash Setup.sh --update-only
+cd DedSec && bash Setup.sh
 ```
 
-Αυτό είναι χρήσιμο μετά από μεγάλες αλλαγές στο project, νέα dependencies ή menu updates.
-
-#### Επιλογή 3: Άνοιγμα του Project Αργότερα Χωρίς Νέα Εγκατάσταση
-
-Αν το project είναι ήδη εγκατεστημένο και ρυθμισμένο, συνήθως **δεν** χρειάζεται να το ξαναεγκαθιστάς κάθε φορά.
-
-Μπορείς:
-
-- να ανοίξεις το Termux και να χρησιμοποιήσεις την εντολή γρήγορου ανοίγματος αν είναι ήδη ρυθμισμένη
-- να γράψεις `e` για **English** ή `g` για **Greek** ώστε να ανοίξει γρήγορα το μενού
-- ή να μπεις ξανά χειροκίνητα στον φάκελο:
+#### 4. Άνοιγμα DedSec αργότερα
 
 ```bash
-cd ~/DedSec
+cd ~/DedSec && ./Run.sh
 ```
 
-Αν χρειάζεται να τρέξεις ξανά το setup χειροκίνητα:
+Το `Setup.sh` δημιουργεί και χρησιμοποιεί το τοπικό `.venv` του project, κρατώντας ξεχωριστή την Python που διαχειρίζεται η διανομή.
+
+</details>
+
+<details>
+<summary><strong>Kali Linux</strong></summary>
+
+#### 1. Εγκατάσταση απαιτήσεων
 
 ```bash
-bash Setup.sh
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
+```
+
+#### 2. Clone του DedSec
+
+```bash
+git clone https://github.com/dedsec1121fk/DedSec
+```
+
+#### 3. Εκτέλεση setup
+
+```bash
+cd DedSec && bash Setup.sh
+```
+
+#### 4. Άνοιγμα DedSec αργότερα
+
+```bash
+cd ~/DedSec && ./Run.sh
+```
+
+Το `Setup.sh` χρησιμοποιεί το τοπικό `.venv` του project και κρατά ξεχωριστό το Python environment του συστήματος.
+
+</details>
+
+<details>
+<summary><strong>Linux Mint</strong></summary>
+
+#### 1. Εγκατάσταση απαιτήσεων
+
+```bash
+sudo apt update && sudo apt install -y git python3 python3-venv python3-pip
+```
+
+#### 2. Clone του DedSec
+
+```bash
+git clone https://github.com/dedsec1121fk/DedSec
+```
+
+#### 3. Εκτέλεση setup
+
+```bash
+cd DedSec && bash Setup.sh
+```
+
+#### 4. Άνοιγμα DedSec αργότερα
+
+```bash
+cd ~/DedSec && ./Run.sh
+```
+
+Το `Setup.sh` δημιουργεί το τοπικό `.venv` του project και δεν αντικαθιστά την Python που διαχειρίζεται η διανομή.
+
+</details>
+
+### Ενημέρωση Υπάρχουσας Εγκατάστασης
+
+```bash
+cd ~/DedSec && git pull && bash Setup.sh
+```
+
+Για ενημέρωση dependencies χωρίς να ανοίξει το menu:
+
+```bash
+cd ~/DedSec && bash Setup.sh --update-only
 ```
 
 ### Σημαντικές Σημειώσεις
 
 - Κράτα ενεργή τη σύνδεση στο internet κατά την πρώτη εγκατάσταση.
-- Η πρώτη εγκατάσταση μπορεί να πάρει περισσότερο χρόνο από το συνηθισμένο, επειδή ίσως χρειαστεί να κατέβουν πακέτα και εργαλεία.
-- Τρέξε το **Save DedSec Project** στο πρώτο άνοιγμα και ξανά λίγες φορές κάθε χρόνο ώστε το αποθηκευμένο package να μένει ενημερωμένο. Η διαδικασία μπορεί να πάρει λίγη ώρα ανάλογα με τη σύνδεσή σου.
-- Αν η πρόσβαση αποθήκευσης είχε απορριφθεί νωρίτερα, τρέξε ξανά `termux-setup-storage`.
-- Αν λείπει το Git, τρέξε `pkg install git -y`.
 - Αν βρίσκεσαι ήδη μέσα στον φάκελο DedSec, δεν χρειάζεται να ξανακάνεις clone το repository.
-- Προτείνεται έντονα η έκδοση του Termux από το F-Droid, επειδή κάποιες εκδόσεις του Play Store είναι παλιές.
+- Τα Android/Termux-specific utilities παραμένουν Android-only· στο desktop Linux χρησιμοποιείται το compatibility behavior του project.
+- Στο desktop Linux το project ανοίγει μέσω του τοπικού `.venv`, ενώ το Termux χρησιμοποιεί τα native Python/packages του.
 
 </details>
 
@@ -2555,7 +2610,7 @@ bash Setup.sh
 
 **Ο καλύτερος τρόπος για να ξεκινήσεις είναι:**
 
-Μην ξεκινήσεις ανοίγοντας τυχαία scripts. Η δωρεάν Academy βάζει το project σε σειρά: πρώτα setup, μετά μαθήματα, practice και το επόμενο lesson.
+Ξεκίνα από την εγκατάσταση, μετά δες τα εργαλεία και χρησιμοποίησε το Assistance όταν χρειάζεσαι βοήθεια για setup, compatibility ή troubleshooting.
 
 - [Οδηγός Εγκατάστασης](https://ded-sec.space/Pages/guide-for-installation.html) — website path: `Pages/guide-for-installation.html`
 - [Μάθετε για τα Εργαλεία](https://ded-sec.space/Pages/learn-about-the-tools.html) — website path: `Pages/learn-about-the-tools.html`
@@ -2664,17 +2719,17 @@ bash Setup.sh
 - **Games:** 6 εργαλεία
 - **Personal Information Capture:** 17 εργαλεία
 - **Social Media / Fake Pages:** 25 εργαλεία
-- **No Category:** 3 εργαλεία
+- **No Category:** 4 εργαλεία
 - **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στα $9 και $25 tiers· το $25 Ultimate tier περιλαμβάνει επιπλέον τα ebook benefits που αναφέρονται παρακάτω
 
-**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 87 εργαλεία
+**Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 88 εργαλεία
 
 ---
 ### Mobile Apps
 
-Μπορείς πλέον να κατεβάσεις επιλεγμένες εφαρμογές του DedSec Project απευθείας ως Android APK χωρίς να χρειάζεται Termux. Ο φάκελος `Apk's/` κρατά την πιο πρόσφατη σταθερή standalone έκδοση για κάθε διαθέσιμη εφαρμογή.
+Μπορείς πλέον να κατεβάσεις επιλεγμένες εφαρμογές του DedSec Project απευθείας ως Android APK χωρίς να χρειάζεται Termux. Ο φάκελος `APK's/` κρατά την πιο πρόσφατη σταθερή standalone έκδοση για κάθε διαθέσιμη εφαρμογή.
 
-- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Λήψη ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/Apk%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
+- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Λήψη ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/APK%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
 
 ---
 <a id="greek-developer-base"></a>
@@ -3848,6 +3903,25 @@ bash Setup.sh
 
 <h2>Χωρίς Κατηγορία</h2>
 
+
+<details>
+<summary>APK's</summary>
+
+**Τι Βοηθά Να Λύσεις:** Λήψη της τρέχουσας σταθερής standalone έκδοσης Android app απευθείας από το repository του DedSec Project.
+
+**Περιγραφή:** Ο φάκελος `APK's/` περιέχει σταθερές standalone εφαρμογές Android που διανέμονται με το DedSec Project. Η τρέχουσα έκδοση είναι το **ButSystem v1.0.0 Universal APK** για Android 8.0 και νεότερο.
+
+**Τοποθεσία Στο Repository:** `APK's/ButSystem/ButSystem-v1.0.0-universal.apk`
+
+**Υποστήριξη Πλατφόρμας:**
+- **Termux / Android:** Εγκαθίσταται σε Android 8.0+.
+- **Ubuntu:** Το APK μπορεί να ληφθεί ή να αντιγραφεί, αλλά δεν είναι native Linux εφαρμογή.
+- **Kali Linux:** Το APK μπορεί να ληφθεί ή να αντιγραφεί, αλλά δεν είναι native Linux εφαρμογή.
+- **Linux Mint:** Το APK μπορεί να ληφθεί ή να αντιγραφεί, αλλά δεν είναι native Linux εφαρμογή.
+
+[Λήψη ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/APK%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
+
+</details>
 
 <details>
 <summary>Extra Content</summary>
