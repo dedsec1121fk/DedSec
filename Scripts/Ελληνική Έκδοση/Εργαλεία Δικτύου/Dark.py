@@ -91,13 +91,19 @@ USER_AGENT = "TorBot-AllInOne-Mega/1.0 (+https://ded-sec.space)"
 DEFAULT_TIMEOUT = 20
 DEFAULT_DELAY = 0.6
 
+IS_TERMUX = bool(
+    os.environ.get("TERMUX_VERSION")
+    or "com.termux" in os.environ.get("PREFIX", "")
+    or os.path.exists("/data/data/com.termux/files/usr/bin/pkg")
+)
 ANDROID_RESULTS = "/sdcard/Download/DarkNet"
+DESKTOP_RESULTS = os.path.expanduser("~/Downloads/DarkNet")
 FALLBACK_RESULTS = os.path.expanduser("~/DarkNet")
 PLUGINS_SUB = "plugins"
 
 
 def ensure_results_and_plugins():
-    preferred = ANDROID_RESULTS
+    preferred = ANDROID_RESULTS if IS_TERMUX else DESKTOP_RESULTS
     results_dir = None
     try:
         os.makedirs(preferred, exist_ok=True)

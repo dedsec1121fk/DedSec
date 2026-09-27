@@ -5413,7 +5413,8 @@ Digital Footprint Finder — Βοήθεια
   Δεδομένα εφαρμογής: ~/Digital Footprint Finder/
   Ρυθμίσεις:          ~/Digital Footprint Finder/settings.json
   API keys:           ~/Digital Footprint Finder/api_keys.json (περιορισμένα δικαιώματα· οι τιμές δεν εμφανίζονται ποτέ)
-  Αποτελέσματα:       ~/storage/downloads/Digital Footprint Finder/<Όνομα Υπόθεσης>/files/
+  Αποτελέσματα (Termux): ~/storage/downloads/Digital Footprint Finder/<Όνομα Υπόθεσης>/files/
+  Αποτελέσματα (Ubuntu/Kali/Linux Mint): ~/Downloads/Digital Footprint Finder/<Όνομα Υπόθεσης>/files/
 
 ΣΗΜΑΝΤΙΚΟ
   Τα αποτελέσματα είναι ερευνητικές ενδείξεις και όχι αυτόματη απόδειξη ταυτότητας, ιδιοκτησίας, πρόθεσης, παρανομίας ή τρέχοντος ελέγχου.

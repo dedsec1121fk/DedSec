@@ -76,11 +76,22 @@ signal.signal(signal.SIGINT, signal_handler)
 #  ΠΡΟΕΠΙΛΕΓΜΕΝΟΣ ΦΑΚΕΛΟΣ ΕΞΟΔΟΥ
 # ─────────────────────────────────────────────
 def resolve_default_output_dir():
-    candidates = [
-        os.path.expanduser("~/storage/downloads/Devices Finder GR"),
-        os.path.expanduser("~/downloads/Devices Finder GR"),
-        os.path.join(os.getcwd(), "Έξοδος Devices Finder GR"),
-    ]
+    is_termux = bool(
+        os.environ.get("TERMUX_VERSION")
+        or "com.termux" in os.environ.get("PREFIX", "")
+        or os.path.exists("/data/data/com.termux/files/usr/bin/pkg")
+    )
+    if is_termux:
+        candidates = [
+            os.path.expanduser("~/storage/downloads/Devices Finder GR"),
+            "/storage/emulated/0/Download/Devices Finder GR",
+            os.path.join(os.getcwd(), "Έξοδος Devices Finder GR"),
+        ]
+    else:
+        candidates = [
+            os.path.expanduser("~/Downloads/Devices Finder GR"),
+            os.path.join(os.getcwd(), "Έξοδος Devices Finder GR"),
+        ]
     for candidate in candidates:
         try:
             Path(candidate).mkdir(parents=True, exist_ok=True)
@@ -88,7 +99,6 @@ def resolve_default_output_dir():
         except Exception:
             continue
     return os.getcwd()
-
 
 DEFAULT_OUTPUT_DIR = resolve_default_output_dir()
 

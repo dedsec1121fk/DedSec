@@ -67,8 +67,9 @@ AV_EXTS = ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac', '.wma', '.mp4', '.mk
 ARCHIVE_EXTS = ['.zip', '.tar', '.gz', '.bz2', '.rar', '.7z']
 TEXT_DOC_EXTS = ['.txt', '.docx', '.odt', '.html', '.md', '.csv', '.rtf', '.epub', '.json', '.xml', '.pptx', '.svg']
 
-STORAGE_PATH = "/storage/emulated/0"
-DOWNLOAD_PATH = os.path.join(STORAGE_PATH, "Download")
+IS_TERMUX = bool(os.environ.get("TERMUX_VERSION") or os.path.exists("/data/data/com.termux/files/usr/bin/pkg"))
+STORAGE_PATH = "/storage/emulated/0" if IS_TERMUX else os.path.expanduser("~")
+DOWNLOAD_PATH = os.path.join(STORAGE_PATH, "Download" if IS_TERMUX else "Downloads")
 BASE_CONVERTER_PATH = os.path.join(DOWNLOAD_PATH, "File Converter")
 
 HAS_FFMPEG = False
@@ -179,24 +180,24 @@ def check_external_bins_status():
     time.sleep(0.5)
 
 def ensure_storage_access():
-    print("--- 4/4 Έλεγχος Πρόσβασης Αποθήκευσης ---")
+    print("--- 4/4 Checking Storage Access ---")
     if not os.path.exists(DOWNLOAD_PATH):
-        print(f"Δεν επιτρέπεται η πρόσβαση στο '{DOWNLOAD_PATH}' ή λείπει.")
-        print("Προσπάθεια αίτησης δικαιωμάτων αποθήκευσης...")
-        try:
-            subprocess.run(["termux-setup-storage"], check=True)
-            print("Ζητήθηκε άδεια. Παρακαλώ επιτρέψτε την στο popup.")
-            print("Αναμονή 5 δευτερολέπτων για διάδοση της άδειας...")
-            time.sleep(5)
-        except FileNotFoundError:
-            print("Δεν ήταν δυνατή η εκτέλεση του 'termux-setup-storage'.")
-        
+        if IS_TERMUX:
+            try:
+                subprocess.run(["termux-setup-storage"], check=False)
+                time.sleep(2)
+            except FileNotFoundError:
+                pass
+        else:
+            try:
+                os.makedirs(DOWNLOAD_PATH, exist_ok=True)
+            except OSError as exc:
+                print(f"ERROR: Cannot create '{DOWNLOAD_PATH}': {exc}")
+                sys.exit(1)
         if not os.path.exists(DOWNLOAD_PATH):
-             print(f"ΣΦΑΛΜΑ: Ακόμη δεν είναι δυνατή η πρόσβαση στο '{DOWNLOAD_PATH}'.")
-             print("Παρακαλώ επανεκκινήστε το Termux και ξανατρέξτε το script.")
-             sys.exit(1)
-             
-    print("Επιβεβαιώθηκε η πρόσβαση αποθήκευσης.\n")
+            print(f"ERROR: Cannot access '{DOWNLOAD_PATH}'.")
+            sys.exit(1)
+    print("Storage access confirmed.\n")
     time.sleep(0.5)
 
 def setup_folders():
@@ -733,7 +734,7 @@ if __name__ == "__main__":
         setup_folders()
         
         print("--- Η Διαμόρφωση Ολοκληρώθηκε ---")
-        print(f"Οι φάκελοι είναι έτοιμοι σε: /storage/emulated/0/Download/File Converter/")
+        print(f"Οι φάκελοι είναι έτοιμοι σε: {BASE_CONVERTER_PATH}")
         print("\nΕκκίνηση εφαρμογής...")
         time.sleep(1)
         

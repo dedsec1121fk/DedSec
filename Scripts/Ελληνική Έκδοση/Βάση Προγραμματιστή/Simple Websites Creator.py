@@ -3,7 +3,8 @@ import re
 import datetime
 
 # Path configuration
-BASE_DIR = "/storage/emulated/0/Download"
+_TERMUX_DOWNLOAD = "/storage/emulated/0/Download"
+BASE_DIR = _TERMUX_DOWNLOAD if os.path.isdir("/storage/emulated/0") else os.path.join(os.path.expanduser("~"), "Downloads")
 WEBSITES_DIR = os.path.join(BASE_DIR, "Websites")
 
 def ensure_directory():
@@ -826,13 +827,11 @@ def main():
 
 if __name__ == "__main__":
     # Έλεγχος πρόσβασης αποθηκευτικού χώρου
-    if not os.path.exists(BASE_DIR):
-        print("❌ Δεν είναι δυνατή η πρόσβαση στον αποθηκευτικό χώρο του κινητού.")
-        print("💡 Παρακαλώ εκτελέστε πρώτα αυτήν την εντολή: termux-setup-storage")
-        print("   Στη συνέχεια εκτελέστε ξανά αυτό το script.")
-        exit(1)
-    
-    # Έλεγχος αν ο φάκελος υπάρχει, αν όχι δημιουργία του
+    try:
+        os.makedirs(BASE_DIR, exist_ok=True)
+    except OSError as exc:
+        print(f"❌ Cannot access or create storage directory: {BASE_DIR}: {exc}")
+        raise SystemExit(1)
     ensure_directory()
     
     try:
