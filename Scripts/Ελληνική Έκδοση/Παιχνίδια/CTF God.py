@@ -26,7 +26,12 @@ COOLDOWN_SECONDS = 180   # 3 minutes on trigger
 SUSPICION_SCORE_TRIGGER = 8  # triggers cooldown
 SUSPICION_DECAY_PER_MIN = 1
 
-ANDROID_ROOT = Path("/storage/emulated/0/Download/CTF God")
+IS_TERMUX = bool(
+    os.environ.get("TERMUX_VERSION")
+    or "com.termux" in os.environ.get("PREFIX", "")
+    or Path("/data/data/com.termux/files/usr/bin/pkg").exists()
+)
+ANDROID_ROOT = Path("/storage/emulated/0/Download/CTF God") if IS_TERMUX else Path.home() / "Downloads" / "CTF God"
 
 # ---------- Utils ----------
 

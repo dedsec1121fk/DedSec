@@ -40,7 +40,11 @@ def generate_qr_for_link():
     
     # 1. Ορισμός της σωστής διαδρομής προς τον φάκελο Λήψεις (Downloads)
     # Το ~/storage/downloads/ είναι η διαδρομή Termux για τον φάκελο Λήψεις του τηλεφώνου
-    downloads_path = os.path.expanduser("~/storage/downloads/")
+    termux_downloads = os.path.expanduser("~/storage/downloads")
+    if os.path.isdir(termux_downloads):
+        downloads_path = termux_downloads
+    else:
+        downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
     folder_name = "QR Codes"
     # Ο τελικός φάκελος εξόδου θα είναι κάτι όπως: /storage/emulated/0/Download/QR Codes/
     output_dir = os.path.join(downloads_path, folder_name)

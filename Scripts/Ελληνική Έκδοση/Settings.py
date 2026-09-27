@@ -60,17 +60,109 @@ LOCAL_DIR = "DedSec"
 REPO_API_URL_SOURCE_1 = "https://api.github.com/repos/dedsec1121fk/DedSec"
 REPO_API_URL_SOURCE_2 = "https://api.github.com/repos/sal-scar/DedSec"
 
-# --- Define fixed absolute paths and folder names ---
-ENGLISH_BASE_PATH = "/data/data/com.termux/files/home/DedSec/Scripts"
+# --- Cross-platform absolute paths and folder names ---
 GREEK_FOLDER_NAME = "Ελληνική Έκδοση"
+_SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
+_IS_TERMUX = bool(
+    os.environ.get("TERMUX_VERSION")
+    or "com.termux" in os.environ.get("PREFIX", "")
+    or os.path.exists("/data/data/com.termux/files/usr/bin/pkg")
+)
+# Both the English and Greek Settings.py copies resolve the same project tree.
+if os.path.basename(_SCRIPT_DIR) == GREEK_FOLDER_NAME:
+    ENGLISH_BASE_PATH = os.path.dirname(_SCRIPT_DIR)
+else:
+    ENGLISH_BASE_PATH = _SCRIPT_DIR
 GREEK_PATH_FULL = os.path.join(ENGLISH_BASE_PATH, GREEK_FOLDER_NAME)
 SETTINGS_SCRIPT_PATH = os.path.join(ENGLISH_BASE_PATH, "Settings.py")
-BASHRC_PATH = "/data/data/com.termux/files/usr/etc/bash.bashrc"
-MOTD_PATH = "/data/data/com.termux/files/usr/etc/motd"
+PROJECT_ROOT = os.path.dirname(ENGLISH_BASE_PATH)
+HOME_DIR = os.path.expanduser("~")
+SETTINGS_PYTHON_BIN = os.path.realpath(sys.executable or shutil.which("python3") or "python3")
+_PREFIX_DIR = os.environ.get("PREFIX") or ("/data/data/com.termux/files/usr" if _IS_TERMUX else sys.prefix)
 
-# --- Persistent Language Config ---
-# Saves language preference to /data/data/com.termux/files/home/Language.json
-HOME_DIR = "/data/data/com.termux/files/home"
+
+def _desktop_distribution_id():
+    """Return a stable desktop distro id for the supported Linux platforms."""
+    if _IS_TERMUX:
+        return "termux"
+    try:
+        values = {}
+        with open("/etc/os-release", "r", encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                if "=" not in raw or raw.lstrip().startswith("#"):
+                    continue
+                key, value = raw.rstrip("\n").split("=", 1)
+                values[key] = value.strip().strip('"').strip("'")
+        distro_id = (values.get("ID") or "linux").strip().lower()
+        if distro_id in {"ubuntu", "kali", "linuxmint"}:
+            return distro_id
+        id_like = (values.get("ID_LIKE") or "").lower().split()
+        for candidate in ("ubuntu", "kali", "linuxmint"):
+            if candidate in id_like:
+                return candidate
+        return distro_id or "linux"
+    except Exception:
+        return "linux"
+
+
+def _platform_display_name():
+    mapping = {
+        "termux": "Termux (Android)",
+        "ubuntu": "Ubuntu",
+        "kali": "Kali Linux",
+        "linuxmint": "Linux Mint",
+    }
+    return mapping.get(_desktop_distribution_id(), "Desktop Linux")
+
+
+def _desktop_shell_config_path():
+    """Use the startup file for the shell the user actually runs."""
+    if _IS_TERMUX:
+        return os.path.join(_PREFIX_DIR, "etc", "bash.bashrc")
+    shell_name = os.path.basename(os.environ.get("SHELL", "")).casefold()
+    if shell_name == "zsh":
+        return os.path.join(HOME_DIR, ".zshrc")
+    if shell_name in {"bash", "sh"}:
+        return os.path.join(HOME_DIR, ".bashrc")
+    if os.path.exists(os.path.join(HOME_DIR, ".zshrc")) and not os.path.exists(os.path.join(HOME_DIR, ".bashrc")):
+        return os.path.join(HOME_DIR, ".zshrc")
+    return os.path.join(HOME_DIR, ".bashrc")
+
+
+def _downloads_directory():
+    """Resolve the user's real Downloads directory with safe platform fallbacks."""
+    if _IS_TERMUX:
+        shared = os.path.join(HOME_DIR, "storage", "downloads")
+        if os.path.isdir(shared):
+            return shared
+        return "/storage/emulated/0/Download"
+    xdg = shutil.which("xdg-user-dir")
+    if xdg:
+        try:
+            result = subprocess.run([xdg, "DOWNLOAD"], capture_output=True, text=True, timeout=4, check=False)
+            candidate = (result.stdout or "").strip()
+            if result.returncode == 0 and candidate:
+                return os.path.expanduser(candidate)
+        except Exception:
+            pass
+    user_dirs = os.path.join(HOME_DIR, ".config", "user-dirs.dirs")
+    try:
+        with open(user_dirs, "r", encoding="utf-8", errors="replace") as handle:
+            for raw in handle:
+                if raw.startswith("XDG_DOWNLOAD_DIR="):
+                    value = raw.split("=", 1)[1].strip().strip('"').replace("$HOME", HOME_DIR)
+                    if value:
+                        return os.path.expanduser(value)
+    except Exception:
+        pass
+    return os.path.join(HOME_DIR, "Downloads")
+
+
+PLATFORM_ID = _desktop_distribution_id()
+PLATFORM_NAME = _platform_display_name()
+BASHRC_PATH = _desktop_shell_config_path()
+DOWNLOADS_DIR = _downloads_directory()
+MOTD_PATH = os.path.join(_PREFIX_DIR, "etc", "motd") if _IS_TERMUX else os.path.join(HOME_DIR, ".config", "dedsec", "motd")
 
 # Ded-Guy self-update protocol. Generated updates are staged in Termux home and
 # are never installed automatically; the user receives an exact replacement
@@ -91,18 +183,18 @@ DEDGUY_EMBEDDED_UPDATE_METADATA = {}
 DEDGUY_EMBEDDED_UPDATE_PAYLOAD_B64 = ""
 # === DED-GUY GENERATED KNOWLEDGE PAYLOAD END ===
 LANGUAGE_JSON_PATH = os.path.join(HOME_DIR, "Language.json")
-BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip")
+BACKUP_ZIP_PATH = os.path.join(HOME_DIR, "Termux.zip" if _IS_TERMUX else "DedSec Settings Backup.zip")
 SUPPRESS_NEXT_AUTOSTART_PATH = os.path.join(HOME_DIR, ".dedsec_skip_autostart_once")
 GITHUB_ACCOUNT_CONFIG_PATH = os.path.join(HOME_DIR, ".dedsec_github_account.json")
 TERMUX_USAGE_STATS_PATH = os.path.join(HOME_DIR, ".dedsec_termux_usage_stats.json")
 TERMUX_USAGE_SCAN_ROOT = HOME_DIR
 SETTINGS_SESSION_START = time.time()
-PROJECT_SAVE_SHARED_STORAGE_PATH = "/storage/emulated/0"
-PROJECT_SAVE_DOWNLOADS_PATH = os.path.join(PROJECT_SAVE_SHARED_STORAGE_PATH, "Download")
+PROJECT_SAVE_SHARED_STORAGE_PATH = "/storage/emulated/0" if _IS_TERMUX else HOME_DIR
+PROJECT_SAVE_DOWNLOADS_PATH = DOWNLOADS_DIR
 PROJECT_SAVE_ARCHIVE_NAME = "DedSec Project Legacy Save.zip"
 PROJECT_SAVE_WORKDIR = os.path.join(HOME_DIR, ".dedsec_project_legacy_save")
 PROJECT_SAVE_BUNDLE_DIRNAME = "DedSec Project Legacy Save"
-PROJECT_SAVE_SUCCESS_MESSAGE = "A zip containing the DedSec ecosystem repositories, APKs, and accessible sponsor repositories is available in your phone downloads."
+PROJECT_SAVE_SUCCESS_MESSAGE = "DedSec Project backup created successfully."
 PROJECT_SAVE_MAX_EXTRA_COPIES = 6
 PROJECT_SAVE_EXCLUDED_TOP_LEVEL_DIRS = {"Android", "Download"}
 PROJECT_SAVE_APK_SOURCES = [
@@ -1019,23 +1111,72 @@ def run_command_silent(command, cwd=None):
     argv = _command_argv(command)
     if not argv:
         return "", "Command is empty."
-    result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
-    return result.stdout.strip(), result.stderr.strip()
+    try:
+        result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
+        return result.stdout.strip(), result.stderr.strip()
+    except OSError as exc:
+        # Desktop Linux does not provide Android commands such as getprop.
+        # Missing optional commands should be reported as unavailable, not crash
+        # the menu or hardware-information screens.
+        return "", str(exc)
 
+
+
+def _desktop_compat_restriction(abs_path):
+    """Return a user-facing restriction message for desktop compatibility mode."""
+    if os.environ.get("DEDSEC_SAFE_CROSS_PLATFORM") != "1":
+        return None
+    normalized = os.path.normcase(os.path.abspath(abs_path)).replace("\\", "/")
+    sensitive_parts = (
+        "/Fake Pages/",
+        "/Personal Information Capture/",
+        "/Πλαστές Σελίδες/",
+        "/Συλλογή Προσωπικών Πληροφοριών/",
+        "/Trojan.py",
+        "/Dead Man's Switch.py",
+    )
+    if any(part.lower() in normalized.lower() for part in sensitive_parts):
+        return (
+            "This desktop compatibility build does not enable credential/card capture, "
+            "camera/location harvesting, phishing pages, Trojan behavior, or automated sensitive-data publication."
+        )
+    desktop_only_mismatches = (
+        "/Android App Launcher.py",
+        "/Termux Backup Restore.py",
+        "/Termux Repair Wizard.py",
+        "/Mobile Desktop.py",
+        "/Mobile Developer Setup.py",
+    )
+    if os.environ.get("DEDSEC_PLATFORM") == "desktop-linux" and any(
+        part.lower() in normalized.lower() for part in desktop_only_mismatches
+    ):
+        return (
+            "This utility controls Android/Termux-specific features and has no equivalent action on Ubuntu/Kali/Mint. "
+            "It is intentionally reported as not applicable instead of failing or modifying the desktop system incorrectly."
+        )
+    return None
 
 
 def run_selected_file(abs_path):
-    """Runs a selected script/executable reliably (works with nested folders & spaces)."""
+    """Run a selected script/executable with the current Python environment."""
     try:
         abs_path = os.path.abspath(abs_path)
         if not os.path.isfile(abs_path):
             return None
 
+        restriction = _desktop_compat_restriction(abs_path)
+        if restriction:
+            print("[desktop compatibility] " + restriction)
+            try:
+                input("Press Enter to return to the menu...")
+            except (EOFError, KeyboardInterrupt):
+                pass
+            return 126
+
         workdir = os.path.dirname(abs_path) or os.getcwd()
 
-        # Decide how to run it
         if abs_path.endswith(".py"):
-            cmd = ["python3", abs_path]
+            cmd = [sys.executable or "python3", abs_path]
         elif abs_path.endswith(".sh") or abs_path.endswith(".bash"):
             cmd = ["bash", abs_path]
         elif os.access(abs_path, os.X_OK):
@@ -1043,7 +1184,7 @@ def run_selected_file(abs_path):
         else:
             return None
 
-        proc = subprocess.run(cmd, cwd=workdir)
+        proc = subprocess.run(cmd, cwd=workdir, env=os.environ.copy())
         return proc.returncode
     except KeyboardInterrupt:
         return 130
@@ -1278,11 +1419,13 @@ def update_dedsec_source_2():
     return update_dedsec(REPO_URL_SOURCE_2, REPO_API_URL_SOURCE_2)
 
 def get_internal_storage():
-    df_out, _err = run_command_silent("df -h /data")
+    target = "/data" if _IS_TERMUX else "/"
+    df_out, _err = run_command_silent(["df", "-h", target])
     lines = df_out.splitlines()
     if len(lines) >= 2:
         fields = lines[1].split()
-        return fields[1]
+        if len(fields) >= 2:
+            return fields[1]
     return "Unknown"
 
 def get_processor_info():
@@ -1312,6 +1455,8 @@ def get_ram_info():
         return "Unknown"
 
 def get_carrier():
+    if not _IS_TERMUX:
+        return "Not available"
     carrier, _err = run_command_silent("getprop gsm.operator.alpha")
     if not carrier:
         carrier, _err = run_command_silent("getprop ro.cdma.home.operator.alpha")
@@ -1324,6 +1469,8 @@ def get_battery_info():
             info = json.loads(out)
             level = info.get("percentage", "Unknown")
             status = info.get("status", "Unknown")
+            if level is None or str(level).strip().lower() in {"", "unknown", "none", "-1"}:
+                return f"{_('Battery')}: {_('Not available')}"
             return f"{_('Battery')}: {level}% ({status})"
         except Exception:
             return f"{_('Battery')}: {_('Unknown')}"
@@ -1336,9 +1483,16 @@ def get_hardware_details():
     ram = get_ram_info()
     carrier = get_carrier()
     kernel_version, _err = run_command_silent("uname -r")
-    android_version, _err = run_command_silent("getprop ro.build.version.release")
-    device_model, _err = run_command_silent("getprop ro.product.model")
-    manufacturer, _err = run_command_silent("getprop ro.product.manufacturer")
+    if _IS_TERMUX:
+        android_version, _err = run_command_silent("getprop ro.build.version.release")
+        device_model, _err = run_command_silent("getprop ro.product.model")
+        manufacturer, _err = run_command_silent("getprop ro.product.manufacturer")
+    else:
+        android_version = "Not applicable"
+        device_model, _err = run_command_silent(["sh", "-c", "cat /sys/devices/virtual/dmi/id/product_name 2>/dev/null || true"])
+        manufacturer, _err = run_command_silent(["sh", "-c", "cat /sys/devices/virtual/dmi/id/sys_vendor 2>/dev/null || true"])
+        device_model = device_model or "Unknown"
+        manufacturer = manufacturer or "Unknown"
     uptime, _err = run_command_silent("uptime -p")
     battery = get_battery_info()
     
@@ -1522,7 +1676,8 @@ def _ordered_project_save_repositories():
 
 def _delete_existing_project_save_archives():
     archive_name = PROJECT_SAVE_ARCHIVE_NAME
-    for current_root, _dirnames, filenames in os.walk(PROJECT_SAVE_SHARED_STORAGE_PATH, onerror=lambda _e: None):
+    search_root = PROJECT_SAVE_SHARED_STORAGE_PATH if _IS_TERMUX else PROJECT_SAVE_DOWNLOADS_PATH
+    for current_root, _dirnames, filenames in os.walk(search_root, onerror=lambda _e: None):
         for filename in filenames:
             if filename == archive_name:
                 _remove_path_if_exists(os.path.join(current_root, filename))
@@ -1530,6 +1685,8 @@ def _delete_existing_project_save_archives():
 
 def _get_project_save_extra_copy_directories(max_count=PROJECT_SAVE_MAX_EXTRA_COPIES):
     extra_directories = []
+    if not _IS_TERMUX:
+        return extra_directories
     try:
         entries = sorted(os.listdir(PROJECT_SAVE_SHARED_STORAGE_PATH), key=str.lower)
     except Exception:
@@ -1773,7 +1930,7 @@ def _build_project_save_archive(archive_path):
 
 def save_project():
     try:
-        if not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
+        if _IS_TERMUX and not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
             run_command_silent("termux-setup-storage")
 
         os.makedirs(PROJECT_SAVE_DOWNLOADS_PATH, exist_ok=True)
@@ -1782,6 +1939,7 @@ def save_project():
         result = _build_project_save_archive(archive_path)
         _copy_project_archive_to_selected_folders(archive_path)
         print(_(PROJECT_SAVE_SUCCESS_MESSAGE))
+        print(pipboy_text(f"Save path: {archive_path}", f"Διαδρομή αποθήκευσης: {archive_path}"))
         if result.get("failures"):
             print(pipboy_text(
                 f"The backup was created with {result['failures']} recoverable issue(s). Read Backup Report.txt inside the ZIP.",
@@ -2457,6 +2615,13 @@ Do not bypass that compatibility check.
 
 def create_termux_transfer():
     """Create an offline, privacy-filtered Termux migration set in Downloads."""
+    if not _IS_TERMUX:
+        print(pipboy_text(
+            "Transfer System is for Termux-to-Termux Android migration only. On Ubuntu, Kali Linux, and Linux Mint, use Save DedSec Project for a portable project backup.",
+            "Το Σύστημα Μεταφοράς προορίζεται μόνο για μεταφορά Termux σε Termux στο Android. Σε Ubuntu, Kali Linux και Linux Mint χρησιμοποιήστε το Save DedSec Project για φορητό αντίγραφο ασφαλείας.",
+        ))
+        print(pipboy_text(f"Desktop backup path: {PROJECT_SAVE_DOWNLOADS_PATH}", f"Διαδρομή αντιγράφου ασφαλείας desktop: {PROJECT_SAVE_DOWNLOADS_PATH}"))
+        return True
     try:
         if not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
             run_command_silent("termux-setup-storage")
@@ -2525,8 +2690,12 @@ def show_about():
     dedsec_path = find_dedsec()
     latest_update = get_latest_dedsec_update(dedsec_path) if dedsec_path else _("DedSec directory not found")
     print(f"{_('The Latest DedSec Project Update')}: {latest_update}")
-    termux_storage = get_termux_size()
-    print(f"{_('Termux Entire Storage')}: {termux_storage}")
+    system_storage = get_termux_size()
+    storage_label = _('Termux Entire Storage') if _IS_TERMUX else 'Home Storage Usage'
+    print(f"{storage_label}: {system_storage}")
+    print(pipboy_text(f"Platform: {PLATFORM_NAME}", f"Πλατφόρμα: {PLATFORM_NAME}"))
+    print(pipboy_text(f"Downloads: {DOWNLOADS_DIR}", f"Λήψεις: {DOWNLOADS_DIR}"))
+    print(pipboy_text(f"Shell config: {BASHRC_PATH}", f"Ρύθμιση shell: {BASHRC_PATH}"))
     dedsec_size = get_dedsec_size(dedsec_path) if dedsec_path else _("DedSec directory not found")
     print(f"{_('DedSec Project Size')}: {dedsec_size}")
     print(f"\n{_('Hardware Details')}:")
@@ -2540,6 +2709,7 @@ def show_credits():
                 {_('Credits').upper()}
 =======================================
 Creator: dedsec1121fk
+Help By: zyxen.gr Systems Engineered
 Art Artists: Christina Chatzidimitriou, 3A
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
@@ -2552,10 +2722,9 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter
 # Remove MOTD (if exists)
 # ------------------------------
 def remove_motd():
-    etc_path = "/data/data/com.termux/files/usr/etc"
-    motd_path = os.path.join(etc_path, "motd")
-    if os.path.exists(motd_path):
-        os.remove(motd_path)
+    """Remove the platform-specific DedSec MOTD file when it exists."""
+    if os.path.exists(MOTD_PATH):
+        os.remove(MOTD_PATH)
 
 # ------------------------------
 # Change Prompt
@@ -2568,11 +2737,13 @@ def sanitize_prompt_username(username):
 
 
 def build_dedsec_ps1(username):
+    """Build prompt syntax for the user's active Bash or Zsh shell."""
     username = sanitize_prompt_username(username)
+    if os.path.basename(BASHRC_PATH) == ".zshrc":
+        return f"PS1='%F{{cyan}}%D{{%d/%m/%Y}}-[%*]-(%F{{blue}}{username}%f)-(%F{{yellow}}%1~%f) : '\n"
     return (
         f"PS1='\\[\\e[1;36m\\]\\D{{%d/%m/%Y}}-[\\A]-(\\[\\e[1;34m\\]{username}\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
     )
-
 
 def atomic_write_bashrc(content):
     """Atomically replace bash.bashrc while preserving its current mode.
@@ -3464,8 +3635,13 @@ def print_limited_paths(title, paths, limit=8):
         print(f"  - ... +{len(paths) - limit} more")
 
 
+def get_usage_stats_label():
+    return _("Termux Usage Stats") if _IS_TERMUX else _("System Usage Stats")
+
+
 def show_termux_usage_stats():
-    print("=== " + _("Termux Usage Stats") + " ===")
+    print("=== " + get_usage_stats_label() + " ===")
+    print(pipboy_text(f"Platform: {PLATFORM_NAME}", f"Πλατφόρμα: {PLATFORM_NAME}"))
     stats = update_termux_usage_stats()
     first_scan = float(stats.get("first_scan") or time.time())
     tracked_seconds = time.time() - first_scan
@@ -3590,9 +3766,13 @@ def cleanup_bashrc():
 
 
 def update_bashrc(current_language_path, current_style):
-    """Write the DedSec startup block without any hidden background workers."""
+    """Write the DedSec startup block to the active shell configuration."""
     save_menu_style_preference(current_style)
     try:
+        os.makedirs(os.path.dirname(BASHRC_PATH) or HOME_DIR, exist_ok=True)
+        if not os.path.exists(BASHRC_PATH):
+            with open(BASHRC_PATH, "a", encoding="utf-8"):
+                pass
         with open(BASHRC_PATH, "r", encoding="utf-8", errors="replace") as handle:
             lines = handle.readlines()
     except Exception as exc:
@@ -3619,12 +3799,22 @@ def update_bashrc(current_language_path, current_style):
             filtered_lines.append(line)
 
     launch_style = "ded-guy" if current_style == "pipboy" else current_style
-    startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}; cd "{HOME_DIR}"\n'
+    if _IS_TERMUX:
+        launch_command = f'"{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}'
+    else:
+        compat_bin = os.path.join(PROJECT_ROOT, "Compat", "bin")
+        venv_bin = os.path.dirname(SETTINGS_PYTHON_BIN)
+        launch_command = (
+            f'env DEDSEC_ROOT="{PROJECT_ROOT}" DEDSEC_PLATFORM="desktop-linux" '
+            f'DEDSEC_SAFE_CROSS_PLATFORM=1 PATH="{compat_bin}:{venv_bin}:$PATH" '
+            f'"{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}'
+        )
+    startup = f'cd "{current_language_path}" && {launch_command}; cd "{HOME_DIR}"\n'
     alias_line = ""
     if current_language_path == ENGLISH_BASE_PATH:
-        alias_line = f'alias e=\'cd "{ENGLISH_BASE_PATH}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}\'\n'
+        alias_line = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && {launch_command}'\n"
     elif current_language_path == GREEK_PATH_FULL:
-        alias_line = f'alias g=\'cd "{GREEK_PATH_FULL}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}\'\n'
+        alias_line = f"alias g='cd \"{GREEK_PATH_FULL}\" && {launch_command}'\n"
 
     autostart_enabled = load_menu_autostart_preference() or current_style in {"pipboy", "dedsec_os"}
     filtered_lines.append("\n" + BASHRC_START_MARKER + "\n")
@@ -3755,14 +3945,14 @@ def change_menu_style():
         'dedsec_os': _('DedSec OS'),
     }.get(style, style)
 
-    print(f"\n[+] {_('Menu style changed to')} {style_label}. {_('Bash configuration updated.')}" )
+    print(f"\n[+] {_('Menu style changed to')} {style_label}. " + pipboy_text(f"Shell configuration updated: {BASHRC_PATH}", f"Ενημερώθηκε η ρύθμιση shell: {BASHRC_PATH}"))
     if style == 'pipboy':
         print('[+] ' + pipboy_text('Ded-Guy is now the saved main DedSec menu style.', 'Το Ded-Guy είναι πλέον το αποθηκευμένο κύριο στυλ μενού του DedSec.'))
-        print('[+] ' + pipboy_text('Menu auto-start was enabled, so Ded-Guy will launch whenever Termux starts.', 'Η αυτόματη εκκίνηση μενού ενεργοποιήθηκε, ώστε το Ded-Guy να ανοίγει κάθε φορά που ξεκινά το Termux.'))
-        print('[+] ' + pipboy_text('Start it now with: python3 ~/DedSec/Scripts/Settings.py --menu ded-guy', 'Εκκινήστε το τώρα με: python3 ~/DedSec/Scripts/Settings.py --menu ded-guy'))
+        print('[+] ' + pipboy_text(f'Menu auto-start was enabled for {PLATFORM_NAME}.', f'Η αυτόματη εκκίνηση μενού ενεργοποιήθηκε για {PLATFORM_NAME}.'))
+        print('[+] ' + pipboy_text(f'Start it now with: "{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --menu ded-guy', f'Εκκινήστε το τώρα με: "{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --menu ded-guy'))
     elif style == 'dedsec_os':
-        print('[+] ' + pipboy_text('DedSec OS will auto-start when Termux opens.', 'Το DedSec OS θα ξεκινά αυτόματα όταν ανοίγει το Termux.'))
-    print(f"[{_('Please restart Termux for changes to take full effect')}]")
+        print('[+] ' + pipboy_text(f'DedSec OS will auto-start when the {os.path.basename(BASHRC_PATH)} shell session opens.', f'Το DedSec OS θα ξεκινά αυτόματα όταν ανοίγει η συνεδρία shell {os.path.basename(BASHRC_PATH)}.'))
+    print(pipboy_text(f"[Restart your shell/terminal for changes to take full effect on {PLATFORM_NAME}]", f"[Επανεκκινήστε το shell/τερματικό για να εφαρμοστούν πλήρως οι αλλαγές στο {PLATFORM_NAME}]") )
 # ------------------------------
 # Toggle Menu Auto-Start
 # ------------------------------
@@ -3784,7 +3974,7 @@ def toggle_menu_autostart():
     else:
         print(f"\n[+] {_('Menu auto-start disabled.')} {_('Bash configuration updated.')}")
 
-    print(f"[{_('Please restart Termux for changes to take full effect')}]")
+    print(pipboy_text(f"[Restart your shell/terminal for changes to take full effect on {PLATFORM_NAME}]", f"[Επανεκκινήστε το shell/τερματικό για να εφαρμοστούν πλήρως οι αλλαγές στο {PLATFORM_NAME}]") )
 
 
 
@@ -3866,7 +4056,7 @@ def change_language():
         pass
 
     print(f"\n[+] {_('Language set to')} {language.capitalize()}. {_('Bash configuration updated.')}")
-    print(f"[{_('Please restart Termux for changes to take full effect')}]")
+    print(pipboy_text(f"[Restart your shell/terminal for changes to take full effect on {PLATFORM_NAME}]", f"[Επανεκκινήστε το shell/τερματικό για να εφαρμοστούν πλήρως οι αλλαγές στο {PLATFORM_NAME}]") )
 
 # ------------------------------
 # Helper for List Menu
@@ -4415,7 +4605,7 @@ def create_backup_zip_if_not_exists():
     if os.path.exists(BACKUP_ZIP_PATH):
         return 
     
-    print(_("Creating one-time configuration backup to Termux.zip..."))
+    print(pipboy_text(f"Creating one-time configuration backup to {os.path.basename(BACKUP_ZIP_PATH)}...", f"Δημιουργία εφάπαξ αντιγράφου ρυθμίσεων στο {os.path.basename(BACKUP_ZIP_PATH)}..."))
     try:
         with zipfile.ZipFile(BACKUP_ZIP_PATH, 'w', zipfile.ZIP_DEFLATED) as zf:
             if os.path.exists(BASHRC_PATH):
@@ -4481,18 +4671,18 @@ def uninstall_dedsec():
         return False
 
     if os.path.exists(BACKUP_ZIP_PATH):
-        print(_("Restoring files from Termux.zip..."))
+        print(pipboy_text(f"Restoring files from {os.path.basename(BACKUP_ZIP_PATH)}...", f"Επαναφορά αρχείων από {os.path.basename(BACKUP_ZIP_PATH)}..."))
         try:
             restored = restore_configuration_backup(BACKUP_ZIP_PATH)
             if not restored:
-                raise ValueError("Termux.zip did not contain the expected configuration files.")
+                raise ValueError(os.path.basename(BACKUP_ZIP_PATH) + " did not contain the expected configuration files.")
             print(_("Restored bash.bashrc and motd from backup."))
             os.remove(BACKUP_ZIP_PATH)
-            print(_("Removed Termux.zip backup."))
+            print(pipboy_text(f"Removed {os.path.basename(BACKUP_ZIP_PATH)} backup.", f"Αφαιρέθηκε το αντίγραφο {os.path.basename(BACKUP_ZIP_PATH)}."))
         except Exception as e:
             print(f"{_('Error restoring from backup: ')}{e}")
     else:
-        print(_("Backup Termux.zip not found. Cleaning up configuration manually..."))
+        print(pipboy_text(f"Backup {os.path.basename(BACKUP_ZIP_PATH)} not found. Cleaning up configuration manually...", f"Δεν βρέθηκε το αντίγραφο {os.path.basename(BACKUP_ZIP_PATH)}. Γίνεται χειροκίνητος καθαρισμός ρυθμίσεων..."))
         cleanup_bashrc()
 
     if os.path.exists(LANGUAGE_JSON_PATH):
@@ -4573,6 +4763,7 @@ ENGLISH_BASE_PATH = __ENGLISH_BASE_PATH__
 GREEK_PATH_FULL = __GREEK_PATH_FULL__
 HIDDEN_GREEK_PATH = __HIDDEN_GREEK_PATH__
 SETTINGS_SCRIPT_PATH = __SETTINGS_SCRIPT_PATH__
+SETTINGS_PYTHON_BIN = __SETTINGS_PYTHON_BIN__
 BASHRC_PATH = __BASHRC_PATH__
 REPO_URL_SOURCE_1 = __REPO_URL_SOURCE_1__
 REPO_URL_SOURCE_2 = __REPO_URL_SOURCE_2__
@@ -6455,12 +6646,17 @@ def sanitize_prompt_username_server(username):
 
 def build_dedsec_ps1_server(username):
     username = sanitize_prompt_username_server(username)
+    if os.path.basename(BASHRC_PATH) == '.zshrc':
+        return (
+            "PS1='%F{cyan}%D{%d/%m/%Y}-[%*]-(%F{blue}"
+            + username
+            + "%f)-(%F{yellow}%1~%f) : '\n"
+        )
     return (
         "PS1='\\[\\e[1;36m\\]\\D{%d/%m/%Y}-[\\A]-(\\[\\e[1;34m\\]"
         + username
-        + "\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\\n"
+        + "\\[\\e[0m\\])-(\\[\\e[1;33m\\]\\W\\[\\e[0m\\]) : '\n"
     )
-
 
 def atomic_write_bashrc_server(content):
     """Atomic Bashrc replacement for browser-side Settings actions."""
@@ -6547,12 +6743,12 @@ def update_bashrc_server(current_language_path, current_style):
         if not regex_pattern.search(line):
             filtered.append(line)
     launch_style = "ded-guy" if current_style == "pipboy" else current_style
-    new_startup = f'cd "{current_language_path}" && python3 "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}; cd "{HOME_DIR}"\n'
+    new_startup = f'cd "{current_language_path}" && "{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --menu {launch_style}; cd "{HOME_DIR}"\n'
     alias_lang = ''
     if current_language_path == ENGLISH_BASE_PATH:
-        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
+        alias_lang = f"alias e='cd \"{ENGLISH_BASE_PATH}\" && \"{SETTINGS_PYTHON_BIN}\" \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
     elif current_language_path == GREEK_PATH_FULL:
-        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && python3 \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
+        alias_lang = f"alias g='cd \"{GREEK_PATH_FULL}\" && \"{SETTINGS_PYTHON_BIN}\" \"{SETTINGS_SCRIPT_PATH}\" --menu {launch_style}'\n"
     filtered.append('\n' + BASHRC_START_MARKER + '\n')
     if load_menu_autostart_preference_server() or current_style in {'pipboy', 'dedsec_os'}:
         filtered.append(new_startup)
@@ -6616,6 +6812,7 @@ def settings_meta():
         'prompt_username': load_config().get('display_name') or 'DedSec',
         'credits': {
             'creator': 'dedsec1121fk',
+            'help_by': 'zyxen.gr Systems Engineered',
             'art_artists': 'Christina Chatzidimitriou',
             'legal_documents': 'Lampros Spyrou',
             'discord_server_maintenance': 'Talha',
@@ -6627,12 +6824,12 @@ def settings_meta():
 def run_settings_action(action, payload):
     if action == 'update_source_1':
         root = get_preferred_dedsec_root()
-        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_1'
+        refresh = shlex.quote(SETTINGS_PYTHON_BIN) + ' ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_1'
         cmd = 'git remote set-url origin ' + shlex.quote(REPO_URL_SOURCE_1) + ' && git fetch --all && branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##"); branch=${branch:-main}; git reset --hard "origin/$branch" && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Project [Source 1]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_source_2':
         root = get_preferred_dedsec_root()
-        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_2'
+        refresh = shlex.quote(SETTINGS_PYTHON_BIN) + ' ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_source_2'
         cmd = 'git remote set-url origin ' + shlex.quote(REPO_URL_SOURCE_2) + ' && git fetch --all && branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s#^origin/##"); branch=${branch:-main}; git reset --hard "origin/$branch" && git clean -f -- "*.py" "*.css" "*.sh" "*.bash" && git pull; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Project [Source 2]', shell_command=cmd, cwd=root if os.path.isdir(root) else HOME_DIR, kind='settings-update', prefer_termux=False)
     if action == 'update_packages':
@@ -6640,11 +6837,11 @@ def run_settings_action(action, payload):
         setup_path = os.path.join(root, 'Setup.sh') if root else ''
         if not setup_path or not os.path.isfile(setup_path):
             raise FileNotFoundError('Setup.sh was not found; dependency update cannot start.')
-        refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
+        refresh = shlex.quote(SETTINGS_PYTHON_BIN) + ' ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_packages'
         cmd = 'bash ' + shlex.quote(setup_path) + ' --update-only; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
         return launch_job(label='Settings: Update Packages & Modules', shell_command=cmd, cwd=root, kind='settings-packages', prefer_termux=False)
     if action == 'transfer_system':
-        cmd = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --termux-transfer'
+        cmd = shlex.quote(SETTINGS_PYTHON_BIN) + ' ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --termux-transfer'
         return launch_job(label='Settings: Transfer System', shell_command=cmd, cwd=HOME_DIR, kind='settings-transfer', prefer_termux=False)
     if action == 'access_sponsors':
         tier = str(payload.get('tier') or '3').replace('$', '').strip()
@@ -7814,7 +8011,7 @@ def run_store_program(program_id, action):
             )
             shell_command = termux_preflight + shell_command
             if action == 'update':
-                refresh = 'python3 ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_store_update'
+                refresh = shlex.quote(SETTINGS_PYTHON_BIN) + ' ' + shlex.quote(SETTINGS_SCRIPT_PATH) + ' --pipboy-refresh-after-update --trigger dedsec_os_store_update'
                 shell_command = shell_command + '; update_status=$?; ' + refresh + '; refresh_status=$?; [ $update_status -eq 0 ] && exit $refresh_status || exit $update_status'
             _invalidate_dpkg_package_cache()
             return launch_job(label='Store: ' + entry['name'] + ' [' + action + ']', shell_command=shell_command, cwd=HOME_DIR, kind='store-' + action, prefer_termux=False)
@@ -13494,6 +13691,7 @@ INDEX_HTML = r"""
           <div class="panel">
             <div class="settings-section-title" id="creditsTitle">Credits</div>
             <div class="subtle" id="creditsBlock">Creator: dedsec1121fk
+Help By: zyxen.gr Systems Engineered
 Art Artists: Christina Chatzidimitriou
 Legal Documents: Lampros Spyrou
 Discord Server Maintenance: Talha
@@ -19165,6 +19363,7 @@ if __name__ == '__main__':
         '__GREEK_PATH_FULL__': repr(GREEK_PATH_FULL),
         '__HIDDEN_GREEK_PATH__': repr(HIDDEN_GREEK_PATH),
         '__SETTINGS_SCRIPT_PATH__': repr(SETTINGS_SCRIPT_PATH),
+        '__SETTINGS_PYTHON_BIN__': repr(SETTINGS_PYTHON_BIN),
         '__BASHRC_PATH__': repr(BASHRC_PATH),
         '__REPO_URL_SOURCE_1__': repr(REPO_URL_SOURCE_1),
         '__REPO_URL_SOURCE_2__': repr(REPO_URL_SOURCE_2),
@@ -23223,6 +23422,70 @@ def pipboy_catalog_key(value):
     return pipboy_normalize(name)
 
 
+def platform_save_paths_from_catalog(save_location):
+    """Return concise documented save paths for every supported platform."""
+    raw = re.sub(r"\s+", " ", str(save_location or "")).strip()
+    if not raw:
+        return {}
+
+    def desktop_variant(text):
+        value = text
+        replacements = (
+            ("~/storage/downloads", "~/Downloads"),
+            ("~/storage/Downloads", "~/Downloads"),
+            ("/storage/emulated/0/Download", "~/Downloads"),
+            ("/storage/emulated/0/Downloads", "~/Downloads"),
+            ("/sdcard/Download", "~/Downloads"),
+            ("/sdcard/Downloads", "~/Downloads"),
+            ("phone Downloads", "desktop Downloads"),
+            ("phone Download", "desktop Download"),
+            ("Termux home", "home directory"),
+            ("Termux Downloads", "desktop Downloads"),
+        )
+        for source, target in replacements:
+            value = value.replace(source, target)
+        return value
+
+    desktop = desktop_variant(raw)
+    return {
+        "Termux": raw,
+        "Ubuntu": desktop,
+        "Kali Linux": desktop,
+        "Linux Mint": desktop,
+    }
+
+
+def platform_save_paths_for_tool(tool_key, save_location):
+    """Return documented paths while respecting platform-specific tool availability."""
+    values = platform_save_paths_from_catalog(save_location)
+    key = pipboy_normalize(tool_key)
+    termux_only = {
+        "android app launcher",
+        "mobile desktop",
+        "mobile developer setup",
+        "termux backup restore",
+        "termux repair wizard",
+    }
+    desktop_blocked = (
+        key.startswith("fake ")
+        or key in {"trojan", "trojan py", "dead man s switch"}
+    )
+    if key in termux_only:
+        message = "Not applicable — this utility manages Android/Termux-specific features."
+        for name in ("Ubuntu", "Kali Linux", "Linux Mint"):
+            values[name] = message
+    elif desktop_blocked:
+        message = "Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged."
+        for name in ("Ubuntu", "Kali Linux", "Linux Mint"):
+            values[name] = message
+    return values
+
+
+def platform_save_paths_text(save_location, tool_key=""):
+    values = platform_save_paths_for_tool(tool_key, save_location) if tool_key else platform_save_paths_from_catalog(save_location)
+    return " | ".join(f"{name}: {path}" for name, path in values.items())
+
+
 def pipboy_enrich_project_from_catalog(index):
     if not isinstance(index, dict) or not isinstance(index.get("files"), dict):
         return index
@@ -23233,21 +23496,36 @@ def pipboy_enrich_project_from_catalog(index):
     for record in index["files"].values():
         key = pipboy_catalog_key(record.get("name") or record.get("relative_path"))
         entries = catalog.get(key) or []
+        # README's outer "Explore The Toolkit" details block historically captured
+        # File Converter in the embedded catalog. Keep the runtime catalog usable.
+        if not entries and key == "file converter":
+            entries = catalog.get("explore the toolkit") or []
         if not entries:
             continue
         preferred = record.get("language") if record.get("language") in {"english", "greek"} else display_language
         entry = next((item for item in entries if item.get("language") == preferred), entries[0])
         description = re.sub(r"\*\*", "", str(entry.get("description") or "")).strip()
         save_location = str(entry.get("save_location") or "").strip()
+        if save_location:
+            platform_paths = platform_save_paths_for_tool(key, save_location)
+            platform_summary = platform_save_paths_text(save_location, key)
+        else:
+            platform_paths = {}
+            platform_summary = ""
         if description:
-            record["description"] = description
+            full_description = description
+            if platform_summary:
+                full_description += " Save paths — " + platform_summary
+            record["description"] = full_description
             record["catalog_description"] = description
         if save_location:
             values = list(record.get("save_paths") or [])
-            # The README catalog is authoritative and goes first.
-            values = [save_location] + [item for item in values if pipboy_normalize(item) != pipboy_normalize(save_location)]
+            documented = [f"{name}: {value}" for name, value in platform_paths.items()]
+            # The README catalog is authoritative and platform variants go first.
+            values = documented + [save_location] + [item for item in values if pipboy_normalize(item) != pipboy_normalize(save_location)]
             record["save_paths"] = values[:24]
             record["catalog_save_location"] = save_location
+            record["platform_save_paths"] = platform_paths
     index["tool_catalog_entries"] = sum(len(items) for items in catalog.values())
     return index
 
@@ -30613,7 +30891,7 @@ def get_settings_options():
         _("Transfer System"),
         _("Change Prompt"),
         _("GitHub Account"),
-        _("Termux Usage Stats"),
+        get_usage_stats_label(),
         _("HTTP Proxy & Tor Utilities"),
         _("Change Menu Style"),
         get_menu_autostart_label(),
