@@ -4,16 +4,16 @@ DEDSEC PROJECT DOCUMENTATION (ENGLISH VERSION)
 The DedSec Project was built with a strong focus on practical creation, experimentation, and continuous improvement. Even if parts of the project originally started with a fast and highly iterative approach, the core goal remains the same: every tool and every file should work properly, have a clean structure, and provide real value.
 
 2. Development Direction
-Project development should rely on tools and methods that help produce correct, functional, and lawful scripts. For new scripts, bug fixes, or improvements, AI tools such as ChatGPT can be used, as long as prompts are clear, debugging continues in the same chat when needed, and every output is reviewed before being added to the project.
-A useful workflow for simple scripts is:
-- clearly describe the goal,
-- explain the problem with precision,
-- continue in the same chat for fixes and improvements,
-- request the file in a ready-to-download form when necessary.
+Project development should use clear requirements, reproducible testing, careful debugging, and manual review. Every new script, bug fix, or improvement must be checked before it becomes part of the project.
+A useful workflow is:
+- clearly define the goal and expected behavior,
+- describe the problem precisely,
+- reproduce the issue before changing code when possible,
+- test the change on the supported platforms that it affects,
+- review security, compatibility, error handling, and legal use,
+- keep the final implementation clean and maintainable.
 
-For more demanding development work, debugging, and stronger results, it is better to use a paid ChatGPT plan that provides access to more capable features. This is especially helpful when more complex reasoning, better troubleshooting, and more complete deliverable files are needed.
-
-Other AI tools may also be used in a supportive role. Gemini can be useful for simpler tasks, but every result should be reviewed carefully for mistakes. DeepSeek may also be used as a helper for ideas, debugging, and draft code, but every generated file must always be checked for quality, stability, security, compatibility, and lawful use before it becomes part of the DedSec Project. This matters even more in cases where an AI tool produces output related to sensitive, risky, or borderline technical areas.
+More demanding changes should include stronger validation, regression checks, and documentation updates. No change should be accepted only because it appears to work once; important behavior should be repeatable and understandable by future maintainers.
 
 3. Quality and Presentation
 The DedSec Project must keep a consistent visual identity and a clean overall presentation. Everything inside the project should look polished, functional, and intentional, never rushed or fake.

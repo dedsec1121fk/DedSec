@@ -22,6 +22,9 @@
 
 # DedSec Project
 
+> **Cross-platform build note:** This copy includes support for Ubuntu, Kali Linux, Linux Mint, and Termux. Run `bash Setup.sh`, then use `./Run.sh`. See [`CROSS_PLATFORM.md`](CROSS_PLATFORM.md) for platform-specific behavior and limitations.
+
+
 > **Για να μεταβείτε στην πλήρη Ελληνική έκδοση, συνεχίστε [Πατώντας Εδώ](#greek-readme).**
 
 
@@ -255,16 +258,28 @@ The DedSec Project includes **Settings.py**, the central control panel and launc
 
 ### Main Settings Menu Options
 
+### Settings Platform Paths
+
+Settings resolves paths at runtime instead of assuming one device layout:
+
+- **Termux:** Android shared Downloads (`~/storage/downloads` when the storage link is available, otherwise `/storage/emulated/0/Download`) and Termux `bash.bashrc`.
+- **Ubuntu:** the XDG Downloads directory (fallback `~/Downloads`) and the active Bash/Zsh startup file.
+- **Kali Linux:** the XDG Downloads directory (fallback `~/Downloads`) and `~/.zshrc` when Zsh is active, otherwise `~/.bashrc`.
+- **Linux Mint:** the XDG Downloads directory (fallback `~/Downloads`) and the active Bash/Zsh startup file.
+
+The menu uses the same Python interpreter that launched Settings, so desktop auto-start continues to use the project `.venv` instead of silently switching to the system Python. Android/Termux-only utilities stay visible but report that they are not applicable on desktop rather than running incorrect system commands.
+
+
 - **About:** shows the latest DedSec Project update date, Termux storage usage, DedSec Project size, hardware details, internal storage, processor, RAM, carrier, kernel version, Android version, device model, manufacturer, uptime, battery status, and current Termux user.
 - **DedSec Project Update (Source 1):** updates the installed project from the main `dedsec1121fk/DedSec` repository by fetching the newest files and applying the latest version.
 - **DedSec Project Update (Source 2):** updates the installed project from the backup `sal-scar/DedSec` repository, useful when the first source is unavailable or when you want the mirror source.
 - **Update Packages & Modules:** runs the consolidated `Setup.sh --no-run` dependency routine, which checks local Termux packages and Python modules first, updates installed items, and downloads anything still missing without opening a second menu process.
 - **Access Sponsors-Only Scripts:** checks whether GitHub is connected in Termux, asks the user to connect GitHub if needed, verifies sponsor access, and downloads or replaces the local Sponsors-Only folder when access is confirmed. The $3 tier includes the current sponsor scripts, including Login Stealer.py, while the $9 tier includes all $3 scripts plus Widget Maker.py, Kraken Trader.py, and Noob Hacker.py. The $25 Ultimate Supporter tier uses the same full sponsor-script library as $9 and adds the paid ebook benefits described below. If the account does not have access, it returns the user to the settings menu without downloading anything.
-- **Save DedSec Project:** creates a DedSec Project backup in your phone Downloads folder.
-- **Transfer System:** creates privacy-filtered Core/Data ZIP archives plus `Install.sh` in `Downloads/Termux Transfer/` for offline migration to another compatible Termux device. SSH keys, GitHub authentication, credentials, tokens, `.env` files, and detected project secrets are excluded.
+- **Save DedSec Project:** creates a DedSec Project backup in the current platform Downloads folder and prints the exact resolved path.
+- **Transfer System:** on Termux, creates privacy-filtered Core/Data ZIP archives plus `Install.sh` in `Downloads/Termux Transfer/` for offline migration to another compatible Termux device. On Ubuntu, Kali Linux, and Linux Mint the menu remains available but explains that this Android migration workflow is not applicable and points to **Save DedSec Project** instead. SSH keys, GitHub authentication, credentials, tokens, `.env` files, and detected project secrets are excluded.
 - **Change Prompt:** changes the username shown in the Termux prompt, sanitizes unsafe characters, updates `bash.bashrc`, and removes the default MOTD when needed.
 - **GitHub Account:** opens a GitHub submenu for connecting with GitHub CLI, disconnecting the account, showing GitHub stats, and syncing the Termux prompt with the connected GitHub username.
-- **Termux Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
+- **Termux/System Usage Stats:** scans the local Termux workspace and shows tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found, and most active folders.
 - **HTTP Proxy & Tor Utilities:** provides optional no-root routing/privacy controls. It can enable or disable Tor, enable or disable an HTTP proxy, choose a proxy country, refresh and test proxy pools, update the required Proxy/Tor tools, show connection status, and write shell proxy exports so new Termux sessions can reuse the selected route. This is proxy routing for Termux processes, not a full device-wide Android VPN.
 - **Change Menu Style:** lets you switch between **List Style**, **Grid Style**, **Choose By Number**, and **DedSec OS**. The selected style is saved so the project opens the same way next time.
 - **Menu Auto-Start:** enables or disables automatic DedSec menu startup when Termux opens, depending on whether you want Termux to boot straight into the project menu or stay as a normal shell.
@@ -308,7 +323,7 @@ After installation, the most important settings are:
 
 ### Save Reminder
 
-`Setup.sh` installs and verifies the project dependencies but does not create a backup automatically. Use **Save DedSec Project** from Settings on your first run and whenever you want to refresh the backup in your phone Downloads folder. A save may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
+`Setup.sh` installs and verifies the project dependencies but does not create a backup automatically. Use **Save DedSec Project** from Settings on your first run and whenever you want to refresh the backup. Termux uses the Android Downloads folder; Ubuntu, Kali Linux, and Linux Mint use the desktop user Downloads directory (including XDG-customized Downloads paths). A save may take a while depending on your internet connection, and the terminal may stay blank until it is ready.
 
 </details>
 
@@ -335,6 +350,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Total listed on tools page:** 87 tools
 
+### Mobile Apps
+
+You can now download selected DedSec Project apps directly as Android APKs without needing Termux. The `Apk's/` folder keeps the latest stable standalone build for each available app.
+
+- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Download ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/Apk%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
+
 ---
 <a id="developer-base"></a>
 
@@ -353,6 +374,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Converted files are saved under /storage/emulated/0/Download/File Converter/, inside format folders such as JPG, PNG, PDF, MP3, MP4, ZIP, TXT, and others.`
 
+**Platform Save Paths:**
+- **Termux:** `Converted files are saved under /storage/emulated/0/Download/File Converter/, inside format folders such as JPG, PNG, PDF, MP3, MP4, ZIP, TXT, and others.`
+- **Ubuntu:** `Converted files are saved under ~/Downloads/File Converter/, inside format folders such as JPG, PNG, PDF, MP3, MP4, ZIP, TXT, and others.`
+- **Kali Linux:** `Converted files are saved under ~/Downloads/File Converter/, inside format folders such as JPG, PNG, PDF, MP3, MP4, ZIP, TXT, and others.`
+- **Linux Mint:** `Converted files are saved under ~/Downloads/File Converter/, inside format folders such as JPG, PNG, PDF, MP3, MP4, ZIP, TXT, and others.`
+
 
 </details>
 
@@ -367,6 +394,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Advanced file analysis and security scanner that detects file types, extracts metadata, calculates cryptographic hashes, and identifies potential threats. Features magic byte detection, entropy analysis, steganography detection, virus scanning via VirusTotal API, and automatic quarantine of suspicious files. Supports analysis of files up to 50GB. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `Files are scanned in /sdcard/Download/File Type Checker/ on Termux, or ~/Downloads/File Type Checker/ outside Termux. Quarantined files stay in the same folder and are renamed with the .dangerous suffix.`
+
+**Platform Save Paths:**
+- **Termux:** `Files are scanned in /sdcard/Download/File Type Checker/ on Termux, or ~/Downloads/File Type Checker/ outside Termux. Quarantined files stay in the same folder and are renamed with the .dangerous suffix.`
+- **Ubuntu:** `Files are scanned in ~/Downloads/File Type Checker/ on Termux, or ~/Downloads/File Type Checker/ outside Termux. Quarantined files stay in the same folder and are renamed with the .dangerous suffix.`
+- **Kali Linux:** `Files are scanned in ~/Downloads/File Type Checker/ on Termux, or ~/Downloads/File Type Checker/ outside Termux. Quarantined files stay in the same folder and are renamed with the .dangerous suffix.`
+- **Linux Mint:** `Files are scanned in ~/Downloads/File Type Checker/ on Termux, or ~/Downloads/File Type Checker/ outside Termux. Quarantined files stay in the same folder and are renamed with the .dangerous suffix.`
 
 
 </details>
@@ -383,6 +416,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Manager settings are stored in ~/.termux_linux_vnc_manager/config.json. Generated launchers are installed in $PREFIX/bin/ as vnc-<system>. The Linux distributions themselves are managed by proot-distro.`
 
+**Platform Save Paths:**
+- **Termux:** `Manager settings are stored in ~/.termux_linux_vnc_manager/config.json. Generated launchers are installed in $PREFIX/bin/ as vnc-<system>. The Linux distributions themselves are managed by proot-distro.`
+- **Ubuntu:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Kali Linux:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Linux Mint:** `Not applicable — this utility manages Android/Termux-specific features.`
+
 
 </details>
 
@@ -397,6 +436,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Builds and manages a broad phone-first developer environment in Termux. It refreshes and upgrades Termux packages; installs core and additional developer packages, TUR packages such as MongoDB, Python developer tools, and global npm tools; configures Zsh with Oh My Zsh, plugins, aliases, history/completion behavior, a custom prompt name, and Powerlevel10k; configures Termux UI files; installs the official NvChad starter configuration for Neovim; and includes dedicated install, update, repair, backup, restore, removal, information, prompt, and Powerlevel10k controls. It also patches supported Android-specific integrations such as LocalTunnel URL opening when applicable.
 
 **Save Location:** `State, logs, and backup archives are stored under ~/.mobile-dev-setup/; managed helper/tool files use ~/.mobile-dev-setup-tools/; Zsh/Oh My Zsh and plugin configuration is stored in the user's Termux home; Termux appearance files are stored in ~/.termux/; and the managed Neovim/NvChad configuration is stored under ~/.config/nvim/.`
+
+**Platform Save Paths:**
+- **Termux:** `State, logs, and backup archives are stored under ~/.mobile-dev-setup/; managed helper/tool files use ~/.mobile-dev-setup-tools/; Zsh/Oh My Zsh and plugin configuration is stored in the user's Termux home; Termux appearance files are stored in ~/.termux/; and the managed Neovim/NvChad configuration is stored under ~/.config/nvim/.`
+- **Ubuntu:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Kali Linux:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Linux Mint:** `Not applicable — this utility manages Android/Termux-specific features.`
 
 
 </details>
@@ -413,6 +458,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Created websites are saved in /storage/emulated/0/Download/Websites/.`
 
+**Platform Save Paths:**
+- **Termux:** `Created websites are saved in /storage/emulated/0/Download/Websites/.`
+- **Ubuntu:** `Created websites are saved in ~/Downloads/Websites/.`
+- **Kali Linux:** `Created websites are saved in ~/Downloads/Websites/.`
+- **Linux Mint:** `Created websites are saved in ~/Downloads/Websites/.`
+
 
 </details>
 
@@ -427,6 +478,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Terminal note-taking app with reminders. Advanced note-taking application with reminder functionality, featuring both TUI (Text User Interface) and CLI support. Includes sophisticated reminder system with due dates, automatic command execution, external editor integration, and comprehensive note organization capabilities. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `Notes: ~/.smart_notes.json | Settings: ~/.smart_notes_config.json | Error log: ~/.smart_notes_error.log.`
+
+**Platform Save Paths:**
+- **Termux:** `Notes: ~/.smart_notes.json | Settings: ~/.smart_notes_config.json | Error log: ~/.smart_notes_error.log.`
+- **Ubuntu:** `Notes: ~/.smart_notes.json | Settings: ~/.smart_notes_config.json | Error log: ~/.smart_notes_error.log.`
+- **Kali Linux:** `Notes: ~/.smart_notes.json | Settings: ~/.smart_notes_config.json | Error log: ~/.smart_notes_error.log.`
+- **Linux Mint:** `Notes: ~/.smart_notes.json | Settings: ~/.smart_notes_config.json | Error log: ~/.smart_notes_error.log.`
 
 
 </details>
@@ -443,6 +500,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Main local folder: ~/storage/downloads/Dead Man's Switch/ (normally the phone Download folder; fallback /storage/emulated/0/Download/Dead Man's Switch/). Settings: ~/.dead_switch_settings.json. Logs and previous repository backups are stored inside the main folder under Logs/ and History/.`
 
+**Platform Save Paths:**
+- **Termux:** `Main local folder: ~/storage/downloads/Dead Man's Switch/ (normally the phone Download folder; fallback /storage/emulated/0/Download/Dead Man's Switch/). Settings: ~/.dead_switch_settings.json. Logs and previous repository backups are stored inside the main folder under Logs/ and History/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -457,6 +520,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** File-system explorer for Termux: browse folders, search files, find duplicates by hash, and clean empty directories with safe prompts. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `Tree Explorer does not create a default results folder. Exports are written only to the path you choose with --export FILE or through the interactive export prompt. Installing the command copies it to $PREFIX/bin/supertree by default.`
+
+**Platform Save Paths:**
+- **Termux:** `Tree Explorer does not create a default results folder. Exports are written only to the path you choose with --export FILE or through the interactive export prompt. Installing the command copies it to $PREFIX/bin/supertree by default.`
+- **Ubuntu:** `Tree Explorer does not create a default results folder. Exports are written only to the path you choose with --export FILE or through the interactive export prompt. Installing the command copies it to $PREFIX/bin/supertree by default.`
+- **Kali Linux:** `Tree Explorer does not create a default results folder. Exports are written only to the path you choose with --export FILE or through the interactive export prompt. Installing the command copies it to $PREFIX/bin/supertree by default.`
+- **Linux Mint:** `Tree Explorer does not create a default results folder. Exports are written only to the path you choose with --export FILE or through the interactive export prompt. Installing the command copies it to $PREFIX/bin/supertree by default.`
 
 
 </details>
@@ -473,6 +542,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Reports are saved in ~/storage/downloads/Devices Finder/ as devices_scan_<timestamp>.json, .txt, .csv, and .html. Fallbacks are ~/downloads/Devices Finder/ and then ./Devices Finder Output/.`
 
+**Platform Save Paths:**
+- **Termux:** `Reports are saved in ~/storage/downloads/Devices Finder/ as devices_scan_<timestamp>.json, .txt, .csv, and .html. Fallbacks are ~/downloads/Devices Finder/ and then ./Devices Finder Output/.`
+- **Ubuntu:** `Reports are saved in ~/Downloads/Devices Finder/ as devices_scan_<timestamp>.json, .txt, .csv, and .html. Fallbacks are ~/downloads/Devices Finder/ and then ./Devices Finder Output/.`
+- **Kali Linux:** `Reports are saved in ~/Downloads/Devices Finder/ as devices_scan_<timestamp>.json, .txt, .csv, and .html. Fallbacks are ~/downloads/Devices Finder/ and then ./Devices Finder Output/.`
+- **Linux Mint:** `Reports are saved in ~/Downloads/Devices Finder/ as devices_scan_<timestamp>.json, .txt, .csv, and .html. Fallbacks are ~/downloads/Devices Finder/ and then ./Devices Finder Output/.`
+
 
 </details>
 
@@ -487,6 +562,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Local-first browser and secure vault for Termux. It combines multiple search engines, bookmarks, history, saved pages, ad/tracker cleanup, Lite mode, country-based proxy routing with smart/strict/direct modes, optional Tor support, encrypted vault entries powered by OpenSSL, and a built-in full-page website screenshot tool. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in Tools/screenshots/, and the encrypted vault database in vault/vault.db.`
+
+**Platform Save Paths:**
+- **Termux:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in Tools/screenshots/, and the encrypted vault database in vault/vault.db.`
+- **Ubuntu:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in Tools/screenshots/, and the encrypted vault database in vault/vault.db.`
+- **Kali Linux:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in Tools/screenshots/, and the encrypted vault database in vault/vault.db.`
+- **Linux Mint:** `On Termux, all data is stored in ~/Free Internet/; outside Termux it uses ~/.free_internet/. Browser data is in browser/, saved pages in browser/saved/, screenshots in Tools/screenshots/, and the encrypted vault database in vault/vault.db.`
 
 
 </details>
@@ -504,6 +585,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
 
+**Platform Save Paths:**
+- **Termux:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
+- **Ubuntu:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
+- **Kali Linux:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
+- **Linux Mint:** `All data is stored under ~/DedSec's Server/. The English and Greek editions use separate English/ and Greek/ folders. Server files are stored in <edition>/Servers/<server-id>/, configuration in <edition>/Config/config.json, temporary session data in <edition>/Runtime/, comments in <edition>/Comments/, and each server's audit logs in its hidden .dedsec-server/logs/ folder.`
+
 
 </details>
 
@@ -520,6 +607,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Educational non-root Termux trojan sample. It collects accessible shared-storage files plus location, camera photos, microphone audio, clipboard, contacts, SMS, sensors, battery, Wi-Fi/network, phone, and device information. It can also demonstrate phishing links/notifications, clipboard replacement, recurring execution, optional payload download, and configured SSH upload.
 
 **Save Location:** `Main folder: /sdcard/Download/Troy/; fallback: ~/Troy/. Copied files are stored in stolen/, the archive is stolen_archive.zip, and each run saves a timestamped harvest_*.json report. Camera and microphone captures are saved as photo.jpg and audio.m4a.`
+
+**Platform Save Paths:**
+- **Termux:** `Main folder: /sdcard/Download/Troy/; fallback: ~/Troy/. Copied files are stored in stolen/, the archive is stolen_archive.zip, and each run saves a timestamped harvest_*.json report. Camera and microphone captures are saved as photo.jpg and audio.m4a.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -541,6 +634,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `The default output folder is ./bughunter_out/ in the directory where the script is run. Use --output PATH to choose another folder. Reports include report.json, report.csv, report.html, optional report.pdf, and optional live/checkpoint files.`
 
+**Platform Save Paths:**
+- **Termux:** `The default output folder is ./bughunter_out/ in the directory where the script is run. Use --output PATH to choose another folder. Reports include report.json, report.csv, report.html, optional report.pdf, and optional live/checkpoint files.`
+- **Ubuntu:** `The default output folder is ./bughunter_out/ in the directory where the script is run. Use --output PATH to choose another folder. Reports include report.json, report.csv, report.html, optional report.pdf, and optional live/checkpoint files.`
+- **Kali Linux:** `The default output folder is ./bughunter_out/ in the directory where the script is run. Use --output PATH to choose another folder. Reports include report.json, report.csv, report.html, optional report.pdf, and optional live/checkpoint files.`
+- **Linux Mint:** `The default output folder is ./bughunter_out/ in the directory where the script is run. Use --output PATH to choose another folder. Reports include report.json, report.csv, report.html, optional report.pdf, and optional live/checkpoint files.`
+
 
 </details>
 
@@ -555,6 +654,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** A specialized Dark Web OSINT tool and crawler designed for Tor network analysis. It features automated Tor connectivity, an Ahmia search integration, and a recursive crawler for .onion sites. The tool utilizes a modular plugin system to extract specific data types (Emails, BTC/XMR addresses, PGP keys, Phones) and supports saving snapshots. It offers both a Curses TUI and CLI mode, with results exportable to JSON, CSV, and TXT. Use only on systems you own or have explicit permission to test.
 
 **Save Location:** `Results are stored in /sdcard/Download/DarkNet/ with fallback to ~/DarkNet/. JSON, CSV, TXT, snapshots, and plugin output are written there; plugins are stored in its plugins/ subfolder.`
+
+**Platform Save Paths:**
+- **Termux:** `Results are stored in /sdcard/Download/DarkNet/ with fallback to ~/DarkNet/. JSON, CSV, TXT, snapshots, and plugin output are written there; plugins are stored in its plugins/ subfolder.`
+- **Ubuntu:** `Results are stored in ~/Downloads/DarkNet/ with fallback to ~/DarkNet/. JSON, CSV, TXT, snapshots, and plugin output are written there; plugins are stored in its plugins/ subfolder.`
+- **Kali Linux:** `Results are stored in ~/Downloads/DarkNet/ with fallback to ~/DarkNet/. JSON, CSV, TXT, snapshots, and plugin output are written there; plugins are stored in its plugins/ subfolder.`
+- **Linux Mint:** `Results are stored in ~/Downloads/DarkNet/ with fallback to ~/DarkNet/. JSON, CSV, TXT, snapshots, and plugin output are written there; plugins are stored in its plugins/ subfolder.`
 
 
 </details>
@@ -571,6 +676,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Configuration, audit_results.db, and wordlists are stored in ~/DedSec's Network/ on Termux, or ./DedSec's Network/ elsewhere. Downloaded websites go to /storage/emulated/0/Download/Websites/<domain>/, with fallbacks to /sdcard/Download/Websites/, ~/DedSec's Network/Websites/, or ~/Downloads/Websites/ outside Termux.`
 
+**Platform Save Paths:**
+- **Termux:** `Configuration, audit_results.db, and wordlists are stored in ~/DedSec's Network/ on Termux, or ./DedSec's Network/ elsewhere. Downloaded websites go to /storage/emulated/0/Download/Websites/<domain>/, with fallbacks to /sdcard/Download/Websites/, ~/DedSec's Network/Websites/, or ~/Downloads/Websites/ outside Termux.`
+- **Ubuntu:** `Configuration, audit_results.db, and wordlists are stored in ~/DedSec's Network/ on Termux, or ./DedSec's Network/ elsewhere. Downloaded websites go to ~/Downloads/Websites/<domain>/, with fallbacks to ~/Downloads/Websites/, ~/DedSec's Network/Websites/, or ~/Downloads/Websites/ outside Termux.`
+- **Kali Linux:** `Configuration, audit_results.db, and wordlists are stored in ~/DedSec's Network/ on Termux, or ./DedSec's Network/ elsewhere. Downloaded websites go to ~/Downloads/Websites/<domain>/, with fallbacks to ~/Downloads/Websites/, ~/DedSec's Network/Websites/, or ~/Downloads/Websites/ outside Termux.`
+- **Linux Mint:** `Configuration, audit_results.db, and wordlists are stored in ~/DedSec's Network/ on Termux, or ./DedSec's Network/ elsewhere. Downloaded websites go to ~/Downloads/Websites/<domain>/, with fallbacks to ~/Downloads/Websites/, ~/DedSec's Network/Websites/, or ~/Downloads/Websites/ outside Termux.`
+
 
 </details>
 
@@ -585,6 +696,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Public-source OSINT casework toolkit with Easy Mode, SQLite cases, entity and relationship mapping, evidence hashing, correlation and timeline analysis, bounded crawling, username/profile checks, passive network enrichment, and keyless public APIs with optional user-supplied API credentials. It supports domains, URLs, usernames, emails, IPs, names, phone numbers, and local files, and exports Markdown, JSON, CSV, GraphML, STIX 2.1, raw evidence, ZIP packages, and self-contained HTML reports.
 
 **Save Location:** `Case results are saved in ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
+
+**Platform Save Paths:**
+- **Termux:** `Case results are saved in ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
+- **Ubuntu:** `Case results are saved in ~/Downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
+- **Kali Linux:** `Case results are saved in ~/Downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
+- **Linux Mint:** `Case results are saved in ~/Downloads/Digital Footprint Finder/<Case Name>/files/ on Termux. Outside Termux it uses ~/Downloads/Digital Footprint Finder/<Case Name>/files/ when available, with ~/Digital Footprint Finder/results/ as fallback. App data, SQLite database, settings, cache, logs, dependencies, session data, and optional API keys are stored under ~/Digital Footprint Finder/.`
 
 
 </details>
@@ -601,6 +718,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
 
+**Platform Save Paths:**
+- **Termux:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
+- **Ubuntu:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
+- **Kali Linux:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
+- **Linux Mint:** `Shared files are stored in ~/Downloads/DedSec's Database/. If that folder cannot be created, the fallback is ./DedSec_Database_Files/ in the current directory. Tor runtime data is stored separately in ~/.foxchat_tor/.`
+
 
 </details>
 
@@ -615,6 +738,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Security-focused URL inspector: follows redirects, checks HTTPS/SSL, flags suspicious domains/patterns, and generates a risk report before you open a link. Use only on systems you own or have explicit permission to test.
 
 **Save Location:** `No dedicated output folder is created. linkshield_config_en.json, user-named JSON/Markdown reports, and linkshield_batch_report.json/.csv are saved in the current working directory.`
+
+**Platform Save Paths:**
+- **Termux:** `No dedicated output folder is created. linkshield_config_en.json, user-named JSON/Markdown reports, and linkshield_batch_report.json/.csv are saved in the current working directory.`
+- **Ubuntu:** `No dedicated output folder is created. linkshield_config_en.json, user-named JSON/Markdown reports, and linkshield_batch_report.json/.csv are saved in the current working directory.`
+- **Kali Linux:** `No dedicated output folder is created. linkshield_config_en.json, user-named JSON/Markdown reports, and linkshield_batch_report.json/.csv are saved in the current working directory.`
+- **Linux Mint:** `No dedicated output folder is created. linkshield_config_en.json, user-named JSON/Markdown reports, and linkshield_batch_report.json/.csv are saved in the current working directory.`
 
 
 </details>
@@ -631,6 +760,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `No files are saved. The generated masked URL is printed in the terminal.`
 
+**Platform Save Paths:**
+- **Termux:** `No files are saved. The generated masked URL is printed in the terminal.`
+- **Ubuntu:** `No files are saved. The generated masked URL is printed in the terminal.`
+- **Kali Linux:** `No files are saved. The generated masked URL is printed in the terminal.`
+- **Linux Mint:** `No files are saved. The generated masked URL is printed in the terminal.`
+
 
 </details>
 
@@ -645,6 +780,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Python-based QR code generator that creates QR codes for URLs and saves them in the Downloads/QR Codes folder. Features automatic dependency installation, user-friendly interface, and error handling for reliable operation. Use only on systems you own or have explicit permission to test.
 
 **Save Location:** `Generated PNG images are saved in ~/storage/downloads/QR Codes/.`
+
+**Platform Save Paths:**
+- **Termux:** `Generated PNG images are saved in ~/storage/downloads/QR Codes/.`
+- **Ubuntu:** `Generated PNG images are saved in ~/Downloads/QR Codes/.`
+- **Kali Linux:** `Generated PNG images are saved in ~/Downloads/QR Codes/.`
+- **Linux Mint:** `Generated PNG images are saved in ~/Downloads/QR Codes/.`
 
 
 </details>
@@ -661,6 +802,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 
 **Save Location:** `The configuration file load_test_config.json is saved in the current working directory. Test results are displayed in the terminal and are not written to a report file.`
 
+**Platform Save Paths:**
+- **Termux:** `The configuration file load_test_config.json is saved in the current working directory. Test results are displayed in the terminal and are not written to a report file.`
+- **Ubuntu:** `The configuration file load_test_config.json is saved in the current working directory. Test results are displayed in the terminal and are not written to a report file.`
+- **Kali Linux:** `The configuration file load_test_config.json is saved in the current working directory. Test results are displayed in the terminal and are not written to a report file.`
+- **Linux Mint:** `The configuration file load_test_config.json is saved in the current working directory. Test results are displayed in the terminal and are not written to a report file.`
+
 
 </details>
 
@@ -675,6 +822,12 @@ This page is the map of the project: what each tool does, why it exists, and wha
 **Description:** Single-file Python store scraper for Termux that works without root. Tries multiple ways to discover categories and products across regular HTML pages and many JS-style stores by reading HTML, JSON-LD, embedded JSON, sitemaps, Shopify endpoints, WooCommerce APIs, generic product cards, breadcrumbs, OpenGraph/meta tags, and internal links. Saves while running, starts full product scraping the moment each product is found, shows live terminal status, uses Enter as the default for prompts, and organizes results into store/category/product folders with downloaded images. Use only on systems you own or have explicit permission to test.
 
 **Save Location:** `Product data is saved under ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/. If Termux Downloads is unavailable, it uses ~/downloads/Store Scrapper/. Product folders can contain FOUND.txt, metadata.json, summary.txt, description.txt, images/, and images.json; discovery and run-state files are stored in the store output tree.`
+
+**Platform Save Paths:**
+- **Termux:** `Product data is saved under ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/. If Termux Downloads is unavailable, it uses ~/downloads/Store Scrapper/. Product folders can contain FOUND.txt, metadata.json, summary.txt, description.txt, images/, and images.json; discovery and run-state files are stored in the store output tree.`
+- **Ubuntu:** `Product data is saved under ~/Downloads/Store Scrapper/<Store>/<Category>/<Product>/. If desktop Downloads is unavailable, it uses ~/downloads/Store Scrapper/. Product folders can contain FOUND.txt, metadata.json, summary.txt, description.txt, images/, and images.json; discovery and run-state files are stored in the store output tree.`
+- **Kali Linux:** `Product data is saved under ~/Downloads/Store Scrapper/<Store>/<Category>/<Product>/. If desktop Downloads is unavailable, it uses ~/downloads/Store Scrapper/. Product folders can contain FOUND.txt, metadata.json, summary.txt, description.txt, images/, and images.json; discovery and run-state files are stored in the store output tree.`
+- **Linux Mint:** `Product data is saved under ~/Downloads/Store Scrapper/<Store>/<Category>/<Product>/. If desktop Downloads is unavailable, it uses ~/downloads/Store Scrapper/. Product folders can contain FOUND.txt, metadata.json, summary.txt, description.txt, images/, and images.json; discovery and run-state files are stored in the store output tree.`
 
 
 </details>
@@ -699,6 +852,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Captured back-camera images and related text data are saved in ~/storage/downloads/Camera-Phish-Back/.`
 
+**Platform Save Paths:**
+- **Termux:** `Captured back-camera images and related text data are saved in ~/storage/downloads/Camera-Phish-Back/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -713,6 +872,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Back Camera Video Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Back Camera Video. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Recorded back-camera WEBM videos and related text data are saved in ~/storage/downloads/Back Camera Videos/.`
+
+**Platform Save Paths:**
+- **Termux:** `Recorded back-camera WEBM videos and related text data are saved in ~/storage/downloads/Back Camera Videos/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -729,6 +894,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Submitted card-activation data is saved in ~/storage/downloads/CardActivations/.`
 
+**Platform Save Paths:**
+- **Termux:** `Submitted card-activation data is saved in ~/storage/downloads/CardActivations/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -743,6 +914,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Chrome Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Chrome Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Chrome verification output, including location JSON, face video, device scan, system information, and summaries, is saved in ~/storage/downloads/Chrome Verification/.`
+
+**Platform Save Paths:**
+- **Termux:** `Chrome verification output, including location JSON, face video, device scan, system information, and summaries, is saved in ~/storage/downloads/Chrome Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -759,6 +936,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Collected application information is saved under ~/storage/downloads/Peoples_Lives/, including application_info.txt.`
 
+**Platform Save Paths:**
+- **Termux:** `Collected application information is saved under ~/storage/downloads/Peoples_Lives/, including application_info.txt.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -773,6 +956,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Discord Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Discord Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Discord verification output, including location JSON, face video, ID, phone, payment, and summary files, is saved in ~/storage/downloads/Discord Verification/.`
+
+**Platform Save Paths:**
+- **Termux:** `Discord verification output, including location JSON, face video, ID, phone, payment, and summary files, is saved in ~/storage/downloads/Discord Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -789,6 +978,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Facebook verification output, including location JSON, face video, ID images, and summary files, is saved in ~/storage/downloads/Facebook Verification/.`
 
+**Platform Save Paths:**
+- **Termux:** `Facebook verification output, including location JSON, face video, ID images, and summary files, is saved in ~/storage/downloads/Facebook Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -803,6 +998,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Front Camera Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Front Camera. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Captured front-camera images and related text data are saved in ~/storage/downloads/Camera-Phish-Front/.`
+
+**Platform Save Paths:**
+- **Termux:** `Captured front-camera images and related text data are saved in ~/storage/downloads/Camera-Phish-Front/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -819,6 +1020,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Recorded front-camera WEBM videos and related text data are saved in ~/storage/downloads/Front Camera Videos/.`
 
+**Platform Save Paths:**
+- **Termux:** `Recorded front-camera WEBM videos and related text data are saved in ~/storage/downloads/Front Camera Videos/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -833,6 +1040,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Google Location Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Google Location. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Location JSON files are saved in ~/storage/downloads/Locations/.`
+
+**Platform Save Paths:**
+- **Termux:** `Location JSON files are saved in ~/storage/downloads/Locations/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -849,6 +1062,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Instagram verification output, including location JSON, face video, voice audio, ID documents, and summary files, is saved in ~/storage/downloads/Instagram Verification/.`
 
+**Platform Save Paths:**
+- **Termux:** `Instagram verification output, including location JSON, face video, voice audio, ID documents, and summary files, is saved in ~/storage/downloads/Instagram Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -863,6 +1082,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake Location Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around Location. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `Location JSON files are saved in ~/storage/downloads/Locations/.`
+
+**Platform Save Paths:**
+- **Termux:** `Location JSON files are saved in ~/storage/downloads/Locations/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -879,6 +1104,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Recorded audio, converted WAV files, and related text data are saved in ~/storage/downloads/Recordings/.`
 
+**Platform Save Paths:**
+- **Termux:** `Recorded audio, converted WAV files, and related text data are saved in ~/storage/downloads/Recordings/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -893,6 +1124,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake OnlyFans Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around OnlyFans Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `OnlyFans verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/OnlyFans Verification/.`
+
+**Platform Save Paths:**
+- **Termux:** `OnlyFans verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/OnlyFans Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -909,6 +1146,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Steam verification output, including location JSON, face video, ID, Steam Guard, phone, payment, and summary files, is saved in ~/storage/downloads/Steam Verification/.`
 
+**Platform Save Paths:**
+- **Termux:** `Steam verification output, including location JSON, face video, ID, Steam Guard, phone, payment, and summary files, is saved in ~/storage/downloads/Steam Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -924,6 +1167,12 @@ These scripts are training simulations intended to help users understand how dec
 
 **Save Location:** `Twitch verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/Twitch Verification/.`
 
+**Platform Save Paths:**
+- **Termux:** `Twitch verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/Twitch Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -938,6 +1187,12 @@ These scripts are training simulations intended to help users understand how dec
 **Description:** Fake YouTube Verification Page is a consent-based awareness demo for teaching how deceptive permission prompts can pressure people into sharing sensitive access around YouTube Verification. Use it only in a lab, with dummy data, screenshots, or clear permission from participants. It is not presented as a tool for stealing information.
 
 **Save Location:** `YouTube verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/YouTube Verification/.`
+
+**Platform Save Paths:**
+- **Termux:** `YouTube verification output, including location JSON, face video, ID, payment, and summary files, is saved in ~/storage/downloads/YouTube Verification/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -962,6 +1217,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Apple iCloud/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Apple iCloud/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -976,6 +1237,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Discord Nitro Page is a mock phishing-awareness page for teaching how fake Discord Nitro offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Discord Nitro/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Discord Nitro/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -992,6 +1259,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Epic Games/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Epic Games/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1006,6 +1279,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Facebook Friends Page is a mock phishing-awareness page for teaching how fake Facebook Friends offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Facebook Friends/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Facebook Friends/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1022,6 +1301,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Roblox Robux/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Roblox Robux/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1036,6 +1321,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake GitHub Pro Page is a mock phishing-awareness page for teaching how fake GitHub Pro offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/GitHub Pro/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/GitHub Pro/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1052,6 +1343,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Google Free Money/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Google Free Money/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1066,6 +1363,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Instagram Followers Page is a mock phishing-awareness page for teaching how fake Instagram Followers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Instagram Followers/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Instagram Followers/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1082,6 +1385,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/MetaMask/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/MetaMask/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1096,6 +1405,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Microsoft 365 Page is a mock phishing-awareness page for teaching how fake Microsoft 365 offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Microsoft 365/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Microsoft 365/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1112,6 +1427,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/OnlyFans/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/OnlyFans/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1126,6 +1447,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake PayPal Page is a mock phishing-awareness page for teaching how fake PayPal offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form and card data is written to ~/storage/downloads/PayPal/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form and card data is written to ~/storage/downloads/PayPal/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1142,6 +1469,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Pinterest Pro/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Pinterest Pro/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1156,6 +1489,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake PlayStation Network Page is a mock phishing-awareness page for teaching how fake PlayStation Network offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/PlayStation Network/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/PlayStation Network/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1172,6 +1511,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Reddit Karma/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Reddit Karma/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1186,6 +1531,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Snapchat Friends Page is a mock phishing-awareness page for teaching how fake Snapchat Friends offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Snapchat Friends/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Snapchat Friends/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1202,6 +1553,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Steam Games/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Steam Games/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1216,6 +1573,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Steam Wallet Page is a mock phishing-awareness page for teaching how fake Steam Wallet offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Steam Wallet/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Steam Wallet/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1232,6 +1595,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/TikTok Followers/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/TikTok Followers/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1246,6 +1615,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Trust Wallet Page is a mock phishing-awareness page for teaching how fake Trust Wallet offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Trust Wallet/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Trust Wallet/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1262,6 +1637,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Twitch Subs/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Twitch Subs/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1276,6 +1657,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake Twitter Followers Page is a mock phishing-awareness page for teaching how fake Twitter Followers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Twitter Followers/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Twitter Followers/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1292,6 +1679,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/WhatsUp Dude/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/WhatsUp Dude/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1307,6 +1700,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/Xbox Live/.`
 
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/Xbox Live/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+
 
 </details>
 
@@ -1321,6 +1720,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Fake YouTube Subscribers Page is a mock phishing-awareness page for teaching how fake YouTube Subscribers offers, giveaways, upgrades, or login prompts manipulate trust. Use it only for education, screenshots, or consent-based training with dummy accounts. Never use it to collect real credentials, cards, wallets, or private information.
 
 **Save Location:** `Saved form data is written to ~/storage/downloads/YouTube Subscribers/.`
+
+**Platform Save Paths:**
+- **Termux:** `Saved form data is written to ~/storage/downloads/YouTube Subscribers/.`
+- **Ubuntu:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Kali Linux:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
+- **Linux Mint:** `Not enabled by the desktop compatibility launcher; the documented Termux/lab save path remains unchanged.`
 
 
 </details>
@@ -1343,6 +1748,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `All game data is stored in ~/Buzz/data/: questions_en.jsonl.gz, highscores.json, profiles.json, and settings.json.`
 
+**Platform Save Paths:**
+- **Termux:** `All game data is stored in ~/Buzz/data/: questions_en.jsonl.gz, highscores.json, profiles.json, and settings.json.`
+- **Ubuntu:** `All game data is stored in ~/Buzz/data/: questions_en.jsonl.gz, highscores.json, profiles.json, and settings.json.`
+- **Kali Linux:** `All game data is stored in ~/Buzz/data/: questions_en.jsonl.gz, highscores.json, profiles.json, and settings.json.`
+- **Linux Mint:** `All game data is stored in ~/Buzz/data/: questions_en.jsonl.gz, highscores.json, profiles.json, and settings.json.`
+
 
 </details>
 
@@ -1357,6 +1768,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Full‑screen Curses CTF game for Termux with story mode, missions, daily challenges, random boss levels, hint shop economy, achievements & ranks, challenge pack import/export, tournament mode, and anti‑cheat/integrity checks. Includes a built‑in level editor. Lightweight terminal game with quick controls and replay value.
 
 **Save Location:** `Challenge workspaces are stored in /storage/emulated/0/Download/CTF God/; fallback paths are ~/storage/downloads/CTF God/ and ~/CTF God/. Profiles, progress, packs, and custom challenges are stored in ~/.ctf_god/ (state.json, custom.json, packs/).`
+
+**Platform Save Paths:**
+- **Termux:** `Challenge workspaces are stored in /storage/emulated/0/Download/CTF God/; fallback paths are ~/storage/downloads/CTF God/ and ~/CTF God/. Profiles, progress, packs, and custom challenges are stored in ~/.ctf_god/ (state.json, custom.json, packs/).`
+- **Ubuntu:** `Challenge workspaces are stored in ~/Downloads/CTF God/; fallback paths are ~/Downloads/CTF God/ and ~/CTF God/. Profiles, progress, packs, and custom challenges are stored in ~/.ctf_god/ (state.json, custom.json, packs/).`
+- **Kali Linux:** `Challenge workspaces are stored in ~/Downloads/CTF God/; fallback paths are ~/Downloads/CTF God/ and ~/CTF God/. Profiles, progress, packs, and custom challenges are stored in ~/.ctf_god/ (state.json, custom.json, packs/).`
+- **Linux Mint:** `Challenge workspaces are stored in ~/Downloads/CTF God/; fallback paths are ~/Downloads/CTF God/ and ~/CTF God/. Profiles, progress, packs, and custom challenges are stored in ~/.ctf_god/ (state.json, custom.json, packs/).`
 
 
 </details>
@@ -1373,6 +1790,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `All saves are stored in ~/Detective/: player.json, highscores.json, and savegame_slot1.json through savegame_slot3.json.`
 
+**Platform Save Paths:**
+- **Termux:** `All saves are stored in ~/Detective/: player.json, highscores.json, and savegame_slot1.json through savegame_slot3.json.`
+- **Ubuntu:** `All saves are stored in ~/Detective/: player.json, highscores.json, and savegame_slot1.json through savegame_slot3.json.`
+- **Kali Linux:** `All saves are stored in ~/Detective/: player.json, highscores.json, and savegame_slot1.json through savegame_slot3.json.`
+- **Linux Mint:** `All saves are stored in ~/Detective/: player.json, highscores.json, and savegame_slot1.json through savegame_slot3.json.`
+
 
 </details>
 
@@ -1387,6 +1810,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** A fully featured terminal pet game. Feed, play, clean, and train your pet. Don't let it die. Advanced virtual pet simulation game with comprehensive pet management system. Features include pet evolution through life stages (Egg, Child, Teen, Adult, Elder), personality traits, skill development, mini-games, job system, and legacy retirement. Includes detailed statistics tracking. Lightweight terminal game with quick controls and replay value.
 
 **Save Location:** `The Tamagotchi save is stored in ~/.termux_tamagotchi_v8.json.`
+
+**Platform Save Paths:**
+- **Termux:** `The Tamagotchi save is stored in ~/.termux_tamagotchi_v8.json.`
+- **Ubuntu:** `The Tamagotchi save is stored in ~/.termux_tamagotchi_v8.json.`
+- **Kali Linux:** `The Tamagotchi save is stored in ~/.termux_tamagotchi_v8.json.`
+- **Linux Mint:** `The Tamagotchi save is stored in ~/.termux_tamagotchi_v8.json.`
 
 
 </details>
@@ -1403,6 +1832,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Game progress is saved in ~/Pet Friends/petfriends_save.json. Generated sound effects and background music are stored in ~/Pet Friends/sounds/.`
 
+**Platform Save Paths:**
+- **Termux:** `Game progress is saved in ~/Pet Friends/petfriends_save.json. Generated sound effects and background music are stored in ~/Pet Friends/sounds/.`
+- **Ubuntu:** `Game progress is saved in ~/Pet Friends/petfriends_save.json. Generated sound effects and background music are stored in ~/Pet Friends/sounds/.`
+- **Kali Linux:** `Game progress is saved in ~/Pet Friends/petfriends_save.json. Generated sound effects and background music are stored in ~/Pet Friends/sounds/.`
+- **Linux Mint:** `Game progress is saved in ~/Pet Friends/petfriends_save.json. Generated sound effects and background music are stored in ~/Pet Friends/sounds/.`
+
 
 </details>
 
@@ -1417,6 +1852,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** All-in-one terminal arcade pack with multiple mini-games in a single script. Saves data in ~/Terminal Arcade/ and runs smoothly on Termux/Linux terminals. Lightweight terminal game with quick controls and replay value.
 
 **Save Location:** `Arcade data is stored in ~/Terminal Arcade/. High scores and recent score history are saved in ~/Terminal Arcade/highscores.json.`
+
+**Platform Save Paths:**
+- **Termux:** `Arcade data is stored in ~/Terminal Arcade/. High scores and recent score history are saved in ~/Terminal Arcade/highscores.json.`
+- **Ubuntu:** `Arcade data is stored in ~/Terminal Arcade/. High scores and recent score history are saved in ~/Terminal Arcade/highscores.json.`
+- **Kali Linux:** `Arcade data is stored in ~/Terminal Arcade/. High scores and recent score history are saved in ~/Terminal Arcade/highscores.json.`
+- **Linux Mint:** `Arcade data is stored in ~/Terminal Arcade/. High scores and recent score history are saved in ~/Terminal Arcade/highscores.json.`
 
 
 </details>
@@ -1439,6 +1880,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Extracted APK files are saved in ~/storage/shared/Download/Extracted APK's/. Security reports are saved in ~/storage/shared/Download/App_Security_Reports/ as <app>_security_report.txt.`
 
+**Platform Save Paths:**
+- **Termux:** `Extracted APK files are saved in ~/storage/shared/Download/Extracted APK's/. Security reports are saved in ~/storage/shared/Download/App_Security_Reports/ as <app>_security_report.txt.`
+- **Ubuntu:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Kali Linux:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Linux Mint:** `Not applicable — this utility manages Android/Termux-specific features.`
+
 
 </details>
 
@@ -1453,6 +1900,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Customize your Termux startup with ASCII art loading screens. Supports custom art, delay timers, and automated setup/cleanup for one-time display. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `No separate output folder is created. The selected loading screen is written directly into ~/.bash_profile.`
+
+**Platform Save Paths:**
+- **Termux:** `No separate output folder is created. The selected loading screen is written directly into ~/.bash_profile.`
+- **Ubuntu:** `No separate output folder is created. The selected loading screen is written directly into ~/.bash_profile.`
+- **Kali Linux:** `No separate output folder is created. The selected loading screen is written directly into ~/.bash_profile.`
+- **Linux Mint:** `No separate output folder is created. The selected loading screen is written directly into ~/.bash_profile.`
 
 
 </details>
@@ -1469,6 +1922,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `The encrypted vault is saved as ./my_vault.enc in the current working directory. Backups are saved in /storage/emulated/0/Download/Password Master Backup/vault_backup.enc, or ~/Downloads/Password Master Backup/ outside Android.`
 
+**Platform Save Paths:**
+- **Termux:** `The encrypted vault is saved as ./my_vault.enc in the current working directory. Backups are saved in /storage/emulated/0/Download/Password Master Backup/vault_backup.enc, or ~/Downloads/Password Master Backup/ outside Android.`
+- **Ubuntu:** `The encrypted vault is saved as ./my_vault.enc in the current working directory. Backups are saved in ~/Downloads/Password Master Backup/vault_backup.enc, or ~/Downloads/Password Master Backup/ outside Android.`
+- **Kali Linux:** `The encrypted vault is saved as ./my_vault.enc in the current working directory. Backups are saved in ~/Downloads/Password Master Backup/vault_backup.enc, or ~/Downloads/Password Master Backup/ outside Android.`
+- **Linux Mint:** `The encrypted vault is saved as ./my_vault.enc in the current working directory. Backups are saved in ~/Downloads/Password Master Backup/vault_backup.enc, or ~/Downloads/Password Master Backup/ outside Android.`
+
 
 </details>
 
@@ -1484,6 +1943,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `The backup archive is saved as /storage/emulated/0/Download/name_backup.zip. Split parts are created beside that archive. backup_config.json is stored in the current working directory.`
 
+**Platform Save Paths:**
+- **Termux:** `The backup archive is saved as /storage/emulated/0/Download/name_backup.zip. Split parts are created beside that archive. backup_config.json is stored in the current working directory.`
+- **Ubuntu:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Kali Linux:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Linux Mint:** `Not applicable — this utility manages Android/Termux-specific features.`
+
 
 </details>
 
@@ -1498,6 +1963,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** DedSec Termux Repair Wizard is a no-root diagnostic and repair suite for repository and mirror errors, apt/dpkg failures, storage access, permissions, TLS certificates, caches, Python/pip, and shell/PATH problems. Its Script Keeper scans one script or an entire folder without directly launching the scripts, recognizes more than 20 languages plus extensionless shebang files, checks syntax, runtimes, commands, imports, modules, and common project manifests, and can install missing Termux and language-specific dependencies after confirmation. For newer Python releases, it also tries compatible replacement packages for removed standard-library modules. Every Script Keeper run produces a categorized report of installed items, fixes, warnings, failures, and syntax issues.
 
 **Save Location:** `Most repairs are applied directly to Termux packages, storage permissions, $HOME permissions, and shell files such as ~/.bashrc, ~/.profile, and ~/.zshrc. Script Keeper reports are saved as ~/DedSec/logs/script_keeper_<timestamp>.log.`
+
+**Platform Save Paths:**
+- **Termux:** `Most repairs are applied directly to Termux packages, storage permissions, $HOME permissions, and shell files such as ~/.bashrc, ~/.profile, and ~/.zshrc. Script Keeper reports are saved as ~/DedSec/logs/script_keeper_<timestamp>.log.`
+- **Ubuntu:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Kali Linux:** `Not applicable — this utility manages Android/Termux-specific features.`
+- **Linux Mint:** `Not applicable — this utility manages Android/Termux-specific features.`
 
 
 </details>
@@ -1520,6 +1991,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `The repository Extra Content folder is copied to ~/storage/downloads/Extra Content/.`
 
+**Platform Save Paths:**
+- **Termux:** `The repository Extra Content folder is copied to ~/storage/downloads/Extra Content/.`
+- **Ubuntu:** `The repository Extra Content folder is copied to ~/Downloads/Extra Content/.`
+- **Kali Linux:** `The repository Extra Content folder is copied to ~/Downloads/Extra Content/.`
+- **Linux Mint:** `The repository Extra Content folder is copied to ~/Downloads/Extra Content/.`
+
 
 </details>
 
@@ -1535,6 +2012,12 @@ These scripts are educational simulations intended to help users recognize socia
 
 **Save Location:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
 
+**Platform Save Paths:**
+- **Termux:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: /storage/emulated/0/Download/DedSec Project Legacy Save.zip | Offline transfer set: /storage/emulated/0/Download/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
+- **Ubuntu:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: ~/Downloads/DedSec Project Legacy Save.zip | Offline transfer set: ~/Downloads/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
+- **Kali Linux:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: ~/Downloads/DedSec Project Legacy Save.zip | Offline transfer set: ~/Downloads/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
+- **Linux Mint:** `Language: ~/Language.json | Termux configuration backup: ~/Termux.zip | Project archive: ~/Downloads/DedSec Project Legacy Save.zip | Offline transfer set: ~/Downloads/Termux Transfer/ | GitHub account: ~/.dedsec_github_account.json | Usage stats: ~/.dedsec_termux_usage_stats.json | Network utility data: ~/.dedsec_network_utilities/ and ~/.dedsec_network_utilities.json | DedSec OS desktop/config/users/workspace/runtime data: ~/DedSec OS/.`
+
 
 </details>
 
@@ -1549,6 +2032,12 @@ These scripts are educational simulations intended to help users recognize socia
 **Description:** Curses-based GitHub repository market for Termux that displays projects by project name instead of raw repository name. It fetches README text cleanly, shows releases and issues, supports install/update/delete and launch actions, keeps a watchlist, and stores cache/state for faster reuse. Built for Termux with clear prompts and organized outputs.
 
 **Save Location:** `Market state and cache are stored in ~/DedSec Market/ (state.json and cache/). Installed repositories are placed directly in ~/<repository-name>/, adding -1, -2, and so on if that folder already exists.`
+
+**Platform Save Paths:**
+- **Termux:** `Market state and cache are stored in ~/DedSec Market/ (state.json and cache/). Installed repositories are placed directly in ~/<repository-name>/, adding -1, -2, and so on if that folder already exists.`
+- **Ubuntu:** `Market state and cache are stored in ~/DedSec Market/ (state.json and cache/). Installed repositories are placed directly in ~/<repository-name>/, adding -1, -2, and so on if that folder already exists.`
+- **Kali Linux:** `Market state and cache are stored in ~/DedSec Market/ (state.json and cache/). Installed repositories are placed directly in ~/<repository-name>/, adding -1, -2, and so on if that folder already exists.`
+- **Linux Mint:** `Market state and cache are stored in ~/DedSec Market/ (state.json and cache/). Installed repositories are placed directly in ~/<repository-name>/, adding -1, -2, and so on if that folder already exists.`
 
 
 </details>
@@ -1582,6 +2071,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
 **Save Location:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
 
+**Platform Save Paths:**
+- **Termux:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Ubuntu:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Kali Linux:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Linux Mint:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+
 
 </details>
 
@@ -1596,6 +2091,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 **Description:** Expanded heavy-analysis version of the face detector for Termux, built without root. Along with live camera use, front/back camera switching, photo and video uploads, PNG snapshots, WEBM recording, and saved face crops, it raises tracking up to 30 faces and adds TensorFlow COCO-SSD object detection on top of the MediaPipe face mesh pipeline. It shows richer on-screen telemetry such as face count, animal/object detection, pose and gaze estimates, facial proportions, mouth and brow state, asymmetry scoring, and other visual analysis details, while still supporting both a local network link and an optional Cloudflare public link.
 
 **Save Location:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+
+**Platform Save Paths:**
+- **Termux:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/storage/downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Ubuntu:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Kali Linux:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
+- **Linux Mint:** `On Termux, captures, recordings, uploaded results, and saved face crops are stored in: ~/Downloads/Face Detector/. If Termux storage is unavailable, it falls back to ~/Face Detector/. On non-Termux systems it uses ~/Downloads/Face Detector/, with fallback to ~/Face Detector/. Internal web files, certificates, and helper binaries are stored in ~/.face_detector_studio/.`
 
 
 </details>
@@ -1612,6 +2113,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
 **Save Location:** `On Termux, saved photos are stored in: /storage/emulated/0/Download/Face Swap/ or ~/storage/downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.`
 
+**Platform Save Paths:**
+- **Termux:** `On Termux, saved photos are stored in: /storage/emulated/0/Download/Face Swap/ or ~/storage/downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.`
+- **Ubuntu:** `On Termux, saved photos are stored in: ~/Downloads/Face Swap/ or ~/Downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.`
+- **Kali Linux:** `On Termux, saved photos are stored in: ~/Downloads/Face Swap/ or ~/Downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.`
+- **Linux Mint:** `On Termux, saved photos are stored in: ~/Downloads/Face Swap/ or ~/Downloads/Face Swap/, with fallback to ~/Face Swap/. On non-Termux systems it uses ~/Downloads/Face Swap/, with fallback to ~/Face Swap/.`
+
 
 </details>
 
@@ -1626,6 +2133,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 **Description:** Password-based steganography suite for Termux. It can generate random black-and-white PNG carrier images, encrypt secret text with a password-derived Fernet key, hide the encrypted text inside PNG images using LSB steganography, and batch-decode hidden messages from all images placed in the Decrypt folder. Extracted messages are automatically saved as separate .txt files, and the script can also optionally clean processed images from the decode folder after scanning.
 
 **Save Location:** `Main folder: /storage/emulated/0/Download/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts.`
+
+**Platform Save Paths:**
+- **Termux:** `Main folder: /storage/emulated/0/Download/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts.`
+- **Ubuntu:** `Main folder: ~/Downloads/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts.`
+- **Kali Linux:** `Main folder: ~/Downloads/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts.`
+- **Linux Mint:** `Main folder: ~/Downloads/Steganography/ | Carrier/output images: /Encrypt | Images to scan for hidden messages: /Decrypt | Extracted text files: /Decrypted Texts.`
 
 
 </details>
@@ -1642,6 +2155,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
 **Save Location:** `On Termux, recorded evidence is saved in: ~/storage/downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.`
 
+**Platform Save Paths:**
+- **Termux:** `On Termux, recorded evidence is saved in: ~/storage/downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.`
+- **Ubuntu:** `On Termux, recorded evidence is saved in: ~/Downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.`
+- **Kali Linux:** `On Termux, recorded evidence is saved in: ~/Downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.`
+- **Linux Mint:** `On Termux, recorded evidence is saved in: ~/Downloads/AR Terror/. If Termux storage is unavailable, it falls back to ~/AR Terror/. On non-Termux systems it uses ~/Downloads/AR Terror/, with fallback to ~/AR Terror/. Internal web files, certificates, and helper binaries are stored in ~/.ar_terror_studio/.`
+
 
 </details>
 
@@ -1656,6 +2175,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 **Description:** Login Stealer.py is a fully working controlled login-security simulation tool for Termux that helps demonstrate how fake login pages, copied authentication screens, redirects, session behavior, and verification-style traps can make users trust the wrong page. It is built for awareness training, lab demonstrations, screenshots, and dummy-account testing so beginners can understand how phishing-style login tricks look before they fall for them in real life. It should be used only with dummy data, test accounts, or clear permission-based demonstrations, and it is not presented as a tool for stealing real accounts, private credentials, cookies, cards, wallets, or personal information.
 
 **Save Location:** `Main folder: /storage/emulated/0/Download/Login Stealer/ | Use only dummy data, test accounts, or permission-based lab demonstrations.`
+
+**Platform Save Paths:**
+- **Termux:** `Main folder: /storage/emulated/0/Download/Login Stealer/ | Use only dummy data, test accounts, or permission-based lab demonstrations.`
+- **Ubuntu:** `Main folder: ~/Downloads/Login Stealer/ | Use only dummy data, test accounts, or permission-based lab demonstrations.`
+- **Kali Linux:** `Main folder: ~/Downloads/Login Stealer/ | Use only dummy data, test accounts, or permission-based lab demonstrations.`
+- **Linux Mint:** `Main folder: ~/Downloads/Login Stealer/ | Use only dummy data, test accounts, or permission-based lab demonstrations.`
 
 
 </details>
@@ -1672,6 +2197,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
 **Save Location:** `Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.`
 
+**Platform Save Paths:**
+- **Termux:** `Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.`
+- **Ubuntu:** `Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.`
+- **Kali Linux:** `Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.`
+- **Linux Mint:** `Managed widget launchers are created in: ~/.shortcuts/ | State and manifest are stored in: ~/.dedsec_widget_maker/manifest.json. The original scripts are not moved; each widget points back to the detected source file.`
+
 
 </details>
 
@@ -1687,6 +2218,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 
 **Save Location:** `Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.`
 
+**Platform Save Paths:**
+- **Termux:** `Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.`
+- **Ubuntu:** `Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.`
+- **Kali Linux:** `Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.`
+- **Linux Mint:** `Main folder: ~/Kraken Trader/ | Config, paper wallet, watchlists, presets, alerts, baskets, DCA/grid assists, webhook logs, forward tests, reports, cache, journals, trade logs, and error logs are stored inside it. Optional report copies can be saved to Downloads if enabled.`
+
 
 </details>
 
@@ -1701,6 +2238,12 @@ Sponsors-Only access is now split into three GitHub Sponsors tiers:
 **Description:** Noob Hacker.py is a safe offline terminal learning game for Termux that teaches absolute beginners programming, Python basics, Termux/Bash habits, debugging, local-only cybersecurity thinking, defender workflows, report writing, projects, quizzes, and playable practice games. It is built as a single Python script, works without root, keeps practice inside fictional/local labs, includes English and Greek versions, supports self-tests, save migration, progress tracking, and many beginner-friendly lessons designed to guide someone from zero knowledge into practical safe skills. It does not attack real targets, scan the internet, steal accounts, or teach malware.
 
 **Save Location:** `Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/.`
+
+**Platform Save Paths:**
+- **Termux:** `Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/.`
+- **Ubuntu:** `Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/.`
+- **Kali Linux:** `Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/.`
+- **Linux Mint:** `Main folder: ~/Noob Hacker/ | Save file: ~/Noob Hacker/save.json | Mission log: ~/Noob Hacker/mission_log.txt | CTF labs: ~/Noob Hacker/CTF_Labs/ | Exports: ~/Noob Hacker/Exports/.`
 
 
 </details>
@@ -1750,6 +2293,12 @@ Use this only when recovery is impossible and you accept losing every old ButSys
 
 **Save Location:** `Main persistent data: /storage/emulated/0/Homework/ButSystem/ (also available as ~/storage/shared/Homework/ButSystem/) | Fallback: ~/Homework/ButSystem/ | Legacy data migrated from: ~/ButSystem/ | Face Detector captures: Downloads/ButSystem/Face Detector/ | Tor runtime data: ~/.ButSystem_tor/`
 
+**Platform Save Paths:**
+- **Termux:** `Main persistent data: /storage/emulated/0/Homework/ButSystem/ (also available as ~/storage/shared/Homework/ButSystem/) | Fallback: ~/Homework/ButSystem/ | Legacy data migrated from: ~/ButSystem/ | Face Detector captures: Downloads/ButSystem/Face Detector/ | Tor runtime data: ~/.ButSystem_tor/`
+- **Ubuntu:** `Main persistent data: /storage/emulated/0/Homework/ButSystem/ (also available as ~/storage/shared/Homework/ButSystem/) | Fallback: ~/Homework/ButSystem/ | Legacy data migrated from: ~/ButSystem/ | Face Detector captures: Downloads/ButSystem/Face Detector/ | Tor runtime data: ~/.ButSystem_tor/`
+- **Kali Linux:** `Main persistent data: /storage/emulated/0/Homework/ButSystem/ (also available as ~/storage/shared/Homework/ButSystem/) | Fallback: ~/Homework/ButSystem/ | Legacy data migrated from: ~/ButSystem/ | Face Detector captures: Downloads/ButSystem/Face Detector/ | Tor runtime data: ~/.ButSystem_tor/`
+- **Linux Mint:** `Main persistent data: /storage/emulated/0/Homework/ButSystem/ (also available as ~/storage/shared/Homework/ButSystem/) | Fallback: ~/Homework/ButSystem/ | Legacy data migrated from: ~/ButSystem/ | Face Detector captures: Downloads/ButSystem/Face Detector/ | Tor runtime data: ~/.ButSystem_tor/`
+
 Use only on systems you own or where you have explicit permission.
 
 </details>
@@ -1777,6 +2326,7 @@ Get in touch with our team and meet the talented people behind the DedSec Projec
 ### Credits
 
 * **Creator:** dedsec1121fk
+* **Help By:** zyxen.gr Systems Engineered
 * **Art Artists:** Christina Chatzidimitriou, 3A
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha
@@ -2048,7 +2598,7 @@ bash Setup.sh
 - **Transfer System:** δημιουργεί privacy-filtered Core/Data ZIP archives μαζί με `Install.sh` στο `Downloads/Termux Transfer/` για offline μεταφορά σε άλλη συμβατή συσκευή Termux. SSH keys, GitHub authentication, credentials, tokens, `.env` αρχεία και ανιχνευμένα project secrets αποκλείονται.
 - **Change Prompt:** αλλάζει το username που εμφανίζεται στο Termux prompt, καθαρίζει μη ασφαλείς χαρακτήρες, ενημερώνει το `bash.bashrc` και αφαιρεί το default MOTD όταν χρειάζεται.
 - **GitHub Account:** ανοίγει GitHub submenu για σύνδεση με GitHub CLI, αποσύνδεση account, προβολή GitHub stats και συγχρονισμό του Termux prompt με το connected GitHub username.
-- **Termux Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
+- **Termux/System Usage Stats:** σαρώνει το local Termux workspace και εμφανίζει tracked time, files scanned, files created, files edited, files deleted, latest created files, latest edited files, latest deleted files, programming languages used, shell commands found και most active folders.
 - **HTTP Proxy & Tor Utilities:** παρέχει προαιρετικά no-root routing/privacy controls. Μπορεί να ενεργοποιεί ή να απενεργοποιεί Tor, να ενεργοποιεί ή να απενεργοποιεί HTTP proxy, να επιλέγει χώρα proxy, να ανανεώνει και να δοκιμάζει proxy pools, να ενημερώνει τα απαραίτητα Proxy/Tor tools, να δείχνει connection status και να γράφει shell proxy exports ώστε νέα Termux sessions να επαναχρησιμοποιούν την επιλεγμένη route. Πρόκειται για proxy routing για Termux processes και όχι για πλήρες device-wide Android VPN.
 - **Change Menu Style:** επιτρέπει αλλαγή ανάμεσα σε **List Style**, **Grid Style**, **Choose By Number** και **DedSec OS**. Το επιλεγμένο style αποθηκεύεται ώστε το project να ανοίγει με τον ίδιο τρόπο την επόμενη φορά.
 - **Menu Auto-Start:** ενεργοποιεί ή απενεργοποιεί την αυτόματη εκκίνηση του DedSec menu όταν ανοίγει το Termux, ανάλογα με το αν θέλεις το Termux να μπαίνει κατευθείαν στο project menu ή να μένει σαν κανονικό shell.
@@ -2118,6 +2668,13 @@ bash Setup.sh
 - **Sponsors-Only:** 6 εργαλεία στο $3 tier / 9 εργαλεία στα $9 και $25 tiers· το $25 Ultimate tier περιλαμβάνει επιπλέον τα ebook benefits που αναφέρονται παρακάτω
 
 **Συνολικά καταχωρημένα στη σελίδα εργαλείων:** 87 εργαλεία
+
+---
+### Mobile Apps
+
+Μπορείς πλέον να κατεβάσεις επιλεγμένες εφαρμογές του DedSec Project απευθείας ως Android APK χωρίς να χρειάζεται Termux. Ο φάκελος `Apk's/` κρατά την πιο πρόσφατη σταθερή standalone έκδοση για κάθε διαθέσιμη εφαρμογή.
+
+- **ButSystem v1.0.0 — Universal APK (Android 8.0+):** [Λήψη ButSystem APK](https://github.com/dedsec1121fk/DedSec/raw/refs/heads/main/Apk%27s/ButSystem/ButSystem-v1.0.0-universal.apk)
 
 ---
 <a id="greek-developer-base"></a>
@@ -3561,6 +4118,7 @@ bash Setup.sh
 ### Συντελεστές
 
 * **Creator:** dedsec1121fk
+* **Help By:** zyxen.gr Systems Engineered
 * **Art Artists:** Christina Chatzidimitriou, 3A
 * **Legal Documents:** Lampros Spyrou
 * **Discord Server Maintenance:** Talha

@@ -3794,12 +3794,14 @@ Returns:
 
 
 def downloads_dir() -> str:
-    '''
-    Best-effort Android/Termux downloads directory.
-    - Termux: ~/storage/downloads (requires termux-setup-storage)
-    - Android common: /storage/emulated/0/Download
-    - Fallback: Homework/ButSystem/ (or internal if storage permission missing)
-    '''
+    """Resolve the platform Downloads directory with safe fallbacks."""
+    if not _is_termux():
+        desktop = os.path.join(HOME, "Downloads")
+        try:
+            os.makedirs(desktop, exist_ok=True)
+            return desktop
+        except Exception:
+            return BASE_DIR
     cand = os.path.join(HOME, "storage", "downloads")
     if os.path.isdir(cand):
         return cand
