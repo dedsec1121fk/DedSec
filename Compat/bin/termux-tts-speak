@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+if command -v espeak-ng >/dev/null 2>&1; then exec espeak-ng "$@"; fi
+if command -v espeak >/dev/null 2>&1; then exec espeak "$@"; fi
+echo 'No speech engine found.' >&2
+exit 1

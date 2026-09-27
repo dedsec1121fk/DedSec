@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -e
+url="${1:-}"
+[ -n "$url" ] || exit 2
+exec xdg-open "$url"

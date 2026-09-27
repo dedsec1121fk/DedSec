@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Desktop equivalent for the Termux opener. Ignore Android-only chooser/view
+# switches used by the project and open the first payload path/URL with xdg-open.
+target=''
+skip_next=0
+for arg in "$@"; do
+  if [ "$skip_next" -eq 1 ]; then skip_next=0; continue; fi
+  case "$arg" in
+    --chooser|--view|--send|--send-to) continue ;;
+    --content-type|--activity) skip_next=1; continue ;;
+    --) continue ;;
+    -*) continue ;;
+    *) target="$arg"; break ;;
+  esac
+done
+[ -n "$target" ] || { echo 'termux-open compatibility shim: no path or URL supplied.' >&2; exit 2; }
+exec xdg-open "$target"

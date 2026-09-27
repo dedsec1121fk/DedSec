@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+if [ "${1:-}" = '-j' ]; then
+  python3 - <<'PY'
+import json, platform, os
+print(json.dumps({
+  'termux_version':'desktop-compat',
+  'app_version':'desktop-compat',
+  'termux_api_version':'not-applicable',
+  'platform': platform.platform(),
+  'python': platform.python_version(),
+  'user': os.environ.get('USER','unknown'),
+}))
+PY
+else
+  echo 'Termux version: desktop-compat'
+  uname -a
+fi

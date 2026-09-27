@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+title='DedSec'
+content=''
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --title) shift; [ "$#" -gt 0 ] && title="$1" ;;
+    --content) shift; [ "$#" -gt 0 ] && content="$1" ;;
+  esac
+  shift || true
+done
+if command -v notify-send >/dev/null 2>&1; then
+  notify-send "$title" "$content" || true
+fi
+# Keep the shim successful even on headless systems; notification is optional.
+printf '[notification] %s: %s\n' "$title" "$content" >&2
+exit 0

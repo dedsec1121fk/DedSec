@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+mkdir -p "$HOME/Downloads" "$HOME/Documents" "$HOME/Pictures" "$HOME/Music" "$HOME/Videos"
+mkdir -p "$HOME/storage"
+ln -sfn "$HOME" "$HOME/storage/shared"
+ln -sfn "$HOME/Downloads" "$HOME/storage/downloads"
+ln -sfn "$HOME/Documents" "$HOME/storage/documents"
+ln -sfn "$HOME/Pictures" "$HOME/storage/pictures"
+ln -sfn "$HOME/Music" "$HOME/storage/music"
+ln -sfn "$HOME/Videos" "$HOME/storage/movies"
+echo '[compat] Desktop storage links created under ~/storage.'

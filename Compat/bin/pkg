@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ -x /data/data/com.termux/files/usr/bin/pkg ]; then
+  exec /data/data/com.termux/files/usr/bin/pkg "$@"
+fi
+
+if ! command -v apt-get >/dev/null 2>&1; then
+  echo 'pkg compatibility shim requires apt-get on desktop Linux.' >&2
+  exit 127
+fi
+
+APT=(apt-get)
+if [ "$(id -u)" -ne 0 ]; then
+  command -v sudo >/dev/null 2>&1 || { echo 'sudo is required for package installation.' >&2; exit 1; }
+  APT=(sudo apt-get)
+fi
+
+map_pkg() {
+  case "$1" in
+    python) echo python3 ;;
+    python-pip) echo python3-pip ;;
+    python-cryptography) echo python3-cryptography ;;
+    python-lxml) echo python3-lxml ;;
+    python-numpy) echo python3-numpy ;;
+    python-pillow) echo python3-pil ;;
+    python-scipy) echo python3-scipy ;;
+    openssh) echo openssh-client ;;
+    libjpeg-turbo) echo libjpeg-dev ;;
+    libpng) echo libpng-dev ;;
+    libcairo) echo libcairo2-dev ;;
+    libffi) echo libffi-dev ;;
+    freetype) echo libfreetype6-dev ;;
+    openssl-tool) echo openssl ;;
+    ncurses-utils) echo ncurses-bin ;;
+    sqlite) echo sqlite3 ;;
+    fd) echo fd-find ;;
+    avahi) echo avahi-utils ;;
+    net-snmp) echo snmp ;;
+    samba) echo samba-common-bin ;;
+    termux-api|termux-tools|termux-x11|x11-repo|root-repo|tur-repo|proot-distro)
+      echo "__UNSUPPORTED__:$1" ;;
+    *) echo "$1" ;;
+  esac
+}
+
+action="${1:-}"
+shift || true
+case "$action" in
+  update) exec "${APT[@]}" update ;;
+  upgrade) exec env DEBIAN_FRONTEND=noninteractive "${APT[@]}" upgrade -y ;;
+  install|reinstall|uninstall|remove)
+    mode=install
+    [ "$action" = uninstall ] || [ "$action" = remove ] && mode=remove
+    mapped=()
+    for arg in "$@"; do
+      case "$arg" in -y|--yes|--reinstall) continue ;; esac
+      m="$(map_pkg "$arg")"
+      case "$m" in
+        __UNSUPPORTED__:*) echo "[pkg-shim] ${m#__UNSUPPORTED__:} is Termux-only and has no desktop equivalent." >&2; continue ;;
+        *) mapped+=("$m") ;;
+      esac
+    done
+    [ "${#mapped[@]}" -gt 0 ] || exit 0
+    if [ "$action" = reinstall ]; then
+      exec env DEBIAN_FRONTEND=noninteractive "${APT[@]}" install --reinstall -y "${mapped[@]}"
+    fi
+    exec env DEBIAN_FRONTEND=noninteractive "${APT[@]}" "$mode" -y "${mapped[@]}"
+    ;;
+  search) exec apt-cache search "$@" ;;
+  list) exec apt list "$@" ;;
+  *) echo "pkg compatibility shim: unsupported action '$action'" >&2; exit 2 ;;
+esac

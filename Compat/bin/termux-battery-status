@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+python3 - <<'PY'
+import glob, json, os
+paths=glob.glob('/sys/class/power_supply/BAT*')
+if not paths:
+    print(json.dumps({'status':'UNKNOWN','percentage':None,'plugged':'UNKNOWN'})); raise SystemExit
+p=paths[0]
+def read(name, default='UNKNOWN'):
+    try:return open(os.path.join(p,name)).read().strip()
+    except Exception:return default
+try: pct=int(read('capacity','-1'))
+except Exception:pct=None
+print(json.dumps({'status':read('status'),'percentage':pct,'plugged':'UNKNOWN'}))
+PY

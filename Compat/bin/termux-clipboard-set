@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$#" -gt 0 ]; then
+  payload="$*"
+  if command -v wl-copy >/dev/null 2>&1; then printf '%s' "$payload" | wl-copy; exit $?; fi
+  if command -v xclip >/dev/null 2>&1; then printf '%s' "$payload" | xclip -selection clipboard; exit $?; fi
+  if command -v xsel >/dev/null 2>&1; then printf '%s' "$payload" | xsel --clipboard --input; exit $?; fi
+else
+  if command -v wl-copy >/dev/null 2>&1; then exec wl-copy; fi
+  if command -v xclip >/dev/null 2>&1; then exec xclip -selection clipboard; fi
+  if command -v xsel >/dev/null 2>&1; then exec xsel --clipboard --input; fi
+  cat >/dev/null
+fi
+echo 'No desktop clipboard helper found (install wl-clipboard, xclip, or xsel).' >&2
+exit 1

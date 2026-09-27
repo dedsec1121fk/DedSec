@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+if command -v wl-paste >/dev/null 2>&1; then exec wl-paste -n; fi
+if command -v xclip >/dev/null 2>&1; then exec xclip -selection clipboard -o; fi
+if command -v xsel >/dev/null 2>&1; then exec xsel --clipboard --output; fi
+echo 'No desktop clipboard helper found (install wl-clipboard, xclip, or xsel).' >&2
+exit 1
