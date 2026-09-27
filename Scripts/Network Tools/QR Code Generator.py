@@ -38,11 +38,13 @@ def generate_qr_for_link():
     """Generates a QR code image and saves it inside a 'QR Codes' folder 
     within the phone's Downloads directory."""
     
-    # 1. Define the correct path to the Downloads folder
-    # ~/storage/downloads/ is the Termux path for the phone's Downloads directory
-    downloads_path = os.path.expanduser("~/storage/downloads/")
+    # 1. Resolve Downloads on Termux or desktop Linux.
+    termux_downloads = os.path.expanduser("~/storage/downloads")
+    if os.path.isdir(termux_downloads):
+        downloads_path = termux_downloads
+    else:
+        downloads_path = os.path.join(os.path.expanduser("~"), "Downloads")
     folder_name = "QR Codes"
-    # The final output directory will be something like: /storage/emulated/0/Download/QR Codes/
     output_dir = os.path.join(downloads_path, folder_name)
     
     data = input("Enter the link (URL) to encode: ")
@@ -53,7 +55,7 @@ def generate_qr_for_link():
         os.makedirs(output_dir, exist_ok=True)
         print("📁 Directory verified/created.")
     except Exception as e:
-        print(f"❌ Error creating directory. Did you run 'termux-setup-storage'? Error: {e}")
+        print(f"❌ Error creating output directory: {e}")
         return
 
     # 3. Sanitize the link for use as a filename

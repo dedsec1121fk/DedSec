@@ -5348,7 +5348,8 @@ STORAGE
   App data:  ~/Digital Footprint Finder/
   Settings:  ~/Digital Footprint Finder/settings.json
   API keys:  ~/Digital Footprint Finder/api_keys.json (restricted permissions; values never printed)
-  Results:   ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/
+  Results (Termux): ~/storage/downloads/Digital Footprint Finder/<Case Name>/files/
+  Results (Ubuntu/Kali/Linux Mint): ~/Downloads/Digital Footprint Finder/<Case Name>/files/
 
 IMPORTANT
   Results are leads, not automatic proof of identity, ownership, intent, wrongdoing, or current control.

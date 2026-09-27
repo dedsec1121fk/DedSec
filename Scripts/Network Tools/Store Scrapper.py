@@ -14,7 +14,8 @@ Python scraper σε ένα μόνο αρχείο για πολλά online κατ
 - Εμφανίζει ζωντανή κατάσταση στο terminal
 - Enter = προεπιλογή σε κάθε prompt
 - Αποθηκεύει αποτελέσματα στον φάκελο:
-  ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
+  Termux: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
+  Ubuntu/Kali/Linux Mint: ~/Downloads/Store Scrapper/<Store>/<Category>/<Product>/
 
 Σημειώσεις:
 - Κανένα scraper δεν μπορεί να εγγυηθεί 100% επιτυχία σε κάθε κατάστημα. Ορισμένα sites
@@ -781,8 +782,18 @@ def safe_json_from_script(script_text: str) -> List[Any]:
 
 
 def get_home_downloads_dir() -> str:
+    is_termux = bool(
+        os.environ.get("TERMUX_VERSION")
+        or "com.termux" in os.environ.get("PREFIX", "")
+        or os.path.exists("/data/data/com.termux/files/usr/bin/pkg")
+    )
+    if not is_termux:
+        desktop_downloads = os.path.expanduser("~/Downloads")
+        ensure_dir(desktop_downloads)
+        return desktop_downloads
+
     termux_downloads = os.path.expanduser("~/storage/downloads")
-    fallback_downloads = os.path.expanduser("~/downloads")
+    fallback_downloads = "/storage/emulated/0/Download"
     if os.path.isdir(termux_downloads):
         return termux_downloads
     setup_cmd = shutil.which("termux-setup-storage")
@@ -2663,7 +2674,8 @@ def show_help() -> None:
 - Κατεβάζει τις εικόνες προϊόντων μέσα στον φάκελο κάθε προϊόντος
 
 Δομή φακέλων:
-~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
+Termux: ~/storage/downloads/Store Scrapper/<Store>/<Category>/<Product>/
+Ubuntu/Kali/Linux Mint: ~/Downloads/Store Scrapper/<Store>/<Category>/<Product>/
   metadata.json
   summary.txt
   description.txt
