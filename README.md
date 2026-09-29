@@ -1,5 +1,6 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/47ad8e5cbaaee04af552ae6b90edc49cd75b324b/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg" alt="DedSec Project Logo" width="150"/>
+  <img src="https://raw.githubusercontent.com/dedsec1121fk/dedsec1121fk.github.io/47ad8e5cbaaee04af552ae6b90edc49cd75b324b/Assets/Images/Logos/Black%20Purple%20Butterfly%20Logo.jpeg" alt="DedSec Project Logo" width="150"/><br>
+  <a href="https://www.bestpractices.dev/projects/15084"><img src="https://www.bestpractices.dev/projects/15084/badge" alt="OpenSSF Best Practices"></a>
   <h1>DedSec Project</h1>
   <p>
     <a href="https://ded-sec.space/"><strong>Official Website</strong></a>
