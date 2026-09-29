@@ -33,7 +33,31 @@ jobs:
         uses: actions/checkout@v7
       - name: Install ShellCheck / Εγκατάσταση ShellCheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
-      - name: Bash syntax / Bash syntax
-        run: bash -n Run.sh Setup.sh Setup-Termux.sh
-      - name: ShellCheck / ShellCheck
-        run: shellcheck --severity=error Run.sh Setup.sh Setup-Termux.sh
+      - name: Bash syntax / Έλεγχος Bash syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files=(Run.sh Setup.sh Setup-Termux.sh)
+          while IFS= read -r -d '' path; do
+            if head -n 1 "$path" | grep -Eq '^#!.*(bash|/sh)'; then
+              files+=("$path")
+            fi
+          done < <(find Compat/bin -maxdepth 1 -type f -print0)
+
+          for path in "${files[@]}"; do
+            bash -n "$path"
+          done
+      - name: ShellCheck / Έλεγχος ShellCheck
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files=(Run.sh Setup.sh Setup-Termux.sh)
+          while IFS= read -r -d '' path; do
+            if head -n 1 "$path" | grep -Eq '^#!.*(bash|/sh)'; then
+              files+=("$path")
+            fi
+          done < <(find Compat/bin -maxdepth 1 -type f -print0)
+
+          shellcheck --severity=error "${files[@]}"
