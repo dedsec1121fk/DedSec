@@ -1,0 +1,39 @@
+name: DedSec Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout / Λήψη repository
+        uses: actions/checkout@v7
+      - name: Python / Ρύθμιση Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Dependencies / Dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Tests / Δοκιμές
+        run: python -m pytest
+      - name: Ruff / Ruff
+        run: ruff check . --output-format=github
+
+  shell-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout / Λήψη repository
+        uses: actions/checkout@v7
+      - name: Install ShellCheck / Εγκατάσταση ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash syntax / Bash syntax
+        run: bash -n Run.sh Setup.sh Setup-Termux.sh
+      - name: ShellCheck / ShellCheck
+        run: shellcheck --severity=error Run.sh Setup.sh Setup-Termux.sh
