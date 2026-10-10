@@ -46,6 +46,12 @@ is_termux() {
   [ -n "${TERMUX_VERSION:-}" ] || [ -x /data/data/com.termux/files/usr/bin/pkg ] || [[ "${PREFIX:-}" == *com.termux* ]]
 }
 
+
+# First-install legal approval is mandatory; declining has no setup side effects.
+# shellcheck source=Compat/legal_consent.sh
+source "$ROOT_DIR/Compat/legal_consent.sh"
+dedsec_require_legal_acceptance || exit 1
+
 # Preserve the mature Termux setup path unchanged.
 if is_termux; then
   args=()
@@ -77,6 +83,13 @@ case " $OS_ID $OS_LIKE " in
   *) echo "[warning] $OS_NAME is not one of the primary tested targets; continuing because apt-get is available." ;;
 esac
 
+LOG_DIR="${HOME:-$ROOT_DIR}/.dedsec/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
+if command -v tee >/dev/null 2>&1; then
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
+printf '[DedSec Setup] Log: %s\n' "$LOG_FILE"
 echo "[DedSec Setup] Platform: $OS_NAME"
 echo "[DedSec Setup] Project:  $ROOT_DIR"
 
@@ -150,11 +163,11 @@ fi
 
 "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
 
-CORE_PY=(requests urllib3)
+CORE_PY=(requests urllib3 flask flask-socketio werkzeug jinja2 cryptography qrcode)
 TOOL_PY=(
   beautifulsoup4 CairoSVG cloudscraper colorama python-dateutil dnspython
-  python-docx python-dotenv EbookLib ExifRead flask flask-socketio geopy httpx
-  Jinja2 Markdown MarkupSafe odfpy paramiko phonenumbers python-nmap python-pptx
+  python-docx python-dotenv EbookLib ExifRead geopy httpx
+  Markdown MarkupSafe odfpy paramiko phonenumbers python-nmap python-pptx
   psd-tools psutil py7zr pycountry PySocks pytz qrcode rarfile reportlab rich
   pypdf
   speedtest-cli striprtf tldextract validators websocket-client werkzeug python-whois zxcvbn
@@ -182,7 +195,7 @@ chmod +x "$ROOT_DIR/Run.sh" "$ROOT_DIR/Compat/bin/"* 2>/dev/null || true
 # Basic validation.
 "$PYTHON_BIN" - <<'PY'
 import importlib
-required = ['requests', 'urllib3']
+required = ['requests', 'urllib3', 'flask', 'flask_socketio', 'werkzeug', 'jinja2', 'cryptography', 'qrcode']
 missing=[]
 for name in required:
     try: importlib.import_module(name)
@@ -196,6 +209,11 @@ PY
 for cmd in bash git curl wget unzip zip openssl; do
   command -v "$cmd" >/dev/null 2>&1 || { echo "[error] Required command unavailable: $cmd" >&2; exit 1; }
 done
+
+# Apply the saved menu autostart preference on first installation.
+# If the profile is not writable, report it without hiding setup success.
+"$PYTHON_BIN" "$ROOT_DIR/Scripts/Settings.py" --configure-menu-autostart || \
+  echo '[warning] Shell autostart needs manual enabling via Settings.'
 
 echo '[complete] Desktop Linux dependencies are ready.'
 echo "[note] Python environment: $VENV_DIR"

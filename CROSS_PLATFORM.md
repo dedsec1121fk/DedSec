@@ -7,6 +7,12 @@ This build adds a shared launch/setup path for:
 - Linux Mint
 - Termux on Android
 
+## First-install legal acceptance (mandatory)
+
+Before **any package installation**, `Setup.sh` and direct `Setup-Termux.sh` display the English/Greek legal consent gate from `Important Documents/`: `y` or **Enter** accepts, `n` declines and cancels setup without performing installation (retry is allowed), `r` shows reading choices, `re` reads the full English document, `rg` reads the full Greek document. No input/EOF is refusal. A per-user digest record avoids redundant prompts until the legal originals change. The DOCX originals are unchanged; read-only TXT reading copies are included.
+
+Maintenance/build steps and the Ubuntu QA repair status are documented in `Important Documents/DEDSEC_FULL_MAINTENANCE_HANDBOOK_EN.md` and `Important Documents/UBUNTU_QA_REPAIR_TRACKER.md` (with a Greek maintenance guide).
+
 ## Install / update
 
 Run from the project root:

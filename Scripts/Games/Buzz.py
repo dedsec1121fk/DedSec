@@ -830,25 +830,27 @@ def mode_buzz_choice(db: List[dict], cfg: dict, profiles: dict, hs: dict) -> Non
     rng = random.Random()
 
     
-rounds = int(cfg["show_rounds"])
-for r in range(1, rounds+1):
-    # Category hop: ALWAYS use the displayed category (no fallback to other categories).
-    # If a category has no questions (shouldn't happen), we re-pick.
-    cat = rng.choice(CATEGORIES)
-    pool = build_pool(db, cat, difficulty)
-    tries = 0
-    while not pool and tries < 10:
+
+    rounds = max(1, int(cfg["show_rounds"]))
+    for r in range(1, rounds + 1):
+        # Use the category displayed on screen for every round.
         cat = rng.choice(CATEGORIES)
         pool = build_pool(db, cat, difficulty)
-        tries += 1
-    if not pool:
-        # Absolute fallback (still strict): use ALL.
-        cat = "ALL"
-        pool = build_pool(db, cat, difficulty)
-
+        tries = 0
+        while not pool and tries < 10:
+            cat = rng.choice(CATEGORIES)
+            pool = build_pool(db, cat, difficulty)
+            tries += 1
+        if not pool:
+            cat = "ALL"
+            pool = build_pool(db, cat, difficulty)
+        if not pool:
+            print("No questions are available for this difficulty.")
+            pause()
+            return
         rname, rfn = rng.choice(ROUND_TYPES)
         clear()
-        print(f"=== BUZZ\'S CHOICE ===\nRound {r}/{rounds} | {rname} | Category: {cat} | Diff: {difficulty}\n")
+        print(f"=== BUZZ'S CHOICE ===\nRound {r}/{rounds} | {rname} | Category: {cat} | Diff: {difficulty}\n")
         pause("Press ENTER to start...")
         rfn(pool, nicks, scores, cfg)
 

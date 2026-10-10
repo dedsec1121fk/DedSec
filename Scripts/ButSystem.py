@@ -152,6 +152,14 @@ Returns:
     except Exception:
         _run([sys.executable, "-m", "pip", "install", "qrcode>=7.4"], check=False)
 
+# Use the project's Python when someone launches this script directly with the
+# distro-managed interpreter (Ubuntu 26+ PEP 668).  Never try sudo/global pip.
+if not _is_termux():
+    _project_python = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.venv', 'bin', 'python'))
+    if os.path.isfile(_project_python) and os.access(_project_python, os.X_OK):
+        os.execv(_project_python, [_project_python, os.path.abspath(__file__), *sys.argv[1:]])
+    raise SystemExit('[DedSec] Project virtual environment is missing. Run: bash Setup.sh, then ./Run.sh')
+
 ensure_dependencies()
 
 from flask import (

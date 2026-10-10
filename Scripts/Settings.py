@@ -670,7 +670,7 @@ GREEK_STRINGS = {'Select an option': 'Επιλέξτε μια επιλογή',
  'No proxy selected': 'Δεν έχει επιλεγεί proxy',
  'New sessions': 'Νέες συνεδρίες',
  'Covered by bash.bashrc hook': 'Καλύπτονται από hook στο bash.bashrc',
- 'Network exports updated. Restart Termux or open a new shell to apply them everywhere.': 'Οι ρυθμίσεις δικτύου '
+ 'Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged.': 'Οι ρυθμίσεις δικτύου '
                                                                                           'ενημερώθηκαν. Κάντε '
                                                                                           'επανεκκίνηση του Termux ή '
                                                                                           'ανοίξτε νέο shell για να '
@@ -1416,7 +1416,36 @@ def update_dedsec_source_1():
 
 
 def update_dedsec_source_2():
-    return update_dedsec(REPO_URL_SOURCE_2, REPO_API_URL_SOURCE_2)
+    """Keep the alternate source isolated from the owner's official checkout.
+
+    Fetching a third-party source must never silently change origin on the
+    official DedSec repository or hard-reset that checkout.
+    """
+    mirror_path = os.path.join(HOME_DIR, "DedSec-Alternate-Source")
+    git = shutil.which("git") or "git"
+    print(pipboy_text(
+        f"Alternate-source checkout is separate: {mirror_path}",
+        f"Το εναλλακτικό αποθετήριο απομονώνεται εδώ: {mirror_path}",
+    ))
+    if os.path.isdir(os.path.join(mirror_path, ".git")):
+        remote = subprocess.run([git, "remote", "get-url", "origin"], cwd=mirror_path,
+                                capture_output=True, text=True, check=False)
+        if remote.returncode or remote.stdout.strip() != REPO_URL_SOURCE_2:
+            raise RuntimeError("Alternate checkout uses a different origin; refusing to overwrite it.")
+        status = subprocess.run([git, "status", "--porcelain"], cwd=mirror_path,
+                                capture_output=True, text=True, check=False)
+        if status.returncode or status.stdout.strip():
+            raise RuntimeError("Alternate checkout has local modifications; save them first.")
+        subprocess.run([git, "pull", "--ff-only"], cwd=mirror_path,
+                       check=True, timeout=GIT_OPERATION_TIMEOUT)
+    elif os.path.exists(mirror_path):
+        raise RuntimeError("Alternate destination already exists and is not a Git checkout.")
+    else:
+        subprocess.run([git, "clone", REPO_URL_SOURCE_2, mirror_path],
+                       check=True, timeout=GIT_OPERATION_TIMEOUT)
+    print(pipboy_text("Alternate repository updated without changing the official project's remote.",
+                      "Το εναλλακτικό αποθετήριο ενημερώθηκε χωρίς αλλαγή στο κύριο remote."))
+    return mirror_path
 
 def get_internal_storage():
     target = "/data" if _IS_TERMUX else "/"
@@ -1928,15 +1957,58 @@ def _build_project_save_archive(archive_path):
 
 
 
+def _save_desktop_project_local(archive_path):
+    """Create a fast, offline Ubuntu/Linux backup; never clone unrelated repos.
+
+    The Termux ecosystem-export tool remains separate and retains its original
+    workflow. Desktop users should not see an unresponsive screen while it
+    downloads Android APKs and clones multiple network repositories.
+    """
+    project = os.path.realpath(PROJECT_ROOT)
+    if not os.path.isdir(project):
+        raise FileNotFoundError("Local DedSec project folder not found: " + project)
+    os.makedirs(os.path.dirname(archive_path), exist_ok=True)
+    tmp = archive_path + ".partial-" + str(os.getpid())
+    ignored_dirs = {".git", ".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".tox", "node_modules"}
+    count = 0
+    try:
+        print(pipboy_text("[backup] Archiving local DedSec files (offline).", "[backup] Αρχειοθέτηση τοπικών αρχείων DedSec (χωρίς δίκτυο)."), flush=True)
+        with zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=5, allowZip64=True) as archive:
+            for current, dirs, files in os.walk(project, followlinks=False):
+                dirs[:] = sorted(d for d in dirs if d not in ignored_dirs and not os.path.islink(os.path.join(current, d)))
+                for filename in sorted(files):
+                    source = os.path.join(current, filename)
+                    if os.path.islink(source) or not os.path.isfile(source):
+                        continue
+                    relative = os.path.relpath(source, project)
+                    archive.write(source, os.path.join("DedSec Project", relative))
+                    count += 1
+                    if count % 25 == 0:
+                        print(f"[backup] {count} files archived...", flush=True)
+            archive.writestr("DedSec Project/BACKUP_README.txt",
+                             "This backup contains local DedSec project files (not .git history, virtual environments, credentials, or external sponsor repositories).\n"
+                             "Restore by extracting the DedSec Project directory. Re-run Setup.sh after restoring.\n")
+        os.replace(tmp, archive_path)
+        print(f"[backup] Finished: {count} files -> {archive_path}", flush=True)
+        return {"archive": archive_path, "failures": 0, "files": count}
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+
+
 def save_project():
     try:
         if _IS_TERMUX and not os.path.isdir(PROJECT_SAVE_DOWNLOADS_PATH):
             run_command_silent("termux-setup-storage")
 
         os.makedirs(PROJECT_SAVE_DOWNLOADS_PATH, exist_ok=True)
-        _delete_existing_project_save_archives()
         archive_path = os.path.join(PROJECT_SAVE_DOWNLOADS_PATH, PROJECT_SAVE_ARCHIVE_NAME)
-        result = _build_project_save_archive(archive_path)
+        if _IS_TERMUX:
+            print(pipboy_text("[backup] Downloading Android APKs and collecting project repositories; this may take time.",
+                              "[backup] Λήψη Android APK και συλλογή αποθετηρίων, ενδέχεται να διαρκέσει."), flush=True)
+            result = _build_project_save_archive(archive_path)
+        else:
+            result = _save_desktop_project_local(archive_path)
         _copy_project_archive_to_selected_folders(archive_path)
         print(_(PROJECT_SAVE_SUCCESS_MESSAGE))
         print(pipboy_text(f"Save path: {archive_path}", f"Διαδρομή αποθήκευσης: {archive_path}"))
@@ -3816,7 +3888,7 @@ def update_bashrc(current_language_path, current_style):
     elif current_language_path == GREEK_PATH_FULL:
         alias_line = f"alias g='cd \"{GREEK_PATH_FULL}\" && {launch_command}'\n"
 
-    autostart_enabled = load_menu_autostart_preference() or current_style in {"pipboy", "dedsec_os"}
+    autostart_enabled = load_menu_autostart_preference()
     filtered_lines.append("\n" + BASHRC_START_MARKER + "\n")
     if autostart_enabled:
         filtered_lines.append(startup)
@@ -3881,10 +3953,10 @@ def choose_menu_style(stdscr):
         stdscr.refresh()
         key = stdscr.getch()
         
-        if key == curses.KEY_UP and current > 0:
-            current -= 1
-        elif key == curses.KEY_DOWN and current < len(options) - 1:
-            current += 1
+        if key == curses.KEY_UP:
+            current = (current - 1) % len(options)
+        elif key == curses.KEY_DOWN:
+            current = (current + 1) % len(options)
         elif key in [10, 13]:
             if current == 0:
                 return "list"
@@ -4005,10 +4077,10 @@ def choose_language(stdscr):
         stdscr.refresh()
         key = stdscr.getch()
         
-        if key == curses.KEY_UP and current > 0:
-            current -= 1
-        elif key == curses.KEY_DOWN and current < len(options) - 1:
-            current += 1
+        if key == curses.KEY_UP:
+            current = (current - 1) % len(options)
+        elif key == curses.KEY_DOWN:
+            current = (current + 1) % len(options)
         elif key in [10, 13]:
             return "english" if current == 0 else "greek"
         elif key in [ord('q'), ord('Q')]:
@@ -4186,6 +4258,10 @@ def run_list_menu():
                 print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                 sys.exit(0)
 
+            # Unsupported/risky utilities return 126; don't strand the user outside the menu.
+            if retcode == 126:
+                continue
+
             return
 
         else:
@@ -4304,6 +4380,10 @@ def run_number_menu():
                 if retcode in (2, 130):
                     print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                     sys.exit(0)
+
+                # Unsupported/risky utilities return 126; keep the menu active.
+                if retcode == 126:
+                    continue
 
                 return
 
@@ -4540,6 +4620,10 @@ def run_grid_menu():
             if retcode in (2, 130):
                 print(_("\nScript terminated by KeyboardInterrupt. Exiting gracefully..."))
                 sys.exit(0)
+
+            # Unsupported/risky utilities return 126; don't strand the user outside the menu.
+            if retcode == 126:
+                continue
 
             return
 
@@ -8310,9 +8394,11 @@ def collect_software_center_status():
     installed integration and defers actual API execution until the user
     explicitly uses that feature.
     """
-    shared = '/storage/emulated/0'
-    storage_ready = os.path.isdir(shared) and os.access(shared, os.R_OK)
-    pkg_ready = bool(shutil.which('pkg') or shutil.which('apt'))
+    shared = '/storage/emulated/0' if os.environ.get('PREFIX','').find('com.termux') >= 0 or sys.platform.startswith('android') else os.path.join(HOME_DIR, 'Downloads')
+    if not os.path.isdir(shared) and not shared.startswith('/storage/'):
+        shared = HOME_DIR  # Downloads is optional on a fresh Linux account.
+    storage_ready = os.path.isdir(shared) and os.access(shared, os.R_OK | os.W_OK)
+    pkg_ready = bool(shutil.which('pkg') or shutil.which('apt-get') or shutil.which('apt'))
     api_command = shutil.which('termux-battery-status')
     api_ready = bool(api_command)
     api_error = '' if api_ready else 'Termux:API command package is not installed.'
@@ -8335,17 +8421,17 @@ def collect_software_center_status():
     proot_ready = bool(shutil.which('proot-distro'))
     suggestions=[]
     if not storage_ready:
-        suggestions.append('Run termux-setup-storage and approve Android shared-storage access.')
-    if not api_ready:
-        suggestions.append('Install the termux-api package and the separate Termux:API Android companion app. Permissions are checked only when a feature is used.')
+        suggestions.append('Grant Android shared-storage permission in Termux.' if shared.startswith('/storage/') else 'Check write permissions for your home/Downloads directory.')
+    if not api_ready and shared.startswith('/storage/'):
+        suggestions.append('Install termux-api and the separate Termux:API Android companion app for optional Android features.')
     if notification_command and notification_ready is False:
         suggestions.append(notification_error or 'Grant notification access to Termux:API in Android Settings to read notifications.')
-    if not x11_command_ready:
-        suggestions.append('Desktop Linux GUI apps require the termux-x11 package.')
-    if x11_companion_ready is False:
-        suggestions.append('Install the separate Termux:X11 Android companion app before running LibreOffice or other Linux GUI apps.')
+    if not x11_command_ready and shared.startswith('/storage/'):
+        suggestions.append('Android desktop X11 apps require the termux-x11 package.')
+    if x11_companion_ready is False and shared.startswith('/storage/'):
+        suggestions.append('Install the separate Termux:X11 Android companion app for Termux X11 applications.')
     return {
-        'pkg_ready': pkg_ready, 'storage_ready': storage_ready, 'storage_path': shared,
+        'pkg_ready': pkg_ready, 'storage_ready': storage_ready, 'storage_path': shared, 'platform': 'termux' if shared.startswith('/storage/') else 'desktop-linux',
         'api_commands_installed': bool(api_command), 'api_ready': api_ready, 'api_error': api_error,
         'notification_command_installed': bool(notification_command), 'notification_ready': notification_ready, 'notification_error': notification_error,
         'x11_ready': x11_ready, 'x11_command_ready': x11_command_ready, 'x11_companion_ready': x11_companion_ready, 'proot_ready': proot_ready, 'suggestions': suggestions,
@@ -10718,7 +10804,7 @@ INDEX_HTML = r"""
     .storage-meter-head { display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
     .service-command { font-family:var(--font-mono); font-size:.78rem; color:var(--muted); overflow-wrap:anywhere; }
     .profile-current { outline:2px solid var(--cyan); outline-offset:-2px; }
-    .control-tabs { overflow-x:auto; flex-wrap:nowrap !important; scrollbar-width:thin; padding-bottom:4px; }
+    .control-tabs { overflow:visible!important; flex-wrap:wrap!important; align-items:center; scrollbar-width:thin; padding-bottom:4px; }
     .control-tabs > button { flex:0 0 auto; }
     @media (max-width: 760px) {
       :root { --sidebar-width:0px; }
@@ -12800,7 +12886,24 @@ INDEX_HTML = r"""
     .advanced-print-host{position:absolute;left:-100000px;top:0;width:1px;height:1px;overflow:hidden}
     @media(max-width:760px){.advanced-edit-strip{gap:3px;padding:4px}.advanced-edit-strip .btn,.advanced-edit-strip select{font-size:.67rem;min-height:25px;padding:3px 5px}.advanced-video-grid{grid-template-columns:1fr}.advanced-properties-grid{grid-template-columns:1fr}.advanced-properties-grid b{margin-top:4px}.advanced-file-status{display:none}}
 
-  </style>
+  
+    /* Ubuntu QA: preserve interactive hit targets, even in short desktop windows. */
+    [data-app="games"] .game-pane.active{overflow:auto!important;position:relative;pointer-events:auto!important}
+    [data-app="games"] .ttt-cell,[data-app="games"] .connect-cell,
+    [data-app="games"] .memory-card,[data-app="games"] .game-tab,
+    [data-app="games"] [data-2048],[data-app="games"] [data-sol-stock],
+    [data-app="games"] .playing-card{pointer-events:auto!important;cursor:pointer}
+    .help-quick-btn,.help-topic-card,.help-nav button,.help-diag-action button{position:relative;pointer-events:auto;cursor:pointer}
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="ne"],
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="nw"]{
+      width:9px!important;height:9px!important;z-index:3!important;
+    }
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="e"],
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="w"]{width:8px!important}
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="n"],
+    body.pc-runtime-desktop .screen > .dedsec-resize-handle[data-edge="s"]{height:8px!important}
+
+</style>
   <script>
     (function() {
       var themeName = __BOOT_THEME__;
@@ -13367,7 +13470,7 @@ INDEX_HTML = r"""
           </div>
           <div class="browser-frame-wrap" id="browserFrameWrap">
             <div class="browser-empty" id="browserHome">
-              <div style="width:min(760px,100%)"><div style="font-size:1.8rem;font-weight:800;margin-bottom:6px">Web Browser</div><div class="subtle" style="margin-bottom:18px">Browser-native tabs, bookmarks, history and a reader fallback. Some websites prevent iframe embedding; use Reader or Open External for those sites.</div><div class="browser-home-grid" id="browserHomeGrid"></div></div>
+              <div style="width:min(760px,100%)"><div style="font-size:1.8rem;font-weight:800;margin-bottom:6px">Web Browser</div><div class="subtle" style="margin-bottom:18px">Browser-native tabs, bookmarks, history and a reader fallback. Many websites block embedded browsing (X-Frame-Options/CSP). Use Open External for full websites; Reader is a limited fallback.</div><div class="browser-home-grid" id="browserHomeGrid"></div></div>
             </div>
             <iframe class="browser-frame hidden" id="browserFrame" title="Web Browser page" referrerpolicy="no-referrer-when-downgrade" sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
           </div>
@@ -15010,10 +15113,10 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
 
     function setControlTab(tab){state.controlTab=tab||'capabilities';document.querySelectorAll('[data-control-pane]').forEach(function(p){p.classList.toggle('hidden',p.getAttribute('data-control-pane')!==state.controlTab);});document.querySelectorAll('[data-control-tab]').forEach(function(b){b.classList.toggle('primary',b.getAttribute('data-control-tab')===state.controlTab);});var loaders={storage:loadStorageOverview,downloads:loadDownloads,services:loadServices,profiles:loadProfiles,logs:loadSystemLogs,android:loadAndroidApps};if(loaders[state.controlTab])loaders[state.controlTab]().catch(handleError);}
     function renderCapabilities(data){var caps=(data&&data.capabilities)||data||{},items=caps.items||[];var host=document.getElementById('rootlessCapabilities');if(host)host.innerHTML=items.map(function(item){return '<div class="metric-card capability-card '+(item.available?'ok':'off')+'"><div class="metric-label">'+escapeHtml(item.label)+'</div><div class="metric-value" style="font-size:1rem">'+(item.available?'Available':'Unavailable')+'</div><div class="subtle">'+escapeHtml(item.command)+' · '+escapeHtml(item.requirement||'')+'</div></div>';}).join('');var limits=document.getElementById('rootlessLimits');if(limits)limits.innerHTML='<div class="settings-section-title">Rootless boundary</div><div class="subtle">Running as Android UID '+escapeHtml(caps.uid||'')+', not root.</div><ul>'+((caps.limits||[]).map(function(x){return '<li>'+escapeHtml(x)+'</li>';}).join(''))+'</ul>';}
-    function renderProcesses(items){var host=document.getElementById('processList');if(!host)return;host.innerHTML=(items||[]).map(function(p){var ticks=escapeHtml(String(p.start_ticks||''));var controls=p.protected?'<span class="subtle">Protected</span>':'<div class="os-row-actions"><button class="btn small process-action" data-action="suspend" data-pid="'+p.pid+'" data-start="'+ticks+'">Pause</button><button class="btn small process-action" data-action="resume" data-pid="'+p.pid+'" data-start="'+ticks+'">Resume</button><button class="btn small process-action" data-action="lower_priority" data-pid="'+p.pid+'" data-start="'+ticks+'">Lower priority</button><button class="btn small danger process-action" data-action="terminate" data-pid="'+p.pid+'" data-start="'+ticks+'">End</button></div>';return '<div class="process-row"><b>'+p.pid+'</b><span>'+escapeHtml(p.name)+'</span><code class="process-command" title="'+escapeHtml(p.command)+'">'+escapeHtml(p.command)+'</code><span class="process-memory">'+formatBytes(p.rss||0)+'</span>'+controls+'</div>';}).join('')||'<div class="subtle">No Termux processes found.</div>';host.querySelectorAll('.process-action').forEach(function(btn){btn.addEventListener('click',async function(){var action=btn.getAttribute('data-action'),pid=Number(btn.getAttribute('data-pid')),startTicks=btn.getAttribute('data-start')||'';if(action==='terminate'&&!window.confirm('End process '+pid+'?'))return;try{await apiPost('/api/system/process/action',{pid:pid,action:action,start_ticks:startTicks});showToast('Process action: '+action);await refreshProcesses();}catch(err){handleError(err);}});});}
+    function renderProcesses(items){var host=document.getElementById('processList');if(!host)return;items=(items||[]).slice().sort(function(a,b){return Number(b.rss||0)-Number(a.rss||0);});host.innerHTML=items.map(function(p){var ticks=escapeHtml(String(p.start_ticks||''));var controls=p.protected?'<span class="subtle">Protected</span>':'<div class="os-row-actions"><button class="btn small process-action" data-action="suspend" data-pid="'+p.pid+'" data-start="'+ticks+'">Pause</button><button class="btn small process-action" data-action="resume" data-pid="'+p.pid+'" data-start="'+ticks+'">Resume</button><button class="btn small process-action" data-action="lower_priority" data-pid="'+p.pid+'" data-start="'+ticks+'">Lower priority</button><button class="btn small danger process-action" data-action="terminate" data-pid="'+p.pid+'" data-start="'+ticks+'">End</button></div>';return '<div class="process-row"><b>'+p.pid+'</b><span>'+escapeHtml(p.name)+'</span><code class="process-command" title="'+escapeHtml(p.command)+'">'+escapeHtml(p.command)+'</code><span class="process-memory">'+formatBytes(p.rss||0)+'</span>'+controls+'</div>';}).join('')||'<div class="subtle">No processes found.</div>';host.querySelectorAll('.process-action').forEach(function(btn){btn.addEventListener('click',async function(){var action=btn.getAttribute('data-action'),pid=Number(btn.getAttribute('data-pid')),startTicks=btn.getAttribute('data-start')||'';if(action==='terminate'&&!window.confirm('End process '+pid+'?'))return;try{await apiPost('/api/system/process/action',{pid:pid,action:action,start_ticks:startTicks});showToast('Process action: '+action);await refreshProcesses();}catch(err){handleError(err);}});});}
     async function refreshProcesses(){var data=await apiGet('/api/system/processes');renderProcesses(data.processes||[]);}
     function renderNetwork(net){var host=document.getElementById('networkBody');if(!host)return;var wifi=net.wifi||{};var wifiHtml='<div class="panel"><div class="settings-section-title">Wi-Fi</div><div class="grid info"><div class="info-card"><h3>SSID</h3><p>'+escapeHtml(wifi.ssid||'Unavailable')+'</p></div><div class="info-card"><h3>IP</h3><p>'+escapeHtml(wifi.ip||'Unavailable')+'</p></div><div class="info-card"><h3>Link</h3><p>'+escapeHtml(wifi.link_speed_mbps?wifi.link_speed_mbps+' Mbps':'Unavailable')+'</p></div><div class="info-card"><h3>Signal</h3><p>'+escapeHtml(wifi.rssi!=null?wifi.rssi+' dBm':'Unavailable')+'</p></div></div>'+(net.wifi_error?'<div class="subtle">'+escapeHtml(net.wifi_error)+'</div>':'')+'</div>';var ifaces='<div class="panel"><div class="settings-section-title">Interfaces</div>'+((net.interfaces||[]).map(function(i){return '<div class="network-interface"><b>'+escapeHtml(i.name||'interface')+'</b> <span class="subtle">'+escapeHtml(i.state||'')+'</span><div>'+((i.addresses||[]).map(function(a){return '<code>'+escapeHtml(a.address+'/'+a.prefixlen)+'</code>';}).join(' · ')||'No address')+'</div></div>';}).join('')||'<div class="subtle">No interface data.</div>')+'</div>';var dns='<div class="panel"><div class="settings-section-title">DNS</div><code>'+escapeHtml((net.dns||[]).join(' · ')||'Unavailable')+'</code></div>';host.innerHTML=wifiHtml+ifaces+dns;}
-    async function loadScratchpad(){try{var d=await apiGet('/api/system/scratchpad');var a=document.getElementById('scratchpadText'),p=document.getElementById('scratchpadPath');if(a&&document.activeElement!==a)a.value=d.text||'';if(p)p.textContent=d.path||'';}catch(_e){}}
+    async function loadScratchpad(){var a=document.getElementById('scratchpadText'),p=document.getElementById('scratchpadPath');try{var d=await apiGet('/api/system/scratchpad');if(a&&document.activeElement!==a)a.value=d.text||'';if(p)p.textContent=d.path||'';if(a)try{localStorage.setItem(desktopProfileKey('dedsec_scratchpad_cache_v1'),a.value);}catch(_e){};}catch(_e){if(a&&document.activeElement!==a)try{var cached=localStorage.getItem(desktopProfileKey('dedsec_scratchpad_cache_v1'));if(cached!=null)a.value=cached;}catch(_ignore){}}}
     function renderAndroidApps(items){var host=document.getElementById('androidAppsList');if(!host)return;var q=((document.getElementById('androidAppsSearch')||{}).value||'').trim().toLowerCase();items=(items||[]).filter(function(i){return !q||String(i.package||'').toLowerCase().indexOf(q)>=0||String(i.label||'').toLowerCase().indexOf(q)>=0;}).slice(0,500);host.innerHTML=items.map(function(i){return '<div class="os-list-row"><div><b>'+escapeHtml(i.label||i.package)+'</b><div class="subtle">'+escapeHtml(i.package)+'</div></div><button class="btn small primary android-app-launch" data-package="'+escapeHtml(i.package)+'">Launch</button></div>';}).join('')||'<div class="subtle">No visible Android apps match.</div>';host.querySelectorAll('.android-app-launch').forEach(function(b){b.addEventListener('click',async function(){try{await apiPost('/api/android/apps/launch',{package:b.getAttribute('data-package')});showToast('Launching '+b.getAttribute('data-package'));}catch(err){handleError(err);}});});}
     async function loadAndroidApps(){var d=await apiGet('/api/android/apps');state.androidApps=(d.apps&&d.apps.items)||[];renderAndroidApps(state.androidApps);}
     function renderStorageOverview(data){var host=document.getElementById('storageOverview');if(!host)return;var roots=(data&&data.roots)||[];host.innerHTML=roots.map(function(r){var pct=r.total?Math.round((r.used/r.total)*100):0;return '<div class="panel storage-meter"><div class="storage-meter-head"><b>'+escapeHtml(r.label)+'</b><span>'+formatBytes(r.used)+' / '+formatBytes(r.total)+' · '+pct+'%</span></div><div class="os-progress"><span style="width:'+Math.max(0,Math.min(100,pct))+'%"></span></div><div class="subtle">'+escapeHtml(r.path)+' · '+(r.writable?'Writable':'Read-only')+'</div><button class="btn small storage-use-path" data-path="'+escapeHtml(r.path)+'">Analyze</button></div>';}).join('')||'<div class="subtle">No storage roots available.</div>';host.querySelectorAll('.storage-use-path').forEach(function(btn){btn.addEventListener('click',function(){var path=btn.getAttribute('data-path');document.getElementById('storageScanPath').value=path;scanStorage(path).catch(handleError);});});}
@@ -15901,7 +16004,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
     // Pinball / flipper
     function newPinball(){var old=GAMES.pinball;if(old&&old.raf)cancelAnimationFrame(old.raf);GAMES.pinball={ball:{x:410,y:545,vx:0,vy:0,r:8,live:false},score:0,balls:3,left:false,right:false,launch:false,last:performance.now(),raf:0,bumpers:[{x:150,y:190,r:28},{x:330,y:180,r:28},{x:240,y:300,r:30}]};pinballLoop();drawPinball();}
     function pinballControl(a,on){var g=GAMES.pinball;if(!g)return;if(a==='left')g.left=on;if(a==='right')g.right=on;if(a==='launch'&&on)pinballLaunch();}
-    function pinballLaunch(){var g=GAMES.pinball;if(!g||g.ball.live||g.balls<=0)return;g.ball={x:420,y:540,vx:-70-Math.random()*45,vy:-560,r:8,live:true};document.getElementById('pinballStatus').textContent='Ball in play';}
+    function pinballLaunch(){var g=GAMES.pinball;if(!g||g.ball.live||g.balls<=0)return;g.ball={x:370,y:540,vx:-130-Math.random()*35,vy:-600,r:8,live:true};document.getElementById('pinballStatus').textContent='Ball in play';}
     function segBounce(ball,x1,y1,x2,y2,power){var vx=x2-x1,vy=y2-y1,l2=vx*vx+vy*vy,t=Math.max(0,Math.min(1,((ball.x-x1)*vx+(ball.y-y1)*vy)/l2)),px=x1+t*vx,py=y1+t*vy,dx=ball.x-px,dy=ball.y-py,d=Math.hypot(dx,dy)||1;if(d<ball.r+6){var nx=dx/d,ny=dy/d,dot=ball.vx*nx+ball.vy*ny;if(dot<0||power){ball.x=px+nx*(ball.r+7);ball.y=py+ny*(ball.r+7);ball.vx-=2*dot*nx;ball.vy-=2*dot*ny;if(power){ball.vx+=nx*power;ball.vy+=ny*power;}}}}
     function pinballPhysics(dt){var g=GAMES.pinball,b=g.ball;if(!b.live)return;b.vy+=650*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.vx*=.999;b.vy*=.999;if(b.x-b.r<18){b.x=18+b.r;b.vx=Math.abs(b.vx)*.88;}if(b.x+b.r>462){b.x=462-b.r;b.vx=-Math.abs(b.vx)*.88;}if(b.y-b.r<15){b.y=15+b.r;b.vy=Math.abs(b.vy)*.88;}g.bumpers.forEach(function(z){var dx=b.x-z.x,dy=b.y-z.y,d=Math.hypot(dx,dy)||1;if(d<b.r+z.r){var nx=dx/d,ny=dy/d;b.x=z.x+nx*(b.r+z.r);b.y=z.y+ny*(b.r+z.r);var dot=b.vx*nx+b.vy*ny;b.vx-=2*dot*nx;b.vy-=2*dot*ny;b.vx+=nx*190;b.vy+=ny*190;g.score+=100;playUiSound('click');}});var ly=g.left?500:530,ry=g.right?500:530;segBounce(b,105,565,210,ly,280);segBounce(b,375,565,270,ry,280);segBounce(b,42,430,118,470,0);segBounce(b,438,430,362,470,0);if(b.y>660){b.live=false;g.balls--;if(g.balls>0){g.ball={x:420,y:540,vx:0,vy:0,r:8,live:false};document.getElementById('pinballStatus').textContent='Space to launch';}else{gameBest('pinball',g.score);document.getElementById('pinballStatus').textContent='Game over';playUiSound('error');}}}
     function pinballLoop(now){var g=GAMES.pinball;if(!g)return;now=now||performance.now();var active=state.activeApp==='games'&&GAMES.active==='pinball';var dt=Math.min(.025,(now-g.last)/1000||.016);g.last=now;if(active&&!GAMES.paused){pinballPhysics(dt);drawPinball();}g.raf=requestAnimationFrame(pinballLoop);}
@@ -15946,7 +16049,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
     function memoryFlip(i){var g=GAMES.memory;if(!g||g.busy||i<0||i>=g.cards.length)return;var c=g.cards[i];if(c.matched||c.open)return;c.open=true;g.open.push(i);if(g.open.length===2){g.moves++;var a=g.cards[g.open[0]],b=g.cards[g.open[1]],generation=g.generation;if(a.s===b.s){a.matched=b.matched=true;g.pairs++;g.open=[];playUiSound('click');if(g.pairs===8){gameBest('memory',g.moves,'min');document.getElementById('memoryStatus').textContent='You matched them all!';playUiSound('notify');}}else{g.busy=true;setTimeout(function(){if(!GAMES.memory||GAMES.memory.generation!==generation)return;a.open=b.open=false;g.open=[];g.busy=false;renderMemory();},650);}}renderMemory();}
     function renderMemory(){var g=GAMES.memory,host=document.getElementById('memoryGrid');if(!g||!host)return;host.innerHTML=g.cards.map(function(c,i){return '<button type="button" class="memory-card '+(c.open?'open ':'')+(c.matched?'matched':'')+'" data-memory="'+i+'">'+(c.open||c.matched?c.s:'?')+'</button>';}).join('');host.querySelectorAll('[data-memory]').forEach(function(n){n.addEventListener('click',function(){memoryFlip(Number(n.getAttribute('data-memory')));});});document.getElementById('memoryMoves').textContent='Moves: '+g.moves;document.getElementById('memoryPairs').textContent='Pairs: '+g.pairs+'/8';var best=gameBest('memory');document.getElementById('memoryBest').textContent='Best: '+(best?best:'--');}
 
-    window.addEventListener('keydown',function(e){if(state.activeApp!=='games'||!GAMES.initialized)return;var tag=(e.target&&e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='select'||tag==='textarea')return;var k=String(e.key||'').toLowerCase();if(k==='p'){e.preventDefault();toggleGamePause();return;}if(k==='n'){e.preventDefault();newActiveGame();return;}if(GAMES.active==='snake'){var m={arrowup:'up',w:'up',arrowdown:'down',s:'down',arrowleft:'left',a:'left',arrowright:'right',d:'right'};if(m[k]){e.preventDefault();snakeDirection(m[k]);}}else if(GAMES.active==='blocks'){if(k==='arrowleft'){e.preventDefault();blockAction('left');}else if(k==='arrowright'){e.preventDefault();blockAction('right');}else if(k==='arrowdown'){e.preventDefault();blockAction('down');}else if(k==='arrowup'||k==='x'){e.preventDefault();blockAction('rotate');}else if(k===' '){e.preventDefault();blockAction('drop');}}else if(GAMES.active==='pinball'){if(k==='z'||k==='arrowleft'){e.preventDefault();pinballControl('left',true);}else if(k==='/'||k==='arrowright'){e.preventDefault();pinballControl('right',true);}else if(k===' '){e.preventDefault();pinballLaunch();}}});
+    window.addEventListener('keydown',function(e){if(state.activeApp!=='games'||!GAMES.initialized)return;var tag=(e.target&&e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='select'||tag==='textarea')return;var k=String(e.key||'').toLowerCase();if(k==='p'){e.preventDefault();toggleGamePause();return;}if(k==='n'){e.preventDefault();newActiveGame();return;}if(GAMES.active==='snake'){var m={arrowup:'up',w:'up',arrowdown:'down',s:'down',arrowleft:'left',a:'left',arrowright:'right',d:'right'};if(m[k]){e.preventDefault();snakeDirection(m[k]);}}else if(GAMES.active==='blocks'){if(k==='arrowleft'){e.preventDefault();blockAction('left');}else if(k==='arrowright'){e.preventDefault();blockAction('right');}else if(k==='arrowdown'){e.preventDefault();blockAction('down');}else if(k==='arrowup'||k==='x'){e.preventDefault();blockAction('rotate');}else if(k===' '){e.preventDefault();blockAction('drop');}}else if(GAMES.active==='g2048'){var d={arrowup:'up',w:'up',arrowdown:'down',s:'down',arrowleft:'left',a:'left',arrowright:'right',d:'right'};if(d[k]){e.preventDefault();move2048(d[k]);}}else if(GAMES.active==='pinball'){if(k==='z'||k==='arrowleft'){e.preventDefault();pinballControl('left',true);}else if(k==='/'||k==='arrowright'){e.preventDefault();pinballControl('right',true);}else if(k===' '){e.preventDefault();pinballLaunch();}}});
     window.addEventListener('keyup',function(e){if(state.activeApp!=='games'||GAMES.active!=='pinball'||!GAMES.initialized)return;var k=String(e.key||'').toLowerCase();if(k==='z'||k==='arrowleft')pinballControl('left',false);if(k==='/'||k==='arrowright')pinballControl('right',false);});
     document.addEventListener('visibilitychange',function(){if(document.hidden&&state.activeApp==='games'&&GAMES.initialized&&!GAMES.paused&&['snake','blocks','pinball'].indexOf(GAMES.active)>=0)toggleGamePause();});
 
@@ -16197,7 +16300,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
       // documentApps separate document explorer controls.
       var wordEd=document.getElementById('wordEditor');if(wordEd)wordEd.addEventListener('input',updateWordStats);updateWordStats();
       var wb=document.getElementById('wordNewBtn');if(wb)wb.addEventListener('click',wordNew);var wo=document.getElementById('wordOpenBtn');if(wo)wo.addEventListener('click',wordOpenPrompt);var ws=document.getElementById('wordSaveBtn');if(ws)ws.addEventListener('click',function(){wordSave(false).catch(handleError);});var wsa=document.getElementById('wordSaveAsBtn');if(wsa)wsa.addEventListener('click',function(){wordSave(true).catch(handleError);});var wpdf=document.getElementById('wordPdfBtn');if(wpdf)wpdf.addEventListener('click',function(){wordExportPdf().catch(handleError);});
-      document.querySelectorAll('.word-format').forEach(function(btn){btn.addEventListener('click',function(){var ed=document.getElementById('wordEditor');if(ed){ed.focus();document.execCommand(btn.dataset.cmd,false,null);}});});var wff=document.getElementById('wordFontFamily');if(wff)wff.addEventListener('change',function(){var ed=document.getElementById('wordEditor');if(ed){ed.focus();document.execCommand('fontName',false,this.value);}});var wfs=document.getElementById('wordFontSize');if(wfs)wfs.addEventListener('change',function(){var ed=document.getElementById('wordEditor');if(ed){ed.focus();document.execCommand('fontSize',false,this.value);}});
+      document.querySelectorAll('.word-format').forEach(function(btn){btn.addEventListener('click',function(){proExec('wordEditor',btn.dataset.cmd);});});var wff=document.getElementById('wordFontFamily');if(wff)wff.addEventListener('change',function(){proExec('wordEditor','fontName',this.value);});var wfs=document.getElementById('wordFontSize');if(wfs)wfs.addEventListener('change',function(){proExec('wordEditor','fontSize',this.value);});
       var en=document.getElementById('excelNewBtn');if(en)en.addEventListener('click',excelNew);var eo=document.getElementById('excelOpenBtn');if(eo)eo.addEventListener('click',excelOpenPrompt);var es=document.getElementById('excelSaveBtn');if(es)es.addEventListener('click',function(){excelSave(false).catch(handleError);});var esa=document.getElementById('excelSaveAsBtn');if(esa)esa.addEventListener('click',function(){excelSave(true).catch(handleError);});var eclear=document.getElementById('excelClearBtn');if(eclear)eclear.addEventListener('click',function(){if(confirm('Clear workbook?')){state.excelData={};renderExcelGrid();}});var er=document.getElementById('excelAddRowsBtn');if(er)er.addEventListener('click',function(){state.excelRows=Math.min(500,state.excelRows+10);renderExcelGrid();});var ec=document.getElementById('excelAddColsBtn');if(ec)ec.addEventListener('click',function(){state.excelCols=Math.min(100,state.excelCols+5);renderExcelGrid();});var ef=document.getElementById('excelFormulaInput');if(ef){ef.addEventListener('input',function(){state.excelData[state.excelSelected]=this.value;renderExcelValues();});ef.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();renderExcelValues();}});}renderExcelGrid();
       var pn=document.getElementById('powerpointNewBtn');if(pn)pn.addEventListener('click',powerpointNew);var po=document.getElementById('powerpointOpenBtn');if(po)po.addEventListener('click',powerpointOpenPrompt);var ps=document.getElementById('powerpointSaveBtn');if(ps)ps.addEventListener('click',function(){powerpointSave(false).catch(handleError);});var psa=document.getElementById('powerpointSaveAsBtn');if(psa)psa.addEventListener('click',function(){powerpointSave(true).catch(handleError);});var pp=document.getElementById('powerpointPresentBtn');if(pp)pp.addEventListener('click',function(){powerpointPresent(true);});var pa=document.getElementById('powerpointAddBtn');if(pa)pa.addEventListener('click',function(){powerpointSaveInputs();state.powerpointSlides.splice(state.powerpointIndex+1,0,{title:'New Slide',body:''});state.powerpointIndex++;renderPowerpoint();});var pd=document.getElementById('powerpointDuplicateBtn');if(pd)pd.addEventListener('click',function(){powerpointSaveInputs();var s=state.powerpointSlides[state.powerpointIndex]||{title:'',body:''};state.powerpointSlides.splice(state.powerpointIndex+1,0,{title:s.title,body:s.body});state.powerpointIndex++;renderPowerpoint();});var pdel=document.getElementById('powerpointDeleteBtn');if(pdel)pdel.addEventListener('click',function(){if(state.powerpointSlides.length>1&&confirm('Delete this slide?')){state.powerpointSlides.splice(state.powerpointIndex,1);state.powerpointIndex=Math.min(state.powerpointIndex,state.powerpointSlides.length-1);renderPowerpoint();}});var pprev2=document.getElementById('powerpointPrevBtn');if(pprev2)pprev2.addEventListener('click',function(){powerpointChange(-1);});var pnext2=document.getElementById('powerpointNextBtn');if(pnext2)pnext2.addEventListener('click',function(){powerpointChange(1);});var ppt=document.getElementById('powerpointTitleInput'),ppb=document.getElementById('powerpointBodyInput');[ppt,ppb].forEach(function(n){if(n)n.addEventListener('input',powerpointSaveInputs);});var ppp=document.getElementById('powerpointPresentPrevBtn');if(ppp)ppp.addEventListener('click',function(){powerpointChange(-1);});var ppn=document.getElementById('powerpointPresentNextBtn');if(ppn)ppn.addEventListener('click',function(){powerpointChange(1);});var ppe=document.getElementById('powerpointPresentExitBtn');if(ppe)ppe.addEventListener('click',function(){powerpointPresent(false);});renderPowerpoint();
       var pdfn=document.getElementById('pdfNewBtn');if(pdfn)pdfn.addEventListener('click',pdfNew);var pdfo=document.getElementById('pdfOpenBtn');if(pdfo)pdfo.addEventListener('click',pdfOpenPrompt);var pdfs=document.getElementById('pdfSaveBtn');if(pdfs)pdfs.addEventListener('click',function(){pdfSave().catch(handleError);});var pdfp=document.getElementById('pdfPrintBtn');if(pdfp)pdfp.addEventListener('click',pdfPrint);document.querySelectorAll('.pdf-format').forEach(function(btn){btn.addEventListener('click',function(){var ed=document.getElementById('pdfEditor');if(ed){ed.focus();document.execCommand(btn.dataset.cmd,false,null);}});});
@@ -16380,7 +16483,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
     }
 
     function softwareStatusCard(label,ok,detail){return '<div class="software-health-card '+(ok?'ok':'warn')+'"><b>'+escapeHtml(label)+'</b><span>'+escapeHtml(detail)+'</span></div>';}
-    function renderSoftwareHealth(status){var host=document.getElementById('softwareHealth');if(!host)return;status=status||{};var html='<div class="software-health-grid">'+softwareStatusCard('Package manager',!!status.pkg_ready,status.pkg_ready?'Ready':'pkg/apt unavailable')+softwareStatusCard('Phone storage',!!status.storage_ready,status.storage_ready?'Shared storage accessible':'Permission/setup required')+softwareStatusCard('Termux:API',!!status.api_ready,status.api_ready?'Android bridge ready':(status.api_commands_installed?'Permission/plugin issue':'Commands not installed'))+softwareStatusCard('Termux:X11',!!status.x11_ready,status.x11_ready?'X11 command installed':'Needed for Linux GUI apps')+'</div>';
+    function renderSoftwareHealth(status){var host=document.getElementById('softwareHealth');if(!host)return;status=status||{};var html='<div class="software-health-grid">'+softwareStatusCard('Package manager',!!status.pkg_ready,status.pkg_ready?'Ready':'pkg/apt unavailable')+softwareStatusCard(status.platform==='desktop-linux'?'Local storage':'Phone storage',!!status.storage_ready,status.storage_ready?'Storage accessible':'Permission/setup required')+softwareStatusCard('Termux:API',!!status.api_ready,status.api_ready?'Android bridge ready':(status.api_commands_installed?'Permission/plugin issue':'Commands not installed'))+softwareStatusCard('Termux:X11',!!status.x11_ready,status.x11_ready?'X11 command installed':'Needed for Linux GUI apps')+'</div>';
       if((status.suggestions||[]).length)html+='<div class="software-help"><b>Setup required for some features</b><br>'+status.suggestions.map(function(x){return '• '+escapeHtml(x);}).join('<br>')+'<div class="toolbar" style="margin-top:7px"><button class="btn small" id="storeSetupStorageBtn">Grant storage access</button><button class="btn small" id="storeNotificationSettingsBtn">Notification access</button></div><div style="margin-top:5px">Package installation itself uses <code>pkg/apt</code>; Android API permissions are only required for Android-integrated features.</div></div>';host.innerHTML=html;
       var ss=document.getElementById('storeSetupStorageBtn');if(ss)ss.addEventListener('click',function(){apiPost('/api/android/action',{action:'setup_storage'}).then(function(){showToast('Android storage permission request opened');setTimeout(function(){loadStore().catch(handleError);},1200);}).catch(handleError);});var ns=document.getElementById('storeNotificationSettingsBtn');if(ns)ns.addEventListener('click',function(){apiPost('/api/android/action',{action:'notification_settings'}).then(function(){showToast('Android notification-access settings opened');}).catch(handleError);});
     }
@@ -16497,7 +16600,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
       var aas=document.getElementById('androidAppsSearch');if(aas)aas.addEventListener('input',function(){renderAndroidApps(state.androidApps||[]);});
       var calc=document.getElementById('rootlessCalcBtn');if(calc)calc.addEventListener('click',function(){var input=String(document.getElementById('rootlessCalcInput').value||'').trim(),result=document.getElementById('rootlessCalcResult');try{if(!input||!/^[0-9+\-*/().%\s]+$/.test(input))throw new Error('Use numbers and arithmetic operators only.');var value=calcParseArithmetic(input);if(value===null||!Number.isFinite(value))throw new Error('Invalid arithmetic expression.');result.textContent=String(value);}catch(err){result.textContent='Error: '+err.message;}});
       var calcClear=document.getElementById('rootlessCalcClearBtn');if(calcClear)calcClear.addEventListener('click',function(){document.getElementById('rootlessCalcInput').value='';document.getElementById('rootlessCalcResult').textContent='0';});
-      var ss=document.getElementById('scratchpadSaveBtn');if(ss)ss.addEventListener('click',async function(){try{var d=await apiPost('/api/system/scratchpad',{text:document.getElementById('scratchpadText').value});document.getElementById('scratchpadPath').textContent=d.path||'';showToast('Scratchpad saved');}catch(err){handleError(err);}});
+      var ss=document.getElementById('scratchpadSaveBtn');if(ss)ss.addEventListener('click',async function(){var input=document.getElementById('scratchpadText'),value=input?input.value:'';try{var d=await apiPost('/api/system/scratchpad',{text:value});var verify=await apiGet('/api/system/scratchpad');if(verify.text!==value)throw new Error('Scratchpad verification failed.');document.getElementById('scratchpadPath').textContent=d.path||verify.path||'';try{localStorage.setItem(desktopProfileKey('dedsec_scratchpad_cache_v1'),value);}catch(_e){}showToast('Scratchpad saved and verified');}catch(err){try{localStorage.setItem(desktopProfileKey('dedsec_scratchpad_cache_v1'),value);}catch(_e){}handleError(err);}});
       var sr=document.getElementById('storageRefreshBtn');if(sr)sr.addEventListener('click',function(){loadStorageOverview().catch(handleError);});
       var ssb=document.getElementById('storageScanBtn');if(ssb)ssb.addEventListener('click',function(){scanStorage().catch(handleError);});
       var ds=document.getElementById('downloadStartBtn');if(ds)ds.addEventListener('click',function(){startManagedDownload().catch(handleError);});
@@ -16596,6 +16699,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
         if (terminalUsesLineMode()) {
           if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); await submitTerminalLine(); return; }
           if (event.ctrlKey && event.key && event.key.length === 1) {
+            var s=terminalSelectedSession();
             if(!s || s.id==='web-shell' || s.kind==='web-shell') {
               if(String(event.key).toLowerCase()==='c'){event.preventDefault();composer.value='';}
               return;
@@ -17263,7 +17367,9 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
     }
     function proBindRibbons(){document.querySelectorAll('[data-pro-tabs]').forEach(function(host){if(host.dataset.proBound)return;host.dataset.proBound='1';var app=host.dataset.proTabs;host.querySelectorAll('[data-pro-tab]').forEach(function(btn){btn.addEventListener('click',function(){proRibbonSelect(app,btn.dataset.proTab);});});});}
     function proEditorFind(editorId,replaceMode){var editor=document.getElementById(editorId);if(!editor)return;var q=window.prompt('Find text');if(!q)return;var walker=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),nodes=[],node;while((node=walker.nextNode()))nodes.push(node);if(replaceMode){var r=window.prompt('Replace with','');if(r===null)return;var escaped=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),rx=new RegExp(escaped,'gi'),count=0;nodes.forEach(function(n){var before=n.nodeValue||'',after=before.replace(rx,function(){count++;return r;});if(after!==before)n.nodeValue=after;});updateWordStats();showToast(count?('Replaced '+count+' occurrence'+(count===1?'':'s')):'Text not found',!count);return;}var target=q.toLocaleLowerCase();for(var i=0;i<nodes.length;i++){var at=(nodes[i].nodeValue||'').toLocaleLowerCase().indexOf(target);if(at>=0){var sel=window.getSelection(),range=document.createRange();range.setStart(nodes[i],at);range.setEnd(nodes[i],at+q.length);sel.removeAllRanges();sel.addRange(range);editor.focus();return;}}showToast('Text not found',true);}
-    function proExec(editorId,command,value){var ed=document.getElementById(editorId);if(!ed)return;ed.focus();document.execCommand(command,false,value==null?null:value);if(editorId==='wordEditor')updateWordStats();}
+    var proWordSavedRange=null;
+    document.addEventListener('selectionchange',function(){var ed=document.getElementById('wordEditor'),sel=window.getSelection();if(ed&&sel&&sel.rangeCount){var range=sel.getRangeAt(0);if(ed.contains(range.commonAncestorContainer))proWordSavedRange=range.cloneRange();}});
+    function proExec(editorId,command,value){var ed=document.getElementById(editorId);if(!ed)return;ed.focus();if(editorId==='wordEditor'&&proWordSavedRange){try{var selection=window.getSelection();selection.removeAllRanges();selection.addRange(proWordSavedRange);}catch(_ignored){}}document.execCommand(command,false,value==null?null:value);if(editorId==='wordEditor')updateWordStats();}
     function proWordZoom(value){var input=document.getElementById('wordZoomRange'),ed=document.getElementById('wordEditor'),label=document.getElementById('wordZoomLabel'),status=document.getElementById('wordStatusZoom');var v=Math.max(60,Math.min(160,Number(value)||100));if(input)input.value=String(v);if(ed)ed.style.zoom=String(v/100);if(label)label.textContent=v+'%';if(status)status.textContent=v+'%';}
     function proPowerpointZoom(value){var input=document.getElementById('powerpointZoomRange'),stage=document.getElementById('powerpointStage'),label=document.getElementById('powerpointZoomLabel'),status=document.getElementById('powerpointStatusZoom');var v=Math.max(50,Math.min(140,Number(value)||100));if(input)input.value=String(v);if(stage)stage.style.zoom=String(v/100);if(label)label.textContent=v+'%';if(status)status.textContent=v+'%';}
     function proPowerpointView(mode){var ws=document.getElementById('powerpointEditorLayout'),st=document.getElementById('powerpointViewStatus');if(!ws)return;ws.classList.toggle('ppt-sorter',mode==='sorter');if(st)st.textContent=mode==='sorter'?'Slide Sorter':'Normal';}
@@ -17315,7 +17421,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
       return workspaceMediaBaseIcon(name);
     };
 
-    workspaceCreateScreen('photo_editor','Photo Studio','Photoshop-style browser image editor — no X11','<div class="studio-shell"><div class="studio-toolbar"><button class="btn" id="photoOpenBtn">Open</button><button class="btn primary" id="photoSavePngBtn">Save PNG</button><button class="btn" id="photoSaveJpgBtn">Save JPEG</button><button class="btn" id="photoRotateLeft">↶ Rotate</button><button class="btn" id="photoRotateRight">Rotate ↷</button><button class="btn" id="photoFlipH">Flip H</button><button class="btn" id="photoFlipV">Flip V</button><button class="btn" id="photoTextBtn">Text</button><button class="btn" id="photoBrushBtn">Brush</button><button class="btn" id="photoApplyBtn">Apply</button><button class="btn" id="photoResetBtn">Reset</button></div><div class="studio-workspace"><aside class="studio-side"><label>Brightness <input id="photoBrightness" type="range" min="0" max="200" value="100"><span id="photoBrightnessVal">100</span></label><label>Contrast <input id="photoContrast" type="range" min="0" max="200" value="100"><span id="photoContrastVal">100</span></label><label>Saturation <input id="photoSaturation" type="range" min="0" max="250" value="100"><span id="photoSaturationVal">100</span></label><label>Grayscale <input id="photoGray" type="range" min="0" max="100" value="0"><span id="photoGrayVal">0</span></label><label>Blur <input id="photoBlur" type="range" min="0" max="12" value="0"><span id="photoBlurVal">0</span></label><label>Brush <input id="photoBrushSize" type="range" min="1" max="50" value="8"><span id="photoBrushSizeVal">8</span></label><label>Color <input id="photoBrushColor" type="color" value="#ff2040"><span></span></label></aside><div class="studio-canvas-wrap"><canvas id="photoCanvas" width="960" height="540"></canvas></div></div><div class="studio-status" id="photoStatus">Open an image from File Explorer, phone storage or SD card.</div></div>');
+    workspaceCreateScreen('photo_editor','Photo Studio','Photoshop-style browser image editor — no X11','<div class="studio-shell"><div class="studio-toolbar"><button class="btn" id="photoOpenBtn">Open</button><button class="btn" id="photoNewBtn">New canvas</button><button class="btn primary" id="photoSavePngBtn">Save PNG</button><button class="btn" id="photoSaveJpgBtn">Save JPEG</button><button class="btn" id="photoRotateLeft">↶ Rotate</button><button class="btn" id="photoRotateRight">Rotate ↷</button><button class="btn" id="photoFlipH">Flip H</button><button class="btn" id="photoFlipV">Flip V</button><button class="btn" id="photoTextBtn">Text</button><button class="btn" id="photoBrushBtn">Brush</button><button class="btn" id="photoApplyBtn">Apply</button><button class="btn" id="photoResetBtn">Reset</button></div><div class="studio-workspace"><aside class="studio-side"><label>Brightness <input id="photoBrightness" type="range" min="0" max="200" value="100"><span id="photoBrightnessVal">100</span></label><label>Contrast <input id="photoContrast" type="range" min="0" max="200" value="100"><span id="photoContrastVal">100</span></label><label>Saturation <input id="photoSaturation" type="range" min="0" max="250" value="100"><span id="photoSaturationVal">100</span></label><label>Grayscale <input id="photoGray" type="range" min="0" max="100" value="0"><span id="photoGrayVal">0</span></label><label>Blur <input id="photoBlur" type="range" min="0" max="12" value="0"><span id="photoBlurVal">0</span></label><label>Brush <input id="photoBrushSize" type="range" min="1" max="50" value="8"><span id="photoBrushSizeVal">8</span></label><label>Color <input id="photoBrushColor" type="color" value="#ff2040"><span></span></label></aside><div class="studio-canvas-wrap"><canvas id="photoCanvas" width="960" height="540"></canvas></div></div><div class="studio-status" id="photoStatus">Open an image from File Explorer, phone storage or SD card.</div></div>');
     workspaceCreateScreen('video_editor','Video Editor','Fast local trimming, mute and rotation using FFmpeg','<div class="video-editor-workspace"><div class="video-editor-preview"><video id="videoEditPreview" controls playsinline></video><div class="video-editor-timeline"><span id="videoEditNow">0:00</span><input id="videoEditSeek" type="range" min="0" max="1" step="0.01" value="0"><span id="videoEditDuration">0:00</span></div></div><aside class="video-editor-controls"><div class="field"><label>Source</label><div class="pathbar" id="videoEditPath">No video opened</div></div><button class="btn" id="videoEditOpen">Open video</button><div class="field"><label>Trim start (seconds)</label><input id="videoEditStart" type="number" min="0" step="0.1" value="0"></div><button class="btn" id="videoEditSetStart">Set from playhead</button><div class="field"><label>Trim end (seconds)</label><input id="videoEditEnd" type="number" min="0" step="0.1" value="0"></div><button class="btn" id="videoEditSetEnd">Set from playhead</button><div class="field"><label>Rotation</label><select id="videoEditRotate"><option value="0">None</option><option value="90">90° clockwise</option><option value="180">180°</option><option value="270">90° counter-clockwise</option></select></div><label class="check-line"><input id="videoEditMute" type="checkbox"> Remove audio</label><button class="btn" id="videoEditPreviewTrim">Preview trim</button><button class="btn primary" id="videoEditExport">Export video</button><button class="btn" id="videoEditStore">Install / manage FFmpeg</button><div class="subtle" id="videoEditStatus">Open a video to begin.</div></aside></div>');
 
     function workspaceEnsureFileDialog(){
@@ -17366,6 +17472,17 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
     state.photoStudio={image:null,path:'',rotation:0,flipX:1,flipY:1,brush:false,drawing:false,last:null,base:null};
     function photoFilter(){return 'brightness('+document.getElementById('photoBrightness').value+'%) contrast('+document.getElementById('photoContrast').value+'%) saturate('+document.getElementById('photoSaturation').value+'%) grayscale('+document.getElementById('photoGray').value+'%) blur('+document.getElementById('photoBlur').value+'px)';}
     function renderPhotoStudio(){var c=document.getElementById('photoCanvas'),st=state.photoStudio;if(!c||!st.image)return;var rot=st.rotation%360,swap=rot===90||rot===270,w=st.image.naturalWidth||st.image.width,h=st.image.naturalHeight||st.image.height;c.width=swap?h:w;c.height=swap?w:h;var x=c.getContext('2d');x.save();x.clearRect(0,0,c.width,c.height);x.filter=photoFilter();x.translate(c.width/2,c.height/2);x.rotate(rot*Math.PI/180);x.scale(st.flipX,st.flipY);x.drawImage(st.image,-w/2,-h/2,w,h);x.restore();document.getElementById('photoStatus').textContent=(st.path||'Image')+' · '+c.width+'×'+c.height;}
+    function photoNewBlank(){
+      var blank=document.createElement('canvas');blank.width=960;blank.height=640;
+      var ctx=blank.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,blank.width,blank.height);
+      var img=new Image();img.onload=function(){
+        state.photoStudio.image=img;state.photoStudio.path='';state.photoStudio.rotation=0;
+        state.photoStudio.flipX=1;state.photoStudio.flipY=1;
+        renderPhotoStudio();
+        showToast('New blank canvas ready. Enable Brush to draw.');
+      };
+      img.src=blank.toDataURL('image/png');
+    }
     async function photoOpen(){var path=await openWorkspaceFileDialog({extensions:['png','jpg','jpeg','webp','gif','bmp'],startPath:state.filesPath||''});if(!path)return;var img=new Image();img.onload=function(){state.photoStudio.image=img;state.photoStudio.path=path;state.photoStudio.rotation=0;state.photoStudio.flipX=1;state.photoStudio.flipY=1;renderPhotoStudio();};img.onerror=function(){showToast('Could not decode this image.',true);};img.src='/api/view?path='+encodeURIComponent(path)+'&t='+Date.now();}
     function photoBake(){var c=document.getElementById('photoCanvas'),img=new Image();img.onload=function(){state.photoStudio.image=img;state.photoStudio.rotation=0;state.photoStudio.flipX=1;state.photoStudio.flipY=1;['photoBrightness','photoContrast','photoSaturation'].forEach(function(id){document.getElementById(id).value=100;});document.getElementById('photoGray').value=0;document.getElementById('photoBlur').value=0;photoUpdateValues();renderPhotoStudio();};img.src=c.toDataURL('image/png');}
     function photoUpdateValues(){[['photoBrightness','photoBrightnessVal'],['photoContrast','photoContrastVal'],['photoSaturation','photoSaturationVal'],['photoGray','photoGrayVal'],['photoBlur','photoBlurVal'],['photoBrushSize','photoBrushSizeVal']].forEach(function(a){document.getElementById(a[1]).textContent=document.getElementById(a[0]).value;});}
@@ -17384,7 +17501,8 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
 
     function bindWorkspaceMediaRevision(){setupWindowsExplorer();extendExplorerNewTypes();workspaceEnsureFileDialog();enhanceLoginSettings();
       var sliders=['photoBrightness','photoContrast','photoSaturation','photoGray','photoBlur'];sliders.forEach(function(id){var n=document.getElementById(id);if(n)n.oninput=function(){photoUpdateValues();renderPhotoStudio();};});var bs=document.getElementById('photoBrushSize');if(bs)bs.oninput=photoUpdateValues;
-      document.getElementById('photoOpenBtn').onclick=function(){photoOpen().catch(handleError);};document.getElementById('photoSavePngBtn').onclick=function(){photoSave('image/png').catch(handleError);};document.getElementById('photoSaveJpgBtn').onclick=function(){photoSave('image/jpeg').catch(handleError);};document.getElementById('photoRotateLeft').onclick=function(){state.photoStudio.rotation=(state.photoStudio.rotation+270)%360;renderPhotoStudio();};document.getElementById('photoRotateRight').onclick=function(){state.photoStudio.rotation=(state.photoStudio.rotation+90)%360;renderPhotoStudio();};document.getElementById('photoFlipH').onclick=function(){state.photoStudio.flipX*=-1;renderPhotoStudio();};document.getElementById('photoFlipV').onclick=function(){state.photoStudio.flipY*=-1;renderPhotoStudio();};document.getElementById('photoApplyBtn').onclick=photoBake;document.getElementById('photoTextBtn').onclick=photoText;document.getElementById('photoResetBtn').onclick=function(){if(state.photoStudio.path)photoOpenPath(state.photoStudio.path);};var brush=document.getElementById('photoBrushBtn');brush.onclick=function(){state.photoStudio.brush=!state.photoStudio.brush;brush.classList.toggle('primary',state.photoStudio.brush);};var canvas=document.getElementById('photoCanvas');canvas.onpointerdown=function(e){if(!state.photoStudio.brush||!state.photoStudio.image)return;state.photoStudio.drawing=true;state.photoStudio.last=photoPointerPos(e,canvas);try{canvas.setPointerCapture(e.pointerId);}catch(_e){}};canvas.onpointermove=function(e){if(!state.photoStudio.drawing)return;var p=photoPointerPos(e,canvas),ctx=canvas.getContext('2d'),last=state.photoStudio.last;ctx.save();ctx.filter='none';ctx.strokeStyle=document.getElementById('photoBrushColor').value;ctx.lineWidth=Number(document.getElementById('photoBrushSize').value)||8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();state.photoStudio.last=p;};function endDraw(){if(state.photoStudio.drawing){state.photoStudio.drawing=false;photoBake();}}canvas.onpointerup=endDraw;canvas.onpointercancel=endDraw;
+      document.getElementById('photoOpenBtn').onclick=function(){photoOpen().catch(handleError);};
+      document.getElementById('photoNewBtn').onclick=photoNewBlank;document.getElementById('photoSavePngBtn').onclick=function(){photoSave('image/png').catch(handleError);};document.getElementById('photoSaveJpgBtn').onclick=function(){photoSave('image/jpeg').catch(handleError);};document.getElementById('photoRotateLeft').onclick=function(){state.photoStudio.rotation=(state.photoStudio.rotation+270)%360;renderPhotoStudio();};document.getElementById('photoRotateRight').onclick=function(){state.photoStudio.rotation=(state.photoStudio.rotation+90)%360;renderPhotoStudio();};document.getElementById('photoFlipH').onclick=function(){state.photoStudio.flipX*=-1;renderPhotoStudio();};document.getElementById('photoFlipV').onclick=function(){state.photoStudio.flipY*=-1;renderPhotoStudio();};document.getElementById('photoApplyBtn').onclick=photoBake;document.getElementById('photoTextBtn').onclick=photoText;document.getElementById('photoResetBtn').onclick=function(){if(state.photoStudio.path)photoOpenPath(state.photoStudio.path);};var brush=document.getElementById('photoBrushBtn');brush.onclick=function(){state.photoStudio.brush=!state.photoStudio.brush;brush.classList.toggle('primary',state.photoStudio.brush);};var canvas=document.getElementById('photoCanvas');canvas.onpointerdown=function(e){if(!state.photoStudio.brush||!state.photoStudio.image)return;state.photoStudio.drawing=true;state.photoStudio.last=photoPointerPos(e,canvas);try{canvas.setPointerCapture(e.pointerId);}catch(_e){}};canvas.onpointermove=function(e){if(!state.photoStudio.drawing)return;var p=photoPointerPos(e,canvas),ctx=canvas.getContext('2d'),last=state.photoStudio.last;ctx.save();ctx.filter='none';ctx.strokeStyle=document.getElementById('photoBrushColor').value;ctx.lineWidth=Number(document.getElementById('photoBrushSize').value)||8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.restore();state.photoStudio.last=p;};function endDraw(){if(state.photoStudio.drawing){state.photoStudio.drawing=false;photoBake();}}canvas.onpointerup=endDraw;canvas.onpointercancel=endDraw;
       var v=document.getElementById('videoEditPreview'),seek=document.getElementById('videoEditSeek');document.getElementById('videoEditOpen').onclick=function(){videoEditorOpen().catch(handleError);};v.onloadedmetadata=function(){var d=Number(v.duration)||0;seek.max=d;document.getElementById('videoEditEnd').value=d.toFixed(2);document.getElementById('videoEditDuration').textContent=videoTime(d);};v.ontimeupdate=function(){seek.value=v.currentTime||0;document.getElementById('videoEditNow').textContent=videoTime(v.currentTime);if(state.videoPreviewEnd&&v.currentTime>=state.videoPreviewEnd){v.pause();state.videoPreviewEnd=0;}};seek.oninput=function(){v.currentTime=Number(seek.value)||0;};document.getElementById('videoEditSetStart').onclick=function(){document.getElementById('videoEditStart').value=(v.currentTime||0).toFixed(2);};document.getElementById('videoEditSetEnd').onclick=function(){document.getElementById('videoEditEnd').value=(v.currentTime||0).toFixed(2);};document.getElementById('videoEditPreviewTrim').onclick=function(){var a=Number(document.getElementById('videoEditStart').value)||0,b=Number(document.getElementById('videoEditEnd').value)||v.duration;if(b<=a)return showToast('Trim end must be after start.',true);v.currentTime=a;state.videoPreviewEnd=b;v.play().catch(handleError);};document.getElementById('videoEditExport').onclick=function(){videoEditorExport().catch(handleError);};document.getElementById('videoEditStore').onclick=function(){setActiveApp('store');var q=document.getElementById('storeSearchInput');if(q){q.value='ffmpeg';renderStoreItems();}};
       photoUpdateValues();
     }
@@ -17749,7 +17867,7 @@ Past Help: Sal Scar, gr3ysec, lamprouil, UKI_hunter</div>
 
     function helpRenderAbout(){
       var info=state.info||{},cfg=state.config||{};
-      return '<div class="help-section-title"><h2>'+escapeHtml(helpLang('About this DedSec OS build','Σχετικά με αυτό το DedSec OS build'))+'</h2></div><div class="help-about-grid"><div class="help-card"><b>DedSec OS</b><p class="subtle">Browser-native desktop generated and served locally by Settings.py through Termux.</p></div><div class="help-card"><b>Profile</b><p class="subtle">'+escapeHtml(info.profile_name||info.display_name||'DedSec')+'</p></div><div class="help-card"><b>Platform</b><p class="subtle">'+escapeHtml((info.platform||'Android/Linux')+' '+(info.release||''))+'</p></div><div class="help-card"><b>Architecture</b><p class="subtle">'+escapeHtml(info.machine||'Unknown')+'</p></div><div class="help-card"><b>Workspace</b><p class="subtle">'+escapeHtml(info.home_dir||'Termux home')+'</p></div><div class="help-card"><b>Appearance</b><p class="subtle">'+escapeHtml((cfg.appearance_mode||'system')+' · '+(cfg.ui_density||'default'))+'</p></div></div><div class="help-card" style="margin-top:10px"><h3 style="margin-top:0">Support boundaries</h3><ul><li>DedSec OS is rootless and cannot read protected data belonging to other Android apps.</li><li>Android permissions such as camera, microphone, notifications and shared storage still require user approval.</li><li>Optional X11/Linux GUI applications require the Termux:X11 companion; browser-native DedSec OS apps do not.</li><li>Use Diagnostics before changing packages so you can distinguish browser/UI issues from Termux/Android integration issues.</li></ul></div>';
+      return '<div class="help-section-title"><h2>'+escapeHtml(helpLang('About this DedSec OS build','Σχετικά με αυτό το DedSec OS build'))+'</h2></div><div class="help-about-grid"><div class="help-card"><b>DedSec OS</b><p class="subtle">Browser-native workspace generated and served locally by Settings.py on Termux or desktop Linux.</p></div><div class="help-card"><b>Profile</b><p class="subtle">'+escapeHtml(info.profile_name||info.display_name||'DedSec')+'</p></div><div class="help-card"><b>Platform</b><p class="subtle">'+escapeHtml((info.platform||'Android/Linux')+' '+(info.release||''))+'</p></div><div class="help-card"><b>Architecture</b><p class="subtle">'+escapeHtml(info.machine||'Unknown')+'</p></div><div class="help-card"><b>Workspace</b><p class="subtle">'+escapeHtml(info.home_dir||'Termux home')+'</p></div><div class="help-card"><b>Appearance</b><p class="subtle">'+escapeHtml((cfg.appearance_mode||'system')+' · '+(cfg.ui_density||'default'))+'</p></div></div><div class="help-card" style="margin-top:10px"><h3 style="margin-top:0">Support boundaries</h3><ul><li>DedSec OS is rootless and cannot read protected data belonging to other Android apps.</li><li>Android permissions such as camera, microphone, notifications and shared storage still require user approval.</li><li>Optional X11/Linux GUI applications require the Termux:X11 companion; browser-native DedSec OS apps do not.</li><li>Use Diagnostics before changing packages so you can distinguish browser/UI issues from Termux/Android integration issues.</li></ul></div>';
     }
 
     function helpRender(){
@@ -20284,7 +20402,7 @@ def network_enable_tor():
         network_apply_bashrc_exports()
     print(msg)
     if ok:
-        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+        print(_("Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged."))
 
 
 def network_disable_tor():
@@ -20294,7 +20412,7 @@ def network_disable_tor():
     network_save_config(config)
     network_apply_bashrc_exports()
     print(msg)
-    print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+    print(_("Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged."))
 
 
 def network_enable_http_proxy(force_refresh=False):
@@ -20311,7 +20429,7 @@ def network_enable_http_proxy(force_refresh=False):
         network_apply_bashrc_exports()
         print(_("HTTP proxy ready") + ": " + existing_proxy)
         print(_("Saved HTTP Proxy proxy reused without retesting."))
-        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+        print(_("Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged."))
         return
 
     if existing_proxy and network_is_proxy_marked_bad(country, existing_proxy):
@@ -20326,7 +20444,7 @@ def network_enable_http_proxy(force_refresh=False):
         network_apply_bashrc_exports()
     print(msg)
     if proxy:
-        print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+        print(_("Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged."))
 
 
 def network_disable_http_proxy():
@@ -20336,7 +20454,7 @@ def network_disable_http_proxy():
     network_save_config(config)
     network_apply_bashrc_exports()
     print(_("HTTP Proxy Connection") + ": " + _("Disabled"))
-    print(_("Network exports updated. Restart Termux or open a new shell to apply them everywhere."))
+    print(_("Network exports updated. Open a new shell for new session settings; your existing browser/VPN route is unchanged."))
 
 
 def network_choose_proxy_location():
@@ -30927,10 +31045,10 @@ def run_settings_list_menu():
                     safe_curses_addstr(stdscr, y, x, option)
             stdscr.refresh()
             key = stdscr.getch()
-            if key == curses.KEY_UP and current_row > 0:
-                current_row -= 1
-            elif key == curses.KEY_DOWN and current_row < len(menu_options) - 1:
-                current_row += 1
+            if key == curses.KEY_UP:
+                current_row = (current_row - 1) % len(menu_options)
+            elif key == curses.KEY_DOWN:
+                current_row = (current_row + 1) % len(menu_options)
             elif key in [curses.KEY_ENTER, 10, 13]:
                 return current_row
             elif key in [ord('q'), ord('Q')]:
@@ -31090,7 +31208,7 @@ def run_settings_number_menu():
     while True:
         clear_terminal_screen()
         print(f"=== {_('Select an option')} ===\n")
-        for i, option in enumerate(menu_options):
+        for i, option in enumerate(menu_options[:-1]):
             print(f"{i + 1}. {option}")
         print(f"\n0. {_('Exit')}")
         
@@ -31107,7 +31225,7 @@ def run_settings_number_menu():
         if choice == 0:
             return len(menu_options) - 1  # Exit option
         
-        if 1 <= choice <= len(menu_options):
+        if 1 <= choice < len(menu_options):
             return choice - 1
         else:
             print(_("Invalid selection. Please try again."))
@@ -32921,7 +33039,7 @@ def dedguy_install_staged_update():
 
 def dedguy_replacement_command():
     """Return the safe transactional installer command for a validated staged update."""
-    return 'python3 "$HOME/DedSec/Scripts/Settings.py" --install-ded-guy-update'
+    return f'"{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --install-ded-guy-update'
 
 
 def dedguy_post_update_install_notice():
@@ -32932,10 +33050,10 @@ def dedguy_post_update_install_notice():
     command = dedguy_replacement_command()
     return pipboy_text(
         "\n[+] A validated Settings update is ready at ~/Settings-Updated.py.\n"
-        "Copy and paste this exact command into Termux to install it now:\n\n"
+        "Copy and paste this command into your current terminal to install it:\n\n"
         + command,
         "\n[+] Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py.\n"
-        "Αντιγράψτε και επικολλήστε ακριβώς αυτή την εντολή στο Termux για να την εγκαταστήσετε τώρα:\n\n"
+        "Επικολλήστε αυτή την εντολή στο τρέχον τερματικό για εγκατάσταση:\n\n"
         + command,
     )
 
@@ -33388,6 +33506,20 @@ if __name__ == "__main__":
         if command == "--build-id":
             print(SETTINGS_BUILD_ID)
             sys.exit(0)
+        if command == "--configure-menu-autostart":
+            # Setup calls this once after dependencies exist; never overwrite an
+            # existing opt-out or change the saved menu style.
+            try:
+                style = get_current_menu_style()
+                update_bashrc(get_current_language_path(), style)
+                with open(BASHRC_PATH, 'r', encoding='utf-8') as startup_file:
+                    ready = BASHRC_START_MARKER in startup_file.read()
+                print('[autostart] Shell configuration ' + ('updated.' if ready else 'not verified.'))
+                sys.exit(0 if ready else 1)
+            except Exception as error:
+                print(f'[autostart] Could not configure shell startup: {error}', file=sys.stderr)
+                sys.exit(1)
+
 
         if command == "--termux-transfer":
             sys.exit(0 if create_termux_transfer() else 1)

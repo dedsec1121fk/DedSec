@@ -14,13 +14,6 @@ WARNINGS=0
 PYTHON_FAILURES=0
 OPTIONAL_TERMUX_FAILURES=0
 
-LOG_DIR="${HOME:-$ROOT_DIR}/.dedsec/logs"
-mkdir -p "$LOG_DIR"
-LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
-if command -v tee >/dev/null 2>&1; then
-  exec > >(tee -a "$LOG_FILE") 2>&1
-fi
-
 show_help() {
   cat <<'HELP'
 Usage: bash Setup.sh [options]
@@ -78,6 +71,19 @@ for arg in "$@"; do
       ;;
   esac
 done
+
+# First-install legal approval is mandatory; declining has no setup side effects.
+# shellcheck source=Compat/legal_consent.sh
+source "$ROOT_DIR/Compat/legal_consent.sh"
+dedsec_require_legal_acceptance || exit 1
+
+LOG_DIR="${HOME:-$ROOT_DIR}/.dedsec/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/setup-$(date +%Y%m%d-%H%M%S).log"
+if command -v tee >/dev/null 2>&1; then
+  exec > >(tee -a "$LOG_FILE") 2>&1
+fi
+
 
 printf '[DedSec Setup] Project: %s\n' "$ROOT_DIR"
 printf '[DedSec Setup] Log: %s\n' "$LOG_FILE"
@@ -154,6 +160,11 @@ TERMUX_TOOL_PACKAGES=(
 PYTHON_CORE_PACKAGES=(
   requests
   urllib3
+  flask
+  flask-socketio
+  werkzeug
+  jinja2
+  qrcode
 )
 
 # PyPI distributions directly used by active scripts. cryptography, lxml,
@@ -171,8 +182,6 @@ PYTHON_TOOL_PACKAGES=(
   python-dotenv
   EbookLib
   ExifRead
-  flask
-  flask-socketio
   geopy
   httpx
   Jinja2
@@ -569,6 +578,10 @@ if [ "$WARNINGS" -eq 0 ] && [ "$PYTHON_FAILURES" -eq 0 ] && [ "$OPTIONAL_TERMUX_
 else
   echo "[complete with warnings] Setup finished with $WARNINGS warning(s). Review: $LOG_FILE"
 fi
+
+# Reconcile initial startup hook with persisted language/menu preferences.
+"$PYTHON_BIN" "$ROOT_DIR/Scripts/Settings.py" --configure-menu-autostart || \
+  warn 'Shell autostart could not be configured automatically.'
 
 echo '[note] Termux:API commands also require the separate Termux:API Android application.'
 echo '[note] Python dependencies prefer Termux-native packages, then binary wheels, and compile from source only as a final fallback.'

@@ -1,0 +1,141 @@
+DEDSEC PROJECT — LEGAL DISCLAIMER & STATEMENT
+
+Last updated: 9 April 2026
+
+By accessing, downloading, using the DedSec Project website, the GitHub repository, scripts, tools or any related content, you expressly acknowledge that you have read, understood and agree to be bound by this entire Legal Disclaimer & Statement. If you do not agree, you must immediately cease all use and delete any downloaded materials.
+
+Purpose / Educational Use
+
+The DedSec Project is a free, community-driven Termux cybersecurity toolkit that provides scripts, utilities, learning resources and related content. Any functionality related to cybersecurity, OSINT, network testing, scraping or similar tools is provided strictly for:
+
+• education,
+
+• lawful security research,
+
+• defensive testing, and
+
+• use only on systems/accounts that you own or where you have explicit, prior, written permission.
+
+The optional phishing and social-engineering simulation modules are included solely for educational awareness training in fully controlled environments with explicit informed consent from all involved parties. Any other use is strictly prohibited.
+
+Prohibition of Unlawful Use / Authorization Required
+
+IT IS STRICTLY PROHIBITED to use the DedSec Project for any illegal or unauthorized purpose. You must NOT use the tools, guides or content of the DedSec Project for:
+
+• access, testing, disruption or monitoring of systems without authorization,
+
+• phishing or credential collection against real targets,
+
+• unauthorized scanning, exploitation, DDoS/DoS, brute-force, malware or any illegal activity.
+
+You are solely responsible for ensuring that your use complies with all applicable laws. Misuse may lead to serious civil and criminal penalties, including prosecution under the CFAA, Greek cybercrime legislation or equivalent laws.
+
+No Professional / Legal Advice
+
+The content is provided solely for informational purposes and does not constitute legal, financial, medical or any other professional advice. No attorney-client relationship is created. For legal advice, consult a qualified lawyer.
+
+User Responsibility, Risk and Safety
+
+Software and scripts can cause data loss, service interruption, account restrictions or other damage if used incorrectly or maliciously. You assume all risk arising from the use of:
+
+• the website,
+
+• the scripts/tools referenced or provided,
+
+• third-party services, websites or APIs.
+
+Always test in a controlled and fully authorized environment.
+
+You further acknowledge that certain tools may be detected by antivirus software, security systems or service providers, potentially leading to account restrictions or legal scrutiny.
+
+Limitation of Liability (to the maximum extent permitted by law)
+
+To the maximum extent permitted by applicable law (including the laws of Greece, the European Union and the United States), the DedSec Project, its owner, contributors and collaborators shall not be liable for any direct or indirect, incidental, consequential, special or exemplary damages, including loss of data, profits, reputation or business interruption, arising from access to or use of the website or the tools.
+
+Some jurisdictions do not allow certain limitations; where prohibited, they do not apply.
+
+Indemnification
+
+You agree to indemnify and hold harmless the DedSec Project, its owner, contributors and collaborators from any claims, damages, liabilities, losses and expenses (including reasonable attorney fees) arising from:
+
+• use or misuse of the website/tools,
+
+• violation of any law/regulation or third-party rights,
+
+• breach of this statement.
+
+Intellectual Property / Open Source
+
+Unless otherwise stated, the text, graphics and branding are protected by applicable intellectual property laws. The code and scripts are governed by the proprietary license included in the GitHub repository (LICENSE.txt), which grants only limited rights for personal, non-commercial use. Modification, redistribution, reverse engineering or commercial use without the owner’s explicit written permission is strictly prohibited. Third-party trademarks belong to their respective owners and are used for identification purposes only.
+
+Third-Party Links / Services and Affiliate Links
+
+The website may contain links to third parties (e.g. Stripe, social networks, affiliate/referral links). Third parties have their own terms and policies and the DedSec Project is not responsible for their content or practices. If an affiliate/referral relationship exists, a commission may be earned at no extra cost to you.
+
+Privacy and Data Protection (high-level)
+
+The DedSec Project aims to collect the minimum amount of personal data. However, standard hosting/security operations may process limited technical data (e.g. IP address, device/browser details, logs) for security and operational purposes.
+
+Where applicable, processing is governed by:
+
+• GDPR (Regulation (EU) 2016/679) and related rules,
+
+• ePrivacy rules (Directive 2002/58/EC as transposed),
+
+• Greek data protection legislation (in particular Law 4624/2019 and related rules),
+
+• and the applicable consumer protection/privacy frameworks in the USA (where relevant).
+
+For details, see the website’s Privacy Policy.
+
+Legal Compliance – Applicable Laws
+
+You must ensure that your actions remain within the boundaries of all applicable laws, including (but not limited to):
+
+• European Union / Europe: Regulation (EU) 2016/679 (GDPR), ePrivacy Directive 2002/58/EC, NIS2 Directive, Cyber Resilience Act and national implementing laws;
+
+• United States of America: Computer Fraud and Abuse Act (CFAA), Digital Millennium Copyright Act (DMCA) and applicable federal and state laws;
+
+• Greece: Law 4624/2019 on personal data protection, provisions of the Greek Penal Code on cybercrime, Law 2225/1994 (as amended) and all other relevant Greek cybersecurity and data protection legislation.
+
+Cookies
+
+If cookies or similar technologies are used (including via third-party embeds), disclosure and consent are provided as required by GDPR/ePrivacy and Greek law. See the Privacy Policy / cookie notice (if displayed).
+
+Children’s Privacy
+
+The website and tools are not directed at children under 13. If the operator becomes aware that personal data of a child under 13 has been collected in a manner covered by COPPA (USA) or other applicable law, reasonable steps will be taken to delete it.
+
+Security Research Boundaries (USA, EU, Greece — “where applicable”)
+
+You must ensure that your actions remain within lawful boundaries, including (indicatively and where applicable):
+
+• USA: CFAA, DMCA, FTC Act and state legislation,
+
+• EU: national criminal legislation and cybersecurity/data protection rules,
+
+• Greece: relevant provisions of criminal law and applicable legislation on cybercrime and data.
+
+This document does not list every law. You must comply with all laws that apply to you and to the targets/systems you are testing.
+
+Disclaimer of Warranties
+
+The website, tools, scripts and all content are provided “AS IS” and “AS AVAILABLE” without any warranty of any kind, express, implied, statutory or otherwise, including (but not limited to) warranties of merchantability, fitness for a particular purpose, title or non-infringement. We do not warrant that the tools will be error-free, secure, uninterrupted or suitable for any particular purpose.
+
+Governing Law and Jurisdiction
+
+This Legal Disclaimer & Statement is governed exclusively by the laws of the Hellenic Republic, without regard to conflict-of-laws principles. Any dispute arising out of or relating to this statement or the use of the Project shall be resolved exclusively by the competent courts of Athens, Attica. You irrevocably submit to the jurisdiction of those courts.
+
+Severability
+
+If any Clause, or part of a Clause, of this Disclaimer is found by any court or administrative body of competent jurisdiction to be illegal, invalid or unenforceable, the legality, validity or enforceability of the remainder of the Clause or Paragraph which contains the relevant provision shall not be affected, unless otherwise stipulated under applicable law. If the remainder of the provision is not affected, the Parties shall use all reasonable endeavours to agree within a reasonable time upon any lawful and reasonable variations to the Disclaimer which may be necessary in order to achieve, to the greatest extent possible, the same effect as would have been achieved by the Clause, or the part of the Clause, in question.
+
+Entire Agreement & Changes
+
+This statement constitutes the entire agreement between you and the DedSec Project regarding its subject matter and supersedes all prior understandings. It may be modified at any time; continued use after changes constitutes acceptance of the new version.
+
+Contact
+
+For legal/privacy issues or content removal requests, use the contact details listed on the Contact page.
+
+— End of document —

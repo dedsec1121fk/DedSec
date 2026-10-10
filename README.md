@@ -23,6 +23,10 @@
 
 # DedSec Project
 
+> **First-setup legal confirmation / Πρώτη εγκατάσταση:** `bash Setup.sh` requires acceptance of the English/Greek legal documents in `Important Documents/` before installing anything. Press **y** or **Enter** to accept; **n** to cancel safely and retry later; **r** for reading options; **re** for English; **rg** for Greek. / Πριν την εγκατάσταση απαιτείται αποδοχή των νομικών όρων. **y/Enter** αποδοχή, **n** ακύρωση, **r** επιλογές, **re** αγγλικά, **rg** ελληνικά.
+
+> **Maintenance / Συντήρηση:** Full English and Greek development/maintenance guides plus an Ubuntu reviewer issue tracker are inside [`Important Documents/`](Important%20Documents/).
+
 > **Cross-platform build note:** This copy includes support for Ubuntu, Kali Linux, Linux Mint, and Termux. Run `bash Setup.sh`, then use `./Run.sh`. See [`CROSS_PLATFORM.md`](CROSS_PLATFORM.md) for platform-specific behavior and limitations.
 
 
