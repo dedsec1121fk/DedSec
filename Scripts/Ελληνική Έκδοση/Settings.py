@@ -164,9 +164,9 @@ BASHRC_PATH = _desktop_shell_config_path()
 DOWNLOADS_DIR = _downloads_directory()
 MOTD_PATH = os.path.join(_PREFIX_DIR, "etc", "motd") if _IS_TERMUX else os.path.join(HOME_DIR, ".config", "dedsec", "motd")
 
-# Ded-Guy self-update protocol. Generated updates are staged in Termux home and
-# are never installed automatically; the user receives an exact replacement
-# command on the next launch.
+# Ded-Guy self-update protocol. Generated updates are staged and validated in
+# Termux home, then installed automatically in both language folders. Existing
+# backups and rollback support remain available for recovery.
 DEDGUY_SELF_UPDATE_COMPATIBILITY = 1
 DEDGUY_SELF_UPDATE_SCHEMA = 1
 DEDGUY_UPDATED_SCRIPT_PATH = os.path.join(HOME_DIR, "Settings-Updated.py")
@@ -1400,10 +1400,8 @@ def update_dedsec(repo_url=REPO_URL_SOURCE_1, repo_api_url=REPO_API_URL_SOURCE_1
                 # reported without pretending the project update itself failed.
                 pass
 
-    # Keep the final success notice at the actual end of the complete update
-    # workflow, after the repository and Ded-Guy knowledge refresh have both
-    # finished. If a validated Settings candidate exists, immediately show the
-    # exact installation command instead of waiting for the next Termux launch.
+    # Database refresh now installs any validated Settings update automatically.
+    # The update process no longer asks the user to copy and paste a command.
     print(f"[+] {_('Update process completed successfully')}!")
     install_notice = dedguy_post_update_install_notice()
     if install_notice:
@@ -32631,6 +32629,9 @@ def pipboy_refresh_knowledge_after_update(trigger="update", force_project_rebuil
         summary["source_changes_found"] = bool(summary["repositories_changed"] or summary["website_changed"] or local_changed)
         summary["settings_update_created"] = False
         summary["settings_update_path"] = ""
+        summary["settings_update_installed"] = False
+        summary["settings_update_install_error"] = ""
+        globals()["_DEDGUY_LAST_AUTO_INSTALL_RESULT"] = None
         pipboy_atomic_json_write(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, new_state)
 
         if summary["ok"] and summary["source_changes_found"]:
@@ -32642,7 +32643,26 @@ def pipboy_refresh_knowledge_after_update(trigger="update", force_project_rebuil
                 summary["errors"].append(f"Settings-Updated.py: {exc}")
                 pipboy_log_error("Settings staged self-update", exc)
 
-        # Save the final summary including candidate-generation status.
+        # Install immediately, while this process can still use its already
+        # loaded Python code. os.replace safely swaps the on-disk Settings.py;
+        # the new source is picked up on the next program launch. The existing
+        # installer validates the candidate and backs up/rolls back both copies.
+        if summary["ok"]:
+            candidate_ready, _candidate_reason = dedguy_validate_candidate_file()
+            if candidate_ready:
+                try:
+                    installed, install_message = dedguy_install_staged_update()
+                except Exception as exc:
+                    installed, install_message = False, str(exc)
+                    pipboy_log_error("automatic Settings update install", exc)
+                summary["settings_update_installed"] = bool(installed)
+                globals()["_DEDGUY_LAST_AUTO_INSTALL_RESULT"] = (bool(installed), str(install_message))
+                if not installed:
+                    summary["settings_update_install_error"] = str(install_message)
+                    summary["errors"].append(f"Settings automatic installation: {install_message}")
+                    pipboy_log_error("automatic Settings update install", RuntimeError(str(install_message)))
+
+        # Save the final summary including candidate-generation/install status.
         new_state["last_summary"] = summary
         pipboy_atomic_json_write(PIPBOY_KNOWLEDGE_REFRESH_STATE_PATH, new_state)
 
@@ -32660,10 +32680,15 @@ def pipboy_refresh_knowledge_after_update(trigger="update", force_project_rebuil
                     "Ded-Guy checked all repositories and the website; the database is already current.",
                     "Το Ded-Guy έλεγξε όλα τα repositories και το website· η βάση είναι ήδη ενημερωμένη.",
                 ))
-            if summary.get("settings_update_created"):
+            if summary.get("settings_update_installed"):
                 progress(pipboy_text(
-                    "A validated ~/Settings-Updated.py was created. Its copy-and-paste installation command will be shown when this update finishes.",
-                    "Δημιουργήθηκε ελεγμένο ~/Settings-Updated.py. Η εντολή εγκατάστασης για αντιγραφή και επικόλληση θα εμφανιστεί όταν ολοκληρωθεί αυτή η ενημέρωση.",
+                    "Settings.py updated automatically in both language folders. The new version will run on the next launch; no command is needed.",
+                    "Το Settings.py ενημερώθηκε αυτόματα και στους δύο γλωσσικούς φακέλους. Η νέα έκδοση θα χρησιμοποιηθεί στην επόμενη εκκίνηση· δεν απαιτείται εντολή.",
+                ))
+            elif summary.get("settings_update_install_error"):
+                progress(pipboy_text(
+                    "Automatic Settings installation failed; the previous files were preserved and the validated update remains staged. The installer will retry on the next launch.",
+                    "Η αυτόματη εγκατάσταση Settings απέτυχε· τα προηγούμενα αρχεία διατηρήθηκαν και η ελεγμένη ενημέρωση παραμένει έτοιμη. Θα γίνει νέα προσπάθεια στην επόμενη εκκίνηση.",
                 ))
             if summary["errors"]:
                 progress(pipboy_text(
@@ -33004,6 +33029,14 @@ def dedguy_install_staged_update():
             os.replace(staged[target], target)
             staged.pop(target, None)
             activated.append(target)
+
+        # Verify every installed language copy before removing the candidate.
+        # Any mismatch triggers the same rollback as an interrupted replacement.
+        candidate_sha256 = dedguy_sha256_bytes(candidate)
+        for target in targets:
+            with open(target, "rb") as handle:
+                if dedguy_sha256_bytes(handle.read()) != candidate_sha256:
+                    raise RuntimeError(f"post-install integrity check failed: {target}")
         try:
             os.remove(DEDGUY_UPDATED_SCRIPT_PATH)
         except OSError:
@@ -33042,36 +33075,65 @@ def dedguy_replacement_command():
     return f'"{SETTINGS_PYTHON_BIN}" "{SETTINGS_SCRIPT_PATH}" --install-ded-guy-update'
 
 
-def dedguy_post_update_install_notice():
-    """Return the immediate copy/paste command shown after a successful update."""
-    valid, _reason = dedguy_validate_candidate_file()
+def dedguy_auto_install_pending_update():
+    """Retry a previously staged update without user interaction on launch.
+
+    A candidate is generated only from the installed Settings.py plus verified
+    knowledge data. Invalid or missing candidates are never executed or copied.
+    """
+    valid, reason = dedguy_validate_candidate_file()
     if not valid:
-        return ""
-    command = dedguy_replacement_command()
-    return pipboy_text(
-        "\n[+] A validated Settings update is ready at ~/Settings-Updated.py.\n"
-        "Copy and paste this command into your current terminal to install it:\n\n"
-        + command,
-        "\n[+] Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py.\n"
-        "Επικολλήστε αυτή την εντολή στο τρέχον τερματικό για εγκατάσταση:\n\n"
-        + command,
+        if os.path.isfile(DEDGUY_UPDATED_SCRIPT_PATH) and reason not in {
+            "pending file is missing", "pending file is identical to the installed file"
+        }:
+            return False, pipboy_text(
+                f"Settings update validation failed; existing files kept: {reason}",
+                f"Ο έλεγχος της ενημέρωσης Settings απέτυχε· διατηρήθηκαν τα υπάρχοντα αρχεία: {reason}",
+            )
+        return None, ""
+    try:
+        installed, message = dedguy_install_staged_update()
+    except Exception as exc:
+        installed, message = False, str(exc)
+        pipboy_log_error("pending Settings auto-install", exc)
+    if installed:
+        return True, pipboy_text(
+            "[+] Settings.py update installed automatically in both languages. No command required.",
+            "[+] Η ενημέρωση Settings.py εγκαταστάθηκε αυτόματα και στις δύο γλώσσες. Δεν απαιτείται εντολή.",
+        )
+    return False, pipboy_text(
+        f"[!] Automatic Settings installation failed (retry on next launch): {message}",
+        f"[!] Η αυτόματη εγκατάσταση Settings απέτυχε (νέα προσπάθεια στην επόμενη εκκίνηση): {message}",
     )
+
+
+def dedguy_post_update_install_notice():
+    """Report automatic installation failures only; never demand copy/paste."""
+    outcome = globals().get("_DEDGUY_LAST_AUTO_INSTALL_RESULT")
+    if isinstance(outcome, tuple) and len(outcome) == 2 and not outcome[0]:
+        return pipboy_text(
+            "[!] Settings was not installed automatically; the previous version is preserved. It will be retried at startup.",
+            "[!] Το Settings δεν εγκαταστάθηκε αυτόματα· διατηρήθηκε η προηγούμενη έκδοση. Θα γίνει νέα προσπάθεια στην εκκίνηση.",
+        )
+    return ""
 
 
 def dedguy_pending_update_notice():
+    """Only show an error for an uninstalled candidate; startup retries it."""
     valid, reason = dedguy_validate_candidate_file()
-    if not valid:
-        if os.path.isfile(DEDGUY_UPDATED_SCRIPT_PATH) and reason not in {"pending file is missing", "pending file is identical to the installed file"}:
-            return pipboy_text(
-                f"A staged Settings update exists but failed validation: {reason}. It was not installed.",
-                f"Υπάρχει staged ενημέρωση Settings αλλά απέτυχε στον έλεγχο: {reason}. Δεν εγκαταστάθηκε.",
-            )
-        return ""
-    command = dedguy_replacement_command()
-    return pipboy_text(
-        "A validated Settings update is ready at ~/Settings-Updated.py. Run this exact command to back up both language copies, install the update into English and the active Ελληνική Έκδοση folder (visible or hidden), validate both files, and finish without launching Ded-Guy:\n" + command,
-        "Μια ελεγμένη ενημέρωση Settings είναι έτοιμη στο ~/Settings-Updated.py. Εκτέλεσε ακριβώς αυτή την εντολή για backup και των δύο γλωσσικών αντιγράφων, εγκατάσταση στα English και στον ενεργό φάκελο Ελληνική Έκδοση (ορατό ή κρυφό), έλεγχο και των δύο αρχείων και ολοκλήρωση χωρίς εκκίνηση του Ded-Guy:\n" + command,
-    )
+    if valid:
+        return pipboy_text(
+            "A verified Settings update is staged. It will be installed automatically on the next launch.",
+            "Μια ελεγμένη ενημέρωση Settings είναι έτοιμη. Θα εγκατασταθεί αυτόματα στην επόμενη εκκίνηση.",
+        )
+    if os.path.isfile(DEDGUY_UPDATED_SCRIPT_PATH) and reason not in {
+        "pending file is missing", "pending file is identical to the installed file"
+    }:
+        return pipboy_text(
+            f"A staged Settings update failed validation and was not installed: {reason}",
+            f"Μια ενημέρωση Settings απέτυχε στον έλεγχο και δεν εγκαταστάθηκε: {reason}",
+        )
+    return ""
 
 
 def dedguy_create_settings_updated(summary=None, refresh_state=None):
@@ -33284,6 +33346,7 @@ def dedguy_core_self_test():
     command_text = dedguy_replacement_command()
     record("Transactional replacement command", "--install-ded-guy-update" in command_text and "Settings.py" in command_text)
     record("Transactional installer callable", callable(globals().get("dedguy_install_staged_update")))
+    record("Automatic pending installer callable", callable(globals().get("dedguy_auto_install_pending_update")))
     record("Replacement does not launch Ded-Guy", "--activate-ded-guy" not in command_text)
     try:
         curses_source = inspect.getsource(pipboy_curses) if "inspect" in globals() else ""
@@ -33430,6 +33493,12 @@ def dedguy_installation_self_test():
     record("Greek Settings updated", "GREEK_PATH_FULL" in installer_source and "HIDDEN_GREEK_PATH" in installer_source, installer_source[:160])
     record("Candidate validated first", "dedguy_validate_candidate_file" in installer_source and "py_compile.compile" in installer_source, installer_source[:160])
     record("Hidden Greek folder supported", "HIDDEN_GREEK_PATH" in installer_source, installer_source[:160])
+    try:
+        refresh_source = inspect.getsource(pipboy_refresh_knowledge_after_update)
+    except Exception:
+        refresh_source = ""
+    record("Automatic install after refresh", "dedguy_install_staged_update()" in refresh_source)
+    record("Pending update retry", callable(globals().get("dedguy_auto_install_pending_update")))
 
     rewrites = {
         "Take me into Pet Friends please": "run pet friends",
@@ -33747,6 +33816,9 @@ if __name__ == "__main__":
         # Ded-Guy is a main-menu style, not a Settings option. Launch it before
         # backups, GitHub checks, network auto-start, or any synchronous scan.
         if command == "--menu" and explicit_style == "pipboy":
+            _installed, _update_notice = dedguy_auto_install_pending_update()
+            if _update_notice:
+                print(_update_notice)
             try:
                 enforce_language_folder_visibility()
             except Exception:
@@ -33759,6 +33831,11 @@ if __name__ == "__main__":
 
         if command.startswith("--") and command != "--menu":
             sys.exit(0)
+
+        # Applies to list/grid/number/DedSec OS and the default interactive menu.
+        _installed, _update_notice = dedguy_auto_install_pending_update()
+        if _update_notice:
+            print(_update_notice)
 
         enforce_language_folder_visibility()
         remove_obsolete_settings_helpers()
